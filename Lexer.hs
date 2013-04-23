@@ -7,6 +7,7 @@ data Token =
     TokenEmpty
   | TokenVar String
   | TokenFun
+  | TokenCirc
   | TokenEq
   | TokenArrow
   | TokenTrue
@@ -28,6 +29,7 @@ data Token =
   | TokenRev
   | TokenBool
   | TokenQBit
+  | TokenBang
   | TokenEOF
     deriving Show
 
@@ -39,6 +41,7 @@ lexer cont s =
     ('*':cs) -> \(l, c) -> cont TokenEmpty cs (l, c+1)
     (',':cs) -> \(l, c) -> cont TokenComma cs (l, c+1)
     ('=':cs) -> \(l, c) -> cont TokenEq cs (l, c+1)
+    ('!':cs) -> \(l, c) -> cont TokenBang cs (l, c+1)
     ('(':cs) -> \(l, c) -> cont TokenLParen cs (l, c+1)
     (')':cs) -> \(l, c) -> cont TokenRParen cs (l, c+1)
     ('<':cs) -> \(l, c) -> cont TokenLBracket cs (l, c+1)
@@ -60,6 +63,7 @@ lexVar cont cs =
   ("False", rest) -> \(l, c) -> cont TokenFalse rest (l, c+5)
   ("fun", rest) -> \(l, c) -> cont TokenFun rest (l, c+3)
   ("box", rest) -> \(l, c) -> cont TokenBox rest (l, c+3)
+  ("circ", rest) -> \(l, c) -> cont TokenCirc rest (l, c+4)
   ("unbox", rest) -> \(l, c) -> cont TokenUnbox rest (l, c+5)
   ("rev", rest) -> \(l, c) -> cont TokenRev rest (l, c+3)
   ("bool", rest) -> \(l, c) -> cont TokenBool rest (l, c+4)

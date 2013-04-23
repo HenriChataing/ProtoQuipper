@@ -17,6 +17,7 @@ import Syntax
 %token
   '*' { TokenEmpty }
   ',' { TokenComma }
+  '!' { TokenBang }
   '=' { TokenEq }
   '(' { TokenLParen }
   ')' { TokenRParen }
@@ -34,6 +35,7 @@ import Syntax
   BOX { TokenBox }
   UNBOX { TokenUnbox }
   REV { TokenRev }
+  CIRC { TokenCirc }
 
   IF { TokenIn }
   THEN { TokenThen }
@@ -46,34 +48,44 @@ import Syntax
 
 %%
 
-Term : FUN Pattern_list ARROW Term      { EFun $2 $4 }
-     | IF Term THEN Term ELSE Term      { EIf $2 $4 $6 }
-     | LET Pattern '=' Term IN Term      { ELet $2 $4 $6 }
-     | Apply                            { $1 }
+Expr : FUN Pattern_list ARROW Expr       { EFun $2 $4 }
+     | IF Expr THEN Expr ELSE Expr       { EIf $2 $4 $6 }
+     | LET Pattern '=' Expr IN Expr      { ELet $2 $4 $6 }
+     | Apply_expr                        { $1 }
 
-Apply : Apply Atom                      { EApp $1 $2 }
-      | REV Atom                        { ERev $2 }
-      | BOX '[' ']' Atom                { EBox TUnit $4 }
-      | BOX '[' Kind ']' Atom           { EBox $3 $5 }
-      | UNBOX Atom                      { EUnbox $2 }
-      | Atom                            { $1 }
+Apply_expr : Apply_expr Atom_expr        { EApp $1 $2 }
+      | REV Atom_expr                    { ERev $2 }
+      | BOX '[' ']' Atom_expr            { EBox TUnit $4 }
+      | BOX '[' Type ']' Atom_expr       { EBox $3 $5 }
+      | UNBOX Atom_expr                  { EUnbox $2 }
+      | Atom_expr                        { $1 }
 
-Atom : '*'                              { EEmpty }
-     | TRUE                             { ETrue }
-     | FALSE                            { EFalse }
-     | VAR                              { EVar $1 }
-     | '(' Term ')'                     { $2 }
-     | '<' Term ',' Term '>'            { EPair $2 $4 }
-     | '(' Term ',' Term ',' Term ')'   { ECirc $2 $4 $6 }
+Atom_expr : '*'                          { EEmpty }
+     | TRUE                              { ETrue }
+     | FALSE                             { EFalse }
+     | VAR                               { EVar $1 }
+     | '(' Expr ')'                      { $2 }
+     | '<' Expr ',' Expr '>'             { EPair $2 $4 }
+     | '(' Expr ',' Expr ',' Expr ')'    { ECirc $2 $4 $6 }
 
-Pattern : VAR                           { PVar $1 }
-        | '<' Pattern ',' Pattern '>'   { PPair $2 $4 }
+Pattern : VAR                            { PVar $1 }
+        | '<' Pattern ',' Pattern '>'    { PPair $2 $4 }
 
-Pattern_list : Pattern                  { [$1] }
-             | Pattern Pattern_list     { $1:$2 }
+Pattern_list : Pattern                   { [$1] }
+             | Pattern Pattern_list      { $1:$2 }
 
-Kind : BOOL                             { TBool }
-     | QBIT                             { TQBit }
+Atom_type : BOOL                         { TBool }
+          | QBIT                         { TQBit }
+          | '!' Atom_type                { TExp $2 }
+          | CIRC '(' Type ',' Type ')'   { TCirc $3 $5 }
+          | '(' Type ')'                 { $2 }
+          | '(' ')'                      { TUnit }
+
+Tensor_type : Atom_type                  { $1 }
+            | Tensor_type '*' Atom_type  { TTensor $1 $3 }
+
+Type : Tensor_type                       { $1 }
+     | Type ARROW Tensor_type            { TArrow $1 $3 }
 
 {
 parseError :: Token -> P a
