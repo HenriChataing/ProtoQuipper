@@ -1,6 +1,7 @@
-module PMonad where
+module ParserUtils where
 
 import Data.Char
+import Syntax
 
 data ParseResult a = Ok a | Failed String
   deriving Show
@@ -10,12 +11,6 @@ type P a = String -> Locus -> ParseResult a
 
 getLocus :: P Locus
 getLocus = \s l -> Ok l
-
-nextLine :: (Locus -> ParseResult a) -> (Locus -> ParseResult a)
-nextLine m = \(l, c) -> m (l+1, c)
-
-nextChar :: (Locus -> ParseResult a) -> (Locus -> ParseResult a)
-nextChar m = \(l, c) -> m (l, c+1)
 
 thenP :: P a -> (a -> P b) -> P b
 thenP m k = \s l ->

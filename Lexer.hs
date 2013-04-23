@@ -1,7 +1,7 @@
 module Lexer where
 
 import Data.Char
-import PMonad
+import ParserUtils
 
 data Token =
     TokenEmpty

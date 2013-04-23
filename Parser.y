@@ -2,7 +2,7 @@
 module Parser where
 
 import Data.Char
-import PMonad
+import ParserUtils
 import Lexer
 import Syntax
 }
@@ -77,6 +77,8 @@ Pattern : VAR                            { PVar $1 }
 
 Pattern_list : Pattern                   { [$1] }
              | Pattern Pattern_list      { $1:$2 }
+
+
 
 Atom_type : BOOL                         { TBool }
           | QBIT                         { TQBit }
