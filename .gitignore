@@ -1,0 +1,7 @@
+Parser.hs
+*~
+*.hi
+*.o
+_build
+
+
