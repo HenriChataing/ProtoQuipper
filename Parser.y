@@ -46,6 +46,10 @@ import Syntax
   BOOL { TokenBool }
   QBIT { TokenQBit }
 
+%left ARROW
+%left '*'
+%nonassoc '!'
+
 %%
 
 Expr : FUN Pattern_list ARROW Expr       { EFun $2 $4 }
@@ -76,16 +80,14 @@ Pattern_list : Pattern                   { [$1] }
 
 Atom_type : BOOL                         { TBool }
           | QBIT                         { TQBit }
-          | '!' Atom_type                { TExp $2 }
           | CIRC '(' Type ',' Type ')'   { TCirc $3 $5 }
           | '(' Type ')'                 { $2 }
           | '(' ')'                      { TUnit }
 
-Tensor_type : Atom_type                  { $1 }
-            | Tensor_type '*' Atom_type  { TTensor $1 $3 }
-
-Type : Tensor_type                       { $1 }
-     | Type ARROW Tensor_type            { TArrow $1 $3 }
+Type : Atom_type                         { $1 }
+     | Type '*' Type                     { TTensor $1 $3 }
+     | Type ARROW Type                   { TArrow $1 $3 }
+     | '!' Type                          { TExp $2 }
 
 {
 parseError :: Token -> P a
