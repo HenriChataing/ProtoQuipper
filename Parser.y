@@ -46,25 +46,25 @@ import Syntax
 
 %%
 
-Term : FUN Pattern_list ARROW Term      { TFun $2 $4 }
-     | IF Term THEN Term ELSE Term      { TIf $2 $4 $6 }
-     | LET Pattern '=' Term IN Term      { TLet $2 $4 $6 }
+Term : FUN Pattern_list ARROW Term      { EFun $2 $4 }
+     | IF Term THEN Term ELSE Term      { EIf $2 $4 $6 }
+     | LET Pattern '=' Term IN Term      { ELet $2 $4 $6 }
      | Apply                            { $1 }
 
-Apply : Apply Atom                      { TApp $1 $2 }
-      | REV Atom                        { TRev $2 }
-      | BOX '[' ']' Atom                { TBox KUnit $4 }
-      | BOX '[' Kind ']' Atom           { TBox $3 $5 }
-      | UNBOX Atom                      { TUnbox $2 }
+Apply : Apply Atom                      { EApp $1 $2 }
+      | REV Atom                        { ERev $2 }
+      | BOX '[' ']' Atom                { EBox TUnit $4 }
+      | BOX '[' Kind ']' Atom           { EBox $3 $5 }
+      | UNBOX Atom                      { EUnbox $2 }
       | Atom                            { $1 }
 
-Atom : '*'                              { TEmpty }
-     | TRUE                             { TTrue }
-     | FALSE                            { TFalse }
-     | VAR                              { TVar $1 }
+Atom : '*'                              { EEmpty }
+     | TRUE                             { ETrue }
+     | FALSE                            { EFalse }
+     | VAR                              { EVar $1 }
      | '(' Term ')'                     { $2 }
-     | '<' Term ',' Term '>'            { TPair $2 $4 }
-     | '(' Term ',' Term ',' Term ')'   { TCirc $2 $4 $6 }
+     | '<' Term ',' Term '>'            { EPair $2 $4 }
+     | '(' Term ',' Term ',' Term ')'   { ECirc $2 $4 $6 }
 
 Pattern : VAR                           { PVar $1 }
         | '<' Pattern ',' Pattern '>'   { PPair $2 $4 }
@@ -72,8 +72,8 @@ Pattern : VAR                           { PVar $1 }
 Pattern_list : Pattern                  { [$1] }
              | Pattern Pattern_list     { $1:$2 }
 
-Kind : BOOL                             { KBool }
-     | QBIT                             { KQBit }
+Kind : BOOL                             { TBool }
+     | QBIT                             { TQBit }
 
 {
 parseError :: Token -> P a
