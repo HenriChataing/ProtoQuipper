@@ -3,32 +3,26 @@ module ParserUtils where
 import Data.Char
 import Syntax
 
-data ParseResult a = Ok a | Failed String
+data E a = Ok a | Failed String
   deriving Show
 
-type Locus = (Int, Int)
-type P a = String -> Locus -> ParseResult a
-
-getLocus :: P Locus
-getLocus = \s l -> Ok l
-
-thenP :: P a -> (a -> P b) -> P b
-thenP m k = \s l ->
-  case m s l of
-    Ok a -> k a s l
+thenE :: E a -> (a -> E b) -> E b
+thenE m k =
+  case m of
+    Ok a -> k a
     Failed e -> Failed e
 
-returnP :: a -> P a
-returnP a = \s l -> Ok a
+returnE :: a -> E a
+returnE a = Ok a
 
-failP :: String -> P a
-failP e = \s l -> Failed e
+failE :: String -> E a
+failE e = Failed e
 
-catchP :: P a -> (String -> P a) -> P a
-catchP m k = \s l ->
-  case m s l of
+catchE :: E a -> (String -> E a) -> E a
+catchE m k =
+  case m of
     Ok a -> Ok a
-    Failed e -> k e s l
+    Failed e -> k e
 
 
   

@@ -9,4 +9,4 @@ main = do
   hSetBuffering stdin LineBuffering
   file <- getLine
   contents <- readFile file
-  print $ parse contents (1, 0)
+  print $ parse $ alexScanTokens contents

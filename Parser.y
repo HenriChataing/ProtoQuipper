@@ -11,40 +11,39 @@ import Syntax
 %tokentype { Token }
 %error { parseError }
 
-%monad { P } { thenP } { returnP }
-%lexer { lexer } { TokenEOF } 
+%monad { E } { thenE } { returnE }
 
 %token
-  '*' { TokenEmpty }
-  ',' { TokenComma }
-  '!' { TokenBang }
-  '=' { TokenEq }
-  '(' { TokenLParen }
-  ')' { TokenRParen }
-  '<' { TokenLBracket }
-  '>' { TokenRBracket }
-  '[' { TokenLBrace }
-  ']' { TokenRBrace }
+  '*' { TkStar $$ }
+  ',' { TkComma $$ }
+  '!' { TkBang $$ }
+  '=' { TkEq $$ }
+  '(' { TkLParen $$ }
+  ')' { TkRParen $$ }
+  '<' { TkLChevron $$ }
+  '>' { TkRChevron $$ }
+  '[' { TkLBracket $$ }
+  ']' { TkRBracket $$ }
   
-  FUN { TokenFun }
-  ARROW { TokenArrow }
-  VAR { TokenVar $$ }
-  LET { TokenLet }
-  IN { TokenIn }
+  FUN { TkFun $$ }
+  ARROW { TkArrow $$ }
+  VAR { TkVar $$ }
+  LET { TkLet $$ }
+  IN { TkIn $$ }
 
-  BOX { TokenBox }
-  UNBOX { TokenUnbox }
-  REV { TokenRev }
-  CIRC { TokenCirc }
+  BOX { TkBox $$ }
+  UNBOX { TkUnbox $$ }
+  REV { TkRev $$ }
+  CIRC { TkCirc $$ }
 
-  IF { TokenIn }
-  THEN { TokenThen }
-  ELSE { TokenElse } 
+  IF { TkIn $$ }
+  THEN { TkThen $$ }
+  ELSE { TkElse $$ } 
  
-  TRUE { TokenTrue }
-  FALSE { TokenFalse }
-  BOOL { TokenBool }
-  QBIT { TokenQBit }
+  TRUE { TkTrue $$ }
+  FALSE { TkFalse $$ }
+  BOOL { TkBool $$ }
+  QBIT { TkQBit $$ }
 
 %left ARROW
 %left '*'
@@ -67,12 +66,12 @@ Apply_expr : Apply_expr Atom_expr        { EApp $1 $2 }
 Atom_expr : '*'                          { EEmpty }
      | TRUE                              { ETrue }
      | FALSE                             { EFalse }
-     | VAR                               { EVar $1 }
+     | VAR                               { EVar (snd $1) }
      | '(' Expr ')'                      { $2 }
      | '<' Expr ',' Expr '>'             { EPair $2 $4 }
      | '(' Expr ',' Expr ',' Expr ')'    { ECirc $2 $4 $6 }
 
-Pattern : VAR                            { PVar $1 }
+Pattern : VAR                            { PVar (snd $1) }
         | '<' Pattern ',' Pattern '>'    { PPair $2 $4 }
 
 Pattern_list : Pattern                   { [$1] }
@@ -92,6 +91,6 @@ Type : Atom_type                         { $1 }
      | '!' Type                          { TExp $2 }
 
 {
-parseError :: Token -> P a
-parseError tokens = getLocus `thenP` \(l, c) -> failP ("Parse error : at line " ++ show l)
+parseError :: [Token] -> E a
+parseError tokens = failE "Parse error"
 } 

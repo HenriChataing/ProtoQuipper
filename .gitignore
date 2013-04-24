@@ -1,4 +1,6 @@
 Parser.hs
+Lexer.hs
+Quipper
 *~
 *.hi
 *.o
