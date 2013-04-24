@@ -63,27 +63,27 @@ Apply_expr : Apply_expr Atom_expr        { EApp $1 $2 }
       | UNBOX Atom_expr                  { EUnbox $2 }
       | Atom_expr                        { $1 }
 
-Atom_expr : '*'                          { EEmpty }
-     | TRUE                              { ETrue }
-     | FALSE                             { EFalse }
-     | VAR                               { EVar (snd $1) }
+Atom_expr : '*'                          { locate_expr $1 EEmpty }
+     | TRUE                              { locate_expr $1 ETrue }
+     | FALSE                             { locate_expr $1 EFalse }
+     | VAR                               { locate_expr (fst $1) (EVar (snd $1)) }
      | '(' Expr ')'                      { $2 }
-     | '<' Expr ',' Expr '>'             { EPair $2 $4 }
-     | '(' Expr ',' Expr ',' Expr ')'    { ECirc $2 $4 $6 }
+     | '<' Expr ',' Expr '>'             { locate_expr (fromTo $1 $5) (EPair $2 $4) }
+     | '(' Expr ',' Expr ',' Expr ')'    { locate_expr (fromTo $1 $7) (ECirc $2 $4 $6) }
 
-Pattern : VAR                            { PVar (snd $1) }
-        | '<' Pattern ',' Pattern '>'    { PPair $2 $4 }
+Pattern : VAR                            { locate_pattern (fst $1) (PVar (snd $1)) }
+        | '<' Pattern ',' Pattern '>'    { locate_pattern (fromTo $1 $5) (PPair $2 $4) }
 
 Pattern_list : Pattern                   { [$1] }
              | Pattern Pattern_list      { $1:$2 }
 
 
 
-Atom_type : BOOL                         { TBool }
-          | QBIT                         { TQBit }
-          | CIRC '(' Type ',' Type ')'   { TCirc $3 $5 }
+Atom_type : BOOL                         { locate_type $1 TBool }
+          | QBIT                         { locate_type $1 TQBit }
+          | CIRC '(' Type ',' Type ')'   { locate_type (fromTo $1 $6) (TCirc $3 $5) }
           | '(' Type ')'                 { $2 }
-          | '(' ')'                      { TUnit }
+          | '(' ')'                      { locate_type (fromTo $1 $2) TUnit }
 
 Type : Atom_type                         { $1 }
      | Type '*' Type                     { TTensor $1 $3 }

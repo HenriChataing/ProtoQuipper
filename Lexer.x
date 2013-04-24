@@ -1,5 +1,5 @@
 {
-module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens) where
+module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens, fromTo) where
 }
 
 %wrapper "posn"
@@ -71,8 +71,8 @@ instance Show Extent where
         (show $ line $ lend ex) ++ ":" ++
         (show $ column $ lend ex))
 
-augment :: Extent -> Extent -> Extent
-augment ex1 ex2 =
+fromTo :: Extent -> Extent -> Extent
+fromTo ex1 ex2 =
   Ext { lbegin = Loc { file = file $ lbegin ex1, line = line $ lbegin ex1, column = column $ lbegin ex1 },
         lend = Loc { file = file $ lend ex2, line = line $ lend ex2, column = column $ lend ex2 } }
 
