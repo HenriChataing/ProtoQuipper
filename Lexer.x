@@ -1,5 +1,5 @@
 {
-module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens, fromTo) where
+module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens, fromTo, fromToOpt, fromToOptOpt) where
 }
 
 %wrapper "posn"
@@ -75,6 +75,15 @@ fromTo :: Extent -> Extent -> Extent
 fromTo ex1 ex2 =
   Ext { lbegin = Loc { file = file $ lbegin ex1, line = line $ lbegin ex1, column = column $ lbegin ex1 },
         lend = Loc { file = file $ lend ex2, line = line $ lend ex2, column = column $ lend ex2 } }
+
+fromToOpt :: Extent -> Maybe Extent -> Maybe Extent
+fromToOpt _ Nothing = Nothing
+fromToOpt ex1 (Just ex2) = Just (fromTo ex1 ex2)
+
+fromToOptOpt :: Maybe Extent -> Maybe Extent -> Maybe Extent
+fromToOptOpt _ Nothing = Nothing
+fromToOptOpt Nothing _ = Nothing
+fromToOptOpt (Just ex1) (Just ex2) = Just (fromTo ex1 ex2)
 
 from_posn :: AlexPosn -> String -> Extent
 from_posn (AlexPn p l c) s =

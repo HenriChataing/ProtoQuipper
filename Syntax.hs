@@ -3,6 +3,11 @@ module Syntax where
 import Data.Char
 import Lexer
 
+class Located a where
+  locate :: a -> Extent -> a
+  locate_opt :: a -> Maybe Extent -> a
+  location :: a -> Maybe Extent
+
 data Type =
     TUnit
   | TBool
@@ -14,9 +19,13 @@ data Type =
   | TLocated Type Extent
     deriving Show
 
-locate_type :: Extent -> Type -> Type
-locate_type _ (TLocated t ex) = TLocated t ex
-locate_type ex t = TLocated t ex
+instance Located Type where
+  locate (TLocated t ex) _ = TLocated t ex
+  locate t ex = TLocated t ex
+  location (TLocated _ ex) = Just ex
+  location _ = Nothing
+  locate_opt t Nothing = t
+  locate_opt t (Just ex) = locate t ex
 
 data Pattern =
     PVar String
@@ -24,9 +33,13 @@ data Pattern =
   | PLocated Pattern Extent
     deriving Show
 
-locate_pattern :: Extent -> Pattern -> Pattern
-locate_pattern _ (PLocated p ex) = PLocated p ex
-locate_pattern ex p = PLocated p ex
+instance Located Pattern where
+  locate (PLocated p ex) _ = PLocated p ex
+  locate p ex = PLocated p ex
+  location (PLocated _ ex) = Just ex
+  location _ = Nothing
+  locate_opt p Nothing = p
+  locate_opt p (Just ex) = locate p ex
 
 data Expr =
     EEmpty
@@ -45,7 +58,11 @@ data Expr =
   | ELocated Expr Extent
     deriving Show
 
-locate_expr :: Extent -> Expr -> Expr
-locate_expr _ (ELocated e ex) = ELocated e ex
-locate_expr ex e = ELocated e ex
+instance Located Expr where
+  locate (ELocated e ex) _ = ELocated e ex
+  locate e ex = ELocated e ex
+  location (ELocated _ ex) = Just ex
+  location _ = Nothing
+  locate_opt e Nothing = e
+  locate_opt e (Just ex) = locate e ex
 
