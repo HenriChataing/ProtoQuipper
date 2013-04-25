@@ -12,8 +12,6 @@ import Syntax
 %tokentype { Token }
 %error { parseError }
 
-%monad { E } { thenE } { returnE }
-
 %token
   '*' { TkStar $$ }
   ',' { TkComma $$ }
@@ -92,6 +90,6 @@ Type : Atom_type                         { $1 }
      | '!' Type                          { locateOpt (TExp $2) (fromtoOpt (Just $1) (location $2)) }
 
 {
-parseError :: [Token] -> E a
-parseError tokens = failE "Parse error"
+parseError :: [Token] -> a
+parseError tokens = error ("Parse error : on token " ++ (show $ head tokens))
 } 
