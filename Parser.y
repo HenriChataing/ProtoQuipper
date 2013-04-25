@@ -50,7 +50,7 @@ import Syntax
 
 %%
 
-Expr : FUN Pattern_list ARROW Expr       { locateOpt (EFun $2 $4) (fromtoOpt (Just $1) (location $4)) }
+Expr : FUN Pattern ARROW Expr            { locateOpt (EFun $2 $4) (fromtoOpt (Just $1) (location $4)) }
      | IF Expr THEN Expr ELSE Expr       { locateOpt (EIf $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
      | LET Pattern '=' Expr IN Expr      { locateOpt (ELet $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
      | Apply_expr                        { $1 }
@@ -72,11 +72,6 @@ Atom_expr : '*'                          { locate EEmpty $1 }
 
 Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
         | '<' Pattern ',' Pattern '>'    { locate (PPair $2 $4) (fromto $1 $5) }
-
-Pattern_list : Pattern                   { [$1] }
-             | Pattern Pattern_list      { $1:$2 }
-
-
 
 Atom_type : BOOL                         { locate TBool $1 }
           | QBIT                         { locate TQBit $1 }

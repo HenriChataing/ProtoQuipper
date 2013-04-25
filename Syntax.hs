@@ -89,7 +89,7 @@ instance Show Pattern where
 data Expr =
     EEmpty
   | EVar String
-  | EFun [Pattern] Expr
+  | EFun Pattern Expr
   | ELet Pattern Expr Expr
   | EApp Expr Expr
   | EBool Bool
@@ -131,5 +131,5 @@ instance Show Expr where
   show EUnbox = "unbox"
   show ERev = "rev"
   show (EBox t) = "box[" ++ show t ++ "]"
-  show (EFun pl e) = "fun " ++ (show $ head pl) ++ (foldl (\s p -> s ++ " " ++ (show p)) "" (tail pl)) ++ " -> " ++ (show e)
+  show (EFun p e) = "fun " ++ (show p) ++ " -> " ++ (show e)
   
