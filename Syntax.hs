@@ -79,6 +79,7 @@ instance Located Pattern where
   locateOpt p (Just ex) = locate p ex
 
 instance Show Pattern where
+  show (PLocated p _) = show p
   show (PVar s) = s
   show (PPair p1 p2) = "(" ++ show p1 ++ ", " ++ show p2 ++ ")"
 
@@ -129,3 +130,8 @@ instance Show Expr where
      else "(" ++ show e1 ++ ")") ++ " " ++
     (if isAtomic e2 then show e2
      else "(" ++ show e2 ++ ")")
+  show EUnbox = "unbox"
+  show ERev = "rev"
+  show (EBox t) = "box[" ++ show t ++ "]"
+  show (EFun pl e) = "fun " ++ (show $ head pl) ++ (foldl (\s p -> s ++ " " ++ (show p)) "" (tail pl)) ++ " -> " ++ (show e)
+  
