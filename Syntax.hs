@@ -92,8 +92,7 @@ data Expr =
   | EFun [Pattern] Expr
   | ELet Pattern Expr Expr
   | EApp Expr Expr
-  | ETrue
-  | EFalse
+  | EBool Bool
   | EPair Expr Expr
   | EBox Type
   | EUnbox
@@ -121,8 +120,7 @@ instance Show Expr where
   show EEmpty = "()"
   show (EVar s) = s
   show (ELet p e1 e2) = "let " ++ show p ++ " = " ++ show e1 ++ " in\n " ++ show e2
-  show ETrue  = "true"
-  show EFalse = "false"
+  show (EBool b)  = if b then "true" else "false"
   show (EPair e1 e2) = "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
   show (EIf e1 e2 e3) = "if " ++ show e1 ++ " then\n " ++ show e2 ++ "\n else\n " ++ show e3
   show (EApp e1 e2) =

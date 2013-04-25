@@ -59,8 +59,8 @@ Apply_expr : Apply_expr Atom_expr        { locateOpt (EApp $1 $2) (fromtoOpt (lo
       | Atom_expr                        { $1 }
 
 Atom_expr : '*'                          { locate EEmpty $1 }
-     | TRUE                              { locate ETrue $1 }
-     | FALSE                             { locate EFalse $1 }
+     | TRUE                              { locate (EBool True) $1 }
+     | FALSE                             { locate (EBool False) $1 }
      | VAR                               { locate (EVar (snd $1)) (fst $1) }
      | BOX '[' ']'                       { locate (EBox TUnit) (fromto $1 $3) }
      | BOX '[' Type ']'                  { locate (EBox $3) (fromto $1 $4) }
