@@ -1,11 +1,12 @@
 module Main where
 
 import Parser
+import ParserUtils
 import Lexer
+import Syntax
 
 import System.IO
 import System.Environment
-import System.Exit
 
 data Options = Opt {
   interpret :: Bool,
@@ -39,12 +40,26 @@ parseOptions (s:cs) = do
 main = do
   args <- getArgs
   opt <- parseOptions args
-  inter <- return $ interpret opt
-  typ <- return $ typing opt
-  pr <- return $ printp opt
-  putStrLn ("interpret=" ++ show inter)
-  putStrLn ("typing=" ++ show typ)
-  putStrLn ("printp=" ++ show pr)
-  putStr "files="
+
+  progs <- mapM (\f -> do
+                    contents <- readFile f
+                    return $ parse $ mylex contents) (files opt)
+
+  if interpret opt then
+    putStrLn "Interpret"
+  else
+    return ()
+
+  if typing opt then
+    putStrLn "Typing"
+  else
+    return ()
+
+  if printp opt then
+    mapM (\e -> do
+                  putStrLn (show e)) progs
+  else
+    return [()]
+
   mapM putStrLn (files opt)
-  
+ 
