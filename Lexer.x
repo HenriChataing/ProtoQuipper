@@ -1,5 +1,7 @@
 {
-module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens, fromTo, fromToOpt, fromToOptOpt) where
+module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens) where
+
+import Localizing
 }
 
 %wrapper "posn"
@@ -40,56 +42,16 @@ tokens :-
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
 
-  $alpha+                             { \p s -> TkVar (from_posn p s, s) }
+  $alpha+                             { \p s -> TkVar (fromPosn p s, s) }
   
 {
 ---------------------------
 -- Localization in files --
 
-data Locus = Loc {
-  file :: String,
-  line :: Int,
-  column :: Int
-}
-
-data Extent = Ext {
-  lbegin :: Locus,
-  lend :: Locus
-}
-
-instance Show Extent where
-  show ex =
-    if (line $ lbegin ex) == (line $ lend ex) then
-      ((file $ lbegin ex) ++ ":" ++
-        (show $ line $ lbegin ex) ++ ":" ++
-        (show $ column $ lbegin ex) ++ "-" ++
-        (show $ column $ lend ex))
-    else
-      ((file $ lbegin ex) ++ ":" ++
-        (show $ line $ lbegin ex) ++ ":" ++
-        (show $ column $ lbegin ex) ++ "-" ++
-        (show $ line $ lend ex) ++ ":" ++
-        (show $ column $ lend ex))
-
-fromTo :: Extent -> Extent -> Extent
-fromTo ex1 ex2 =
-  Ext { lbegin = Loc { file = file $ lbegin ex1, line = line $ lbegin ex1, column = column $ lbegin ex1 },
-        lend = Loc { file = file $ lend ex2, line = line $ lend ex2, column = column $ lend ex2 } }
-
-fromToOpt :: Extent -> Maybe Extent -> Maybe Extent
-fromToOpt _ Nothing = Nothing
-fromToOpt ex1 (Just ex2) = Just (fromTo ex1 ex2)
-
-fromToOptOpt :: Maybe Extent -> Maybe Extent -> Maybe Extent
-fromToOptOpt _ Nothing = Nothing
-fromToOptOpt Nothing _ = Nothing
-fromToOptOpt (Just ex1) (Just ex2) = Just (fromTo ex1 ex2)
-
-from_posn :: AlexPosn -> String -> Extent
-from_posn (AlexPn p l c) s =
+fromPosn :: AlexPosn -> String -> Extent
+fromPosn (AlexPn p l c) s =
   Ext { lbegin = Loc { file = "*UNKNOWN*", line = l, column = c },
         lend = Loc { file = "*UNKNOWN*", line = l, column = c+length s-1 }}
-
 
 ---------------------------
 
@@ -114,6 +76,8 @@ data Token =
     deriving Show
 
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
-locate_token k p s = k (from_posn p s)
+locate_token k p s = k (fromPosn p s)
 
+lex :: String -> [Token]
+lex = alexScanTokens
 }
