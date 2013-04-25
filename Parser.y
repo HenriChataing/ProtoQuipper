@@ -58,16 +58,16 @@ Expr : FUN Pattern_list ARROW Expr       { locateOpt (EFun $2 $4) (fromtoOpt (Ju
      | Apply_expr                        { $1 }
 
 Apply_expr : Apply_expr Atom_expr        { locateOpt (EApp $1 $2) (fromtoOpt (location $1) (location $2)) }
-      | REV Atom_expr                    { locateOpt (ERev $2) (fromtoOpt (Just $1) (location $2)) }
-      | BOX '[' ']' Atom_expr            { locateOpt (EBox TUnit $4) (fromtoOpt (Just $1) (location $4)) }
-      | BOX '[' Type ']' Atom_expr       { locateOpt (EBox $3 $5) (fromtoOpt (Just $1) (location $5)) }
-      | UNBOX Atom_expr                  { locateOpt (EUnbox $2) (fromtoOpt (Just $1) (location $2)) }
       | Atom_expr                        { $1 }
 
 Atom_expr : '*'                          { locate EEmpty $1 }
      | TRUE                              { locate ETrue $1 }
      | FALSE                             { locate EFalse $1 }
      | VAR                               { locate (EVar (snd $1)) (fst $1) }
+     | BOX '[' ']'                       { locate (EBox TUnit) (fromto $1 $3) }
+     | BOX '[' Type ']'                  { locate (EBox $3) (fromto $1 $4) }
+     | REV                               { locate ERev $1 }
+     | UNBOX                             { locate EUnbox $1 }
      | '(' Expr ')'                      { $2 }
      | '<' Expr ',' Expr '>'             { locate (EPair $2 $4) (fromto $1 $5) }
      | '(' Expr ',' Expr ',' Expr ')'    { locate (ECirc $2 $4 $6) (fromto $1 $7) }

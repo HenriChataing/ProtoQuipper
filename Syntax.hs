@@ -94,11 +94,11 @@ data Expr =
   | ETrue
   | EFalse
   | EPair Expr Expr
-  | EBox Type Expr
-  | EUnbox Expr
+  | EBox Type
+  | EUnbox
   | ECirc Expr Expr Expr
   | EIf Expr Expr Expr
-  | ERev Expr
+  | ERev
   | ELocated Expr Extent
 
 instance Located Expr where
