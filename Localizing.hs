@@ -25,6 +25,14 @@ instance Show Extent where
         (show $ line $ lend ex) ++ ":" ++
         (show $ column $ lend ex))
 
+locusUnknown :: Locus
+locusUnknown =
+  Loc { file = "*UNKNOWN*", line = 0, column = 0 }
+
+extentUnknown :: Extent
+extentUnknown =
+  Ext { lbegin = locusUnknown, lend = locusUnknown }
+
 fromto :: Extent -> Extent -> Extent
 fromto ex1 ex2 =
   Ext { lbegin = Loc { file = file $ lbegin ex1, line = line $ lbegin ex1, column = column $ lbegin ex1 },
