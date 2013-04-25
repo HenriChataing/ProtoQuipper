@@ -1,5 +1,5 @@
 {
-module Lexer (Token(..), Locus(..), Extent(..), alexScanTokens) where
+module Lexer (Token(..), Locus(..), Extent(..), mylex) where
 
 import Localizing
 }
@@ -42,7 +42,7 @@ tokens :-
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
 
-  $alpha+                             { \p s -> TkVar (fromPosn p s, s) }
+  $alpha+                           { \p s -> TkVar (fromPosn p s, s) }
   
 {
 ---------------------------
@@ -78,6 +78,6 @@ data Token =
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
 locate_token k p s = k (fromPosn p s)
 
-lex :: String -> [Token]
-lex = alexScanTokens
+mylex :: String -> [Token]
+mylex = alexScanTokens
 }
