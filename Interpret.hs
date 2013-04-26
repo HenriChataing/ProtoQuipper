@@ -2,7 +2,7 @@
 module Interpret where
 
 import Syntax
-import Circ
+import Circuits
 import Localizing
 
 import Data.Map
@@ -47,7 +47,9 @@ basicGates :: [(String, Value)]
 basicGates =
   [ ("H",    VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Hadamard 0 ], qOut = [0] }) (VQBit 0)),
     ("CNOT", VCirc (VPair (VQBit 0) (VQBit 1)) (Circ { qIn = [0, 1], gates = [ CNot 0 1 ], qOut = [0, 1] }) (VPair (VQBit 0) (VQBit 1))),
-    ("NOT",  VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Not 0 ], qOut = [0] }) (VQBit 0)) ]
+    ("NOT",  VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Not 0 ], qOut = [0] }) (VQBit 0)),
+    ("S", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ S 0 ], qOut = [0] }) (VQBit 0)),
+    ("T", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ T 0 ], qOut = [0] }) (VQBit 0)) ]
 
 newContext :: Context
 newContext =
