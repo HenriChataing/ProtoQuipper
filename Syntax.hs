@@ -81,7 +81,7 @@ instance Located Pattern where
 instance Show Pattern where
   show (PLocated p _) = show p
   show (PVar s) = s
-  show (PPair p1 p2) = "(" ++ show p1 ++ ", " ++ show p2 ++ ")"
+  show (PPair p1 p2) = "<" ++ show p1 ++ ", " ++ show p2 ++ ">"
 
 ---------------------------------
 -- Quipper's terms             --
@@ -113,6 +113,7 @@ instance Atomic Expr where
   isAtomic (ELocated e _) = isAtomic e
   isAtomic (EApp _ _) = False
   isAtomic (EIf _ _ _) = False
+  isAtomic (EFun _ _) = False
   isAtomic _ = True
 
 instance Show Expr where
@@ -121,7 +122,7 @@ instance Show Expr where
   show (EVar s) = s
   show (ELet p e1 e2) = "let " ++ show p ++ " = " ++ show e1 ++ " in\n " ++ show e2
   show (EBool b)  = if b then "true" else "false"
-  show (EPair e1 e2) = "(" ++ show e1 ++ ", " ++ show e2 ++ ")"
+  show (EPair e1 e2) = "<" ++ show e1 ++ ", " ++ show e2 ++ ">"
   show (EIf e1 e2 e3) = "if " ++ show e1 ++ " then\n " ++ show e2 ++ "\n else\n " ++ show e3
   show (EApp e1 e2) =
     (if isAtomic e1 then show e1
