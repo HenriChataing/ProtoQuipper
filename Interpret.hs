@@ -27,9 +27,17 @@ instance Show Value where
   show (VBool False) = "false"
   show VEmpty = "()"
 
+-- Definition of the context
+
+-- The context keeps track of :
+  -- The current extent - for debug purposes
+  -- The current bindings
+  -- The circuit being constructed
+  -- Available quantum addresses
+
 data Context =
   Ctx {
-    -- Localization (extent of the current expression/type/pattern
+    -- Localization (extent of the current expression/type/pattern)
     extent :: Extent,
 
     -- Variable bindings
@@ -43,6 +51,7 @@ data Context =
     qid :: Int
   }
 
+-- A set of basic gates, basis for an binding environment
 basicGates :: [(String, Value)]
 basicGates =
   [ ("H",    VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Hadamard 0 ], qOut = [0] }) (VQBit 0)),
@@ -50,6 +59,13 @@ basicGates =
     ("NOT",  VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Not 0 ], qOut = [0] }) (VQBit 0)),
     ("S", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ S 0 ], qOut = [0] }) (VQBit 0)),
     ("T", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ T 0 ], qOut = [0] }) (VQBit 0)) ]
+
+-- Definition of a new context :
+
+  -- extent unknown
+  -- binding environment contains basic gates
+  -- circuit is undefined
+  -- all quantum addresses available
 
 newContext :: Context
 newContext =
@@ -63,6 +79,8 @@ newContext =
     qid = 0
   }
 
+--- Various functions for manipulating values, expressions and patterns
+
 -- Generate a fresh qbit id
 freshQId :: Context -> (Int, Context)
 freshQId ctx =
@@ -74,8 +92,8 @@ freshQId ctx =
 matchPattern :: Pattern -> Value -> Context -> Context
 matchPattern (PVar x) v ctx = ctx { bindings = insert x v $ bindings ctx }
 matchPattern (PPair p1 p2) (VPair v1 v2) ctx =
-  let ctx' = matchPattern p1 v1 ctx in
-  matchPattern p2 v2 ctx'
+  let ctx0 = matchPattern p1 v1 ctx in
+  matchPattern p2 v2 ctx0
 matchPattern (PLocated p ex) v ctx = matchPattern p v (ctx { extent = ex }) 
 matchPattern _ _ ctx =
   error ("Error : Unmatching pattern, at extent " ++ (show $ extent ctx))
@@ -86,9 +104,9 @@ bind (VQBit q1) (VQBit q2) = [(q1, q2)]
 bind (VPair v1 v2) (VPair v1' v2') =
   (bind v1 v1') ++ (bind v2 v2')
 bind _ _ =
-  error "Error : Unmatching value"
+  error "Error : Unmatching values"
 
--- Apply the bind function to the value
+-- Apply a bind function to a value
 revBind :: [(Int, Int)] -> Value -> Value
 revBind b (VQBit q) = VQBit (applyBinding b q)
 revBind b (VPair v1 v2) = VPair (revBind b v1) (revBind b v2)
@@ -99,12 +117,12 @@ revBind _ _ =
 spec :: Type -> Context -> (Value, Context)
 spec (TLocated t ex) ctx = spec t (ctx { extent = ex })
 spec TQBit ctx = 
-  let (q, ctx') = freshQId ctx in
-  (VQBit q, ctx')
+  let (q, ctx0) = freshQId ctx in
+  (VQBit q, ctx0)
 spec (TTensor t1 t2) ctx =
-  let (q1, ctx') = spec t1 ctx in
-  let (q2, ctx'') = spec t2 ctx' in
-  (VPair q1 q2, ctx'')
+  let (q1, ctx0) = spec t1 ctx in
+  let (q2, ctx1) = spec t2 ctx0 in
+  (VPair q1 q2, ctx1)
 spec t ctx =
   error ("Error : type " ++ (show t) ++ " is not a quantum data type, at extent " ++ (show $ extent ctx))
 
@@ -114,10 +132,35 @@ extract (VQBit q) = [q]
 extract (VPair v1 v2) = (extract v1) ++ (extract v2)
 extract _ = error "Error : cannot extract the quantum addresses of something not a quantum data"
 
------------------------
------ Interpret -------
+-------------------------
+----- Interpreter -------
 
+-- Evaluate function application
+runApp :: Value -> Value -> Context -> (Value, Context)
+
+-- Evaluate expressions
 run :: Expr -> Context -> (Value, Context)
+
+-------------------------
+
+-- Classical beta reduction
+runApp (VFun c p e) arg ctx =
+  let c0 = matchPattern p arg c in
+  let c1 = c0 { circuit  = circuit ctx } in
+  -- The function body is evaluated in tis own closure, only the circuit differ
+  let (v, c2) = run e c1 in
+  (v, ctx { circuit = circuit c2 })
+
+-- Circuit generation rules
+runApp VRev (VCirc u c u') ctx = (VCirc u' (rev c) u, ctx)
+runApp VRev _ ctx = error ("Error : argument expected of type circ, at extent " ++ (show $ extent ctx))
+
+runApp (VUnbox (VCirc u c u')) t ctx =
+  let b = bind u t in
+  let (c0, b0) = unencap b (circuit ctx) c in
+  (revBind b0 u', ctx { circuit = c0 })
+runApp (VUnbox _) _ ctx = error ("Error : Unbox expect a circuit as first argument, at extent " ++ (show $ extent ctx))
+
 
 -- Location handling
 run (ELocated e ex) ctx = run e (ctx { extent = ex })
@@ -135,64 +178,67 @@ run (EVar x) ctx =
     Nothing -> error ("Error : Unbound variable " ++ x ++ ", at extent " ++ (show $ extent ctx))
 
 -- Functions
+  -- The current context is enclosed in the function value
 run (EFun pl e) ctx = (VFun ctx pl e, ctx)
 
 -- Let .. in ..
+  -- first evaluate the expr e1
+  -- match it with the pattern
+  -- evaluate e2 in the resulting context
 run (ELet p e1 e2) ctx =
-  let (v1, ctx') = run e1 ctx in
-  let ctx'' = matchPattern p v1 ctx' in
-  run e2 ctx''
+  let (v1, ctx0) = run e1 ctx in
+  let ctx1 = matchPattern p v1 ctx0 in
+  run e2 ctx1
 
--- Function
-run (EApp e1 e2) ctx =
-  case run e1 ctx of
-    (VFun c p e, ctx') ->
-        let (v, ctx'') = run e2 ctx' in
-        let c' = matchPattern p v c in
-        let (v, _) = run e c' in
-        (v, ctx'')
-    (VUnbox (VCirc u c u'), ctx') ->
-        let (t, ctx'') = run e2 ctx' in
-        let b = bind u t in
-        let (c', b') = unencap b (circuit ctx'') c in
-        (revBind b' u', ctx'' { circuit = c' })
-    (VRev, ctx') ->
-        let (v, ctx'') = run e2 ctx' in
-        case v of
-          VCirc u c u' ->
-              (VCirc u' (rev c) u, ctx'')
-          _ ->
-              error ("Error : cannot reverse something not a circuit, at extent " ++ (show $ extent ctx''))
-    (VBox t, ctx') ->
-        let (s, ctx'') = spec t ctx' in
+-- Function -- englobe all function applications : circuit generating rules and classical reduction
+  -- first evaluate the would be function
+run (EApp ef arg) ctx =
+  let (f, ctx0) = run ef ctx in
+  case f of
+    -- Classical beta reduction
+    VFun _ _ _ ->
+        let (t, ctx1) = run arg ctx0 in
+        runApp f t ctx1 
+    -- Circuit unboxing
+    VUnbox _ ->
+        let (t, ctx1) = run arg ctx0 in
+        runApp f t ctx1
+    -- Circuit reversal
+    VRev ->
+        let (t, ctx1) = run arg ctx0 in
+        runApp f t ctx1
+
+    -- Circuit boxing
+    VBox typ ->
+        -- Creation of a new specification
+        let (s, ctx1) = spec typ ctx0 in  
         let qd = extract s in
-        let nctx = ctx'' { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
-        case run e2 ctx'' of
-          ((VFun c p e), ctx3) ->
-              let c' = matchPattern p s c in
-              let c'' = c' { circuit = Circ { qIn = qd, gates = [], qOut = qd } } in
-              let (s', c3) = run e c'' in
-              (VCirc s (circuit c3) s', ctx3)
-          _ -> error ("Error : box must take a function as an argument, at extent " ++ (show $ extent ctx''))
-    _ -> error "Not supported yet : circuit generating rules"
+        -- Open a new context
+        let nctx = ctx1 { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
+        -- Execute the argument, applied to the specification, in the new context
+        let (m, nctx0) = run arg nctx in
+        let (s', nctx1) = runApp m s nctx0 in
+        (VCirc s (circuit nctx1) s', ctx1)
+    _ -> error ("Error : value is not a function, at extent " ++ (show $ extent ctx0))
 
 -- Pairs
 run (EPair e1 e2) ctx =
-  let (v1, ctx') = run e1 ctx in
-  let (v2, ctx'') = run e2 ctx' in
-  (VPair v1 v2, ctx'')
+  let (v1, ctx0) = run e1 ctx in
+  let (v2, ctx1) = run e2 ctx0 in
+  (VPair v1 v2, ctx1)
 
 -- If .. then .. else ..
 run (EIf e1 e2 e3) ctx =
-  case run e1 ctx of
-    (VBool True, ctx') -> run e2 ctx'
-    (VBool False, ctx') -> run e3 ctx'
-    _ -> error ("Condition is not a boolean at extent " ++ (show $ extent ctx))
+  let (v1, ctx0) = run e1 ctx in
+  case v1 of
+    VBool True -> run e2 ctx0
+    VBool False -> run e3 ctx0
+    _ -> error ("Error : Condition is not a boolean, at extent " ++ (show $ extent ctx))
 
--- Ciruit generation rules
+-- Some congruence rules
 run (EBox t) ctx = (VBox t, ctx)
 run ERev ctx = (VRev, ctx)
 run (EUnbox e) ctx =
-  let (v, ctx') = run e ctx in
-  (VUnbox v, ctx')
+  let (v, ctx0) = run e ctx in
+  (VUnbox v, ctx0)
 
