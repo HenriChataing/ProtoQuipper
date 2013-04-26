@@ -19,6 +19,14 @@ data Value =
   | VRev
   | VQBit Int     -- Quantum addresses
 
+instance Show Value where
+  show (VQBit q) = show q
+  show (VPair v1 v2) = "<" ++ (show v1) ++ ", " ++ (show v2) ++ ">"
+  show (VCirc _ c _) = show c
+  show (VBool True) = "true"
+  show (VBool False) = "false"
+  show VEmpty = "()"
+
 data Context =
   Ctx {
     -- Localization (extent of the current expression/type/pattern
@@ -57,15 +65,15 @@ newContext =
 freshQId :: Context -> (Int, Context)
 freshQId ctx =
   case freeQid ctx of
-    [] -> (qid ctx, ctx { qid = (+1) $ qid ctx })
+    [] -> (qid ctx, ctx { qid = (qid ctx) + 1 })
     id:r -> (id, ctx { freeQid = r })
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
 matchPattern :: Pattern -> Value -> Context -> Context
 matchPattern (PVar x) v ctx = ctx { bindings = insert x v $ bindings ctx }
 matchPattern (PPair p1 p2) (VPair v1 v2) ctx =
-  let ctx = matchPattern p1 v1 ctx in
-  matchPattern p2 v2 ctx
+  let ctx' = matchPattern p1 v1 ctx in
+  matchPattern p2 v2 ctx'
 matchPattern (PLocated p ex) v ctx = matchPattern p v (ctx { extent = ex }) 
 matchPattern _ _ ctx =
   error ("Error : Unmatching pattern, at extent " ++ (show $ extent ctx))
@@ -89,12 +97,12 @@ revBind _ _ =
 spec :: Type -> Context -> (Value, Context)
 spec (TLocated t ex) ctx = spec t (ctx { extent = ex })
 spec TQBit ctx = 
-  let (q, ctx) = freshQId ctx in
-  (VQBit q, ctx)
+  let (q, ctx') = freshQId ctx in
+  (VQBit q, ctx')
 spec (TTensor t1 t2) ctx =
-  let (q1, ctx) = spec t1 ctx in
-  let (q2, ctx) = spec t2 ctx in
-  (VPair q1 q2, ctx)
+  let (q1, ctx') = spec t1 ctx in
+  let (q2, ctx'') = spec t2 ctx' in
+  (VPair q1 q2, ctx'')
 spec t ctx =
   error ("Error : type " ++ (show t) ++ " is not a quantum data type, at extent " ++ (show $ extent ctx))
 
@@ -107,80 +115,80 @@ extract _ = error "Error : cannot extract the quantum addresses of something not
 -----------------------
 ----- Interpret -------
 
-interpret :: Expr -> Context -> (Value, Context)
+run :: Expr -> Context -> (Value, Context)
 
 -- Location handling
-interpret (ELocated e ex) ctx = interpret e (ctx { extent = ex })
+run (ELocated e ex) ctx = run e (ctx { extent = ex })
 
 -- Empty
-interpret EEmpty ctx = (VEmpty, ctx)
+run EEmpty ctx = (VEmpty, ctx)
 
 -- Booleans
-interpret (EBool b) ctx = (VBool b, ctx)
+run (EBool b) ctx = (VBool b, ctx)
 
 -- Variables
-interpret (EVar x) ctx =
+run (EVar x) ctx =
   case Data.Map.lookup x (bindings ctx) of
     Just v -> (v, ctx)
     Nothing -> error ("Error : Unbound variable " ++ x ++ ", at extent " ++ (show $ extent ctx))
 
 -- Functions
-interpret (EFun pl e) ctx = (VFun ctx pl e, ctx)
+run (EFun pl e) ctx = (VFun ctx pl e, ctx)
 
 -- Let .. in ..
-interpret (ELet p e1 e2) ctx =
-  let (v1, ctx) = interpret e1 ctx in
-  let ctx = matchPattern p v1 ctx in
-  interpret e2 ctx
+run (ELet p e1 e2) ctx =
+  let (v1, ctx') = run e1 ctx in
+  let ctx'' = matchPattern p v1 ctx' in
+  run e2 ctx''
 
 -- Intercept unbox
-interpret (EApp EUnbox e) ctx =
-  let (c, ctx) = interpret e ctx in
-  (VUnbox c, ctx)
+run (EApp EUnbox e) ctx =
+  let (c, ctx') = run e ctx in
+  (VUnbox c, ctx')
 
 -- Function
-interpret (EApp e1 e2) ctx =
-  case interpret e1 ctx of
-    (VFun c p e, ctx) ->
-        let (v, ctx) = interpret e2 ctx in
+run (EApp e1 e2) ctx =
+  case run e1 ctx of
+    (VFun c p e, ctx') ->
+        let (v, ctx'') = run e2 ctx' in
         let c = matchPattern p v c in
-        let (v, _) = interpret e c in
-        (v, ctx)
-    (VUnbox (VCirc u c u'), ctx) ->
-        let (t, ctx) = interpret e2 ctx in
+        let (v, _) = run e c in
+        (v, ctx'')
+    (VUnbox (VCirc u c u'), ctx') ->
+        let (t, ctx'') = run e2 ctx' in
         let b = bind u t in
-        let (c', b') = unencap b (circuit ctx) c' in
-        (revBind b' u', ctx { circuit = c' })
-    (VRev, ctx) ->
-        let (v, ctx) = interpret e2 ctx in
+        let (c', b') = unencap b (circuit ctx'') c' in
+        (revBind b' u', ctx'' { circuit = c' })
+    (VRev, ctx') ->
+        let (v, ctx'') = run e2 ctx' in
         case v of
           VCirc u c u' ->
-              (VCirc u' (rev c) u, ctx)
+              (VCirc u' (rev c) u, ctx'')
           _ ->
-              error ("Error : cannot reverse something not a circuit, at extent " ++ (show $ extent ctx))
-    (VBox t, ctx) ->
-        let (s, ctx) = spec t ctx in
+              error ("Error : cannot reverse something not a circuit, at extent " ++ (show $ extent ctx''))
+    (VBox t, ctx') ->
+        let (s, ctx'') = spec t ctx' in
         let qd = extract s in
-        let nctx = ctx { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
-        let (s', nctx) = interpret e2 nctx in
-        (VCirc s (circuit nctx) s', ctx)
+        let nctx = ctx'' { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
+        let (s', nctx') = run e2 nctx in
+        (VCirc s (circuit nctx') s', ctx'')
     _ -> error "Not supported yet : circuit generating rules"
 
 -- Pairs
-interpret (EPair e1 e2) ctx =
-  let (v1, ctx) = interpret e1 ctx in
-  let (v2, ctx) = interpret e2 ctx in
-  (VPair v1 v2, ctx)
+run (EPair e1 e2) ctx =
+  let (v1, ctx') = run e1 ctx in
+  let (v2, ctx'') = run e2 ctx' in
+  (VPair v1 v2, ctx'')
 
 -- If .. then .. else ..
-interpret (EIf e1 e2 e3) ctx =
-  case interpret e1 ctx of
-    (VBool True, ctx) -> interpret e2 ctx
-    (VBool False, ctx) -> interpret e3 ctx
+run (EIf e1 e2 e3) ctx =
+  case run e1 ctx of
+    (VBool True, ctx') -> run e2 ctx'
+    (VBool False, ctx') -> run e3 ctx'
     _ -> error ("Condition is not a boolean at extent " ++ (show $ extent ctx))
 
 -- Ciruit generation rules
-interpret (EBox t) ctx = (VBox t, ctx)
-interpret ERev ctx = (VRev, ctx)
+run (EBox t) ctx = (VBox t, ctx)
+run ERev ctx = (VRev, ctx)
 
 
