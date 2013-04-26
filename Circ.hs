@@ -4,12 +4,17 @@ data Gate =
     Not Int
   | Hadamard Int
   | CNot Int Int
+    deriving Show
 
 data Circuit = Circ {
   qIn :: [Int],
   qOut :: [Int],
   gates :: [Gate]
 }
+
+instance Show Circuit where
+  show c =
+    foldl (\s g -> s ++ (show g) ++ "\n") "" (gates c)
 
 -- Application of a binding function
 -- Missing addresses are applied the identity function
