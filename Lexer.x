@@ -9,6 +9,7 @@ import Localizing
 $low_alpha = [a-z]
 $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
+$digit = [0-9]
 
 tokens :-
 
@@ -42,7 +43,7 @@ tokens :-
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
 
-  $alpha+                           { \p s -> TkVar (fromPosn p s, s) }
+  $alpha [$alpha $digit]*             { \p s -> TkVar (fromPosn p s, s) }
   
 {
 ---------------------------
