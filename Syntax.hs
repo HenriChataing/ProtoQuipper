@@ -95,7 +95,7 @@ data Expr =
   | EBool Bool
   | EPair Expr Expr
   | EBox Type
-  | EUnbox
+  | EUnbox Expr
   | ECirc Expr Expr Expr
   | EIf Expr Expr Expr
   | ERev
@@ -129,7 +129,7 @@ instance Show Expr where
      else "(" ++ show e1 ++ ")") ++ " " ++
     (if isAtomic e2 then show e2
      else "(" ++ show e2 ++ ")")
-  show EUnbox = "unbox"
+  show (EUnbox e) = if isAtomic e then "unbox " ++ show e else "unbox (" ++ show e ++ ")"
   show ERev = "rev"
   show (EBox t) = "box[" ++ show t ++ "]"
   show (EFun p e) = "fun " ++ (show p) ++ " -> " ++ (show e)
