@@ -22,7 +22,7 @@ data Value =
 instance Show Value where
   show (VQBit q) = show q
   show (VPair v1 v2) = "<" ++ (show v1) ++ ", " ++ (show v2) ++ ">"
-  show (VCirc _ c _) = show c
+  show (VCirc _ c _) = "circ (" ++ (show c) ++ ")"
   show (VBool True) = "true"
   show (VBool False) = "false"
   show VEmpty = "()"
@@ -141,23 +141,18 @@ run (ELet p e1 e2) ctx =
   let ctx'' = matchPattern p v1 ctx' in
   run e2 ctx''
 
--- Intercept unbox
-run (EApp EUnbox e) ctx =
-  let (c, ctx') = run e ctx in
-  (VUnbox c, ctx')
-
 -- Function
 run (EApp e1 e2) ctx =
   case run e1 ctx of
     (VFun c p e, ctx') ->
         let (v, ctx'') = run e2 ctx' in
-        let c = matchPattern p v c in
-        let (v, _) = run e c in
+        let c' = matchPattern p v c in
+        let (v, _) = run e c' in
         (v, ctx'')
     (VUnbox (VCirc u c u'), ctx') ->
         let (t, ctx'') = run e2 ctx' in
         let b = bind u t in
-        let (c', b') = unencap b (circuit ctx'') c' in
+        let (c', b') = unencap b (circuit ctx'') c in
         (revBind b' u', ctx'' { circuit = c' })
     (VRev, ctx') ->
         let (v, ctx'') = run e2 ctx' in
@@ -170,8 +165,13 @@ run (EApp e1 e2) ctx =
         let (s, ctx'') = spec t ctx' in
         let qd = extract s in
         let nctx = ctx'' { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
-        let (s', nctx') = run e2 nctx in
-        (VCirc s (circuit nctx') s', ctx'')
+        case run e2 ctx'' of
+          ((VFun c p e), ctx3) ->
+              let c' = matchPattern p s c in
+              let c'' = c' { circuit = Circ { qIn = qd, gates = [], qOut = qd } } in
+              let (s', c3) = run e c'' in
+              (VCirc s (circuit c3) s', ctx3)
+          _ -> error ("Error : box must take a function as an argument, at extent " ++ (show $ extent ctx''))
     _ -> error "Not supported yet : circuit generating rules"
 
 -- Pairs
@@ -190,5 +190,7 @@ run (EIf e1 e2 e3) ctx =
 -- Ciruit generation rules
 run (EBox t) ctx = (VBox t, ctx)
 run ERev ctx = (VRev, ctx)
-
+run (EUnbox e) ctx =
+  let (v, ctx') = run e ctx in
+  (VUnbox v, ctx')
 
