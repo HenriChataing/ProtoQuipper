@@ -4,28 +4,29 @@ import Parser
 import ParserUtils
 import Lexer
 import Syntax
+import Interpret
 
 import System.IO
 import System.Environment
 
 data Options = Opt {
-  interpret :: Bool,
-  typing :: Bool,
+  inter :: Bool,
+  typ :: Bool,
   printp :: Bool,
   files :: [String]
 }
 
 initOptions = Opt {
-  interpret = False,
-  typing = False,
+  inter = False,
+  typ = False,
   printp = False,
   files = []
 }
 
 options :: [(String, Options -> IO Options)]
 options = [
-  ("-i", (\opt -> return opt { interpret = True })),
-  ("-t", (\opt -> return opt { typing = True })),
+  ("-i", (\opt -> return opt { inter = True })),
+  ("-t", (\opt -> return opt { typ = True })),
   ("-p", (\opt -> return opt { printp = True })) ]
 
 parseOptions :: [String] -> IO Options
@@ -45,21 +46,20 @@ main = do
                     contents <- readFile f
                     return $ parse $ mylex contents) (files opt)
 
-  if interpret opt then
-    putStrLn "Interpret"
-  else
-    return ()
-
-  if typing opt then
-    putStrLn "Typing"
-  else
-    return ()
-
   if printp opt then
     mapM (\e -> do
                   putStrLn (show e)) progs
   else
     return [()]
 
-  mapM putStrLn (files opt)
+  if inter opt then
+    mapM (\e -> do
+                  putStrLn (let (_, ctx) = Interpret.run e newContext in show $ circuit ctx)) progs
+  else
+    return [()]
+
+  if typ opt then
+    putStrLn "Typing"
+  else
+    return ()
  
