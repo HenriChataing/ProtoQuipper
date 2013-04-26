@@ -18,6 +18,7 @@ Lexer.hs :
 
 clean :
 	rm Parser.hs Lexer.hs
+	rm *.hi *.o
 	rm _build/*
 
 distclean : clean
