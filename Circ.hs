@@ -13,8 +13,10 @@ data Circuit = Circ {
 }
 
 instance Show Circuit where
-  show c =
-    foldl (\s g -> s ++ (show g) ++ "\n") "" (gates c)
+  show c = " " ++
+    (foldl (\s i -> s ++ (show i) ++ " ") "" (qIn c)) ++ "[ " ++
+    (foldl (\s g -> s ++ (show g) ++ " ") "" (gates c)) ++ "] " ++
+    (foldl (\s i -> s ++ (show i) ++ " ") "" (qOut c))
 
 -- Application of a binding function
 -- Missing addresses are applied the identity function
