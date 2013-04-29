@@ -14,6 +14,7 @@ class Reversible a where
 
 class Addressed a where
   readdress :: [(Int, Int)] -> a ->(a, [(Int, Int)])
+
 --------------------------
 
 data Gate =
@@ -45,6 +46,23 @@ instance Addressed Gate where
   readdress b (IS q) = (IS (applyBinding b q), [(q, applyBinding b q)])
   readdress b (T q) = (T (applyBinding b q), [(q, applyBinding b q)])
   readdress b (IT q) = (IT (applyBinding b q), [(q, applyBinding b q)])
+
+firstq :: Gate -> Int
+firstq (Not q) = q
+firstq (Hadamard q) = q
+firstq (CNot q _) = q
+firstq (S q) = q
+firstq (T q) = q
+firstq (IS q) = q
+firstq (IT q) = q
+
+pGate :: Gate -> String
+pGate (Not _) = "X"
+pGate (Hadamard _) = "H"
+pGate (T _) = "T"
+pGate (S _) = "S"
+pGate (IT _) = "t"
+pGate (IS _) = "s"
 
 -----------------------
 
@@ -86,3 +104,47 @@ unencap b c d =
      qOut = qOut c, -- In fact (qOut c \ qIn q) U qOut d
      gates = (gates c) ++ (gates d')
    }, b')
+
+buildLines :: Int -> [(Int, String)]
+buildLines 0 = [(0, "")]
+buildLines n = (buildLines (n-1)) ++ [(n, "")]
+
+printWire :: [(Int, String)] -> [(Int, String)]
+printWire = map (\(n, s) -> if n `mod` 2 == 0 then (n, s++"---") else (n, s++"   "))
+
+printGate :: [(Int, Int)] -> Gate -> [(Int, String)] -> [(Int, String)]
+printGate b (CNot q1 q2) =
+  let n1 = applyBinding b q1 in
+  let n2 = applyBinding b q2 in
+  map (\(n, s) -> if n == n1 then
+                    (n, s++"X")
+                  else if n == n2 then
+                    (n, s++"*")
+                  else if (n1 < n2) && (n1 < n && n < n2) then
+                    (n, s++"|")
+                  else if (n2 < n1) && (n2 < n && n < n1) then
+                    (n, s++"|")
+                  else if n `mod` 2 == 0 then
+                    (n, s++"-")
+                  else
+                    (n, s++" "))
+
+printGate b g = map (\(n , s) -> if n == (applyBinding b (firstq g)) then
+                                   (n, s++(pGate g))
+                                 else if n `mod` 2 == 0 then 
+                                   (n, s++"-")
+                                 else
+                                   (n, s++" "))
+
+
+pprintCircuit :: Circuit -> String
+pprintCircuit c =
+  -- Mapping from quantum addresses to lines
+  let (b, ix) = foldl (\(l, ix) q -> (l ++ [(q, ix)], ix+2)) ([], 0) (qIn c) in
+  -- Building the lines
+  let lines = printWire $ buildLines (ix-1) in
+  let all = foldl (\l g -> printWire $ printGate b g l) lines (gates c) in
+  foldl (\s (n, l) -> s ++ l ++ "\n") "" all
+
+
+
