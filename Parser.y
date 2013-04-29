@@ -68,6 +68,7 @@ Atom_expr : '*'                          { locate EEmpty $1 }
      | REV                               { locate ERev $1 }
      | '(' Expr ')'                      { $2 }
      | '<' Expr ',' Expr '>'             { locate (EPair $2 $4) (fromto $1 $5) }
+     | '<' '>'                           { locate EEmpty (fromto $1 $2) }
      | '(' Expr ',' Expr ',' Expr ')'    { locate (ECirc $2 $4 $6) (fromto $1 $7) }
 
 Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
