@@ -25,7 +25,7 @@ instance Show Value where
   show (VCirc _ c _) = pprintCircuit c -- "circ (" ++ (show c) ++ ")"
   show (VBool True) = "true"
   show (VBool False) = "false"
-  show VEmpty = "()"
+  show VEmpty = "<>"
 
 -- Definition of the context
 
@@ -54,11 +54,27 @@ data Context =
 -- A set of basic gates, basis for an binding environment
 basicGates :: [(String, Value)]
 basicGates =
-  [ ("H",    VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Hadamard 0 ], qOut = [0] }) (VQBit 0)),
-    ("CNOT", VCirc (VPair (VQBit 0) (VQBit 1)) (Circ { qIn = [0, 1], gates = [ CNot 0 1 ], qOut = [0, 1] }) (VPair (VQBit 0) (VQBit 1))),
-    ("NOT",  VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Not 0 ], qOut = [0] }) (VQBit 0)),
-    ("S", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ S 0 ], qOut = [0] }) (VQBit 0)),
-    ("T", VCirc (VQBit 0) (Circ { qIn = [0], gates = [ T 0 ], qOut = [0] }) (VQBit 0)) ]
+  [ ("H",    VCirc (VQBit 0) (Circ { qIn = [0],
+                                     gates = [ Had 0 ],
+                                     qOut = [0] }) (VQBit 0)),
+    ("CNOT", VCirc (VPair (VQBit 0) (VQBit 1)) (Circ { qIn = [0, 1],
+                                                       gates = [ Cont (Not 0) 1 ],
+                                                       qOut = [0, 1] }) (VPair (VQBit 0) (VQBit 1))),
+    ("NOT",  VCirc (VQBit 0) (Circ { qIn = [0],
+                                     gates = [ Not 0 ],
+                                     qOut = [0] }) (VQBit 0)),
+    ("S", VCirc (VQBit 0) (Circ { qIn = [0],
+                                  gates = [ S 0 ],
+                                  qOut = [0] }) (VQBit 0)),
+    ("T", VCirc (VQBit 0) (Circ { qIn = [0],
+                                  gates = [ T 0 ],
+                                  qOut = [0] }) (VQBit 0)),
+    ("NEW", VCirc VEmpty (Circ { qIn = [],
+                                 gates = [ New 0],
+                                 qOut = [0] }) (VQBit 0)),
+    ("DEL", VCirc (VQBit 0) (Circ { qIn = [0],
+                                    gates = [ Del 0 ],
+                                    qOut = [] }) VEmpty) ]
 
 -- Definition of a new context :
 
@@ -103,6 +119,7 @@ bind :: Value -> Value -> [(Int, Int)]
 bind (VQBit q1) (VQBit q2) = [(q1, q2)]
 bind (VPair v1 v2) (VPair v1' v2') =
   (bind v1 v1') ++ (bind v2 v2')
+bind VEmpty VEmpty = []
 bind _ _ =
   error "Error : Unmatching values"
 
@@ -110,6 +127,7 @@ bind _ _ =
 revBind :: [(Int, Int)] -> Value -> Value
 revBind b (VQBit q) = VQBit (applyBinding b q)
 revBind b (VPair v1 v2) = VPair (revBind b v1) (revBind b v2)
+revBind _ VEmpty = VEmpty
 revBind _ _ =
   error "Error : cannot apply binding function to something not a quantum data"
 
@@ -157,7 +175,7 @@ runApp VRev _ ctx = error ("Error : argument expected of type circ, at extent " 
 
 runApp (VUnbox (VCirc u c u')) t ctx =
   let b = bind u t in
-  let (c0, b0) = unencap b (circuit ctx) c in
+  let (c0, b0) = unencap (circuit ctx) c b in
   (revBind b0 u', ctx { circuit = c0 })
 runApp (VUnbox _) _ ctx = error ("Error : Unbox expect a circuit as first argument, at extent " ++ (show $ extent ctx))
 
