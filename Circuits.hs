@@ -92,8 +92,8 @@ sym (Not _) = "X"
 sym (Had _) = "H"
 sym (T _) = "T"
 sym (S _) = "S"
-sym (IT _) = "t"
-sym (IS _) = "s"
+sym (IT _) = "t\x0305"
+sym (IS _) = "s\x0305"
 
 -----------------------
 
