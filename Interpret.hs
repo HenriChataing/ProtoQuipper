@@ -120,8 +120,8 @@ bind (VQBit q1) (VQBit q2) = [(q1, q2)]
 bind (VPair v1 v2) (VPair v1' v2') =
   (bind v1 v1') ++ (bind v2 v2')
 bind VEmpty VEmpty = []
-bind _ _ =
-  error "Error : Unmatching values"
+bind v1 v2 =
+  error ("Error : Unmatching values : " ++ (show v1) ++ " and " ++ (show v2))
 
 -- Apply a bind function to a value
 revBind :: [(Int, Int)] -> Value -> Value
