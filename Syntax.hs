@@ -118,7 +118,7 @@ instance Atomic Expr where
 
 instance Show Expr where
   show (ELocated e _) = show e
-  show EEmpty = "()"
+  show EEmpty = "<>"
   show (EVar s) = s
   show (ELet p e1 e2) = "let " ++ show p ++ " = " ++ show e1 ++ " in\n " ++ show e2
   show (EBool b)  = if b then "true" else "false"
