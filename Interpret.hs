@@ -22,7 +22,7 @@ data Value =
 instance Show Value where
   show (VQBit q) = show q
   show (VPair v1 v2) = "<" ++ (show v1) ++ ", " ++ (show v2) ++ ">"
-  show (VCirc _ c _) = "circ (" ++ (show c) ++ ")"
+  show (VCirc _ c _) = pprintCircuit c -- "circ (" ++ (show c) ++ ")"
   show (VBool True) = "true"
   show (VBool False) = "false"
   show VEmpty = "()"
