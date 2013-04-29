@@ -18,6 +18,7 @@ tokens :-
 
   "*"                                 { locate_token TkStar }
   ","                                 { locate_token TkComma }
+  ":"                                 { locate_token TkColon }
   "="                                 { locate_token TkEq }
   "!"                                 { locate_token TkBang }
   "->"                                { locate_token TkArrow }
@@ -68,6 +69,7 @@ data Token =
   | TkRev Extent
   | TkStar Extent
   | TkComma Extent
+  | TkColon Extent
   | TkEq Extent
   | TkBang Extent
   | TkArrow Extent

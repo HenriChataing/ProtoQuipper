@@ -110,7 +110,7 @@ matchPattern (PVar x) v ctx = ctx { bindings = insert x v $ bindings ctx }
 matchPattern (PPair p1 p2) (VPair v1 v2) ctx =
   let ctx0 = matchPattern p1 v1 ctx in
   matchPattern p2 v2 ctx0
-matchPattern (PLocated p ex) v ctx = matchPattern p v (ctx { extent = ex }) 
+matchPattern (PLocated p ex) v ctx = matchPattern p v (ctx { extent = ex })
 matchPattern _ _ ctx =
   error ("Error : Unmatching pattern, at extent " ++ (show $ extent ctx))
 

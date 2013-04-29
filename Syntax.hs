@@ -15,6 +15,9 @@ class Located a where
 class Atomic a where
   isAtomic :: a -> Bool
 
+class Constraint a where
+  dropConstraints :: a -> a
+
 ---------------------------------
 -- Representation of Quipper's --
 -- types                       --
@@ -68,6 +71,7 @@ instance Show Type where
 data Pattern =
     PVar String
   | PPair Pattern Pattern
+  | PConstraint Pattern Type
   | PLocated Pattern Extent
 
 instance Located Pattern where
@@ -83,11 +87,19 @@ instance Show Pattern where
   show (PVar s) = s
   show (PPair p1 p2) = "<" ++ show p1 ++ ", " ++ show p2 ++ ">"
 
+-- Remove all type annotations from a pattern
+instance Constraint Pattern where
+  dropConstraints (PConstraint p _) = p
+  dropConstraints (PPair p1 p2) = PPair (dropConstraints p1) (dropConstraints p2)
+  dropConstraints (PLocated p ex) = PLocated (dropConstraints p) ex
+  dropConstraints p = p
+
 ---------------------------------
 -- Quipper's terms             --
 
 data Expr =
     EEmpty
+  | EConstraint Expr Type
   | EVar String
   | EFun Pattern Expr
   | ELet Pattern Expr Expr
@@ -134,3 +146,17 @@ instance Show Expr where
   show (EBox t) = "box[" ++ show t ++ "]"
   show (EFun p e) = "fun " ++ (show p) ++ " -> " ++ (show e)
   
+-- Remove all type annotations from expressions
+instance Constraint Expr where
+  dropConstraints (EConstraint e _) = e
+  dropConstraints (ELocated e ex) = ELocated (dropConstraints e) ex
+  dropConstraints (EFun p e) = EFun (dropConstraints p) (dropConstraints e)
+  dropConstraints (ELet p e1 e2) = ELet (dropConstraints p) (dropConstraints e1) (dropConstraints e2)
+  dropConstraints (EApp e1 e2) = EApp (dropConstraints e1) (dropConstraints e2)
+  dropConstraints (EPair e1 e2) = EPair (dropConstraints e1) (dropConstraints e2)
+  dropConstraints (EIf e1 e2 e3) = EIf (dropConstraints e1) (dropConstraints e2) (dropConstraints e3)
+  dropConstraints (ECirc e1 e2 e3) = ECirc (dropConstraints e1) (dropConstraints e2) (dropConstraints e3)
+  dropConstraints (EUnbox e) = EUnbox (dropConstraints e)
+  dropConstraints e = e
+
+

@@ -15,6 +15,7 @@ import Syntax
 %token
   '*' { TkStar $$ }
   ',' { TkComma $$ }
+  ':' { TkColon $$ }
   '!' { TkBang $$ }
   '=' { TkEq $$ }
   '(' { TkLParen $$ }
@@ -70,8 +71,10 @@ Atom_expr : '*'                          { locate EEmpty $1 }
      | '<' Expr ',' Expr '>'             { locate (EPair $2 $4) (fromto $1 $5) }
      | '<' '>'                           { locate EEmpty (fromto $1 $2) }
      | '(' Expr ',' Expr ',' Expr ')'    { locate (ECirc $2 $4 $6) (fromto $1 $7) }
+     | '(' Expr ':' Type ')'             { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
+        | '(' Pattern ':' Type ')'       { locate (PConstraint $2 $4) (fromto $1 $5) }
         | '<' Pattern ',' Pattern '>'    { locate (PPair $2 $4) (fromto $1 $5) }
 
 Atom_type : BOOL                         { locate TBool $1 }
