@@ -23,7 +23,8 @@ class Constraint a where
 -- types                       --
 
 data Type =
-    TUnit
+    TVar String
+  | TUnit
   | TBool
   | TQBit
   | TCirc Type Type
@@ -47,6 +48,7 @@ instance Located Type where
   locateOpt t (Just ex) = locate t ex
 
 instance Show Type where
+  show (TVar s) = s
   show TUnit = "()"
   show TBool = "bool"
   show TQBit = "qbit"

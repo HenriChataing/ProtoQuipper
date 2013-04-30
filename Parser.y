@@ -80,6 +80,7 @@ Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
 Atom_type : BOOL                         { locate TBool $1 }
           | QBIT                         { locate TQBit $1 }
           | CIRC '(' Type ',' Type ')'   { locate (TCirc $3 $5) (fromto $1 $6) }
+          | VAR                          { locate (TVar (snd $1)) (fst $1) }
           | '(' Type ')'                 { $2 }
           | '(' ')'                      { locate TUnit (fromto $1 $2) }
 
