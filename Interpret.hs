@@ -69,12 +69,18 @@ basicGates =
     ("T", VCirc (VQBit 0) (Circ { qIn = [0],
                                   gates = [ T 0 ],
                                   qOut = [0] }) (VQBit 0)),
-    ("NEW", VCirc VEmpty (Circ { qIn = [],
-                                 gates = [ New 0],
-                                 qOut = [0] }) (VQBit 0)),
-    ("DEL", VCirc (VQBit 0) (Circ { qIn = [0],
-                                    gates = [ Del 0 ],
-                                    qOut = [] }) VEmpty) ]
+    ("INIT0", VCirc VEmpty (Circ { qIn = [],
+                                   gates = [ Init 0 0 ],
+                                   qOut = [0] }) (VQBit 0)),
+    ("INIT1", VCirc VEmpty (Circ { qIn = [],
+                                   gates = [ Init 0 1 ],
+                                   qOut = [0] }) (VQBit 0)),
+    ("TERM0", VCirc (VQBit 0) (Circ { qIn = [0],
+                                      gates = [ Term 0 0 ],
+                                      qOut = [] }) VEmpty),
+    ("TERM1", VCirc (VQBit 0) (Circ { qIn = [0],
+                                      gates = [ Term 0 1 ],
+                                      qOut = [] }) VEmpty) ]
 
 -- Definition of a new context :
 

@@ -28,8 +28,8 @@ class Caps a where
 --------------------------
 
 data Gate =
-    New Int
-  | Del Int
+    Init Int Int
+  | Term Int Int
   | Not Int
   | Had Int
   | S Int
@@ -50,6 +50,8 @@ readdress (IT q) b = IT (applyBinding b q)
 readdress (Cont g q) b = Cont (readdress g b) (applyBinding b q)
 
 instance Reversible Gate where
+  rev (Init q b) = Term q b
+  rev (Term q b) = Init q b
   rev (Not q) = Not q
   rev (Had q) = Had q
   rev (S q) = IS q
@@ -69,10 +71,10 @@ instance Caps Gate where
   unencap c (T q) b = (c { gates = (gates c) ++ [readdress (T q) b] }, b)
   unencap c (IT q) b = (c { gates = (gates c) ++ [readdress (IT q) b] }, b)
   -- Creation / deletion of wires
-  unencap c (Del q) b = let q' = applyBinding b q in
-    (c { gates = (gates c) ++ [Del q'], qOut = delete q' (qOut c) }, delete (q, q') b)
-  unencap c (New q) b = let q' = freshAddress (qOut c) in
-    (c { gates = (gates c) ++ [New q'], qOut = q':(qOut c) }, (q, q'):b)
+  unencap c (Term q bt) b = let q' = applyBinding b q in
+    (c { gates = (gates c) ++ [Term q' bt], qOut = delete q' (qOut c) }, delete (q, q') b)
+  unencap c (Init q bt) b = let q' = freshAddress (qOut c) in
+    (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
   -- Controlled gates
   unencap c (Cont g q) b = (c { gates = (gates c) ++ [readdress (Cont g q) b] }, b)
 
@@ -88,12 +90,14 @@ firstq (IS q) = q
 firstq (IT q) = q
 
 sym :: Gate -> String
-sym (Not _) = "X"
-sym (Had _) = "H"
-sym (T _) = "T"
-sym (S _) = "S"
-sym (IT _) = "t\x0305"
-sym (IS _) = "s\x0305"
+sym (Init _ b) = (show b) ++ "|"
+sym (Term _ b) = "|" ++ (show b)
+sym (Not _) = "X-"
+sym (Had _) = "H-"
+sym (T _) = "T-"
+sym (S _) = "S-"
+sym (IT _) = "t\x0305-"
+sym (IS _) = "s\x0305-"
 
 -----------------------
 
@@ -146,32 +150,32 @@ printWire = map (\(n, s) -> if n `mod` 2 == 0 then (n, s++"---") else (n, s++"  
 -- Given a binding from addresses to lines, print the next gates
 pprintGate :: Binding -> Gate -> [(Int, String)] -> ([(Int, String)], Binding)
   -- Creation / deletion of wires
-pprintGate b (New q) ln =
+pprintGate b (Init q bt) ln =
   let (nq, lnq) = newLine ln in
-  (map (\(n, s) -> if n == nq then             (n, s ++ "[")
-                   else if n `mod` 2 == 0 then (n, s ++ "-")
-                   else                        (n, s ++ " ")) lnq, (q, nq):b)
+  (map (\(n, s) -> if n == nq then             (n, s ++ (sym (Init q bt)))
+                   else if n `mod` 2 == 0 then (n, s ++ "--")
+                   else                        (n, s ++ "  ")) lnq, (q, nq):b)
 
-pprintGate b (Del q) ln =
+pprintGate b (Term q bt) ln =
   let nq = applyBinding b q in
-  (map (\(n, s) -> if n == nq then              (n+1, s ++ "]")   -- The line number is changed to be odd
-                   else if n `mod` 2 == 0 then  (n, s ++ "-")
-                   else                         (n, s ++ " ")) ln, delete (q, nq) b)
+  (map (\(n, s) -> if n == nq then              (n+1, s ++ (sym (Term q bt)))   -- The line number is changed to be odd
+                   else if n `mod` 2 == 0 then  (n, s ++ "--")
+                   else                         (n, s ++ "  ")) ln, delete (q, nq) b)
   -- Controlled gates
 pprintGate b (Cont g q) ln =
   let nq1 = applyBinding b q in
   let nq2 = applyBinding b (firstq g) in
-  (map (\(n, s) -> if n == nq1 then                                (n, s ++ "*")
+  (map (\(n, s) -> if n == nq1 then                                (n, s ++ "*-")
                   else if n == nq2 then                            (n, s ++ (sym g))
-                  else if (nq1 < nq2) && (nq1 < n && n < nq2) then (n, s ++ "|")
-                  else if (nq2 < nq1) && (nq2 < n && n < nq1) then (n, s ++ "|")
-                  else if n `mod` 2 == 0 then                      (n, s ++ "-")
-                  else                                             (n, s ++ " ")) ln, b)
+                  else if (nq1 < nq2) && (nq1 < n && n < nq2) then (n, s ++ "| ")
+                  else if (nq2 < nq1) && (nq2 < n && n < nq1) then (n, s ++ "| ")
+                  else if n `mod` 2 == 0 then                      (n, s ++ "--")
+                  else                                             (n, s ++ "  ")) ln, b)
   -- Normal gates
 pprintGate b g ln =
   (map (\(n, s) -> if n == (applyBinding b (firstq g)) then (n, s ++ (sym g))
-                   else if n `mod` 2 == 0 then                   (n, s ++ "-")
-                   else                                     (n, s ++ " ")) ln, b)
+                   else if n `mod` 2 == 0 then              (n, s ++ "--")
+                   else                                     (n, s ++ "  ")) ln, b)
 
 pprintCircuit :: Circuit -> String
 pprintCircuit c =
