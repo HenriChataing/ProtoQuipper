@@ -90,14 +90,14 @@ firstq (IS q) = q
 firstq (IT q) = q
 
 sym :: Gate -> String
-sym (Init _ b) = (show b) ++ "|"
-sym (Term _ b) = "|" ++ (show b)
-sym (Not _) = "X-"
-sym (Had _) = "H-"
-sym (T _) = "T-"
-sym (S _) = "S-"
-sym (IT _) = "t\x0305-"
-sym (IS _) = "s\x0305-"
+sym (Init _ b) = (show b) ++ "|-"
+sym (Term _ b) = "-|" ++ (show b)
+sym (Not _) = "[X]"
+sym (Had _) = "[H]"
+sym (T _) = "[T]"
+sym (S _) = "[S]"
+sym (IT _) = "[T\x0305]"
+sym (IS _) = "[S\x0305]"
 
 -----------------------
 
@@ -128,65 +128,86 @@ instance Caps Circuit where
 -------------------------------
 --- Circuit pretty printing ---
 
--- Creates n lines
-buildLines :: Int -> [(Int, String)]
-buildLines 0 = [(0, "")]
-buildLines n = (buildLines (n-1)) ++ [(n, "")]
+data Line = Line { num :: Int, string :: String, used :: Bool }
 
--- Create a new line
-newLine :: [(Int, String)] -> (Int, [(Int, String)])
+-- Creates n lines
+buildLines :: Int -> [Line]
+buildLines 0 = [ Line { num = 0, string = "", used = True } ]
+buildLines n = (buildLines (n-1)) ++ [ Line { num = n, string = "", used = True } ]
+
+-- Find an unused line, or create a new one
+findEmptyLine :: [Line] -> (Int, [Line])
+findEmptyLine [] = (-1, [])
+findEmptyLine (l:cl) =
+  if used l then
+    let (id, cl') = findEmptyLine cl in (id, l:cl')
+  else
+    (num l, (l { used = True}):cl)
+
+newLine :: [Line] -> (Int, [Line])
 newLine ln =
-  let (n, s) = last ln in
-  -- When a wire is deleted, its line number is changed to n+1, so that the last used number is still accessible
-  let nn = n - n `mod` 2 in
-  -- A white padding is added to match the current line length
-  let pad = replicate (length s) ' ' in
-  (nn+2, ln ++ [(nn+1, pad), (nn+2, pad)])
+  let (n, ln') = findEmptyLine ln in
+  if n == -1 then
+    let l = last ln in
+    -- A white padding is added to match the current line length
+    let pad = replicate (length $ string l) ' ' in
+    ((num l)+ 2, ln ++ [ Line { num = (num l)+1, string = pad, used = True },
+                        Line { num = (num l)+2, string = pad, used = True } ])
+  else
+    (n, ln')
 
 -- Appends a wire on the lines matching quantum addresses, spaces othewise
-printWire :: [(Int, String)] -> [(Int, String)]
-printWire = map (\(n, s) -> if n `mod` 2 == 0 then (n, s++"---") else (n, s++"   "))
+printWire :: [Line] -> [Line]
+printWire = map (\l@Line { num = n, string = s, used = u } ->
+                    if n `mod` 2 == 0 && u then
+                      l { string = s ++ "---" }
+                    else
+                      l { string = s ++ "   " })
 
 -- Given a binding from addresses to lines, print the next gates
-pprintGate :: Binding -> Gate -> [(Int, String)] -> ([(Int, String)], Binding)
+pprintGate :: Binding -> Gate -> [Line] -> ([Line], Binding)
   -- Creation / deletion of wires
 pprintGate b (Init q bt) ln =
   let (nq, lnq) = newLine ln in
-  (map (\(n, s) -> if n == nq then             (n, s ++ (sym (Init q bt)))
-                   else if n `mod` 2 == 0 then (n, s ++ "--")
-                   else                        (n, s ++ "  ")) lnq, (q, nq):b)
+  (map (\l@Line { num = n, string = s, used = u } ->
+                   if n == nq then                  l { string = s ++ (sym (Init q bt)) }
+                   else if n `mod` 2 == 0 && u then l { string = s ++ "---" }
+                   else                             l { string = s ++ "   " }) lnq, (q, nq):b)
 
 pprintGate b (Term q bt) ln =
   let nq = applyBinding b q in
-  (map (\(n, s) -> if n == nq then              (n+1, s ++ (sym (Term q bt)))   -- The line number is changed to be odd
-                   else if n `mod` 2 == 0 then  (n, s ++ "--")
-                   else                         (n, s ++ "  ")) ln, delete (q, nq) b)
+  (map (\l@Line { num = n, string = s, used = u } ->
+                   if n == nq then                  l { string = s ++ (sym(Term q bt)), used = False }   -- The line number is changed to be odd
+                   else if n `mod` 2 == 0 && u then l { string = s ++ "---" }
+                   else                             l { string = s ++ "   " }) ln, delete (q, nq) b)
   -- Controlled gates
 pprintGate b (Cont g q) ln =
   let nq1 = applyBinding b q in
   let nq2 = applyBinding b (firstq g) in
-  (map (\(n, s) -> if n == nq1 then                                (n, s ++ "*-")
-                  else if n == nq2 then                            (n, s ++ (sym g))
-                  else if (nq1 < nq2) && (nq1 < n && n < nq2) then (n, s ++ "| ")
-                  else if (nq2 < nq1) && (nq2 < n && n < nq1) then (n, s ++ "| ")
-                  else if n `mod` 2 == 0 then                      (n, s ++ "--")
-                  else                                             (n, s ++ "  ")) ln, b)
+  (map (\l@Line { num = n, string =s, used = u } ->
+                  if n == nq1 then                                 l { string = s ++ "-*-" }
+                  else if n == nq2 then                            l { string = s ++ (sym g) }
+                  else if (nq1 < nq2) && (nq1 < n && n < nq2) then l { string = s ++ " | " }
+                  else if (nq2 < nq1) && (nq2 < n && n < nq1) then l { string = s ++ " | " }
+                  else if n `mod` 2 == 0 && u then                 l { string = s ++ "---" }
+                  else                                             l { string = s ++ "   " }) ln, b)
   -- Normal gates
 pprintGate b g ln =
-  (map (\(n, s) -> if n == (applyBinding b (firstq g)) then (n, s ++ (sym g))
-                   else if n `mod` 2 == 0 then              (n, s ++ "--")
-                   else                                     (n, s ++ "  ")) ln, b)
+  (map (\l@Line { num = n, string = s, used = u } ->
+                   if n == (applyBinding b (firstq g)) then l { string = s ++ (sym g) }
+                   else if n `mod` 2 == 0 && u then         l { string = s ++ "---" }
+                   else                                     l { string = s ++ "   " }) ln, b)
 
 pprintCircuit :: Circuit -> String
 pprintCircuit c =
   -- Mapping from quantum addresses to lines
-  let (b, ix) = foldl (\(l, ix) q -> (l ++ [(q, ix)], ix+2)) ([], 0) (qIn c) in
+  let (b, ix) = foldl (\(l, ix) q -> ((q, ix):l, ix+2)) ([], 0) (qIn c) in
   -- Building the lines
   let lines = printWire $ buildLines (ix-2) in
   -- Print the gates
   let (all, _) = foldl (\(l, b) g -> let (nl, nb) = pprintGate b g l in
                                      (printWire nl, nb)) (lines, b) (gates c) in
-  foldl (\s (n, l) -> s ++ l ++ "\n") "" all
+  foldl (\s l -> s ++ string l ++ "\n") "" all
 
 
 
