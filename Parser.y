@@ -36,7 +36,7 @@ import Syntax
   REV { TkRev $$ }
   CIRC { TkCirc $$ }
 
-  IF { TkIn $$ }
+  IF { TkIf $$ }
   THEN { TkThen $$ }
   ELSE { TkElse $$ } 
  
