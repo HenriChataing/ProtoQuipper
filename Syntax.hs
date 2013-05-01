@@ -71,7 +71,8 @@ instance Show Type where
 -- from let .. in expressions  --
 
 data Pattern =
-    PVar String
+    PUnit
+  | PVar String
   | PPair Pattern Pattern
   | PConstraint Pattern Type
   | PLocated Pattern Extent
@@ -88,6 +89,7 @@ instance Show Pattern where
   show (PLocated p _) = show p
   show (PVar s) = s
   show (PPair p1 p2) = "<" ++ show p1 ++ ", " ++ show p2 ++ ">"
+  show PUnit = "<>"
 
 -- Remove all type annotations from a pattern
 instance Constraint Pattern where
@@ -100,7 +102,7 @@ instance Constraint Pattern where
 -- Quipper's terms             --
 
 data Expr =
-    EEmpty
+    EUnit
   | EConstraint Expr Type
   | EVar String
   | EFun Pattern Expr
@@ -132,7 +134,7 @@ instance Atomic Expr where
 
 instance Show Expr where
   show (ELocated e _) = show e
-  show EEmpty = "<>"
+  show EUnit = "<>"
   show (EVar s) = s
   show (ELet p e1 e2) = "let " ++ show p ++ " = " ++ show e1 ++ " in\n " ++ show e2
   show (EBool b)  = if b then "true" else "false"

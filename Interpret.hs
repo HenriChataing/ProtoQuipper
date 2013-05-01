@@ -15,7 +15,7 @@ data Value =
   | VBool Bool
   | VBox Type
   | VUnbox Value
-  | VEmpty
+  | VUnit
   | VRev
   | VQBit Int     -- Quantum addresses
 
@@ -25,7 +25,7 @@ instance Show Value where
   show (VCirc _ c _) = pprintCircuit c -- "circ (" ++ (show c) ++ ")"
   show (VBool True) = "true"
   show (VBool False) = "false"
-  show VEmpty = "<>"
+  show VUnit = "<>"
 
 -- Definition of the context
 
@@ -69,18 +69,18 @@ basicGates =
     ("T", VCirc (VQBit 0) (Circ { qIn = [0],
                                   gates = [ T 0 ],
                                   qOut = [0] }) (VQBit 0)),
-    ("INIT0", VCirc VEmpty (Circ { qIn = [],
+    ("INIT0", VCirc VUnit (Circ { qIn = [],
                                    gates = [ Init 0 0 ],
                                    qOut = [0] }) (VQBit 0)),
-    ("INIT1", VCirc VEmpty (Circ { qIn = [],
+    ("INIT1", VCirc VUnit (Circ { qIn = [],
                                    gates = [ Init 0 1 ],
                                    qOut = [0] }) (VQBit 0)),
     ("TERM0", VCirc (VQBit 0) (Circ { qIn = [0],
                                       gates = [ Term 0 0 ],
-                                      qOut = [] }) VEmpty),
+                                      qOut = [] }) VUnit),
     ("TERM1", VCirc (VQBit 0) (Circ { qIn = [0],
                                       gates = [ Term 0 1 ],
-                                      qOut = [] }) VEmpty) ]
+                                      qOut = [] }) VUnit) ]
 
 -- Definition of a new context :
 
@@ -116,6 +116,7 @@ matchPattern (PVar x) v ctx = ctx { bindings = insert x v $ bindings ctx }
 matchPattern (PPair p1 p2) (VPair v1 v2) ctx =
   let ctx0 = matchPattern p1 v1 ctx in
   matchPattern p2 v2 ctx0
+matchPattern PUnit VUnit ctx = ctx
 matchPattern (PLocated p ex) v ctx = matchPattern p v (ctx { extent = ex })
 matchPattern _ _ ctx =
   error ("Error : Unmatching pattern, at extent " ++ (show $ extent ctx))
@@ -125,7 +126,7 @@ bind :: Value -> Value -> [(Int, Int)]
 bind (VQBit q1) (VQBit q2) = [(q1, q2)]
 bind (VPair v1 v2) (VPair v1' v2') =
   (bind v1 v1') ++ (bind v2 v2')
-bind VEmpty VEmpty = []
+bind VUnit VUnit = []
 bind v1 v2 =
   error ("Error : Unmatching values : " ++ (show v1) ++ " and " ++ (show v2))
 
@@ -133,7 +134,7 @@ bind v1 v2 =
 revBind :: [(Int, Int)] -> Value -> Value
 revBind b (VQBit q) = VQBit (applyBinding b q)
 revBind b (VPair v1 v2) = VPair (revBind b v1) (revBind b v2)
-revBind _ VEmpty = VEmpty
+revBind _ VUnit = VUnit
 revBind _ _ =
   error "Error : cannot apply binding function to something not a quantum data"
 
@@ -190,7 +191,7 @@ runApp (VUnbox _) _ ctx = error ("Error : Unbox expect a circuit as first argume
 run (ELocated e ex) ctx = run e (ctx { extent = ex })
 
 -- Empty
-run EEmpty ctx = (VEmpty, ctx)
+run EUnit ctx = (VUnit, ctx)
 
 -- Booleans
 run (EBool b) ctx = (VBool b, ctx)

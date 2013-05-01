@@ -60,7 +60,7 @@ Apply_expr : Apply_expr Atom_expr        { locateOpt (EApp $1 $2) (fromtoOpt (lo
       | UNBOX Atom_expr                  { locateOpt (EUnbox $2) (fromtoOpt (Just $1) (location $2)) }
       | Atom_expr                        { $1 }
 
-Atom_expr : '*'                          { locate EEmpty $1 }
+Atom_expr : '*'                          { locate EUnit $1 }
      | TRUE                              { locate (EBool True) $1 }
      | FALSE                             { locate (EBool False) $1 }
      | VAR                               { locate (EVar (snd $1)) (fst $1) }
@@ -69,13 +69,15 @@ Atom_expr : '*'                          { locate EEmpty $1 }
      | REV                               { locate ERev $1 }
      | '(' Expr ')'                      { $2 }
      | '<' Expr ',' Expr '>'             { locate (EPair $2 $4) (fromto $1 $5) }
-     | '<' '>'                           { locate EEmpty (fromto $1 $2) }
+     | '<' '>'                           { locate EUnit (fromto $1 $2) }
      | '(' Expr ',' Expr ',' Expr ')'    { locate (ECirc $2 $4 $6) (fromto $1 $7) }
      | '(' Expr ':' Type ')'             { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
         | '(' Pattern ':' Type ')'       { locate (PConstraint $2 $4) (fromto $1 $5) }
         | '<' Pattern ',' Pattern '>'    { locate (PPair $2 $4) (fromto $1 $5) }
+        | '<' '>'                        { locate PUnit (fromto $1 $2) }
+        | '*'                            { locate PUnit $1 }
 
 Atom_type : BOOL                         { locate TBool $1 }
           | QBIT                         { locate TQBit $1 }
