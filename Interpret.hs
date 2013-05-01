@@ -148,6 +148,7 @@ spec (TTensor t1 t2) ctx =
   let (q1, ctx0) = spec t1 ctx in
   let (q2, ctx1) = spec t2 ctx0 in
   (VPair q1 q2, ctx1)
+spec TUnit ctx = (VUnit, ctx)
 spec t ctx =
   error ("Error : type " ++ (show t) ++ " is not a quantum data type, at extent " ++ (show $ extent ctx))
 
