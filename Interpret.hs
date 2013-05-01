@@ -156,6 +156,7 @@ spec t ctx =
 extract :: Value -> [Int]
 extract (VQBit q) = [q]
 extract (VPair v1 v2) = (extract v1) ++ (extract v2)
+extract VUnit = []
 extract _ = error "Error : cannot extract the quantum addresses of something not a quantum data"
 
 -------------------------
