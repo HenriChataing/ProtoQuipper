@@ -4,21 +4,7 @@ import Data.Char
 import Data.Map
 
 import Localizing
-
----------------------------------
--- Class of objects that can   --
--- be assorted with a location --
-
-class Located a where
-  locate :: a -> Extent -> a
-  locateOpt :: a -> Maybe Extent -> a
-  location :: a -> Maybe Extent
-
-class Atomic a where
-  isAtomic :: a -> Bool
-
-class Constraint a where
-  dropConstraints :: a -> a
+import Classes
 
 ---------------------------------
 -- Representation of Quipper's --

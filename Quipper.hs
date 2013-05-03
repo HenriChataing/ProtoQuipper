@@ -1,9 +1,9 @@
 module Main where
 
 import Parser
-import ParserUtils
 import Lexer
 import Syntax
+import Classes
 
 import Interpret
 import TypeInference

@@ -6,6 +6,8 @@ import ParserUtils
 import Lexer
 import Localizing
 import Syntax
+import Classes
+
 }
 
 %name parse

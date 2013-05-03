@@ -7,6 +7,7 @@ module Interpret (-- Definition of values
 import Syntax
 import Circuits
 import Localizing
+import Classes
 
 import Data.Map
 import Data.Bool

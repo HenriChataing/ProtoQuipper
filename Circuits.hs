@@ -2,6 +2,15 @@ module Circuits where
 
 import Data.List
 
+import Classes
+
+-----------------------------------
+-- Class of encapsulated objects --
+
+class Caps a where
+  unencap :: Circuit -> a -> Binding -> (Circuit, Binding)
+
+
 -- Type of a binding
 type Binding = [(Int, Int)]
 
@@ -19,13 +28,6 @@ freshAddress :: [Int] -> Int
 ----------------------------
 freshAddress [] = 0
 freshAddress l = (maximum l) + 1
-
---- Class definitions ---
-class Reversible a where
-  rev :: a -> a
-
-class Caps a where
-  unencap :: Circuit -> a -> Binding -> (Circuit, Binding)
 
 --------------------------
 
