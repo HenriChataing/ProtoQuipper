@@ -11,9 +11,8 @@ import Classes
 -- types                       --
 
 data Type =
-    TVar String
-  | TUnit
-  | TUnknown
+    TUnit
+  | TVar String
   | TBool
   | TQBit
   | TCirc Type Type
@@ -46,7 +45,6 @@ data Expr =
   | EPair Expr Expr
   | EBox Type
   | EUnbox Expr
-  | ECirc Expr Expr Expr
   | EIf Expr Expr Expr
   | ERev
   | ELocated Expr Extent
@@ -78,6 +76,7 @@ data Expr =
 stripExp :: Type -> Type
 ------------------------
 stripExp (TExp t) = stripExp t
+stripExp (TLocated t ex) = TLocated (stripExp t) ex
 stripExp t = t
 
 -- Recursively remove all ! annotations
@@ -105,6 +104,7 @@ reduceExpRec (TExp a) = TExp (reduceExpRec a)
 reduceExpRec (TTensor a b) = TTensor (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TCirc a b) = TCirc (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TArrow a b) = TArrow (reduceExpRec a) (reduceExpRec b)
+reduceExpRec a = a
 
 -- Extract all the free type variables
 extractVariables :: Type -> [String]
@@ -188,7 +188,6 @@ instance Show Type where
   show TUnit = "T"
   show TBool = "bool"
   show TQBit = "qbit"
-  show TUnknown = "???"
   show (TCirc t1 t2) = "circ (" ++ show t1 ++ ", " ++ show t2 ++ ")"
   show (TTensor t1 t2) =
     (if isAtomic t1 then show t1
@@ -255,7 +254,6 @@ isValue :: Expr -> Bool
 -----------------------
 isValue (ELocated e _) = isValue e
 isValue (EConstraint e _) = isValue e
-isValue (EUnbox (ECirc _ _ _)) = True
 isValue (EUnbox _) = False
 isValue (EPair e1 e2) = isValue e1 && isValue e2
 isValue (EIf _ _ _) = False
@@ -304,7 +302,6 @@ instance Constraint Expr where
   dropConstraints (EApp e1 e2) = EApp (dropConstraints e1) (dropConstraints e2)
   dropConstraints (EPair e1 e2) = EPair (dropConstraints e1) (dropConstraints e2)
   dropConstraints (EIf e1 e2 e3) = EIf (dropConstraints e1) (dropConstraints e2) (dropConstraints e3)
-  dropConstraints (ECirc e1 e2 e3) = ECirc (dropConstraints e1) (dropConstraints e2) (dropConstraints e3)
   dropConstraints (EUnbox e) = EUnbox (dropConstraints e)
   dropConstraints e = e
 
