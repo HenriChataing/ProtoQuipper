@@ -46,7 +46,7 @@ main = do
 
   progs <- mapM (\f -> do
                     contents <- readFile f
-                    return $ parse $ mylex contents) (files opt)
+                    return $ parse $ mylex f contents) (files opt)
 
   if printp opt then
     mapM (\e -> do
