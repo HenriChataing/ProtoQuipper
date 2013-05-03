@@ -4,7 +4,10 @@ import Parser
 import ParserUtils
 import Lexer
 import Syntax
+
 import Interpret
+import TypeChecker
+import TypeInference
 
 import System.IO
 import System.Environment
@@ -54,12 +57,13 @@ main = do
 
   if inter opt then
     mapM (\e -> do
-             putStrLn (let (v, ctx) = Interpret.run (dropConstraints e) newContext in (show v))) progs
+             putStrLn (let (v, ctx) = Interpret.run (dropConstraints e) Interpret.newContext in (show v))) progs
   else
     return [()]
 
   if typ opt then
-    putStrLn "Typing"
+    mapM (\e -> do
+             putStrLn (show $ TypeInference.principalType e)) progs
   else
-    return ()
+    return [()]
  
