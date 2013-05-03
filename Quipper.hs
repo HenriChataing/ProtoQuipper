@@ -15,14 +15,14 @@ data Options = Opt {
   inter :: Bool,
   typ :: Bool,
   printp :: Bool,
-  files :: [String]
+  filename :: String
 }
 
 initOptions = Opt {
   inter = False,
   typ = False,
   printp = False,
-  files = []
+  filename = ""
 }
 
 options :: [(String, Options -> IO Options)]
@@ -38,31 +38,30 @@ parseOptions (s:cs) = do
   opt <- parseOptions cs
   case lookup s options of
     Just f -> f opt
-    Nothing -> return opt { files = s:(files opt) }
+    Nothing -> return opt { filename = s }
 
 main = do
+  -- Parse program options
   args <- getArgs
   opt <- parseOptions args
 
-  progs <- mapM (\f -> do
-                    contents <- readFile f
-                    return $ parse $ mylex f contents) (files opt)
+  -- Lex and parse file
+  contents <- readFile $ filename opt
+  prog <- return (parse $ mylex (filename opt) contents)
 
+  -- Actions
   if printp opt then
-    mapM (\e -> do
-                  putStrLn (show e)) progs
+    putStrLn (show prog)
   else
-    return [()]
+    return ()
 
   if inter opt then
-    mapM (\e -> do
-             putStrLn (show $ Interpret.run (dropConstraints e))) progs
+    putStrLn (show $ Interpret.run (dropConstraints prog))
   else
-    return [()]
+    return ()
 
   if typ opt then
-    mapM (\e -> do
-             putStrLn (show $ TypeInference.principalType e)) progs
+    putStrLn (show $ TypeInference.principalType prog)
   else
-    return [()]
+    return ()
  
