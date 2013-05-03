@@ -46,17 +46,22 @@ main = do
   opt <- parseOptions args
 
   -- Lex and parse file
+  putStrLn ("## Parsing content of file " ++ (filename opt))
   contents <- readFile $ filename opt
   prog <- return (parse $ mylex (filename opt) contents)
 
   -- Actions
-  if printp opt then
+  if printp opt then do
+    putStrLn (">> Typing")
     putStrLn (show prog)
+    putStrLn ("<< Done")
   else
     return ()
 
-  if inter opt then
+  if inter opt then do
+    putStrLn (">> Interpret")
     putStrLn (show $ Interpret.run (dropConstraints prog))
+    putStrLn ("<< Done")
   else
     return ()
 
