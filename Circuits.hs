@@ -223,5 +223,5 @@ pprintCircuit c =
   -- Print the gates
   let (all, _) = foldl (\(l, b) g -> let (nl, nb) = pprintGate b g l in
                                      (printWire nl, nb)) (lines, b) (gates c) in
-  foldl (\s l -> s ++ string l ++ "\n") "" all
+  foldl (\s l -> s ++ string l ++ "\n") "\n" all
 
