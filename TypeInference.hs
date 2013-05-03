@@ -69,7 +69,7 @@ matchPattern (PVar x) t ctx = ([(x, t)], ctx)
 -- Since this function is called in let bindings, pattern constraints have yet to be registered
 matchPattern (PConstraint p typ) t ctx =
   let (lv, ctx0) = matchPattern p t ctx in
-  (lv, ctx0 { constraints = (t, typ):(constraints ctx0) })
+  (lv, ctx0 { constraints = (stripExpRec t, typ):(constraints ctx0) })
 -- Not necessary, but avoid generation of useless type variables and constraints
 matchPattern (PPair p1 p2) (TTensor t1 t2) ctx =
   let (lv1, ctx1) = matchPattern p1 t1 ctx in
@@ -137,7 +137,7 @@ constraintTyping (ELocated e ex) ctx =
 -- RULE IS : INFERRED TO THE RIGHT, GIVEN TO THE LEFT
 constraintTyping (EConstraint e t) ctx =
   let (t', ctx') = constraintTyping e ctx in
-  (t', ctx' { constraints = (t, t'):(constraints ctx') })
+  (t', ctx' { constraints = (stripExpRec t, t'):(constraints ctx') })
 
 -- Rule (axc)
 constraintTyping (EVar x) ctx =
@@ -214,9 +214,6 @@ constraintTyping (EUnbox e) ctx =
   let (x, ctx1) = freshName ctx0 in
   let (y, ctx2) = freshName ctx1 in
   (TArrow (TVar x) (TVar y), ctx2 { constraints = (t, TCirc (TVar x) (TVar y)):(constraints ctx2) })  
-
--- rule (circ) : may not be used
--- constraintTyping (ECirc e1 e2 e3) ctx = 
 
 -- Rule (let)  -- More general than (pair-e)
 constraintTyping (ELet p e1 e2) ctx =
@@ -308,6 +305,7 @@ caseAA s t c =
 -----------------------------------------------
 -- Final algorithm : put everything together --
 
+-- Computes the principal type of the expression
 principalType :: Expr -> Type
 -----------------------------
 principalType e =
@@ -315,3 +313,12 @@ principalType e =
   let sub = unify $ constraints ctx in
   appSubst sub t
 
+{- Will do that when I have unique identifiers
+-- Computes and returns the principal types of all the variables declared in the expression
+allPrincipalTypes :: Expr -> Map String Type
+--------------------------------------------
+allPrincipalTypes e =
+  let (_, ctx) = constraintTyping e newContext in
+  let sub = unify $ constraints ctx in
+  Data.Map.map (\(_, t) -> appSubst sub)
+-}
