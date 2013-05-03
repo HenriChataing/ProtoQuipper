@@ -8,6 +8,7 @@ type Binding = [(Int, Int)]
 -- Application of a binding function
 -- Missing addresses are applied the identity function
 applyBinding :: [(Int, Int)] -> Int -> Int
+------------------------------------------
 applyBinding b q =
   case lookup q b of
     Just q' -> q'
@@ -15,6 +16,7 @@ applyBinding b q =
 
 -- Given the input of a circuit, pick up a new address
 freshAddress :: [Int] -> Int
+----------------------------
 freshAddress [] = 0
 freshAddress l = (maximum l) + 1
 
@@ -41,6 +43,7 @@ data Gate =
 
 -- Some readdressing
 readdress :: Gate -> Binding -> Gate
+------------------------------------
 readdress (Not q) b = Not (applyBinding b q)
 readdress (Had q) b = Had (applyBinding b q)
 readdress (S q) b = S (applyBinding b q)
@@ -82,6 +85,7 @@ instance Caps Gate where
 
 -- First wire of a gate
 firstq :: Gate -> Int
+---------------------
 firstq (Not q) = q
 firstq (Had q) = q
 firstq (S q) = q
@@ -89,7 +93,9 @@ firstq (T q) = q
 firstq (IS q) = q
 firstq (IT q) = q
 
+-- Symbolic representation of a gate
 sym :: Gate -> String
+---------------------
 sym (Init _ b) = (show b) ++ "|-"
 sym (Term _ b) = "-|" ++ (show b)
 sym (Not _) = "[X]"
@@ -130,13 +136,15 @@ instance Caps Circuit where
 
 data Line = Line { num :: Int, string :: String, used :: Bool }
 
--- Creates n lines
+-- Creates n empty lines
 buildLines :: Int -> [Line]
+---------------------------
 buildLines 0 = [ Line { num = 0, string = "", used = True } ]
 buildLines n = (buildLines (n-1)) ++ [ Line { num = n, string = "", used = True } ]
 
--- Find an unused line, or create a new one
+-- Find an unused line, if there exists one
 findEmptyLine :: [Line] -> (Int, [Line])
+----------------------------------------
 findEmptyLine [] = (-1, [])
 findEmptyLine (l:cl) =
   if used l then
@@ -144,7 +152,9 @@ findEmptyLine (l:cl) =
   else
     (num l, (l { used = True}):cl)
 
+-- Claim an empty line, if possible, else create a new one
 newLine :: [Line] -> (Int, [Line])
+----------------------------------
 newLine ln =
   let (n, ln') = findEmptyLine ln in
   if n == -1 then
@@ -158,6 +168,7 @@ newLine ln =
 
 -- Appends a wire on the lines matching quantum addresses, spaces othewise
 printWire :: [Line] -> [Line]
+-----------------------------
 printWire = map (\l@Line { num = n, string = s, used = u } ->
                     if n `mod` 2 == 0 && u then
                       l { string = s ++ "---" }
@@ -166,6 +177,7 @@ printWire = map (\l@Line { num = n, string = s, used = u } ->
 
 -- Given a binding from addresses to lines, print the next gates
 pprintGate :: Binding -> Gate -> [Line] -> ([Line], Binding)
+
   -- Creation / deletion of wires
 pprintGate b (Init q bt) ln =
   let (nq, lnq) = newLine ln in
@@ -198,7 +210,9 @@ pprintGate b g ln =
                    else if n `mod` 2 == 0 && u then         l { string = s ++ "---" }
                    else                                     l { string = s ++ "   " }) ln, b)
 
+-- Printing function
 pprintCircuit :: Circuit -> String
+----------------------------------
 pprintCircuit c =
   -- Mapping from quantum addresses to lines
   let (b, ix) = foldl (\(l, ix) q -> ((q, ix):l, ix+2)) ([], 0) (qIn c) in
@@ -208,6 +222,4 @@ pprintCircuit c =
   let (all, _) = foldl (\(l, b) g -> let (nl, nb) = pprintGate b g l in
                                      (printWire nl, nb)) (lines, b) (gates c) in
   foldl (\s l -> s ++ string l ++ "\n") "" all
-
-
 

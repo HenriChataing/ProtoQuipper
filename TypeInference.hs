@@ -301,8 +301,8 @@ caseAA s t c =
   (TCirc t1 t2, TCirc s1 s2) ->
       unify ((t1, s1):(t2, s2):c)
   _ ->
-      error ("Unification failed\n-- Cannot identify  type : " ++ show s ++ "\n" ++
-                                 "-- with type             : " ++ show t)
+      error ("Unification failed\n-- Expected type : " ++ show s ++ "\n" ++
+                                 "-- Actual type   : " ++ show t)
 
 
 -----------------------------------------------
@@ -314,7 +314,4 @@ principalType e =
   let (t, ctx) = constraintTyping e newContext in
   let sub = unify $ constraints ctx in
   appSubst sub t
-
-
-
 

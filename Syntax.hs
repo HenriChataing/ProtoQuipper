@@ -120,6 +120,54 @@ reduceExpRec (TTensor a b) = TTensor (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TCirc a b) = TCirc (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TArrow a b) = TArrow (reduceExpRec a) (reduceExpRec b)
 
+-- Extract all the free type variables
+extractVariables :: Type -> [String]
+------------------------------------
+extractVariables (TLocated t _) = extractVariables t
+extractVariables (TVar x) = [x]
+extractVariables (TTensor t1 t2) = extractVariables t1 ++ extractVariables t2
+extractVariables (TCirc t1 t2) = extractVariables t1 ++ extractVariables t2
+extractVariables (TArrow t1 t2) = extractVariables t1 ++ extractVariables t2
+extractVariables (TExp t) = extractVariables t
+extractVariables _ = []
+
+-- Substitute type variable x by type a in type t
+subst :: String -> Type -> Type -> Type
+---------------------------------------
+subst x a (TLocated t ex) = TLocated (subst x a t) ex
+subst x a (TVar y) | x == y = a
+                   | otherwise = TVar y
+subst x a (TTensor t1 t2) = TTensor (subst x a t1) (subst x a t2)
+subst x a (TCirc t1 t2) = TCirc (subst x a t1) (subst x a t2)
+subst x a (TArrow t1 t2) = TArrow (subst x a t1) (subst x a t2)
+subst x a (TExp t) = TExp (subst x a t)
+subst _ _ t = t
+
+-- Apply all the substitutions defined by the map
+substAll :: Map String Type -> Type -> Type
+-------------------------------------------
+substAll sub (TLocated t ex) = TLocated (substAll sub t) ex
+substAll sub (TVar x) =
+  case Data.Map.lookup x sub of
+  Just t -> t
+  Nothing -> TVar x
+substAll sub (TTensor t1 t2) = TTensor (substAll sub t1) (substAll sub t2)
+substAll sub (TCirc t1 t2) = TCirc (substAll sub t1) (substAll sub t2)
+substAll sub (TArrow t1 t2) = TArrow (substAll sub t1) (substAll sub t2)
+substAll sub (TExp t) = TExp (substAll sub t)
+substAll _ t = t
+
+-- Apply the substitution until the fixpoint is attained
+appSubst :: Map String Type -> Type -> Type
+-------------------------------------------
+appSubst sub t =
+  let t' = substAll sub t in
+  if t == t' then
+    t
+  else
+    appSubst sub t'
+
+
 -- Eq instance declaration of types
 -- The declaration takes into account the ismorphism : !! A = ! A
 instance Eq Type where
@@ -168,53 +216,6 @@ instance Show Type where
      else "(" ++ show t1 ++ ")") ++ " -> " ++
     (if isAtomic t2 then show t2
      else "(" ++ show t2 ++ ")")
-
--- Extract all the free type variables
-extractVariables :: Type -> [String]
-------------------------------------
-extractVariables (TLocated t _) = extractVariables t
-extractVariables (TVar x) = [x]
-extractVariables (TTensor t1 t2) = extractVariables t1 ++ extractVariables t2
-extractVariables (TCirc t1 t2) = extractVariables t1 ++ extractVariables t2
-extractVariables (TArrow t1 t2) = extractVariables t1 ++ extractVariables t2
-extractVariables (TExp t) = extractVariables t
-extractVariables _ = []
-
--- Substitute type variable x by type a in type t
-subst :: String -> Type -> Type -> Type
----------------------------------------
-subst x a (TLocated t ex) = TLocated (subst x a t) ex
-subst x a (TVar y) | x == y = a
-                   | otherwise = TVar y
-subst x a (TTensor t1 t2) = TTensor (subst x a t1) (subst x a t2)
-subst x a (TCirc t1 t2) = TCirc (subst x a t1) (subst x a t2)
-subst x a (TArrow t1 t2) = TArrow (subst x a t1) (subst x a t2)
-subst x a (TExp t) = TExp (subst x a t)
-subst _ _ t = t
-
--- Apply all the substitutions defined by the map
-substAll :: Map String Type -> Type -> Type
--------------------------------------------
-substAll sub (TLocated t ex) = TLocated (substAll sub t) ex
-substAll sub (TVar x) =
-  case Data.Map.lookup x sub of
-  Just t -> t
-  Nothing -> TVar x
-substAll sub (TTensor t1 t2) = TTensor (substAll sub t1) (substAll sub t2)
-substAll sub (TCirc t1 t2) = TCirc (substAll sub t1) (substAll sub t2)
-substAll sub (TArrow t1 t2) = TArrow (substAll sub t1) (substAll sub t2)
-substAll sub (TExp t) = TExp (substAll sub t)
-substAll _ t = t
-
--- Apply the substitution until the fixpoint is attained
-appSubst :: Map String Type -> Type -> Type
--------------------------------------------
-appSubst sub t =
-  let t' = substAll sub t in
-  if t == t' then
-    t
-  else
-    appSubst sub t'
 
 
 {-

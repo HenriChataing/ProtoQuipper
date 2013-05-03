@@ -56,7 +56,7 @@ main = do
 
   if inter opt then
     mapM (\e -> do
-             putStrLn (let (v, ctx) = Interpret.run (dropConstraints e) Interpret.newContext in (show v))) progs
+             putStrLn (show $ Interpret.run (dropConstraints e))) progs
   else
     return [()]
 

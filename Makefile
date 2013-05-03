@@ -23,3 +23,7 @@ clean :
 distclean : clean
 	rm $(MAIN)
 
+test : all
+	for file in test/*.qi; \
+	do ./$(MAIN) -i -t $$file; \
+	done
