@@ -6,7 +6,6 @@ import Lexer
 import Syntax
 
 import Interpret
-import TypeChecker
 import TypeInference
 
 import System.IO
