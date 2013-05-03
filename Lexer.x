@@ -83,9 +83,10 @@ inFile f ext = Ext { lbegin = (lbegin ext) { file = f },
                      lend = (lend ext) { file = f } }
 
 locateInFile :: String -> Token -> Token
-locateInFile f (TkVar (ext, s)) = TkVar (inFile f ext, f)
+locateInFile f (TkVar (ext, s)) = TkVar (inFile f ext, s)
 locateInFile f (TkBox ext) = TkBox (inFile f ext)
 locateInFile f (TkUnbox ext) = TkUnbox (inFile f ext)
+locateInFile f (TkBool ext) = TkBool (inFile f ext)
 locateInFile f (TkQBit ext) = TkQBit (inFile f ext)
 locateInFile f (TkCirc ext) = TkCirc (inFile f ext)
 locateInFile f (TkIf ext) = TkIf (inFile f ext)
