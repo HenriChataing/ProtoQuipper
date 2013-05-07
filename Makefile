@@ -1,8 +1,8 @@
-INCLUDE =
+INCLUDE = -iparsing
 
 BUILD_DIR = _build
 
-GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR)
+GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
 HAPPY = happy --ghc
 ALEX = alex
 
@@ -12,12 +12,12 @@ all : Parser.hs Lexer.hs
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parser.hs :
-	$(HAPPY) Parser.y
+	$(HAPPY) parsing/Parser.y
 Lexer.hs :
-	$(ALEX) Lexer.x
+	$(ALEX) parsing/Lexer.x
 
 clean :
-	rm Parser.hs Lexer.hs
+	rm parsing/Parser.hs parsing/Lexer.hs
 	rm _build/*
 
 distclean : clean
