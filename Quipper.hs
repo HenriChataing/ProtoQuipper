@@ -3,10 +3,13 @@ module Main where
 import Parser
 import Lexer
 import Syntax
+import CoreSyntax
+import TransCore
 import Classes
 
 import Interpret
 import TypeInference
+import CTypeInference
 
 import System.IO
 import System.Environment
@@ -46,27 +49,32 @@ main = do
   opt <- parseOptions args
 
   -- Lex and parse file
-  putStrLn ("## Parsing content of file " ++ (filename opt))
+  putStrLn $ "\x1b[1;34m" ++ "## Parsing content of file " ++ filename opt ++ "\x1b[0m"
   contents <- readFile $ filename opt
   prog <- return (parse $ mylex (filename opt) contents)
 
   -- Actions
   if printp opt then do
-    putStrLn (">> Typing")
-    putStrLn (show prog)
-    putStrLn ("<< Done")
+    putStrLn $ "\x1b[1;33m" ++ ">> Printing" ++ "\x1b[0m"
+    putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
+    putStrLn (pshow prog)
+    putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
+    putStrLn (pshow $ fst $ translateExpr prog CTypeInference.newContext) 
   else
     return ()
 
   if inter opt then do
-    putStrLn (">> Interpret")
+    putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m"
     putStrLn (show $ Interpret.run (dropConstraints prog))
-    putStrLn ("<< Done")
   else
     return ()
 
-  if typ opt then
+  if typ opt then do
+    putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
+    putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
     putStrLn (show $ TypeInference.principalType prog)
+    putStrLn $ "\x1b[1m" ++ "CTypeInference :" ++ "\x1b[0m"
+    putStrLn (show $ CTypeInference.principalType prog)
   else
     return ()
  
