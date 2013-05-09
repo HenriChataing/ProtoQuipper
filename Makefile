@@ -27,3 +27,6 @@ test : all
 	for file in test/*.qi; \
 	do ./$(MAIN) -i -t $$file; \
 	done
+
+count : clean
+	wc -l *.hs */*.hs parsing/Lexer.x parsing/Parser.y
