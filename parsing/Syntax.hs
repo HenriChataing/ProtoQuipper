@@ -48,7 +48,7 @@ data Expr =
   | EIf Expr Expr Expr
   | ERev
   | ELocated Expr Extent
-
+  deriving Show
 
 
 {-
@@ -228,6 +228,7 @@ instance Show Pattern where
   show (PVar s) = s
   show (PPair p1 p2) = "<" ++ show p1 ++ ", " ++ show p2 ++ ">"
   show PUnit = "<>"
+  show (PConstraint p t) = "(" ++ show p ++ " : " ++ show t ++ ")"
 
 instance Constraint Pattern where
   dropConstraints (PConstraint p _) = p
@@ -276,24 +277,35 @@ instance Atomic Expr where
   isAtomic (EFun _ _) = False
   isAtomic _ = True
 
-instance Show Expr where
-  show (ELocated e _) = show e
-  show EUnit = "<>"
-  show (EVar s) = s
-  show (ELet p e1 e2) = "let " ++ show p ++ " = " ++ show e1 ++ " in\n " ++ show e2
-  show (EBool b) = if b then "true" else "false"
-  show (EPair e1 e2) = "<" ++ show e1 ++ ", " ++ show e2 ++ ">"
-  show (EIf e1 e2 e3) = "if " ++ show e1 ++ " then\n " ++ show e2 ++ "\n else\n " ++ show e3
-  show (EApp e1 e2) =
-    (if isAtomic e1 then show e1
-     else "(" ++ show e1 ++ ")") ++ " " ++
-    (if isAtomic e2 then show e2
-     else "(" ++ show e2 ++ ")")
-  show (EUnbox e) = if isAtomic e then "unbox " ++ show e else "unbox (" ++ show e ++ ")"
-  show ERev = "rev"
-  show (EBox t) = "box[" ++ show t ++ "]"
-  show (EFun p e) = "fun " ++ (show p) ++ " -> " ++ (show e)
+---------------------
+-- Pretty printing --
+
+-- Second argument is indentation level
+pshowExpr :: Expr -> String -> String
+-------------------------------------
+pshowExpr (ELocated e _) ind = pshowExpr e ind
+pshowExpr EUnit _ = "<>"
+pshowExpr (EVar s) _ = s
+pshowExpr (ELet p e1 e2) ind = "let " ++ show p ++ " = " ++ pshowExpr e1 ind ++ " in\n" ++ ind ++ pshowExpr e2 ind
+pshowExpr (EBool b) _ = if b then "true" else "false"
+pshowExpr (EPair e1 e2) ind = "<" ++ pshowExpr e1 ind ++ ", " ++ pshowExpr e2 ind ++ ">"
+pshowExpr (EIf e1 e2 e3) ind = "if " ++ pshowExpr e1 ind ++ " then\n" ++
+                               ind ++ "  " ++ pshowExpr e2 (ind ++ "  ") ++ "\n else\n" ++
+                               ind ++ "  " ++ pshowExpr e3 (ind ++ "  ")
+pshowExpr (EApp e1 e2) ind =
+    (if isAtomic e1 then pshowExpr e1 ind
+     else "(" ++ pshowExpr e1 ind ++ ")") ++ " " ++
+    (if isAtomic e2 then pshowExpr e2 ind
+     else "(" ++ pshowExpr e2 ind ++ ")")
+pshowExpr (EUnbox e) ind = if isAtomic e then "unbox " ++ pshowExpr e ind else "unbox (" ++ pshowExpr e ind ++ ")"
+pshowExpr ERev _ = "rev"
+pshowExpr (EBox t) _ = "box[" ++ show t ++ "]"
+pshowExpr (EFun p e) ind = "fun " ++ show p ++ " ->\n" ++ ind ++ "    " ++ pshowExpr e (ind ++ "    ")
+pshowExpr (EConstraint e t) ind = "(" ++ pshowExpr e ind ++ " : " ++ show t ++ ")"
   
+instance PShow Expr where
+  pshow e = pshowExpr e ""
+
 instance Constraint Expr where
   dropConstraints (EConstraint e _) = e
   dropConstraints (ELocated e ex) = ELocated (dropConstraints e) ex
