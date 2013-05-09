@@ -8,22 +8,10 @@ import Localizing
 import Contexts
 import Utils
 
+import Gates
+
 import Data.Map
 import Data.List
-
--- Basic gates types
-basicGates :: [(String, S.Type)]
-------------------------------
-basicGates =
-  [ ("H", S.TCirc S.TQBit S.TQBit),
-    ("NOT", S.TCirc S.TQBit S.TQBit),
-    ("S", S.TCirc S.TQBit S.TQBit),
-    ("T", S.TCirc S.TQBit S.TQBit),
-    ("INIT0", S.TCirc S.TUnit S.TQBit),
-    ("INIT1", S.TCirc S.TUnit S.TQBit),
-    ("TERM0", S.TCirc S.TQBit S.TUnit),
-    ("TERM1", S.TCirc S.TQBit S.TUnit),
-    ("CNOT", S.TCirc (S.TTensor S.TQBit S.TQBit) (S.TTensor S.TQBit S.TQBit)) ]
 
 
 -- Create a base context (add the basic gates to the empty context)
@@ -33,7 +21,7 @@ newContext =
   Data.List.foldl (\ctx (g, t) ->
                      let (ig, ctx0) = register g ctx in
                      let (ft, ctx1) = translateType t ctx0 in
-                     ctx1 { bindings = Data.Map.insert ig ([], ft) $ bindings ctx1 }) emptyContext basicGates
+                     ctx1 { bindings = Data.Map.insert ig ([], ft) $ bindings ctx1 }) emptyContext gateTypes
 
 -----------------------------
 -- Constraint typing rules --
