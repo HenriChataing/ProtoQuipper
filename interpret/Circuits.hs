@@ -1,6 +1,7 @@
 module Circuits where
 
-import Data.List
+import Data.List as List
+import Data.Map as Map
 
 import Classes
 
@@ -19,7 +20,7 @@ type Binding = [(Int, Int)]
 applyBinding :: [(Int, Int)] -> Int -> Int
 ------------------------------------------
 applyBinding b q =
-  case lookup q b of
+  case List.lookup q b of
     Just q' -> q'
     Nothing -> q 
 
@@ -77,7 +78,7 @@ instance Caps Gate where
   unencap c (IT q) b = (c { gates = (gates c) ++ [readdress (IT q) b] }, b)
   -- Creation / deletion of wires
   unencap c (Term q bt) b = let q' = applyBinding b q in
-    (c { gates = (gates c) ++ [Term q' bt], qOut = delete q' (qOut c) }, delete (q, q') b)
+    (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
   unencap c (Init q bt) b = let q' = freshAddress (qOut c) in
     (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
   -- Controlled gates
@@ -88,6 +89,9 @@ instance Caps Gate where
 -- First wire of a gate
 firstq :: Gate -> Int
 ---------------------
+firstq (Init q _) = q
+firstq (Term q _) = q
+firstq (Cont _ q) = q
 firstq (Not q) = q
 firstq (Had q) = q
 firstq (S q) = q
@@ -107,6 +111,16 @@ sym (S _) = "[S]"
 sym (IT _) = "[T\x0305]"
 sym (IS _) = "[S\x0305]"
 
+-- Line coverage of a gate
+cover :: Gate -> [Int]
+----------------------
+cover (Cont g q) =
+  let mn = min q (minimum $ cover g) in
+  let mx = max q (maximum $ cover g) in
+  take (mx-mn+1) $ iterate (+1) mn
+
+cover g = [firstq g]
+
 -----------------------
 
 data Circuit = Circ {
@@ -117,111 +131,218 @@ data Circuit = Circ {
 
 instance Show Circuit where
   show c = " " ++
-    (foldl (\s i -> s ++ (show i) ++ " ") "" (qIn c)) ++ "[ " ++
-    (foldl (\s g -> s ++ (show g) ++ " ") "" (gates c)) ++ "] " ++
-    (foldl (\s i -> s ++ (show i) ++ " ") "" (qOut c))
+    (List.foldl (\s i -> s ++ (show i) ++ " ") "" (qIn c)) ++ "[ " ++
+    (List.foldl (\s g -> s ++ (show g) ++ " ") "" (gates c)) ++ "] " ++
+    (List.foldl (\s i -> s ++ (show i) ++ " ") "" (qOut c))
 
 instance Reversible Circuit where
   rev c =
     Circ {
       qIn = qOut c,
       qOut = qIn c,
-      gates = map rev $ reverse $ gates c
+      gates = List.map rev $ reverse $ gates c
     }
 
 instance Caps Circuit where
   unencap c c' b =
-    foldl (\(nc, b) g -> unencap nc g b) (c, b) (gates c')
+    List.foldl (\(nc, b) g -> unencap nc g b) (c, b) (gates c')
 
 -------------------------------
 --- Circuit pretty printing ---
 
-data Line = Line { num :: Int, string :: String, used :: Bool }
 
--- Creates n empty lines
-buildLines :: Int -> [Line]
----------------------------
-buildLines 0 = [ Line { num = 0, string = "", used = True } ]
-buildLines n = (buildLines (n-1)) ++ [ Line { num = n, string = "", used = True } ]
+------------------------------------
+-- Line manipulation and creation --
 
--- Find an unused line, if there exists one
-findEmptyLine :: [Line] -> (Int, [Line])
+-- Create a padding of n white spaces
+padding :: Int -> String
+------------------------
+padding n = replicate n ' '
+
+-- used : is the line currently occupied
+-- print : has the line been filled in the current column
+-- num : line number
+data LineSet = Set { ssize :: Int,               -- Number of lines in use
+                     slines :: Map Int String,    -- physical lines
+                     unused :: [Int],            -- Set of unused lines
+                     currentColumn :: [Int],         -- Lines missing the current column
+                     binding :: [(Int, Int)],    -- Binding from wires to lines
+                     columnNumber :: Int }             -- Current column number
+
+-- Create the initial bindings
+initSet :: Circuit -> LineSet
+-----------------------------
+initSet c =
+  let (b, ix) = List.foldl (\(l, ix) q -> ((q, ix):l, ix+2)) ([], 0) (qIn c) in
+  let createlines = (\ix -> if ix == 0 then Map.insert 0 "" empty
+                            else let m' = createlines (ix-1) in Map.insert ix "" m') in
+  Set { ssize = ix-1,
+        slines = createlines (ix-1),
+        unused = [],
+        currentColumn = take (ix-1) $ iterate (+1) 0,
+        binding = b,
+        columnNumber = 0 }
+
+-- Find an unused line for the wire q, if there exists one
+newLine :: LineSet -> Int -> (Int, LineSet)
 ----------------------------------------
-findEmptyLine [] = (-1, [])
-findEmptyLine (l:cl) =
-  if used l then
-    let (id, cl') = findEmptyLine cl in (id, l:cl')
-  else
-    (num l, (l { used = True}):cl)
+newLine s@Set { unused = nsd, ssize = n, binding = b, slines = lns, columnNumber = c } q =
+  case nsd of
+  [] -> (n+1, s { ssize = n+2,
+                  binding = (q, n+1):b,
+                  slines = Map.insert (n+1) (padding c) $ Map.insert n (padding c) lns,
+                  currentColumn = n:(n+1):(currentColumn s) })
+  l:cl -> (l, s { binding = (q, l):b,
+                  unused = cl })
 
--- Claim an empty line, if possible, else create a new one
-newLine :: [Line] -> (Int, [Line])
-----------------------------------
-newLine ln =
-  let (n, ln') = findEmptyLine ln in
-  if n == -1 then
-    let l = last ln in
-    -- A white padding is added to match the current line length
-    let pad = replicate (length $ string l) ' ' in
-    ((num l)+ 2, ln ++ [ Line { num = (num l)+1, string = pad, used = True },
-                        Line { num = (num l)+2, string = pad, used = True } ])
+-- If the n-th in the current column has been filled already
+filled :: Int -> LineSet -> Bool
+---------------------
+filled n s =
+  not (elem n $ currentColumn s)
+
+-- If the line is alive
+used :: Int -> LineSet -> Bool
+------------------------------
+used n s =
+  not (elem n $ unused s)
+
+-- Try printing the gate in the current column
+-- The return value includes : if the gate was printed, changes made to the lineSet, and the gate with the binding applied
+tryPrint :: LineSet -> Gate -> (Bool, LineSet, Gate)
+------------------------------------------------------
+tryPrint s g@(Init q bt)  = 
+  let (nq, s') = newLine s q in
+  let ng = Init nq bt in
+  if filled nq s' then
+    (False, (s' { unused = nq:(unused s') }), ng)
   else
-    (n, ln')
+    (True, pprintGate ng s', ng)
+  
+tryPrint s g@(Term q bt) =
+  let nq = applyBinding (binding s) q in
+  let s' = s { binding = List.delete (q, nq) $ binding s } in
+  let ng = Term nq bt in
+  if filled nq s' then
+    (False, s', ng)
+  else
+    (True, pprintGate ng s', ng)
+ 
+tryPrint s g =
+  let ng = readdress g (binding s) in
+  let cov = cover ng in
+  if List.foldl (\v n -> v && (elem n $ currentColumn s)) True cov then
+    (True, pprintGate ng s, ng)
+  else
+    (False, s, ng)
+
+-------------------------------
+-- Actual printing functions --
 
 -- Appends a wire on the lines matching quantum addresses, spaces othewise
-printWire :: [Line] -> [Line]
------------------------------
-printWire = map (\l@Line { num = n, string = s, used = u } ->
-                    if n `mod` 2 == 0 && u then
-                      l { string = s ++ "---" }
-                    else
-                      l { string = s ++ "   " })
+printWire :: LineSet -> LineSet
+-------------------------------
+printWire s = s { slines = mapWithKey (\n l ->
+                                        if n `mod` 2 == 0 && used n s then
+                                          l ++ "---" 
+                                        else
+                                          l ++ "   ") $ slines s,
+                  columnNumber = (columnNumber s)+3 }
 
--- Given a binding from addresses to lines, print the next gates
-pprintGate :: Binding -> Gate -> [Line] -> ([Line], Binding)
+-- Actual printing
+pprintGate :: Gate -> LineSet -> LineSet
 
-  -- Creation / deletion of wires
-pprintGate b (Init q bt) ln =
-  let (nq, lnq) = newLine ln in
-  (map (\l@Line { num = n, string = s, used = u } ->
-                   if n == nq then                  l { string = s ++ (sym (Init q bt)) }
-                   else if n `mod` 2 == 0 && u then l { string = s ++ "---" }
-                   else                             l { string = s ++ "   " }) lnq, (q, nq):b)
+-- Init gates
+-- Need to intercept this gate : the wire is removed from unused lines only after it has been printed
+pprintGate g@(Init nq _) s =
+  s { slines = case Map.lookup nq $ slines s of
+              Just l -> Map.insert nq (l ++ sym g) $ slines s
+              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
+      currentColumn = List.delete nq $ currentColumn s,
+      unused = List.delete nq (unused s) }
 
-pprintGate b (Term q bt) ln =
-  let nq = applyBinding b q in
-  (map (\l@Line { num = n, string = s, used = u } ->
-                   if n == nq then                  l { string = s ++ (sym(Term q bt)), used = False }   -- The line number is changed to be odd
-                   else if n `mod` 2 == 0 && u then l { string = s ++ "---" }
-                   else                             l { string = s ++ "   " }) ln, delete (q, nq) b)
-  -- Controlled gates
-pprintGate b (Cont g q) ln =
-  let nq1 = applyBinding b q in
-  let nq2 = applyBinding b (firstq g) in
-  (map (\l@Line { num = n, string =s, used = u } ->
-                  if n == nq1 then                                 l { string = s ++ "-*-" }
-                  else if n == nq2 then                            l { string = s ++ (sym g) }
-                  else if (nq1 < nq2) && (nq1 < n && n < nq2) then l { string = s ++ " | " }
-                  else if (nq2 < nq1) && (nq2 < n && n < nq1) then l { string = s ++ " | " }
-                  else if n `mod` 2 == 0 && u then                 l { string = s ++ "---" }
-                  else                                             l { string = s ++ "   " }) ln, b)
-  -- Normal gates
-pprintGate b g ln =
-  (map (\l@Line { num = n, string = s, used = u } ->
-                   if n == (applyBinding b (firstq g)) then l { string = s ++ (sym g) }
-                   else if n `mod` 2 == 0 && u then         l { string = s ++ "---" }
-                   else                                     l { string = s ++ "   " }) ln, b)
+-- Terl gates
+-- Need to intercept this gate : the wire is added to unused lines only after it has been printed
+pprintGate g@(Term nq _) s =
+  s { slines = case Map.lookup nq $ slines s of
+              Just l -> Map.insert nq (l ++ sym g) $ slines s
+              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
+      currentColumn = List.delete nq $ currentColumn s,
+      unused = nq:(unused s) }
+
+-- Controlled gates
+pprintGate (Cont g q) s =
+  let s' = pprintGate g s in
+  let q' = firstq g in
+  let (mn, mx) = if q' < q then (q', q) else (q, q') in
+  let s'' = List.foldl (\s n -> if filled n s then
+                                  s
+                                else
+                                  s { slines = case Map.lookup n $ slines s of
+                                               -- Printing of vertical wires
+                                               Just l -> Map.insert n (if n `mod` 2 == 0 && used n s then
+                                                                         l ++ "-|-"
+                                                                       else
+                                                                         l ++ " | ") $ slines s
+                                               Nothing -> error ("Shouldn't happen : undefined line " ++ show n),
+                                      currentColumn = List.delete n $ currentColumn s }) s' (take (mx-mn-1) $ iterate (+1) (mn+1)) in
+  s'' { slines = case Map.lookup q $ slines s'' of
+                 Just l -> Map.insert q (l ++ "-*-") $ slines s''
+                 Nothing -> error ("Shouldn't happen : undefined line " ++ show q),
+        currentColumn = List.delete q $ currentColumn s'' }
+
+-- Other gates
+pprintGate g s =
+  let nq = firstq g in
+  s { slines = case Map.lookup nq $ slines s of
+              Just l -> Map.insert nq (l ++ sym g) $ slines s
+              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
+      currentColumn = List.delete nq $ currentColumn s }
+
+
+-- Complete the current column by filling the missing lines
+complete :: LineSet -> LineSet
+------------------------------
+complete s =
+  List.foldl (\s n -> case Map.lookup n $ slines s of
+                      Just l -> if n `mod` 2 == 0 && used n s then
+                                  s { slines = Map.insert n (l ++ "---") $ slines s }
+                                else
+                                  s { slines = Map.insert n (l ++ "   ") $ slines s }
+                      Nothing -> error ("Shouldn't happen : undefined line " ++ show n)
+             ) (s { currentColumn = take (ssize s) $ iterate (+1) 0,
+                    columnNumber = (columnNumber s)+3 }) (currentColumn s)
+
+-- Plug the lines together
+build :: LineSet -> String
+--------------------------
+build s =
+  List.foldl (\text n -> case Map.lookup n $ slines s of
+                         Just l -> text ++ l ++ "\n"
+                         Nothing -> error ("Shouldn't happen : undefined line " ++ show n)
+             ) "" (take (ssize s) $ iterate (+1) 0)
+
+-- Print all the gates, putting as much as possible on one column
+pprintAll :: [Gate] -> LineSet -> LineSet
+-----------------------------------------
+pprintAll [] s =
+  (complete s)
+
+pprintAll (g:cg) s =
+  let (feat, s', g') = tryPrint s g in
+  if feat then
+    pprintAll cg s'
+  else
+    let cs = printWire $ complete s' in
+    let cs' = pprintGate g' cs in
+    pprintAll cg cs'
 
 -- Printing function
 pprintCircuit :: Circuit -> String
 ----------------------------------
 pprintCircuit c =
   -- Mapping from quantum addresses to lines
-  let (b, ix) = foldl (\(l, ix) q -> ((q, ix):l, ix+2)) ([], 0) (qIn c) in
+  let nset = printWire $ initSet c in
   -- Building the lines
-  let lines = printWire $ buildLines (ix-2) in
-  -- Print the gates
-  let (all, _) = foldl (\(l, b) g -> let (nl, nb) = pprintGate b g l in
-                                     (printWire nl, nb)) (lines, b) (gates c) in
-  foldl (\s l -> s ++ string l ++ "\n") "\n" all
-
+  let cset = pprintAll (gates c) nset in
+  build $ printWire cset
