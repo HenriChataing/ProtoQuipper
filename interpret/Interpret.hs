@@ -24,17 +24,14 @@ bindPattern :: Pattern -> Value -> State ()
 ------------------------------------------------------
 bindPattern (PVar x) v = do
   insert x v
-  return ()
 bindPattern (PPair p1 p2) (VPair v1 v2) = do
   bindPattern p1 v1
   bindPattern p2 v2
-  return ()
 bindPattern PUnit VUnit = do
   return ()
 bindPattern (PLocated p ex) v = do
   setExtent ex
   bindPattern p v
-  return ()
 bindPattern _ _ = do
   ext <- getExtent
   error ("Error : Unmatching pattern, at extent " ++ show ext)
@@ -154,10 +151,14 @@ interpret (EFun p e) = do
   -- first evaluate the expr e1
   -- match it with the pattern
   -- evaluate e2 in the resulting context
+    -- The state at the end must contains only the bindings from the state at the beginning
 interpret (ELet p e1 e2) = do
+  ctx <- getContext
   v1 <- interpret e1
   bindPattern p v1
-  interpret e2
+  v2 <- interpret e2
+  putContext ctx -- Erase the bindings introduced by the let construction
+  return v2
 
 -- Function -- englobe all function applications : circuit generating rules and classical reduction
   -- first evaluate the would be function

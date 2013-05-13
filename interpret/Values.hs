@@ -77,7 +77,7 @@ instance Monad State where
 
 -- Whole
 getContext :: State Context
-putContext :: Context -> State ()
+putContext :: Context -> State ()       -- Note : only the bindings ar modified
 swapContext :: Context -> State Context -- Note : the circuit is left unchanged, all other attribute are swapped
 
 -- Extent
@@ -98,8 +98,8 @@ closeBox :: Circuit -> State Circuit  -- Note : put the old circuit back in plac
 newId :: State Int
 -------------------------
 getContext = State (\ctx -> (ctx, ctx))
-putContext ctx = State (\_ -> (ctx, ()))
-swapContext ctx = State (\ctx' -> (ctx', ctx { circuit = circuit $ ctx' }))
+putContext ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, ()))
+swapContext ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, ctx'))
 
 getExtent = State (\ctx -> (ctx, extent ctx))
 setExtent ext = State (\ctx -> (ctx { extent = ext }, ()))
