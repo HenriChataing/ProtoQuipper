@@ -9,7 +9,7 @@ import Localizing
 import Syntax
 import Circuits
 
-import Data.Map
+import Data.Map as Map
 
 -- Type declaration of values
 data Value =
@@ -64,6 +64,38 @@ emptyContext =
     circuit = Circ { qIn = [], qOut = [], gates = [] },
     qId = 0
   }
+
+newtype State a = State (Context -> (Context, a))
+instance Monad State where
+  return a = State (\ctx -> (ctx, a))
+  State run >>= action =
+    State (\ctx -> let (ctx', a) = run ctx
+                       State run' = action a in
+                   run' ctx')
+
+-- Context manipulation --
+
+-- Extent
+getExtent :: State Extent
+setExtent :: Extent -> State ()
+-- Bindings
+insert :: String -> Value -> State ()
+delete :: String -> State ()
+-- Circuit construction
+unencap :: Circuit -> Binding -> State Binding
+-- Fresh id generation
+newId :: State Int
+-------------------------
+getExtent = State (\ctx -> (ctx, extent ctx))
+setExtent ext = State (\ctx -> (ctx { extent = ext }, ()))
+
+insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, ()))
+delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, ()))
+
+unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
+                             (ctx { circuit = c' }, b'))
+
+newId = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, qId ctx))
 
 --- Various functions for manipulating values, expressions and patterns
 
