@@ -17,7 +17,7 @@ importGates :: State ()
 ---------------------
 importGates = State (\c ->
                        foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
-                                                       run c') (c, ()) Gates.gateValues)
+                                                       run c') (c, Ok ()) Gates.gateValues)
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
 bindPattern :: Pattern -> Value -> State ()
@@ -33,27 +33,35 @@ bindPattern (PLocated p ex) v = do
   setExtent ex
   bindPattern p v
 bindPattern _ _ = do
-  ext <- getExtent
-  error ("Error : Unmatching pattern, at extent " ++ show ext)
+  fail "Unmatching patterns"
 
 -- Extract the bindings from a circuit application
-bind :: Value -> Value -> [(Int, Int)]
+bind :: Value -> Value -> State [(Int, Int)]
 --------------------------------------
-bind (VQBit q1) (VQBit q2) = [(q1, q2)]
-bind (VPair v1 v2) (VPair v1' v2') =
-  (bind v1 v1') ++ (bind v2 v2')
-bind VUnit VUnit = []
-bind v1 v2 =
-  error ("Error : Unmatching values : " ++ show v1 ++ " and " ++ show v2)
+bind (VQBit q1) (VQBit q2) = do
+  return [(q1, q2)]
+bind (VPair v1 v2) (VPair v1' v2') = do
+  b1 <- bind v1 v1'
+  b2 <- bind v2 v2'
+  return (b1 ++ b2)
+bind VUnit VUnit = do
+  return []
+bind v1 v2 = do
+  fail ("Unmatching values : " ++ show v1 ++ " and " ++ show v2)
 
 -- Apply a bind function to a value
-appBind :: [(Int, Int)] -> Value -> Value
+appBind :: [(Int, Int)] -> Value -> State Value
 -----------------------------------------
-appBind b (VQBit q) = VQBit (Binding.apply b q)
-appBind b (VPair v1 v2) = VPair (appBind b v1) (appBind b v2)
-appBind _ VUnit = VUnit
-appBind _ _ =
-  error "Error : cannot apply binding function to something not a quantum data"
+appBind b (VQBit q) = do 
+  return (VQBit $ Binding.apply b q)
+appBind b (VPair v1 v2) = do
+  v1' <- appBind b v1
+  v2' <- appBind b v2
+  return (VPair v1' v2')
+appBind _ VUnit = do
+  return VUnit
+appBind _ _ = do
+  fail "Binding function applied to something not a quantum data"
 
 -- Create a specification (with fresh variables) for a given type
 spec :: Type -> State Value
@@ -71,16 +79,21 @@ spec (TTensor t1 t2) = do
 spec TUnit = do
   return VUnit
 spec t = do
-  ext <- getExtent
-  error ("Error : type " ++ show t ++ " is not a quantum data type, at extent " ++ show ext)
+  fail ("Type " ++ show t ++ " is not a quantum data type")
 
 -- Extract the quantum addresses used in a value
-extract :: Value -> [Int]
+extract :: Value -> State [Int]
 -------------------------
-extract (VQBit q) = [q]
-extract (VPair v1 v2) = (extract v1) ++ (extract v2)
-extract VUnit = []
-extract _ = error "Error : cannot extract the quantum addresses of something not a quantum data"
+extract (VQBit q) = do
+  return [q]
+extract (VPair v1 v2) = do
+  q1 <- extract v1
+  q2 <- extract v2
+  return (q1 ++ q2)
+extract VUnit = do
+  return []
+extract _ = do
+  fail "Value is not a quantum data"
 
 -------------------------
 ----- Interpreter -------
@@ -106,16 +119,15 @@ interpretApp VRev (VCirc u c u') = do
   return (VCirc u' (rev c) u)
 
 interpretApp VRev _  = do
-  ext <- getExtent
-  error ("Error : argument expected of type circ, at extent " ++ show ext)
+  fail "Expected argument of type circ"
 
 interpretApp (VUnbox (VCirc u c u')) t = do
-  b' <- unencap c (bind u t)
-  return (appBind b' u')
+  b <- bind u t
+  b' <- unencap c b
+  appBind b' u'
 
 interpretApp (VUnbox _) _  = do
-  ext <- getExtent
-  error ("Error : Unbox expect a circuit as first argument, at extent " ++ show ext)
+  fail "Expected argument of type circ"
 
 
 -- Location handling
@@ -138,8 +150,7 @@ interpret (EVar x) = do
     Just v -> do
         return v
     Nothing -> do
-        ext <- getExtent
-        error ("Error : Unbound variable " ++ x ++ ", at extent " ++ show ext)
+        fail ("Unbound variable " ++ x)
 
 -- Functions
   -- The current context is enclosed in the function value
@@ -183,7 +194,8 @@ interpret (EApp ef arg) = do
         -- Creation of a new specification
         s <- spec typ
         -- Open a new circuit
-        c <- openBox (extract s)
+        ql <- extract s
+        c <- openBox ql
         -- Execute the argument, applied to the specification, in the new context
         m <- interpret arg
         s' <- interpretApp m s
@@ -192,8 +204,7 @@ interpret (EApp ef arg) = do
         return (VCirc s c' s')
 
     _ -> do
-        ext <- getExtent
-        error ("Error : value is not a function, at extent " ++ show ext)
+        fail "Value is not a function"
 
 -- Pairs
 interpret (EPair e1 e2) = do
@@ -210,8 +221,7 @@ interpret (EIf e1 e2 e3) = do
     VBool False -> do
         interpret e3
     _ -> do
-        ext <- getExtent
-        error ("Error : Condition is not a boolean, at extent " ++ show ext)
+        fail "Condition is not a boolean"
 
 -- Some congruence rules
 interpret (EBox t) = do
@@ -225,7 +235,7 @@ interpret (EUnbox e) = do
 -------------------
 -- Main function --
 
-run :: Expr -> Value
+run :: Expr -> Computed Value
 --------------------
 run e =
   let State runstate = do

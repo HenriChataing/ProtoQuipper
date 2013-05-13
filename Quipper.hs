@@ -7,7 +7,8 @@ import CoreSyntax
 import TransCore
 import Classes
 
-import Interpret
+import qualified Interpret
+import Values
 import TypeInference
 import CTypeInference
 
@@ -64,8 +65,13 @@ main = do
     return ()
 
   if inter opt then do
-    putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m"
-    putStrLn (show $ Interpret.run (dropConstraints prog))
+    putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
+    case Interpret.run (dropConstraints prog) of
+      Ok v -> do
+          putStrLn $ show v
+      Failed s ex -> do
+          putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
+          putStrLn ("In file : " ++ show ex ++ " -- " ++ s)
   else
     return ()
 

@@ -65,13 +65,20 @@ emptyContext =
     qId = 0
   }
 
-newtype State a = State (Context -> (Context, a))
+-- Result of a computation : either the computation succeeded, or it failed at some extent
+data Computed a = Ok a | Failed String Extent
+newtype State a = State (Context -> (Context, Computed a))
 instance Monad State where
-  return a = State (\ctx -> (ctx, a))
+  return a = State (\ctx -> (ctx, Ok a))
+  fail s = State (\ctx -> (ctx, Failed s $ extent ctx))
   State run >>= action =
-    State (\ctx -> let (ctx', a) = run ctx
-                       State run' = action a in
-                   run' ctx')
+    State (\ctx -> let (ctx', a) = run ctx in
+                   case a of
+                   Ok a ->
+                       let State run' = action a in
+                       run' ctx'
+                   Failed s ex ->
+                       (ctx', Failed s ex))
 
 -- Context manipulation --
 
@@ -97,20 +104,21 @@ closeBox :: Circuit -> State Circuit  -- Note : put the old circuit back in plac
 -- Fresh id generation
 newId :: State Int
 -------------------------
-getContext = State (\ctx -> (ctx, ctx))
-putContext ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, ()))
-swapContext ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, ctx'))
+getContext = State (\ctx -> (ctx, Ok ctx))
+putContext ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, Ok ()))
+swapContext ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, Ok ctx'))
 
-getExtent = State (\ctx -> (ctx, extent ctx))
-setExtent ext = State (\ctx -> (ctx { extent = ext }, ()))
+getExtent = State (\ctx -> (ctx, Ok $ extent ctx))
+setExtent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
 
-insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, ()))
-find x = State (\ctx -> (ctx, Map.lookup x $ bindings ctx))
-delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, ()))
+insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, Ok ()))
+find x = State (\ctx -> (ctx, Ok $ Map.lookup x $ bindings ctx))
+delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, Ok ()))
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
-                             (ctx { circuit = c' }, b'))
-openBox ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, circuit ctx))
-closeBox c = State (\ctx -> (ctx { circuit = c }, circuit ctx))
+                             (ctx { circuit = c' }, Ok b'))
+openBox ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, Ok $ circuit ctx))
+closeBox c = State (\ctx -> (ctx { circuit = c }, Ok $ circuit ctx))
 
-newId = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, qId ctx))
+newId = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, Ok $ qId ctx))
+
