@@ -4,37 +4,40 @@ module Interpret (-- Only the main function is accessible
 
 import Classes
 import Localizing
+import qualified Utils as Binding
 
 import Syntax
 
-import Circuits
 import Values
 import Gates
 
-import Data.Map
-import Data.Bool
 
-
--- Definition of a new context : empty context with basic gates added
-newContext :: Context
+-- Import the basic gates in the current context
+importGates :: State ()
 ---------------------
-newContext =
-  Ctx { extent = extentUnknown,
-        bindings = fromList gateValues,
-        circuit = Circ { qIn = [], gates = [], qOut = [] },
-        qId = 0 }
+importGates = State (\c ->
+                       foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
+                                                       run c') (c, ()) Gates.gateValues)
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
-bindPattern :: Pattern -> Value -> Context -> Context
+bindPattern :: Pattern -> Value -> State ()
 ------------------------------------------------------
-bindPattern (PVar x) v ctx = ctx { bindings = insert x v $ bindings ctx }
-bindPattern (PPair p1 p2) (VPair v1 v2) ctx =
-  let ctx0 = bindPattern p1 v1 ctx in
-  bindPattern p2 v2 ctx0
-bindPattern PUnit VUnit ctx = ctx
-bindPattern (PLocated p ex) v ctx = bindPattern p v (ctx { extent = ex })
-bindPattern _ _ ctx =
-  error ("Error : Unmatching pattern, at extent " ++ (show $ extent ctx))
+bindPattern (PVar x) v = do
+  insert x v
+  return ()
+bindPattern (PPair p1 p2) (VPair v1 v2) = do
+  bindPattern p1 v1
+  bindPattern p2 v2
+  return ()
+bindPattern PUnit VUnit = do
+  return ()
+bindPattern (PLocated p ex) v = do
+  setExtent ex
+  bindPattern p v
+  return ()
+bindPattern _ _ = do
+  ext <- getExtent
+  error ("Error : Unmatching pattern, at extent " ++ show ext)
 
 -- Extract the bindings from a circuit application
 bind :: Value -> Value -> [(Int, Int)]
@@ -44,31 +47,35 @@ bind (VPair v1 v2) (VPair v1' v2') =
   (bind v1 v1') ++ (bind v2 v2')
 bind VUnit VUnit = []
 bind v1 v2 =
-  error ("Error : Unmatching values : " ++ (show v1) ++ " and " ++ (show v2))
+  error ("Error : Unmatching values : " ++ show v1 ++ " and " ++ show v2)
 
 -- Apply a bind function to a value
 appBind :: [(Int, Int)] -> Value -> Value
 -----------------------------------------
-appBind b (VQBit q) = VQBit (applyBinding b q)
+appBind b (VQBit q) = VQBit (Binding.apply b q)
 appBind b (VPair v1 v2) = VPair (appBind b v1) (appBind b v2)
 appBind _ VUnit = VUnit
 appBind _ _ =
   error "Error : cannot apply binding function to something not a quantum data"
 
 -- Create a specification (with fresh variables) for a given type
-spec :: Type -> Context -> (Value, Context)
+spec :: Type -> State Value
 -------------------------------------------
-spec (TLocated t ex) ctx = spec t (ctx { extent = ex })
-spec TQBit ctx = 
-  let (q, ctx0) = freshQId ctx in
-  (VQBit q, ctx0)
-spec (TTensor t1 t2) ctx =
-  let (q1, ctx0) = spec t1 ctx in
-  let (q2, ctx1) = spec t2 ctx0 in
-  (VPair q1 q2, ctx1)
-spec TUnit ctx = (VUnit, ctx)
-spec t ctx =
-  error ("Error : type " ++ (show t) ++ " is not a quantum data type, at extent " ++ (show $ extent ctx))
+spec (TLocated t ex) = do
+  setExtent ex
+  spec t
+spec TQBit = do
+  q <- newId
+  return (VQBit q)
+spec (TTensor t1 t2) = do
+  q1 <- spec t1
+  q2 <- spec t2
+  return (VPair q1 q2)
+spec TUnit = do
+  return VUnit
+spec t = do
+  ext <- getExtent
+  error ("Error : type " ++ show t ++ " is not a quantum data type, at extent " ++ show ext)
 
 -- Extract the quantum addresses used in a value
 extract :: Value -> [Int]
@@ -82,111 +89,137 @@ extract _ = error "Error : cannot extract the quantum addresses of something not
 ----- Interpreter -------
 
 -- Evaluate function application
-interpretApp :: Value -> Value -> Context -> (Value, Context)
+interpretApp :: Value -> Value -> State Value
 
 -- Evaluate expressions
-interpret :: Expr -> Context -> (Value, Context)
+interpret :: Expr -> State Value
 
 -------------------------
 
 -- Classical beta reduction
-interpretApp (VFun c p e) arg ctx =
-  let c0 = bindPattern p arg c in
-  let c1 = c0 { circuit  = circuit ctx } in
-  -- The function body is evaluated in tis own closure, only the circuit differ
-  let (v, c2) = interpret e c1 in
-  (v, ctx { circuit = circuit c2 })
+interpretApp (VFun c p e) arg = do
+  ctx <- swapContext c  -- See module Values : ctx is the old context, the circuit is left unchanged
+  bindPattern p arg
+  v <- interpret e
+  _ <- swapContext ctx
+  return v
 
 -- Circuit generation rules
-interpretApp VRev (VCirc u c u') ctx = (VCirc u' (rev c) u, ctx)
-interpretApp VRev _ ctx = error ("Error : argument expected of type circ, at extent " ++ (show $ extent ctx))
+interpretApp VRev (VCirc u c u') = do
+  return (VCirc u' (rev c) u)
 
-interpretApp (VUnbox (VCirc u c u')) t ctx =
-  let b = bind u t in
-  let (c0, b0) = unencap (circuit ctx) c b in
-  (appBind b0 u', ctx { circuit = c0 })
-interpretApp (VUnbox _) _ ctx = error ("Error : Unbox expect a circuit as first argument, at extent " ++ (show $ extent ctx))
+interpretApp VRev _  = do
+  ext <- getExtent
+  error ("Error : argument expected of type circ, at extent " ++ show ext)
+
+interpretApp (VUnbox (VCirc u c u')) t = do
+  b' <- unencap c (bind u t)
+  return (appBind b' u')
+
+interpretApp (VUnbox _) _  = do
+  ext <- getExtent
+  error ("Error : Unbox expect a circuit as first argument, at extent " ++ show ext)
 
 
 -- Location handling
-interpret (ELocated e ex) ctx = interpret e (ctx { extent = ex })
+interpret (ELocated e ex) = do
+  setExtent ex
+  interpret e
 
 -- Empty
-interpret EUnit ctx = (VUnit, ctx)
+interpret EUnit = do
+  return VUnit
 
 -- Booleans
-interpret (EBool b) ctx = (VBool b, ctx)
+interpret (EBool b) = do
+  return (VBool b)
 
 -- Variables
-interpret (EVar x) ctx =
-  case Data.Map.lookup x (bindings ctx) of
-    Just v -> (v, ctx)
-    Nothing -> error ("Error : Unbound variable " ++ x ++ ", at extent " ++ (show $ extent ctx))
+interpret (EVar x) = do
+  v <- find x
+  case v of
+    Just v -> do
+        return v
+    Nothing -> do
+        ext <- getExtent
+        error ("Error : Unbound variable " ++ x ++ ", at extent " ++ show ext)
 
 -- Functions
   -- The current context is enclosed in the function value
-interpret (EFun pl e) ctx = (VFun ctx pl e, ctx)
+interpret (EFun p e) = do
+  ctx <- getContext
+  return (VFun ctx p e)
 
 -- Let .. in ..
   -- first evaluate the expr e1
   -- match it with the pattern
   -- evaluate e2 in the resulting context
-interpret (ELet p e1 e2) ctx =
-  let (v1, ctx0) = interpret e1 ctx in
-  let ctx1 = bindPattern p v1 ctx0 in
-  interpret e2 ctx1
+interpret (ELet p e1 e2) = do
+  v1 <- interpret e1
+  bindPattern p v1
+  interpret e2
 
 -- Function -- englobe all function applications : circuit generating rules and classical reduction
   -- first evaluate the would be function
-interpret (EApp ef arg) ctx =
-  let (f, ctx0) = interpret ef ctx in
+interpret (EApp ef arg) = do
+  f <- interpret ef
   case f of
     -- Classical beta reduction
-    VFun _ _ _ ->
-        let (t, ctx1) = interpret arg ctx0 in
-        interpretApp f t ctx1 
+    VFun _ _ _ -> do
+        t <- interpret arg
+        interpretApp f t
     -- Circuit unboxing
-    VUnbox _ ->
-        let (t, ctx1) = interpret arg ctx0 in
-        interpretApp f t ctx1
+    VUnbox _ -> do
+        t <- interpret arg
+        interpretApp f t
     -- Circuit reversal
-    VRev ->
-        let (t, ctx1) = interpret arg ctx0 in
-        interpretApp f t ctx1
+    VRev -> do
+        t <- interpret arg
+        interpretApp f t
 
     -- Circuit boxing
-    VBox typ ->
+    VBox typ -> do
         -- Creation of a new specification
-        let (s, ctx1) = spec typ ctx0 in  
-        let qd = extract s in
-        -- Open a new context
-        let nctx = ctx1 { circuit = Circ { qIn = qd, gates = [], qOut = qd } }  in
+        s <- spec typ
+        -- Open a new circuit
+        c <- openBox (extract s)
         -- Execute the argument, applied to the specification, in the new context
-        let (m, nctx0) = interpret arg nctx in
-        let (s', nctx1) = interpretApp m s nctx0 in
-        (VCirc s (circuit nctx1) s', ctx1)
-    _ -> error ("Error : value is not a function, at extent " ++ (show $ extent ctx0))
+        m <- interpret arg
+        s' <- interpretApp m s
+        -- Close the new circuit and reset the old one
+        c' <- closeBox c
+        return (VCirc s c' s')
+
+    _ -> do
+        ext <- getExtent
+        error ("Error : value is not a function, at extent " ++ show ext)
 
 -- Pairs
-interpret (EPair e1 e2) ctx =
-  let (v1, ctx0) = interpret e1 ctx in
-  let (v2, ctx1) = interpret e2 ctx0 in
-  (VPair v1 v2, ctx1)
+interpret (EPair e1 e2) = do
+  v1 <- interpret e1
+  v2 <- interpret e2
+  return (VPair v1 v2)
 
 -- If .. then .. else ..
-interpret (EIf e1 e2 e3) ctx =
-  let (v1, ctx0) = interpret e1 ctx in
+interpret (EIf e1 e2 e3) = do
+  v1 <- interpret e1
   case v1 of
-    VBool True -> interpret e2 ctx0
-    VBool False -> interpret e3 ctx0
-    _ -> error ("Error : Condition is not a boolean, at extent " ++ (show $ extent ctx))
+    VBool True -> do
+        interpret e2
+    VBool False -> do
+        interpret e3
+    _ -> do
+        ext <- getExtent
+        error ("Error : Condition is not a boolean, at extent " ++ show ext)
 
 -- Some congruence rules
-interpret (EBox t) ctx = (VBox t, ctx)
-interpret ERev ctx = (VRev, ctx)
-interpret (EUnbox e) ctx =
-  let (v, ctx0) = interpret e ctx in
-  (VUnbox v, ctx0)
+interpret (EBox t) = do
+  return (VBox t)
+interpret ERev = do
+  return VRev
+interpret (EUnbox e) = do
+  v <- interpret e
+  return (VUnbox v)
 
 -------------------
 -- Main function --
@@ -194,5 +227,9 @@ interpret (EUnbox e) ctx =
 run :: Expr -> Value
 --------------------
 run e =
-  let (v, _) = interpret e newContext in
+  let State runstate = do
+                         importGates
+                         interpret e
+                       in
+  let (_, v) = runstate emptyContext in
   v

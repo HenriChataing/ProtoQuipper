@@ -75,33 +75,42 @@ instance Monad State where
 
 -- Context manipulation --
 
+-- Whole
+getContext :: State Context
+putContext :: Context -> State ()
+swapContext :: Context -> State Context -- Note : the circuit is left unchanged, all other attribute are swapped
+
 -- Extent
 getExtent :: State Extent
 setExtent :: Extent -> State ()
+
 -- Bindings
 insert :: String -> Value -> State ()
+find :: String -> State (Maybe Value)
 delete :: String -> State ()
+
 -- Circuit construction
 unencap :: Circuit -> Binding -> State Binding
+openBox :: [Int] -> State Circuit     -- Note : from a list of addresses, open a new circuit, while the old one is returned
+closeBox :: Circuit -> State Circuit  -- Note : put the old circuit back in place and return the new one
+
 -- Fresh id generation
 newId :: State Int
 -------------------------
+getContext = State (\ctx -> (ctx, ctx))
+putContext ctx = State (\_ -> (ctx, ()))
+swapContext ctx = State (\ctx' -> (ctx', ctx { circuit = circuit $ ctx' }))
+
 getExtent = State (\ctx -> (ctx, extent ctx))
 setExtent ext = State (\ctx -> (ctx { extent = ext }, ()))
 
 insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, ()))
+find x = State (\ctx -> (ctx, Map.lookup x $ bindings ctx))
 delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, ()))
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
                              (ctx { circuit = c' }, b'))
+openBox ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, circuit ctx))
+closeBox c = State (\ctx -> (ctx { circuit = c }, circuit ctx))
 
 newId = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, qId ctx))
-
---- Various functions for manipulating values, expressions and patterns
-
--- Generate a fresh qbit id
-freshQId :: Context -> (Int, Context)
--------------------------------------
-freshQId ctx =
-  (qId ctx, ctx { qId = (qId ctx) + 1 })
-
