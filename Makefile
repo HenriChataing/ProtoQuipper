@@ -1,4 +1,4 @@
-INCLUDE = -iparsing -iinterpret
+INCLUDE = -iparsing -iinterpret -ityping
 
 BUILD_DIR = _build
 
