@@ -71,7 +71,7 @@ main = do
           putStrLn $ show v
       Failed s ex -> do
           putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
-          putStrLn ("In file : " ++ show ex ++ " -- " ++ s)
+          putStrLn ("In file : " ++ filename opt ++ ":" ++ show ex ++ " -- " ++ s)
   else
     return ()
 
