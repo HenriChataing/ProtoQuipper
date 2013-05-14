@@ -12,10 +12,19 @@ all : Parser.hs Lexer.hs
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parser.hs :
-	$(HAPPY) parsing/Parser.y
+	if [ -e _build/Parser.y ] && diff parsing/Parser.y _build/Parser.y > /dev/null ; then \
+	echo "Ignoring Parser.y" ; \
+	else \
+	$(HAPPY) parsing/Parser.y ; \
+	cp parsing/Parser.y _build/ ; \
+	fi
 Lexer.hs :
-	$(ALEX) parsing/Lexer.x
-
+	if [ -e _build/Lexer.x ] && diff parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
+	echo "Ignoring Lexer.x" ; \
+	else \
+	$(ALEX) parsing/Lexer.x ; \
+	cp parsing/Lexer.x _build/ ; \
+	fi
 clean :
 	rm parsing/Parser.hs parsing/Lexer.hs
 	rm _build/*
