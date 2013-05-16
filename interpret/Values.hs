@@ -29,7 +29,7 @@ data Value =
 instance PPrint Value where
   pprint (VQBit q) = subscript ("q" ++ show q)
   pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
-  pprint (VCirc _ c _) = pprintCircuit c
+  pprint (VCirc _ c _) = pprint c
   pprint (VBool b) = if b then "true" else "false"
   pprint VUnit = "<>"
 

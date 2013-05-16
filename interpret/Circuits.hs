@@ -11,7 +11,6 @@ import Classes
 class Caps a where
   unencap :: Circuit -> a -> Binding -> (Circuit, Binding)
 
-
 -- Type of a binding
 type Binding = [(Int, Int)]
 
@@ -338,11 +337,13 @@ pprintAll (g:cg) s =
     pprintAll cg cs'
 
 -- Printing function
-pprintCircuit :: Circuit -> String
-----------------------------------
-pprintCircuit c =
-  -- Mapping from quantum addresses to lines
-  let nset = printWire $ initSet c in
-  -- Building the lines
-  let cset = pprintAll (gates c) nset in
-  build $ printWire cset
+instance PPrint Circuit where
+  pprint c =
+    -- Mapping from quantum addresses to lines
+    let nset = printWire $ initSet c in
+    -- Building the lines
+    let cset = pprintAll (gates c) nset in
+    build $ printWire cset
+
+  sprint c = pprint c
+  sprintn _ c = pprint c

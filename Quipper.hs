@@ -71,7 +71,7 @@ main = do
     putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
     case Interpret.run (dropConstraints prog) of
       Ok v -> do
-          putStrLn $ show v
+          putStrLn $ pprint v
       Failed s ex -> do
           putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
           putStrLn ("In file : " ++ filename opt ++ ":" ++ show ex ++ " -- " ++ s)
@@ -81,7 +81,7 @@ main = do
   if typ opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
-    putStrLn (show $ TypeInference.principalType prog)
+    putStrLn (pprint $ TypeInference.principalType prog)
     putStrLn $ "\x1b[1m" ++ "CTypeInference :" ++ "\x1b[0m"
     putStrLn (show $ CTypeInference.principalType prog)
   else
