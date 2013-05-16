@@ -11,43 +11,45 @@ import Classes
 -- types                       --
 
 data Type =
-    TUnit
-  | TVar String
-  | TBool
-  | TQBit
-  | TCirc Type Type
-  | TTensor Type Type
-  | TArrow Type Type
-  | TExp Type
-  | TLocated Type Extent
+    TUnit                     -- T
+  | TVar String               -- a
+  | TBool                     -- bool
+  | TQBit                     -- qbit
+  | TCirc Type Type           -- circ (A, B)
+  | TTensor Type Type         -- A * B
+  | TArrow Type Type          -- A -> B
+  | TExp Type                 -- !A
+  | TLocated Type Extent      -- A @ ex
+  deriving Show
 
 ---------------------------------
 -- Representation of patterns  --
 
 data Pattern =
-    PUnit
-  | PVar String
-  | PPair Pattern Pattern
-  | PConstraint Pattern Type
-  | PLocated Pattern Extent
+    PUnit                     -- *
+  | PVar String               -- x
+  | PPair Pattern Pattern     -- <x, y>
+  | PConstraint Pattern Type  -- (x : A)
+  | PLocated Pattern Extent   -- x @ ex
+  deriving Show
 
 ---------------------------------
 -- Quipper's terms             --
 
 data Expr =
-    EUnit
-  | EConstraint Expr Type
-  | EVar String
-  | EFun Pattern Expr
-  | ELet Pattern Expr Expr
-  | EApp Expr Expr
-  | EBool Bool
-  | EPair Expr Expr
-  | EBox Type
-  | EUnbox Expr
-  | EIf Expr Expr Expr
-  | ERev
-  | ELocated Expr Extent
+    EUnit                     -- *
+  | EConstraint Expr Type     -- (e : A)
+  | EVar String               -- x  
+  | EFun Pattern Expr         -- fun p -> e
+  | ELet Pattern Expr Expr    -- let p = e in f
+  | EApp Expr Expr            -- e f
+  | EBool Bool                -- true / false
+  | EPair Expr Expr           -- <e, f>
+  | EBox Type                 -- box[A]
+  | EUnbox Expr               -- unbox e
+  | EIf Expr Expr Expr        -- if e then f else g
+  | ERev                      -- rev
+  | ELocated Expr Extent      -- e @ ex
   deriving Show
 
 
@@ -56,7 +58,7 @@ data Expr =
   
    Type is instance of :
      -- Show
-     -- Atomic
+     -- PPrint / SPrint
      -- Located
      -- Eq
 
@@ -169,12 +171,6 @@ instance Eq Type where
   (==) (TExp t1) (TExp t2) = (stripExp t1 == stripExp t2)
   (==) _ _ = False
 
-instance Atomic Type where
-  isAtomic (TTensor _ _) = False
-  isAtomic (TArrow _ _) = False
-  isAtomic (TLocated t _) = isAtomic t
-  isAtomic _ = True
-
 instance Located Type where
   locate (TLocated t ex) _ = TLocated t ex
   locate t ex = TLocated t ex
@@ -182,26 +178,6 @@ instance Located Type where
   location _ = Nothing
   locateOpt t Nothing = t
   locateOpt t (Just ex) = locate t ex
-
-instance Show Type where
-  show (TVar s) = s
-  show TUnit = "T"
-  show TBool = "bool"
-  show TQBit = "qbit"
-  show (TCirc t1 t2) = "circ (" ++ show t1 ++ ", " ++ show t2 ++ ")"
-  show (TTensor t1 t2) =
-    (if isAtomic t1 then show t1
-     else "(" ++ show t1 ++ ")") ++ " * " ++
-    (if isAtomic t2 then show t2
-     else "(" ++ show t2 ++ ")")
-  show (TLocated t _) = show t
-  show (TExp t) = "!" ++ (if isAtomic t then show t else "(" ++ show t ++ ")")
-  show (TArrow t1 t2) =
-    (if isAtomic t1 then show t1
-     else "(" ++ show t1 ++ ")") ++ " -> " ++
-    (if isAtomic t2 then show t2
-     else "(" ++ show t2 ++ ")")
-
 
 {-
    Instance declarations and functions of data type Pattern :   
@@ -222,13 +198,6 @@ instance Located Pattern where
   location _ = Nothing
   locateOpt p Nothing = p
   locateOpt p (Just ex) = locate p ex
-
-instance Show Pattern where
-  show (PLocated p _) = show p
-  show (PVar s) = s
-  show (PPair p1 p2) = "<" ++ show p1 ++ ", " ++ show p2 ++ ">"
-  show PUnit = "<>"
-  show (PConstraint p t) = "(" ++ show p ++ " : " ++ show t ++ ")"
 
 instance Constraint Pattern where
   dropConstraints (PConstraint p _) = p
@@ -276,35 +245,6 @@ instance Atomic Expr where
   isAtomic (EIf _ _ _) = False
   isAtomic (EFun _ _) = False
   isAtomic _ = True
-
----------------------
--- Pretty printing --
-
--- Second argument is indentation level
-pshowExpr :: Expr -> String -> String
--------------------------------------
-pshowExpr (ELocated e _) ind = pshowExpr e ind
-pshowExpr EUnit _ = "<>"
-pshowExpr (EVar s) _ = s
-pshowExpr (ELet p e1 e2) ind = "let " ++ show p ++ " = " ++ pshowExpr e1 ind ++ " in\n" ++ ind ++ pshowExpr e2 ind
-pshowExpr (EBool b) _ = if b then "true" else "false"
-pshowExpr (EPair e1 e2) ind = "<" ++ pshowExpr e1 ind ++ ", " ++ pshowExpr e2 ind ++ ">"
-pshowExpr (EIf e1 e2 e3) ind = "if " ++ pshowExpr e1 ind ++ " then\n" ++
-                               ind ++ "  " ++ pshowExpr e2 (ind ++ "  ") ++ "\n else\n" ++
-                               ind ++ "  " ++ pshowExpr e3 (ind ++ "  ")
-pshowExpr (EApp e1 e2) ind =
-    (if isAtomic e1 then pshowExpr e1 ind
-     else "(" ++ pshowExpr e1 ind ++ ")") ++ " " ++
-    (if isAtomic e2 then pshowExpr e2 ind
-     else "(" ++ pshowExpr e2 ind ++ ")")
-pshowExpr (EUnbox e) ind = if isAtomic e then "unbox " ++ pshowExpr e ind else "unbox (" ++ pshowExpr e ind ++ ")"
-pshowExpr ERev _ = "rev"
-pshowExpr (EBox t) _ = "box[" ++ show t ++ "]"
-pshowExpr (EFun p e) ind = "fun " ++ show p ++ " ->\n" ++ ind ++ "    " ++ pshowExpr e (ind ++ "    ")
-pshowExpr (EConstraint e t) ind = "(" ++ pshowExpr e ind ++ " : " ++ show t ++ ")"
-  
-instance PShow Expr where
-  pshow e = pshowExpr e ""
 
 instance Constraint Expr where
   dropConstraints (EConstraint e _) = e

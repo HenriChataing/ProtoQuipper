@@ -2,10 +2,13 @@ module Main where
 
 import Parser
 import Lexer
+
+import Classes
+
 import Syntax
+import Print
 import CoreSyntax
 import TransCore
-import Classes
 
 import qualified Interpret
 import Values
@@ -58,7 +61,7 @@ main = do
   if printp opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Printing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
-    putStrLn (pshow prog)
+    putStrLn $ pprint prog
     putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
     putStrLn (pshow $ fst $ translateExpr prog CTypeInference.newContext) 
   else
