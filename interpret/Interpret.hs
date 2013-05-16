@@ -7,6 +7,7 @@ import Localizing
 import qualified Utils as Binding
 
 import Syntax
+import Printer
 
 import Values
 import Gates
@@ -32,8 +33,8 @@ bindPattern PUnit VUnit = do
 bindPattern (PLocated p ex) v = do
   setExtent ex
   bindPattern p v
-bindPattern _ _ = do
-  fail "Unmatching patterns"
+bindPattern p q = do
+  fail ("Unmatching patterns : " ++ sprint p ++ " and " ++ sprint q)
 
 -- Extract the bindings from a circuit application
 bind :: Value -> Value -> State [(Int, Int)]
@@ -47,7 +48,7 @@ bind (VPair v1 v2) (VPair v1' v2') = do
 bind VUnit VUnit = do
   return []
 bind v1 v2 = do
-  fail ("Unmatching values : " ++ show v1 ++ " and " ++ show v2)
+  fail ("Unmatching values : " ++ pprint v1 ++ " and " ++ pprint v2)
 
 -- Apply a bind function to a value
 appBind :: [(Int, Int)] -> Value -> State Value
@@ -60,8 +61,8 @@ appBind b (VPair v1 v2) = do
   return (VPair v1' v2')
 appBind _ VUnit = do
   return VUnit
-appBind _ _ = do
-  fail "Binding function applied to something not a quantum data"
+appBind _ v = do
+  fail ("Expected a quantum data value - Actual value : " ++ pprint v)
 
 -- Create a specification (with fresh variables) for a given type
 spec :: Type -> State Value
@@ -79,7 +80,7 @@ spec (TTensor t1 t2) = do
 spec TUnit = do
   return VUnit
 spec t = do
-  fail ("Type " ++ show t ++ " is not a quantum data type")
+  fail ("Expected a quantum data type - Actual type : " ++ pprint t)
 
 -- Extract the quantum addresses used in a value
 extract :: Value -> State [Int]
@@ -92,8 +93,8 @@ extract (VPair v1 v2) = do
   return (q1 ++ q2)
 extract VUnit = do
   return []
-extract _ = do
-  fail "Value is not a quantum data"
+extract v = do
+  fail ("Expected a quantum data value - Actual value : " ++ pprint v)
 
 -------------------------
 ----- Interpreter -------
@@ -118,16 +119,16 @@ interpretApp (VFun c p e) arg = do
 interpretApp VRev (VCirc u c u') = do
   return (VCirc u' (rev c) u)
 
-interpretApp VRev _  = do
-  fail "Expected argument of type circ"
+interpretApp VRev e  = do
+  fail ("Expected argument of type circ - Actual expression : " ++ sprint e)
 
 interpretApp (VUnbox (VCirc u c u')) t = do
   b <- bind u t
   b' <- unencap c b
   appBind b' u'
 
-interpretApp (VUnbox _) _  = do
-  fail "Expected argument of type circ"
+interpretApp (VUnbox e) _  = do
+  fail ("Expected argument of type circ - Actual expression : " ++ sprint e)
 
 
 -- Location handling
@@ -145,12 +146,7 @@ interpret (EBool b) = do
 
 -- Variables
 interpret (EVar x) = do
-  v <- find x
-  case v of
-    Just v -> do
-        return v
-    Nothing -> do
-        fail ("Unbound variable " ++ x)
+  find x
 
 -- Functions
   -- The current context is enclosed in the function value
@@ -204,7 +200,7 @@ interpret (EApp ef arg) = do
         return (VCirc s c' s')
 
     _ -> do
-        fail "Value is not a function"
+        fail ("Expected value of type function - Actual expression : " ++ sprint ef)
 
 -- Pairs
 interpret (EPair e1 e2) = do
@@ -221,7 +217,7 @@ interpret (EIf e1 e2 e3) = do
     VBool False -> do
         interpret e3
     _ -> do
-        fail "Condition is not a boolean"
+        fail ("Expected value of type bool - Actual expression : " ++ sprint e1)
 
 -- Some congruence rules
 interpret (EBox t) = do

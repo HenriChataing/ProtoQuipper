@@ -5,8 +5,10 @@
 module Values where
 
 import Localizing
+import Utils
 
 import Syntax
+import Classes
 import Circuits
 
 import Data.Map as Map
@@ -22,14 +24,17 @@ data Value =
   | VUnit
   | VRev
   | VQBit Int     -- Quantum addresses
+  deriving Show
 
-instance Show Value where
-  show (VQBit q) = show q
-  show (VPair v1 v2) = "<" ++ show v1 ++ ", " ++ show v2 ++ ">"
-  show (VCirc _ c _) = pprintCircuit c
-  show (VBool True) = "true"
-  show (VBool False) = "false"
-  show VUnit = "<>"
+instance PPrint Value where
+  pprint (VQBit q) = subscript ("q" ++ show q)
+  pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
+  pprint (VCirc _ c _) = pprintCircuit c
+  pprint (VBool b) = if b then "true" else "false"
+  pprint VUnit = "<>"
+
+  sprint v = pprint v
+  sprintn _ v = pprint v
 
 -- Definition of the context
 
@@ -65,6 +70,11 @@ emptyContext =
     qId = 0
   }
 
+instance Show Context where
+  show ctx = "%%CLOSURE%%"
+
+{- Monad definition -}
+
 -- Result of a computation : either the computation succeeded, or it failed at some extent
 data Computed a = Ok a | Failed String Extent
 newtype State a = State (Context -> (Context, Computed a))
@@ -93,7 +103,7 @@ setExtent :: Extent -> State ()
 
 -- Bindings
 insert :: String -> Value -> State ()
-find :: String -> State (Maybe Value)
+find :: String -> State Value
 delete :: String -> State ()
 
 -- Circuit construction
@@ -112,7 +122,9 @@ getExtent = State (\ctx -> (ctx, Ok $ extent ctx))
 setExtent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
 
 insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, Ok ()))
-find x = State (\ctx -> (ctx, Ok $ Map.lookup x $ bindings ctx))
+find x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
+                                Just v -> Ok v
+                                Nothing -> Failed ("Unbound variable " ++ x) $ extent ctx))
 delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, Ok ()))
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in

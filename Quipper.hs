@@ -6,7 +6,7 @@ import Lexer
 import Classes
 
 import Syntax
-import Print
+import Printer
 import CoreSyntax
 import TransCore
 
