@@ -120,6 +120,23 @@ cover (Cont g q) =
 
 cover g = [firstq g]
 
+-- Result of the printing
+model :: Gate -> [(Int, String)]
+model (Cont g q) =
+  let ls = model g in
+  let mn = fst $ minimum $ ls in
+  let mx = fst $ maximum $ ls in
+  if mn < 2 * q && 2 * q < mx then
+    List.map (\(l, s) -> if l == 2 * q then (l, "-*-") else (l, s)) ls
+  else if 2 * q < mn then
+    (2 * q, "-*-"):((take (mn - 2 * q - 1) $ iterate (\(l, s) -> (l+1, s)) (2 * q + 1, " | ")) ++ ls)
+  else if mx < 2 * q then
+    (2 * q, "-*-"):((take (2 * q - mx - 1) $ iterate (\(l, s) -> (l+1, s)) (mx + 1, " | ")) ++ ls)
+  else
+    ls
+
+model g = [(2 * firstq g, sym g)]
+
 -----------------------
 
 data Circuit = Circ {
@@ -149,201 +166,177 @@ instance Caps Circuit where
 -------------------------------
 --- Circuit pretty printing ---
 
+----------------------------------------------------
+-- Wire allocation                                --
+-- Each quantum address is associated with a wire --
 
-------------------------------------
--- Line manipulation and creation --
+-- Associate a wire to each quantum address
+data Addressing = Address { wires :: Int,         -- Number of wires
+                            unused :: [Int],      -- Unused wires
+                            bind :: Binding }     -- Binding from addresses to wires
+newtype AdState a = AdState (Addressing -> (Addressing, a))
+instance Monad AdState where
+  return a = AdState (\ad -> (ad, a))
+  AdState run >>= action = AdState (\ad -> let (ad', a) = run ad in
+                                           let AdState run' = action a in
+                                           run' ad')
 
--- Create a padding of n white spaces
-padding :: Int -> String
-------------------------
-padding n = replicate n ' '
+-- Find a unused wire and binds the qaddress to this wire
+bindWire :: Int -> AdState Int
+bindWire q = AdState (\ad -> case unused ad of
+                               [] -> (ad { wires = (+1) $ wires ad,
+                                           bind = (q, wires ad):(bind ad) }, wires ad)
+                               w:cw -> (ad { unused = cw,
+                                             bind = (q, w):(bind ad) }, w))
+-- Assiocated wire
+assocWire :: Int -> AdState Int
+assocWire q = AdState (\ad -> (ad, case List.lookup q $ bind ad of
+                                     Just w -> w
+                                     Nothing -> error ("Unbound address " ++ show q)))
 
--- used : is the line currently occupied
--- print : has the line been filled in the current column
--- num : line number
-data LineSet = Set { ssize :: Int,               -- Number of lines in use
-                     slines :: Map Int String,    -- physical lines
-                     unused :: [Int],            -- Set of unused lines
-                     currentColumn :: [Int],         -- Lines missing the current column
-                     binding :: [(Int, Int)],    -- Binding from wires to lines
-                     columnNumber :: Int }             -- Current column number
+-- Associated gate   - Input gate can't be init or term
+assocGate :: Gate -> AdState Gate
+assocGate g = AdState (\ad -> (ad, readdress g $ bind ad))
 
--- Create the initial bindings
-initSet :: Circuit -> LineSet
------------------------------
-initSet c =
-  let (b, ix) = List.foldl (\(l, ix) q -> ((q, ix):l, ix+2)) ([], 0) (qIn c) in
-  let createlines = (\ix -> if ix == 0 then Map.insert 0 "" empty
-                            else let m' = createlines (ix-1) in Map.insert ix "" m') in
-  Set { ssize = ix-1,
-        slines = createlines (ix-1),
-        unused = [],
-        currentColumn = take (ix-1) $ iterate (+1) 0,
-        binding = b,
-        columnNumber = 0 }
+-- Delete a wire
+delWire :: (Int, Int) -> AdState ()
+delWire (q, w) = AdState (\ad -> (ad { unused = w:(unused ad),
+                                       bind = List.delete (q, w) $ bind ad }, ()))
 
--- Find an unused line for the wire q, if there exists one
-newLine :: LineSet -> Int -> (Int, LineSet)
-----------------------------------------
-newLine s@Set { unused = nsd, ssize = n, binding = b, slines = lns, columnNumber = c } q =
-  case nsd of
-  [] -> (n+1, s { ssize = n+2,
-                  binding = (q, n+1):b,
-                  slines = Map.insert (n+1) (padding c) $ Map.insert n (padding c) lns,
-                  currentColumn = n:(n+1):(currentColumn s) })
-  l:cl -> (l, s { binding = (q, l):b,
-                  unused = cl })
+-- Allocate all addresses  - Return te number of used lines too
+stateAllocate :: [Gate] -> AdState [Gate]
+allocate :: Circuit -> ([Gate], Int)
+---------------------------------------
+stateAllocate [] = do
+  return []
 
--- If the n-th in the current column has been filled already
-filled :: Int -> LineSet -> Bool
----------------------
-filled n s =
-  not (elem n $ currentColumn s)
+stateAllocate (Init q bt:cg) = do
+  w <- bindWire q
+  cg' <- stateAllocate cg
+  return (Init w bt:cg')
 
--- If the line is alive
-used :: Int -> LineSet -> Bool
-------------------------------
-used n s =
-  not (elem n $ unused s)
+stateAllocate (Term q bt: cg) = do
+  w <- assocWire q
+  delWire (q, w)
+  cg' <- stateAllocate cg
+  return (Term w bt:cg')
 
--- Try printing the gate in the current column
--- The return value includes : if the gate was printed, changes made to the lineSet, and the gate with the binding applied
-tryPrint :: LineSet -> Gate -> (Bool, LineSet, Gate)
-------------------------------------------------------
-tryPrint s g@(Init q bt)  = 
-  let (nq, s') = newLine s q in
-  let ng = Init nq bt in
-  if filled nq s' then
-    (False, (s' { unused = nq:(unused s') }), ng)
-  else
-    (True, pprintGate ng s', ng)
-  
-tryPrint s g@(Term q bt) =
-  let nq = applyBinding (binding s) q in
-  let s' = s { binding = List.delete (q, nq) $ binding s } in
-  let ng = Term nq bt in
-  if filled nq s' then
-    (False, s', ng)
-  else
-    (True, pprintGate ng s', ng)
+stateAllocate (g:cg) = do
+  g' <- assocGate g
+  cg' <- stateAllocate cg
+  return (g':cg')
  
-tryPrint s g =
-  let ng = readdress g (binding s) in
-  let cov = cover ng in
-  if List.foldl (\v n -> v && (elem n $ currentColumn s)) True cov then
-    (True, pprintGate ng s, ng)
-  else
-    (False, s, ng)
+allocate c =
+  let AdState run = do
+      stateAllocate $ gates c
+  in
+  let initState = List.foldl (\ad q -> ad { wires = (+1) $ wires ad,
+                                            bind = (q, wires ad):(bind ad) })
+                             (Address { wires = 0, unused = [], bind = []})
+                             (qIn c) in
+  let (ad, g) = run initState in
+  (g, wires ad)
 
--------------------------------
--- Actual printing functions --
+---------------------------------------------------------------------------------
+-- Column filling                                                              --
+-- Each gate is printed in a column, in a such a way as to minimize the number --
+-- of columns                                                                  --
 
--- Appends a wire on the lines matching quantum addresses, spaces othewise
-printWire :: LineSet -> LineSet
--------------------------------
-printWire s = s { slines = mapWithKey (\n l ->
-                                        if n `mod` 2 == 0 && used n s then
-                                          l ++ "---" 
-                                        else
-                                          l ++ "   ") $ slines s,
-                  columnNumber = (columnNumber s)+3 }
+data Column = Col { chars :: Map Int String }
 
--- Actual printing
-pprintGate :: Gate -> LineSet -> LineSet
+data Grid = Grid { gsize :: Int,               -- Number of lines
+                   columns :: [Column] }       -- Reversed list of all columns
+             
+-- Look for the deepest column until which the line l is empty
+freeDepth :: Int -> [Column] -> Int
+freeDepth l [] = -1
+freeDepth l (c:cl) = case Map.lookup l $ chars c of
+                       Nothing -> 1 + (freeDepth l cl)
+                       Just _ -> -1
+ 
+-- Look for the deepest column until which all the lines l1 .. ln are empty
+freeCommonDepth :: [Int] -> [Column] -> Int
+freeCommonDepth ls c = List.minimum (List.map (\l -> freeDepth l c) ls)
 
--- Init gates
--- Need to intercept this gate : the wire is removed from unused lines only after it has been printed
-pprintGate g@(Init nq _) s =
-  s { slines = case Map.lookup nq $ slines s of
-              Just l -> Map.insert nq (l ++ sym g) $ slines s
-              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
-      currentColumn = List.delete nq $ currentColumn s,
-      unused = List.delete nq (unused s) }
+-- Print at depth n
+printAt :: Int -> Int -> String -> [Column] -> [Column]
+printAt l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
+printAt l n s (c:cl) = c:(printAt l (n-1) s cl)
 
--- Terl gates
--- Need to intercept this gate : the wire is added to unused lines only after it has been printed
-pprintGate g@(Term nq _) s =
-  s { slines = case Map.lookup nq $ slines s of
-              Just l -> Map.insert nq (l ++ sym g) $ slines s
-              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
-      currentColumn = List.delete nq $ currentColumn s,
-      unused = nq:(unused s) }
 
--- Controlled gates
-pprintGate (Cont g q) s =
-  let s' = pprintGate g s in
-  let q' = firstq g in
-  let (mn, mx) = if q' < q then (q', q) else (q, q') in
-  let s'' = List.foldl (\s n -> if filled n s then
-                                  s
+newtype GrState a = GrState (Grid -> (Grid, a))
+instance Monad GrState where
+  return a = GrState (\gr -> (gr, a))
+  GrState run >>= action = GrState (\gr -> let (gr', a) = run gr in
+                                           let GrState run' = action a in
+                                           run' gr')
+
+-- Print character in line n
+printSingle :: Int -> String -> GrState ()
+printSingle l s = GrState (\gr -> case columns gr of
+                                    [] -> let nc = Col { chars = Map.insert l s Map.empty } in
+                                          (gr { columns = [nc] }, ())
+                                    -- The dig function here looks for the deepest column until which the line l is empty
+                                    cols -> let dig = (\cl -> case cl of
+                                                                [] -> ([], False)
+                                                                c:cl -> case Map.lookup l $ chars c of
+                                                                          Just _ -> (c:cl, False)
+                                                                          Nothing -> let (cl', p) = dig cl in
+                                                                                     if p then 
+                                                                                       (c:cl', True)
+                                                                                     else
+                                                                                       (c { chars = Map.insert l s $ chars c }:cl, True)) in
+                                            let (cols', p) = dig cols in
+                                            if p then
+                                              (gr { columns = cols' }, ())
+                                            else
+                                              (gr { columns = (Col { chars = Map.insert l s Map.empty }):cols }, ()))
+
+-- Print n characters on the same line
+printMulti :: [(Int, String)] -> GrState ()
+printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ columns gr in
+                                if d == -1 then
+                                  let cols' = (Col { chars = Map.empty }):(columns gr) in
+                                  (List.foldl (\gr (l, s) -> gr { columns = printAt l 0 s $ columns gr }) gr ls, ())
                                 else
-                                  s { slines = case Map.lookup n $ slines s of
-                                               -- Printing of vertical wires
-                                               Just l -> Map.insert n (if n `mod` 2 == 0 && used n s then
-                                                                         l ++ "-|-"
-                                                                       else
-                                                                         l ++ " | ") $ slines s
-                                               Nothing -> error ("Shouldn't happen : undefined line " ++ show n),
-                                      currentColumn = List.delete n $ currentColumn s }) s' (take (mx-mn-1) $ iterate (+1) (mn+1)) in
-  s'' { slines = case Map.lookup q $ slines s'' of
-                 Just l -> Map.insert q (l ++ "-*-") $ slines s''
-                 Nothing -> error ("Shouldn't happen : undefined line " ++ show q),
-        currentColumn = List.delete q $ currentColumn s'' }
-
--- Other gates
-pprintGate g s =
-  let nq = firstq g in
-  s { slines = case Map.lookup nq $ slines s of
-              Just l -> Map.insert nq (l ++ sym g) $ slines s
-              Nothing -> error ("Shouldn't happen : undefined line " ++ show nq),
-      currentColumn = List.delete nq $ currentColumn s }
+                                  (List.foldl (\gr (l, s) -> gr { columns = printAt l d s $ columns gr }) gr ls, ()))
 
 
--- Complete the current column by filling the missing lines
-complete :: LineSet -> LineSet
-------------------------------
-complete s =
-  List.foldl (\s n -> case Map.lookup n $ slines s of
-                      Just l -> if n `mod` 2 == 0 && used n s then
-                                  s { slines = Map.insert n (l ++ "---") $ slines s }
-                                else
-                                  s { slines = Map.insert n (l ++ "   ") $ slines s }
-                      Nothing -> error ("Shouldn't happen : undefined line " ++ show n)
-             ) (s { currentColumn = take (ssize s) $ iterate (+1) 0,
-                    columnNumber = (columnNumber s)+3 }) (currentColumn s)
+-- Print a gate
+printGate :: Gate -> GrState ()
+printGate (Cont g q) = do
+  printMulti $ model (Cont g q)
+   
+printGate g = do
+  printSingle (2 * firstq g) (sym g)
 
--- Plug the lines together
-build :: LineSet -> String
---------------------------
-build s =
-  List.foldl (\text n -> case Map.lookup n $ slines s of
-                         Just l -> text ++ l ++ "\n"
-                         Nothing -> error ("Shouldn't happen : undefined line " ++ show n)
-             ) "" (take (ssize s) $ iterate (+1) 0)
+-- Fill the gaps
+outputLine :: Int -> GrState String
+outputLine l = GrState (\gr -> (gr, let (s, _) =  List.foldr (\c (s, on) -> case Map.lookup l $ chars c of
+                                                                Just sm -> if isSuffixOf "|-" sm then
+                                                                             (s ++ sm, True)
+                                                                           else if isPrefixOf "-|" sm then
+                                                                             (s ++ sm, False)
+                                                                           else (sm ++ s, on)
+                                                                Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
+                                                                           else (s ++ "   ", on)) ("", True) $ columns gr in
+                                    s))
 
--- Print all the gates, putting as much as possible on one column
-pprintAll :: [Gate] -> LineSet -> LineSet
------------------------------------------
-pprintAll [] s =
-  (complete s)
+-- Output the whole grid
+output :: GrState String
+output = GrState (\gr -> let num = take (gsize gr) $ iterate (+1) 0 in
+                         (gr, List.foldl (\s l -> let GrState run = do outputLine l in
+                                                  let (_, ln) = run gr in
+                                                  (ln ++ "\n" ++ s)) "" num))
 
-pprintAll (g:cg) s =
-  let (feat, s', g') = tryPrint s g in
-  if feat then
-    pprintAll cg s'
-  else
-    let cs = printWire $ complete s' in
-    let cs' = pprintGate g' cs in
-    pprintAll cg cs'
-
--- Printing function
 instance PPrint Circuit where
   pprint c =
-    -- Mapping from quantum addresses to lines
-    let nset = printWire $ initSet c in
-    -- Building the lines
-    let cset = pprintAll (gates c) nset in
-    build $ printWire cset
+    let (gates, lns) = allocate c in
+    let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = printGate g in
+                                                          run gr) (gr, ()) gates) in
+    let GrState run = (runGr >>= (\_ -> output)) in
+    let (_, s) = run (Grid { gsize = lns, columns = [] }) in
+    s
 
-  sprint c = pprint c
   sprintn _ c = pprint c
+  sprint c = pprint c
