@@ -107,8 +107,8 @@ sym (Not _) = "[X]"
 sym (Had _) = "[H]"
 sym (T _) = "[T]"
 sym (S _) = "[S]"
-sym (IT _) = "[T\x0305]"
-sym (IS _) = "[S\x0305]"
+sym (IT _) = "[\x0305T]"
+sym (IS _) = "[\x0305S]"
 
 -- Line coverage of a gate
 cover :: Gate -> [Int]
@@ -126,14 +126,14 @@ model (Cont g q) =
   let ls = model g in
   let mn = fst $ minimum $ ls in
   let mx = fst $ maximum $ ls in
-  if mn < 2 * q && 2 * q < mx then
+  if mn <= 2 * q && 2 * q <= mx then
     List.map (\(l, s) -> if l == 2 * q then (l, "-*-") else (l, s)) ls
   else if 2 * q < mn then
+    -- Vertical wire from 2q+1 to m-1, and -*- on 2q
     (2 * q, "-*-"):((take (mn - 2 * q - 1) $ iterate (\(l, s) -> (l+1, s)) (2 * q + 1, " | ")) ++ ls)
-  else if mx < 2 * q then
+  else -- if mx < 2 * q
+    -- Vertical wire from mx+1 to 2q-1, and -*- on 2q
     (2 * q, "-*-"):((take (2 * q - mx - 1) $ iterate (\(l, s) -> (l+1, s)) (mx + 1, " | ")) ++ ls)
-  else
-    ls
 
 model g = [(2 * firstq g, sym g)]
 
@@ -263,7 +263,6 @@ printAt :: Int -> Int -> String -> [Column] -> [Column]
 printAt l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
 printAt l n s (c:cl) = c:(printAt l (n-1) s cl)
 
-
 newtype GrState a = GrState (Grid -> (Grid, a))
 instance Monad GrState where
   return a = GrState (\gr -> (gr, a))
@@ -273,31 +272,19 @@ instance Monad GrState where
 
 -- Print character in line n
 printSingle :: Int -> String -> GrState ()
-printSingle l s = GrState (\gr -> case columns gr of
-                                    [] -> let nc = Col { chars = Map.insert l s Map.empty } in
-                                          (gr { columns = [nc] }, ())
-                                    -- The dig function here looks for the deepest column until which the line l is empty
-                                    cols -> let dig = (\cl -> case cl of
-                                                                [] -> ([], False)
-                                                                c:cl -> case Map.lookup l $ chars c of
-                                                                          Just _ -> (c:cl, False)
-                                                                          Nothing -> let (cl', p) = dig cl in
-                                                                                     if p then 
-                                                                                       (c:cl', True)
-                                                                                     else
-                                                                                       (c { chars = Map.insert l s $ chars c }:cl, True)) in
-                                            let (cols', p) = dig cols in
-                                            if p then
-                                              (gr { columns = cols' }, ())
-                                            else
-                                              (gr { columns = (Col { chars = Map.insert l s Map.empty }):cols }, ()))
+printSingle l s = GrState (\gr -> let d = freeDepth l $ columns gr in
+                                  if d == -1 then
+                                    let nc = Col { chars = Map.insert l s Map.empty } in
+                                    (gr { columns = nc:(columns gr) }, ())
+                                  else
+                                    (gr { columns = printAt l d s $ columns gr }, ()))
 
 -- Print n characters on the same line
 printMulti :: [(Int, String)] -> GrState ()
 printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ columns gr in
                                 if d == -1 then
-                                  let cols' = (Col { chars = Map.empty }):(columns gr) in
-                                  (List.foldl (\gr (l, s) -> gr { columns = printAt l 0 s $ columns gr }) gr ls, ())
+                                  let nc = Col { chars = fromList ls } in
+                                  (gr { columns = nc:(columns gr) }, ())
                                 else
                                   (List.foldl (\gr (l, s) -> gr { columns = printAt l d s $ columns gr }) gr ls, ()))
 
@@ -312,14 +299,28 @@ printGate g = do
 
 -- Fill the gaps
 outputLine :: Int -> GrState String
-outputLine l = GrState (\gr -> (gr, let (s, _) =  List.foldr (\c (s, on) -> case Map.lookup l $ chars c of
-                                                                Just sm -> if isSuffixOf "|-" sm then
-                                                                             (s ++ sm, True)
-                                                                           else if isPrefixOf "-|" sm then
-                                                                             (s ++ sm, False)
-                                                                           else (sm ++ s, on)
-                                                                Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
-                                                                           else (s ++ "   ", on)) ("", True) $ columns gr in
+outputLine l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars $ last $ columns gr of
+                                                        Just sym -> if isSuffixOf "|-" sym then ("   ", False)
+                                                                    else if l `mod` 2 == 0 then ("---", True)
+                                                                    else ("   ", False)
+                                                        Nothing -> if l `mod` 2 == 0 then ("---", True) else ("   ", False)
+                                                      in
+                                                        
+                                    let (s, _) = List.foldr (\c (s, on) -> 
+                                                                let (ns, non) = case Map.lookup l $ chars c of
+                                                                                  Just sm -> if isSuffixOf "|-" sm then
+                                                                                               (s ++ sm, True)
+                                                                                             else if isPrefixOf "-|" sm then
+                                                                                               (s ++ sm, False)
+                                                                                             else (s ++ sm, on)
+                                                                                  Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
+                                                                                             else (s ++ "   ", on)
+                                                                in
+                                                                -- Printing wires
+                                                                if l `mod` 2 == 0 && non then
+                                                                  (ns ++ "---", non)
+                                                                else
+                                                                  (ns ++ "   ", non)) initMode $ columns gr in
                                     s))
 
 -- Output the whole grid
@@ -327,7 +328,7 @@ output :: GrState String
 output = GrState (\gr -> let num = take (gsize gr) $ iterate (+1) 0 in
                          (gr, List.foldl (\s l -> let GrState run = do outputLine l in
                                                   let (_, ln) = run gr in
-                                                  (ln ++ "\n" ++ s)) "" num))
+                                                  (s ++ ln ++ "\n")) "\n" num))
 
 instance PPrint Circuit where
   pprint c =
@@ -335,7 +336,7 @@ instance PPrint Circuit where
     let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = printGate g in
                                                           run gr) (gr, ()) gates) in
     let GrState run = (runGr >>= (\_ -> output)) in
-    let (_, s) = run (Grid { gsize = lns, columns = [] }) in
+    let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [] }) in
     s
 
   sprintn _ c = pprint c
