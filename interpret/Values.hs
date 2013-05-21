@@ -10,8 +10,10 @@ import Utils
 import Syntax
 import Classes
 import Circuits
+import Gates
 
 import Data.Map as Map
+import Data.List as List
 
 -- Type declaration of values
 data Value =
@@ -35,6 +37,21 @@ instance PPrint Value where
 
   sprint v = pprint v
   sprintn _ v = pprint v
+
+-- Associate values to gates
+gateValues :: [(String, Value)]
+-------------------------------
+gateValues =
+  let initValues = [("INIT0", VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQBit 0)),
+                    ("INIT1", VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQBit 0)) ] in
+  let termValues = [("TERM0", VCirc (VQBit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit),
+                    ("TERM1", VCirc (VQBit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit) ] in
+  let unaryValues = List.map (\s -> (s, VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Unary s 0 ], qOut = [0] }) (VQBit 0))) unaryGates in
+  let binaryValues = List.map (\s -> (s, VCirc (VPair (VQBit 0) (VQBit 1))
+                                               (Circ { qIn = [0, 1], gates = [ Binary s 0 1 ], qOut = [0, 1] })
+                                               (VPair (VQBit 0) (VQBit 1)))) binaryGates in
+
+  initValues ++ termValues ++ unaryValues ++ binaryValues
 
 -- Definition of the context
 

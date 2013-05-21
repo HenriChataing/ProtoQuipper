@@ -5,6 +5,8 @@ import Data.Map as Map
 
 import Classes
 
+import Gates
+
 -----------------------------------
 -- Class of encapsulated objects --
 
@@ -34,121 +36,63 @@ freshAddress l = (maximum l) + 1
 data Gate =
     Init Int Int
   | Term Int Int
-  | Not Int
-  | Had Int
-  | S Int
-  | IS Int
-  | T Int
-  | IT Int
-  | Y Int
-  | Z Int
-  | Swap Int Int
-  | Cont Gate Int
+  | Unary String Int
+  | Binary String Int Int
     deriving Show
 
 -- Some readdressing
 readdress :: Gate -> Binding -> Gate
 ------------------------------------
-readdress (Not q) b = Not (applyBinding b q)
-readdress (Had q) b = Had (applyBinding b q)
-readdress (S q) b = S (applyBinding b q)
-readdress (IS q) b = IS (applyBinding b q)
-readdress (T q) b = T (applyBinding b q)
-readdress (IT q) b = IT (applyBinding b q)
-readdress (Y q) b = Y (applyBinding b q)
-readdress (Z q) b = Z (applyBinding b q)
-readdress (Swap qa qb) b = Swap (applyBinding b qa) (applyBinding b qb)
-readdress (Cont g q) b = Cont (readdress g b) (applyBinding b q)
+readdress (Unary s q) b = Unary s (applyBinding b q)
+readdress (Binary s qa qb) b = Binary s (applyBinding b qa) (applyBinding b qb)
 
 instance Reversible Gate where
   rev (Init q b) = Term q b
   rev (Term q b) = Init q b
-  rev (Not q) = Not q
-  rev (Had q) = Had q
-  rev (S q) = IS q
-  rev (IS q) = S q
-  rev (T q) = IT q
-  rev (IT q) = T q
-  rev (Y q) = Y q
-  rev (Z q) = Z q
-  rev (Swap qa qb) = Swap qa qb
-  rev (Cont g c) = Cont (rev g) c
+  rev (Unary s q) = case List.lookup s unaryRev of
+                      Just s' -> Unary s' q
+                      Nothing -> error ("Unary gate " ++ s ++ " has no defined inverse")
+  rev (Binary s qa qb) = case List.lookup s binaryRev of
+                           Just s' -> Binary s' qa qb
+                           Nothing -> error ("Binary gate " ++ s ++ " has no defined inverse")
 
 -- Apply a binding function to the addresses of a gate
 ---- The output is the resulting gate and a binding function from the old addresses to the new
 instance Caps Gate where
   -- Normal gates
-  unencap c (Not q) b = (c { gates = (gates c) ++ [readdress (Not q) b] }, b)
-  unencap c (Had q) b = (c { gates = (gates c) ++ [readdress (Had q) b] }, b)
-  unencap c (S q) b = (c { gates = (gates c) ++ [readdress (S q) b] }, b)
-  unencap c (IS q) b = (c { gates = (gates c) ++ [readdress (IS q) b] }, b)
-  unencap c (T q) b = (c { gates = (gates c) ++ [readdress (T q) b] }, b)
-  unencap c (IT q) b = (c { gates = (gates c) ++ [readdress (IT q) b] }, b)
-  unencap c (Y q) b = (c { gates = (gates c) ++ [readdress (Y q) b] }, b)
-  unencap c (Z q) b = (c { gates = (gates c) ++ [readdress (Z q) b] }, b)
-  unencap c (Swap qa qb) b = (c { gates = (gates c) ++ [readdress (Swap qa qb) b] }, b)
+  unencap c g@(Unary _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
+  unencap c g@(Binary _ _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   -- Creation / deletion of wires
   unencap c (Term q bt) b = let q' = applyBinding b q in
     (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
   unencap c (Init q bt) b = let q' = freshAddress (qOut c) in
     (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
-  -- Controlled gates
-  unencap c (Cont g q) b = (c { gates = (gates c) ++ [readdress (Cont g q) b] }, b)
 
-
-
--- First wire of a gate
-firstq :: Gate -> Int
----------------------
-firstq (Init q _) = q
-firstq (Term q _) = q
-firstq (Cont _ q) = q
-firstq (Not q) = q
-firstq (Had q) = q
-firstq (S q) = q
-firstq (T q) = q
-firstq (IS q) = q
-firstq (IT q) = q
-firstq (Y q) = q
-firstq (Z q) = q
-
--- Symbolic representation of a gate
-sym :: Gate -> String
----------------------
-sym (Init _ b) = (show b) ++ "|-"
-sym (Term _ b) = "-|" ++ (show b)
-sym (Not _) = "(+)"
-sym (Had _) = "[H]"
-sym (T _) = "[T]"
-sym (S _) = "[S]"
-sym (IT _) = "[\x0305T]"
-sym (IS _) = "[\x0305S]"
-sym (Y _) = "[Y]"
-sym (Z _) = "[Z]"
 
 -- Result of the printing
 model :: Gate -> [(Int, String)]
-model (Cont g q) =
-  let ls = model g in
-  let mn = fst $ minimum $ ls in
-  let mx = fst $ maximum $ ls in
-  if mn <= 2 * q && 2 * q <= mx then
-    List.map (\(l, s) -> if l == 2 * q then (l, "-*-") else (l, s)) ls
-  else if 2 * q < mn then
-    -- Vertical wire from 2q+1 to m-1, and -*- on 2q
-    (2 * q, "-*-"):((take (mn - 2 * q - 1) $ iterate (\(l, s) -> (l+1, s)) (2 * q + 1, " | ")) ++ ls)
-  else -- if mx < 2 * q
-    -- Vertical wire from mx+1 to 2q-1, and -*- on 2q
-    (2 * q, "-*-"):((take (2 * q - mx - 1) $ iterate (\(l, s) -> (l+1, s)) (mx + 1, " | ")) ++ ls)
-
-model (Swap qa qb) =
+model (Binary s qa qb) =
+  let sym = case List.lookup s binarySym of
+              Just sy -> sy
+              Nothing -> error ("Binary gate " ++ s ++ " has no specified symbolic representation")
+            in
   if qa < qb then
-    (2 * qa, "-X-"):(2 * qb, "-X-"):(take (2 * qb - 2 * qa - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qa + 1, " | "))
+    (2 * qa, fst sym):(2 * qb, snd sym):(take (2 * qb - 2 * qa - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qa + 1, " | "))
   else
-    (2 * qa, "-X-"):(2 * qb, "-X-"):(take (2 * qa - 2 * qb - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qb + 1, " | "))
+    (2 * qa, fst sym):(2 * qb, snd sym):(take (2 * qa - 2 * qb - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qb + 1, " | "))
 
-model g = [(2 * firstq g, sym g)]
+model (Unary s q) =
+  let sym = case List.lookup s unarySym of
+              Just sy -> sy
+              Nothing -> error ("Unary gate " ++ s ++ " has no specified symbolic representation")
+            in
+  [(2 * q, sym)]
 
+model (Init q bt) =
+  [(2 * q, show bt ++ "|-")]
+
+model (Term q bt) =
+  [(2 * q, "-|" ++ show bt)]
 
 -----------------------
 
@@ -283,15 +227,6 @@ instance Monad GrState where
                                            let GrState run' = action a in
                                            run' gr')
 
--- Print character in line n
-printSingle :: Int -> String -> GrState ()
-printSingle l s = GrState (\gr -> let d = freeDepth l $ columns gr in
-                                  if d == -1 then
-                                    let nc = Col { chars = Map.insert l s Map.empty } in
-                                    (gr { columns = nc:(columns gr) }, ())
-                                  else
-                                    (gr { columns = printAt l d s $ columns gr }, ()))
-
 -- Print n characters on the same line
 printMulti :: [(Int, String)] -> GrState ()
 printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ columns gr in
@@ -304,14 +239,8 @@ printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ colum
 
 -- Print a gate
 printGate :: Gate -> GrState ()
-printGate (Cont g q) = do
-  printMulti $ model (Cont g q)
-
-printGate (Swap qa qb) = do
-  printMulti $ model (Swap qa qb)
-   
 printGate g = do
-  printSingle (2 * firstq g) (sym g)
+  printMulti $ model g
 
 -- Fill the gaps
 outputLine :: Int -> GrState String

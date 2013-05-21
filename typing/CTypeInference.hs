@@ -13,7 +13,6 @@ import Gates
 import Data.Map
 import Data.List
 
-
 -- Create a base context (add the basic gates to the empty context)
 newContext :: Context
 ---------------------
@@ -21,7 +20,7 @@ newContext =
   Data.List.foldl (\ctx (g, t) ->
                      let (ig, ctx0) = register g ctx in
                      let (ft, ctx1) = translateType t ctx0 in
-                     ctx1 { bindings = Data.Map.insert ig ([], ft) $ bindings ctx1 }) emptyContext gateTypes
+                     ctx1 { bindings = Data.Map.insert ig ([], ft) $ bindings ctx1 }) emptyContext typingEnvironment
 
 -----------------------------
 -- Constraint typing rules --

@@ -12,13 +12,12 @@ import Printer
 import Values
 import Gates
 
-
 -- Import the basic gates in the current context
 importGates :: State ()
 ---------------------
 importGates = State (\c ->
                        foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
-                                                       run c') (c, Ok ()) Gates.gateValues)
+                                                       run c') (c, Ok ()) gateValues)
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
 bindPattern :: Pattern -> Value -> State ()
