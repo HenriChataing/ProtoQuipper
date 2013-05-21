@@ -95,5 +95,6 @@ Type : Atom_type                         { $1 }
 
 {
 parseError :: [Token] -> a
+parseError [] = error "Parse error : unknown token"
 parseError tokens = error ("Parse error : on token " ++ (show $ head tokens))
 } 
