@@ -4,10 +4,12 @@ module Parser where
 import Data.Char
 import ParserUtils
 import Lexer
+
 import Localizing
 import Syntax
 import Classes
 
+import Data.List as List
 }
 
 %name parse
@@ -53,11 +55,11 @@ import Classes
 
 %%
 
-Expr : FUN Pattern ARROW Expr            { locateOpt (EFun $2 $4) (fromtoOpt (Just $1) (location $4)) }
-     | IF Expr THEN Expr ELSE Expr       { locateOpt (EIf $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
-     | LET Pattern '=' Expr IN Expr      { locateOpt (ELet $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
-     | LET VAR Pattern '=' Expr IN Expr  { locateOpt (ELet (PVar (snd $2)) (EFun $3 $5) $7) (fromtoOpt (Just $1) (location $7)) }
-     | Apply_expr                        { $1 }
+Expr : FUN Pattern_list ARROW Expr            { locateOpt (List.foldr EFun $4 $2) (fromtoOpt (Just $1) (location $4)) }
+     | IF Expr THEN Expr ELSE Expr            { locateOpt (EIf $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
+     | LET Pattern '=' Expr IN Expr           { locateOpt (ELet $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
+     | LET VAR Pattern_list '=' Expr IN Expr  { locateOpt (ELet (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromtoOpt (Just $1) (location $7)) }
+     | Apply_expr                             { $1 }
 
 Apply_expr : Apply_expr Atom_expr        { locateOpt (EApp $1 $2) (fromtoOpt (location $1) (location $2)) }
       | UNBOX Atom_expr                  { locateOpt (EUnbox $2) (fromtoOpt (Just $1) (location $2)) }
@@ -80,6 +82,9 @@ Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
         | '<' Pattern ',' Pattern '>'    { locate (PPair $2 $4) (fromto $1 $5) }
         | '<' '>'                        { locate PUnit (fromto $1 $2) }
         | '*'                            { locate PUnit $1 }
+
+Pattern_list : Pattern                   { [$1] }
+             | Pattern Pattern_list      { $1:$2 }
 
 Atom_type : BOOL                         { locate TBool $1 }
           | QBIT                         { locate TQBit $1 }
