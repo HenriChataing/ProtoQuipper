@@ -40,6 +40,9 @@ data Gate =
   | IS Int
   | T Int
   | IT Int
+  | Y Int
+  | Z Int
+  | Swap Int Int
   | Cont Gate Int
     deriving Show
 
@@ -52,6 +55,9 @@ readdress (S q) b = S (applyBinding b q)
 readdress (IS q) b = IS (applyBinding b q)
 readdress (T q) b = T (applyBinding b q)
 readdress (IT q) b = IT (applyBinding b q)
+readdress (Y q) b = Y (applyBinding b q)
+readdress (Z q) b = Z (applyBinding b q)
+readdress (Swap qa qb) b = Swap (applyBinding b qa) (applyBinding b qb)
 readdress (Cont g q) b = Cont (readdress g b) (applyBinding b q)
 
 instance Reversible Gate where
@@ -63,6 +69,9 @@ instance Reversible Gate where
   rev (IS q) = S q
   rev (T q) = IT q
   rev (IT q) = T q
+  rev (Y q) = Y q
+  rev (Z q) = Z q
+  rev (Swap qa qb) = Swap qa qb
   rev (Cont g c) = Cont (rev g) c
 
 -- Apply a binding function to the addresses of a gate
@@ -75,6 +84,9 @@ instance Caps Gate where
   unencap c (IS q) b = (c { gates = (gates c) ++ [readdress (IS q) b] }, b)
   unencap c (T q) b = (c { gates = (gates c) ++ [readdress (T q) b] }, b)
   unencap c (IT q) b = (c { gates = (gates c) ++ [readdress (IT q) b] }, b)
+  unencap c (Y q) b = (c { gates = (gates c) ++ [readdress (Y q) b] }, b)
+  unencap c (Z q) b = (c { gates = (gates c) ++ [readdress (Z q) b] }, b)
+  unencap c (Swap qa qb) b = (c { gates = (gates c) ++ [readdress (Swap qa qb) b] }, b)
   -- Creation / deletion of wires
   unencap c (Term q bt) b = let q' = applyBinding b q in
     (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
@@ -97,28 +109,22 @@ firstq (S q) = q
 firstq (T q) = q
 firstq (IS q) = q
 firstq (IT q) = q
+firstq (Y q) = q
+firstq (Z q) = q
 
 -- Symbolic representation of a gate
 sym :: Gate -> String
 ---------------------
 sym (Init _ b) = (show b) ++ "|-"
 sym (Term _ b) = "-|" ++ (show b)
-sym (Not _) = "[X]"
+sym (Not _) = "(+)"
 sym (Had _) = "[H]"
 sym (T _) = "[T]"
 sym (S _) = "[S]"
 sym (IT _) = "[\x0305T]"
 sym (IS _) = "[\x0305S]"
-
--- Line coverage of a gate
-cover :: Gate -> [Int]
-----------------------
-cover (Cont g q) =
-  let mn = min q (minimum $ cover g) in
-  let mx = max q (maximum $ cover g) in
-  take (mx-mn+1) $ iterate (+1) mn
-
-cover g = [firstq g]
+sym (Y _) = "[Y]"
+sym (Z _) = "[Z]"
 
 -- Result of the printing
 model :: Gate -> [(Int, String)]
@@ -135,7 +141,14 @@ model (Cont g q) =
     -- Vertical wire from mx+1 to 2q-1, and -*- on 2q
     (2 * q, "-*-"):((take (2 * q - mx - 1) $ iterate (\(l, s) -> (l+1, s)) (mx + 1, " | ")) ++ ls)
 
+model (Swap qa qb) =
+  if qa < qb then
+    (2 * qa, "-X-"):(2 * qb, "-X-"):(take (2 * qb - 2 * qa - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qa + 1, " | "))
+  else
+    (2 * qa, "-X-"):(2 * qb, "-X-"):(take (2 * qa - 2 * qb - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qb + 1, " | "))
+
 model g = [(2 * firstq g, sym g)]
+
 
 -----------------------
 
@@ -293,6 +306,9 @@ printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ colum
 printGate :: Gate -> GrState ()
 printGate (Cont g q) = do
   printMulti $ model (Cont g q)
+
+printGate (Swap qa qb) = do
+  printMulti $ model (Swap qa qb)
    
 printGate g = do
   printSingle (2 * firstq g) (sym g)

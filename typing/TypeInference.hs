@@ -90,10 +90,13 @@ basicGates =
     ("NOT", ([], TCirc TQBit TQBit)),
     ("S", ([], TCirc TQBit TQBit)),
     ("T", ([], TCirc TQBit TQBit)),
+    ("Y", ([], TCirc TQBit TQBit)),
+    ("Z", ([], TCirc TQBit TQBit)),
     ("INIT0", ([], TCirc TUnit TQBit)),
     ("INIT1", ([], TCirc TUnit TQBit)),
     ("TERM0", ([], TCirc TQBit TUnit)),
     ("TERM1", ([], TCirc TQBit TUnit)),
+    ("SWAP", ([], TCirc (TTensor TQBit TQBit) (TTensor TQBit TQBit))),
     ("CNOT", ([], TCirc (TTensor TQBit TQBit) (TTensor TQBit TQBit))) ]
 
 
