@@ -96,7 +96,8 @@ indentSprintn lv ind (EPair e f) =
 indentSprintn lv ind (EIf e f g) =
   let dlv = decr lv in
   "if " ++ indentSprintn dlv ind e ++ " then\n" ++
-  ind ++ "  " ++ indentSprintn dlv (ind ++ "  ") f ++ "\n else\n" ++
+  ind ++ "  " ++ indentSprintn dlv (ind ++ "  ") f ++ "\n" ++
+  ind ++ "else\n" ++
   ind ++ "  " ++ indentSprintn dlv (ind ++ "  ") g
 
 indentSprintn lv ind (EApp e f) =
