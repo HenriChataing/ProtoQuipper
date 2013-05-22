@@ -55,14 +55,14 @@ import Data.List as List
 
 %%
 
-Expr : FUN Pattern_list ARROW Expr            { locateOpt (List.foldr EFun $4 $2) (fromtoOpt (Just $1) (location $4)) }
-     | IF Expr THEN Expr ELSE Expr            { locateOpt (EIf $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
-     | LET Pattern '=' Expr IN Expr           { locateOpt (ELet $2 $4 $6) (fromtoOpt (Just $1) (location $6)) }
-     | LET VAR Pattern_list '=' Expr IN Expr  { locateOpt (ELet (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromtoOpt (Just $1) (location $7)) }
+Expr : FUN Pattern_list ARROW Expr            { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
+     | IF Expr THEN Expr ELSE Expr            { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
+     | LET Pattern '=' Expr IN Expr           { locate_opt (ELet $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
+     | LET VAR Pattern_list '=' Expr IN Expr  { locate_opt (ELet (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
      | Apply_expr                             { $1 }
 
-Apply_expr : Apply_expr Atom_expr        { locateOpt (EApp $1 $2) (fromtoOpt (location $1) (location $2)) }
-      | UNBOX Atom_expr                  { locateOpt (EUnbox $2) (fromtoOpt (Just $1) (location $2)) }
+Apply_expr : Apply_expr Atom_expr        { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
+      | UNBOX Atom_expr                  { locate_opt (EUnbox $2) (fromto_opt (Just $1) (location $2)) }
       | Atom_expr                        { $1 }
 
 Atom_expr : '*'                          { locate EUnit $1 }
@@ -94,9 +94,9 @@ Atom_type : BOOL                         { locate TBool $1 }
           | '(' ')'                      { locate TUnit (fromto $1 $2) }
 
 Type : Atom_type                         { $1 }
-     | Type '*' Type                     { locateOpt (TTensor $1 $3) (fromtoOpt (location $1) (location $3)) }
-     | Type ARROW Type                   { locateOpt (TArrow $1 $3) (fromtoOpt (location $1) (location $3)) }
-     | '!' Type                          { locateOpt (TExp $2) (fromtoOpt (Just $1) (location $2)) }
+     | Type '*' Type                     { locate_opt (TTensor $1 $3) (fromto_opt (location $1) (location $3)) }
+     | Type ARROW Type                   { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
+     | '!' Type                          { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
 
 {
 parseError :: [Token] -> a

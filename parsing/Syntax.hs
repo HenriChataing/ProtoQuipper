@@ -176,8 +176,8 @@ instance Located Type where
   locate t ex = TLocated t ex
   location (TLocated _ ex) = Just ex
   location _ = Nothing
-  locateOpt t Nothing = t
-  locateOpt t (Just ex) = locate t ex
+  locate_opt t Nothing = t
+  locate_opt t (Just ex) = locate t ex
 
 {-
    Instance declarations and functions of data type Pattern :   
@@ -196,14 +196,14 @@ instance Located Pattern where
   locate p ex = PLocated p ex
   location (PLocated _ ex) = Just ex
   location _ = Nothing
-  locateOpt p Nothing = p
-  locateOpt p (Just ex) = locate p ex
+  locate_opt p Nothing = p
+  locate_opt p (Just ex) = locate p ex
 
 instance Constraint Pattern where
-  dropConstraints (PConstraint p _) = p
-  dropConstraints (PPair p1 p2) = PPair (dropConstraints p1) (dropConstraints p2)
-  dropConstraints (PLocated p ex) = PLocated (dropConstraints p) ex
-  dropConstraints p = p
+  drop_constraints (PConstraint p _) = p
+  drop_constraints (PPair p1 p2) = PPair (drop_constraints p1) (drop_constraints p2)
+  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
+  drop_constraints p = p
 
 {-
    Instance declarations and functions of data type Expr :
@@ -236,25 +236,25 @@ instance Located Expr where
   locate e ex = ELocated e ex
   location (ELocated _ ex) = Just ex
   location _ = Nothing
-  locateOpt e Nothing = e
-  locateOpt e (Just ex) = locate e ex
+  locate_opt e Nothing = e
+  locate_opt e (Just ex) = locate e ex
 
 instance Atomic Expr where
-  isAtomic (ELocated e _) = isAtomic e
-  isAtomic (EApp _ _) = False
-  isAtomic (EIf _ _ _) = False
-  isAtomic (EFun _ _) = False
-  isAtomic _ = True
+  is_atomic (ELocated e _) = is_atomic e
+  is_atomic (EApp _ _) = False
+  is_atomic (EIf _ _ _) = False
+  is_atomic (EFun _ _) = False
+  is_atomic _ = True
 
 instance Constraint Expr where
-  dropConstraints (EConstraint e _) = e
-  dropConstraints (ELocated e ex) = ELocated (dropConstraints e) ex
-  dropConstraints (EFun p e) = EFun (dropConstraints p) (dropConstraints e)
-  dropConstraints (ELet p e1 e2) = ELet (dropConstraints p) (dropConstraints e1) (dropConstraints e2)
-  dropConstraints (EApp e1 e2) = EApp (dropConstraints e1) (dropConstraints e2)
-  dropConstraints (EPair e1 e2) = EPair (dropConstraints e1) (dropConstraints e2)
-  dropConstraints (EIf e1 e2 e3) = EIf (dropConstraints e1) (dropConstraints e2) (dropConstraints e3)
-  dropConstraints (EUnbox e) = EUnbox (dropConstraints e)
-  dropConstraints e = e
+  drop_constraints (EConstraint e _) = e
+  drop_constraints (ELocated e ex) = ELocated (drop_constraints e) ex
+  drop_constraints (EFun p e) = EFun (drop_constraints p) (drop_constraints e)
+  drop_constraints (ELet p e1 e2) = ELet (drop_constraints p) (drop_constraints e1) (drop_constraints e2)
+  drop_constraints (EApp e1 e2) = EApp (drop_constraints e1) (drop_constraints e2)
+  drop_constraints (EPair e1 e2) = EPair (drop_constraints e1) (drop_constraints e2)
+  drop_constraints (EIf e1 e2 e3) = EIf (drop_constraints e1) (drop_constraints e2) (drop_constraints e3)
+  drop_constraints (EUnbox e) = EUnbox (drop_constraints e)
+  drop_constraints e = e
 
 

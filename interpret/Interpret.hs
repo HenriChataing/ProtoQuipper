@@ -4,7 +4,7 @@ module Interpret (-- Only the main function is accessible
 
 import Classes
 import Localizing
-import qualified Utils as Binding
+import qualified Utils
 
 import Syntax
 import Printer
@@ -17,22 +17,22 @@ importGates :: State ()
 ---------------------
 importGates = State (\c ->
                        foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
-                                                       run c') (c, Ok ()) gateValues)
+                                                       run c') (c, Ok ()) gate_values)
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
-bindPattern :: Pattern -> Value -> State ()
+bind_pattern :: Pattern -> Value -> State ()
 ------------------------------------------------------
-bindPattern (PVar x) v = do
+bind_pattern (PVar x) v = do
   insert x v
-bindPattern (PPair p1 p2) (VPair v1 v2) = do
-  bindPattern p1 v1
-  bindPattern p2 v2
-bindPattern PUnit VUnit = do
+bind_pattern (PPair p1 p2) (VPair v1 v2) = do
+  bind_pattern p1 v1
+  bind_pattern p2 v2
+bind_pattern PUnit VUnit = do
   return ()
-bindPattern (PLocated p ex) v = do
-  setExtent ex
-  bindPattern p v
-bindPattern p q = do
+bind_pattern (PLocated p ex) v = do
+  set_extent ex
+  bind_pattern p v
+bind_pattern p q = do
   fail ("Unmatching patterns : " ++ sprint p ++ " and " ++ sprint q)
 
 -- Extract the bindings from a circuit application
@@ -50,27 +50,27 @@ bind v1 v2 = do
   fail ("Unmatching values : " ++ pprint v1 ++ " and " ++ pprint v2)
 
 -- Apply a bind function to a value
-appBind :: [(Int, Int)] -> Value -> State Value
+apply_binding :: [(Int, Int)] -> Value -> State Value
 -----------------------------------------
-appBind b (VQBit q) = do 
-  return (VQBit $ Binding.apply b q)
-appBind b (VPair v1 v2) = do
-  v1' <- appBind b v1
-  v2' <- appBind b v2
+apply_binding b (VQBit q) = do 
+  return (VQBit $ Utils.apply_binding b q)
+apply_binding b (VPair v1 v2) = do
+  v1' <- apply_binding b v1
+  v2' <- apply_binding b v2
   return (VPair v1' v2')
-appBind _ VUnit = do
+apply_binding _ VUnit = do
   return VUnit
-appBind _ v = do
+apply_binding _ v = do
   fail ("Expected a quantum data value - Actual value : " ++ pprint v)
 
 -- Create a specification (with fresh variables) for a given type
 spec :: Type -> State Value
 -------------------------------------------
 spec (TLocated t ex) = do
-  setExtent ex
+  set_extent ex
   spec t
 spec TQBit = do
-  q <- newId
+  q <- new_id
   return (VQBit q)
 spec (TTensor t1 t2) = do
   q1 <- spec t1
@@ -99,7 +99,7 @@ extract v = do
 ----- Interpreter -------
 
 -- Evaluate function application
-interpretApp :: Value -> Value -> State Value
+interpret_app :: Value -> Value -> State Value
 
 -- Evaluate expressions
 interpret :: Expr -> State Value
@@ -107,32 +107,32 @@ interpret :: Expr -> State Value
 -------------------------
 
 -- Classical beta reduction
-interpretApp (VFun c p e) arg = do
-  ctx <- swapContext c  -- See module Values : ctx is the old context, the circuit is left unchanged
-  bindPattern p arg
+interpret_app (VFun c p e) arg = do
+  ctx <- swap_context c  -- See module Values : ctx is the old context, the circuit is left unchanged
+  bind_pattern p arg
   v <- interpret e
-  _ <- swapContext ctx
+  _ <- swap_context ctx
   return v
 
 -- Circuit generation rules
-interpretApp VRev (VCirc u c u') = do
+interpret_app VRev (VCirc u c u') = do
   return (VCirc u' (rev c) u)
 
-interpretApp VRev e  = do
+interpret_app VRev e  = do
   fail ("Expected argument of type circ - Actual expression : " ++ sprint e)
 
-interpretApp (VUnbox (VCirc u c u')) t = do
+interpret_app (VUnbox (VCirc u c u')) t = do
   b <- bind u t
   b' <- unencap c b
-  appBind b' u'
+  apply_binding b' u'
 
-interpretApp (VUnbox e) _  = do
+interpret_app (VUnbox e) _  = do
   fail ("Expected argument of type circ - Actual expression : " ++ sprint e)
 
 
 -- Location handling
 interpret (ELocated e ex) = do
-  setExtent ex
+  set_extent ex
   interpret e
 
 -- Empty
@@ -150,7 +150,7 @@ interpret (EVar x) = do
 -- Functions
   -- The current context is enclosed in the function value
 interpret (EFun p e) = do
-  ctx <- getContext
+  ctx <- get_context
   return (VFun ctx p e)
 
 -- Let .. in ..
@@ -159,11 +159,11 @@ interpret (EFun p e) = do
   -- evaluate e2 in the resulting context
     -- The state at the end must contains only the bindings from the state at the beginning
 interpret (ELet p e1 e2) = do
-  ctx <- getContext
+  ctx <- get_context
   v1 <- interpret e1
-  bindPattern p v1
+  bind_pattern p v1
   v2 <- interpret e2
-  putContext ctx -- Erase the bindings introduced by the let construction
+  put_context ctx -- Erase the bindings introduced by the let construction
   return v2
 
 -- Function -- englobe all function applications : circuit generating rules and classical reduction
@@ -174,15 +174,15 @@ interpret (EApp ef arg) = do
     -- Classical beta reduction
     VFun _ _ _ -> do
         t <- interpret arg
-        interpretApp f t
+        interpret_app f t
     -- Circuit unboxing
     VUnbox _ -> do
         t <- interpret arg
-        interpretApp f t
+        interpret_app f t
     -- Circuit reversal
     VRev -> do
         t <- interpret arg
-        interpretApp f t
+        interpret_app f t
 
     -- Circuit boxing
     VBox typ -> do
@@ -190,12 +190,12 @@ interpret (EApp ef arg) = do
         s <- spec typ
         -- Open a new circuit
         ql <- extract s
-        c <- openBox ql
+        c <- open_box ql
         -- Execute the argument, applied to the specification, in the new context
         m <- interpret arg
-        s' <- interpretApp m s
+        s' <- interpret_app m s
         -- Close the new circuit and reset the old one
-        c' <- closeBox c
+        c' <- close_box c
         return (VCirc s c' s')
 
     _ -> do
@@ -237,5 +237,5 @@ run e =
                          importGates
                          interpret e
                        in
-  let (_, v) = runstate emptyContext in
+  let (_, v) = runstate empty_context in
   v

@@ -38,7 +38,7 @@ class PShow a where
 
 class Located a where
   locate :: a -> Extent -> a
-  locateOpt :: a -> Maybe Extent -> a
+  locate_opt :: a -> Maybe Extent -> a
   location :: a -> Maybe Extent
 
 --------------------------------
@@ -47,14 +47,14 @@ class Located a where
 -- atomic                     --
 
 class Atomic a where
-  isAtomic :: a -> Bool
+  is_atomic :: a -> Bool
 
 --------------------------------
 -- Class of objects with type --
 -- annotations                --
 
 class Constraint a where
-  dropConstraints :: a -> a
+  drop_constraints :: a -> a
 
 ---------------------------------
 -- Class of reversible objects --

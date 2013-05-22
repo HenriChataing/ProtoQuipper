@@ -146,23 +146,23 @@ instance Located Expr where
   locate e ex = ELocated e ex
   location (ELocated _ ex) = Just ex
   location _ = Nothing
-  locateOpt e Nothing = e
-  locateOpt e (Just ex) = locate e ex
+  locate_opt e Nothing = e
+  locate_opt e (Just ex) = locate e ex
 
 -------------------
 -- Atomic things --
 
 instance Atomic Type where
-  isAtomic (TTensor _ _) = False
-  isAtomic (TArrow _ _) = False
-  isAtomic _ = True
+  is_atomic (TTensor _ _) = False
+  is_atomic (TArrow _ _) = False
+  is_atomic _ = True
 
 instance Atomic Expr where
-  isAtomic (ELocated e _) = isAtomic e
-  isAtomic (EApp _ _) = False
-  isAtomic (EIf _ _ _) = False
-  isAtomic (EFun _ _) = False
-  isAtomic _ = True
+  is_atomic (ELocated e _) = is_atomic e
+  is_atomic (EApp _ _) = False
+  is_atomic (EIf _ _ _) = False
+  is_atomic (EFun _ _) = False
+  is_atomic _ = True
 
 --------------
 -- Printing --
@@ -178,7 +178,7 @@ instance Show Type where
 
 instance Show FType where
   show (FTyp t f) =
-    "!" ++ (superscript $ show f) ++ (if isAtomic t then show t else "(" ++ show t ++ ")")
+    "!" ++ (superscript $ show f) ++ (if is_atomic t then show t else "(" ++ show t ++ ")")
 
 instance Show Pattern where
   show (PVar x) = "x" ++ (subscript $ show $ uid x)
@@ -198,11 +198,11 @@ pshowExpr (EVar x) _ = "x" ++ (subscript $ show $ uid x)
 pshowExpr (EFun p e) ind = "fun " ++ show p ++ " ->\n" ++ ind ++ "    " ++ pshowExpr e (ind ++ "    ")
 pshowExpr (ELet p e1 e2) ind = "let " ++ show p ++ " = " ++ pshowExpr e1 ind ++ " in\n" ++ ind ++ pshowExpr e2 ind
 pshowExpr (EApp e1 e2) ind =
-  (if isAtomic e1 then
+  (if is_atomic e1 then
      pshowExpr e1 ind
    else
      "(" ++ pshowExpr e1 ind ++ ")") ++ " " ++
-  (if isAtomic e2 then
+  (if is_atomic e2 then
      pshowExpr e2 ind
    else
      "(" ++ pshowExpr e2 ind ++ ")")
@@ -210,7 +210,7 @@ pshowExpr (EBool b) _ = if b then "true" else "false"
 pshowExpr (EPair e1 e2) ind = "<" ++ pshowExpr e1 ind ++ ", " ++ pshowExpr e2 ind ++ ">"
 pshowExpr (EBox t) _ = "box[" ++ show t ++ "]"
 pshowExpr (EUnbox e) ind =
-  if isAtomic e then
+  if is_atomic e then
     "unbox " ++ pshowExpr e ind
   else
     "unobx (" ++ pshowExpr e ind ++ ")"

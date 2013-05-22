@@ -105,7 +105,7 @@ newContext :: Context
 ---------------------
 newContext =
   Ctx {
-    extent = extentUnknown,
+    extent = extent_unknown,
     bindings = fromList basicGates,
     constraints = [],
     vars = varSet

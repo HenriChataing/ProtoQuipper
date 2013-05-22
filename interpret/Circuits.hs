@@ -4,6 +4,7 @@ import Data.List as List
 import Data.Map as Map
 
 import Classes
+import Utils
 
 import Gates
 
@@ -16,20 +17,11 @@ class Caps a where
 -- Type of a binding
 type Binding = [(Int, Int)]
 
--- Application of a binding function
--- Missing addresses are applied the identity function
-applyBinding :: [(Int, Int)] -> Int -> Int
-------------------------------------------
-applyBinding b q =
-  case List.lookup q b of
-    Just q' -> q'
-    Nothing -> q 
-
 -- Given the input of a circuit, pick up a new address
-freshAddress :: [Int] -> Int
+fresh_address :: [Int] -> Int
 ----------------------------
-freshAddress [] = 0
-freshAddress l = (maximum l) + 1
+fresh_address [] = 0
+fresh_address l = (maximum l) + 1
 
 --------------------------
 
@@ -43,16 +35,16 @@ data Gate =
 -- Some readdressing
 readdress :: Gate -> Binding -> Gate
 ------------------------------------
-readdress (Unary s q) b = Unary s (applyBinding b q)
-readdress (Binary s qa qb) b = Binary s (applyBinding b qa) (applyBinding b qb)
+readdress (Unary s q) b = Unary s (apply_binding b q)
+readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb)
 
 instance Reversible Gate where
   rev (Init q b) = Term q b
   rev (Term q b) = Init q b
-  rev (Unary s q) = case List.lookup s unaryRev of
+  rev (Unary s q) = case List.lookup s unary_rev of
                       Just s' -> Unary s' q
                       Nothing -> error ("Unary gate " ++ s ++ " has no defined inverse")
-  rev (Binary s qa qb) = case List.lookup s binaryRev of
+  rev (Binary s qa qb) = case List.lookup s binary_rev of
                            Just s' -> Binary s' qa qb
                            Nothing -> error ("Binary gate " ++ s ++ " has no defined inverse")
 
@@ -63,16 +55,16 @@ instance Caps Gate where
   unencap c g@(Unary _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   unencap c g@(Binary _ _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   -- Creation / deletion of wires
-  unencap c (Term q bt) b = let q' = applyBinding b q in
+  unencap c (Term q bt) b = let q' = apply_binding b q in
     (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
-  unencap c (Init q bt) b = let q' = freshAddress (qOut c) in
+  unencap c (Init q bt) b = let q' = fresh_address (qOut c) in
     (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
 
 
 -- Result of the printing
 model :: Gate -> [(Int, String)]
 model (Binary s qa qb) =
-  let sym = case List.lookup s binarySym of
+  let sym = case List.lookup s binary_sym of
               Just sy -> sy
               Nothing -> error ("Binary gate " ++ s ++ " has no specified symbolic representation")
             in
@@ -82,7 +74,7 @@ model (Binary s qa qb) =
     (2 * qa, fst sym):(2 * qb, snd sym):(take (2 * qa - 2 * qb - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qb + 1, " | "))
 
 model (Unary s q) =
-  let sym = case List.lookup s unarySym of
+  let sym = case List.lookup s unary_sym of
               Just sy -> sy
               Nothing -> error ("Unary gate " ++ s ++ " has no specified symbolic representation")
             in
@@ -139,53 +131,53 @@ instance Monad AdState where
                                            run' ad')
 
 -- Find a unused wire and binds the qaddress to this wire
-bindWire :: Int -> AdState Int
-bindWire q = AdState (\ad -> case unused ad of
+bind_wire :: Int -> AdState Int
+bind_wire q = AdState (\ad -> case unused ad of
                                [] -> (ad { wires = (+1) $ wires ad,
                                            bind = (q, wires ad):(bind ad) }, wires ad)
                                w:cw -> (ad { unused = cw,
                                              bind = (q, w):(bind ad) }, w))
 -- Assiocated wire
-assocWire :: Int -> AdState Int
-assocWire q = AdState (\ad -> (ad, case List.lookup q $ bind ad of
+assoc_wire :: Int -> AdState Int
+assoc_wire q = AdState (\ad -> (ad, case List.lookup q $ bind ad of
                                      Just w -> w
                                      Nothing -> error ("Unbound address " ++ show q)))
 
 -- Associated gate   - Input gate can't be init or term
-assocGate :: Gate -> AdState Gate
-assocGate g = AdState (\ad -> (ad, readdress g $ bind ad))
+assoc_gate :: Gate -> AdState Gate
+assoc_gate g = AdState (\ad -> (ad, readdress g $ bind ad))
 
 -- Delete a wire
-delWire :: (Int, Int) -> AdState ()
-delWire (q, w) = AdState (\ad -> (ad { unused = w:(unused ad),
+delete_vire :: (Int, Int) -> AdState ()
+delete_vire (q, w) = AdState (\ad -> (ad { unused = w:(unused ad),
                                        bind = List.delete (q, w) $ bind ad }, ()))
 
 -- Allocate all addresses  - Return te number of used lines too
-stateAllocate :: [Gate] -> AdState [Gate]
+state_allocate :: [Gate] -> AdState [Gate]
 allocate :: Circuit -> ([Gate], Int)
 ---------------------------------------
-stateAllocate [] = do
+state_allocate [] = do
   return []
 
-stateAllocate (Init q bt:cg) = do
-  w <- bindWire q
-  cg' <- stateAllocate cg
+state_allocate (Init q bt:cg) = do
+  w <- bind_wire q
+  cg' <- state_allocate cg
   return (Init w bt:cg')
 
-stateAllocate (Term q bt: cg) = do
-  w <- assocWire q
-  delWire (q, w)
-  cg' <- stateAllocate cg
+state_allocate (Term q bt: cg) = do
+  w <- assoc_wire q
+  delete_vire (q, w)
+  cg' <- state_allocate cg
   return (Term w bt:cg')
 
-stateAllocate (g:cg) = do
-  g' <- assocGate g
-  cg' <- stateAllocate cg
+state_allocate (g:cg) = do
+  g' <- assoc_gate g
+  cg' <- state_allocate cg
   return (g':cg')
  
 allocate c =
   let AdState run = do
-      stateAllocate $ gates c
+      state_allocate $ gates c
   in
   let initState = List.foldl (\ad q -> ad { wires = (+1) $ wires ad,
                                             bind = (q, wires ad):(bind ad) })
@@ -205,20 +197,20 @@ data Grid = Grid { gsize :: Int,               -- Number of lines
                    columns :: [Column] }       -- Reversed list of all columns
              
 -- Look for the deepest column until which the line l is empty
-freeDepth :: Int -> [Column] -> Int
-freeDepth l [] = -1
-freeDepth l (c:cl) = case Map.lookup l $ chars c of
-                       Nothing -> 1 + (freeDepth l cl)
+free_depth :: Int -> [Column] -> Int
+free_depth l [] = -1
+free_depth l (c:cl) = case Map.lookup l $ chars c of
+                       Nothing -> 1 + (free_depth l cl)
                        Just _ -> -1
  
 -- Look for the deepest column until which all the lines l1 .. ln are empty
-freeCommonDepth :: [Int] -> [Column] -> Int
-freeCommonDepth ls c = List.minimum (List.map (\l -> freeDepth l c) ls)
+free_common_depth :: [Int] -> [Column] -> Int
+free_common_depth ls c = List.minimum (List.map (\l -> free_depth l c) ls)
 
 -- Print at depth n
-printAt :: Int -> Int -> String -> [Column] -> [Column]
-printAt l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
-printAt l n s (c:cl) = c:(printAt l (n-1) s cl)
+print_at :: Int -> Int -> String -> [Column] -> [Column]
+print_at l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
+print_at l n s (c:cl) = c:(print_at l (n-1) s cl)
 
 newtype GrState a = GrState (Grid -> (Grid, a))
 instance Monad GrState where
@@ -228,23 +220,23 @@ instance Monad GrState where
                                            run' gr')
 
 -- Print n characters on the same line
-printMulti :: [(Int, String)] -> GrState ()
-printMulti ls = GrState (\gr -> let d = freeCommonDepth (fst $ unzip ls) $ columns gr in
+print_multi :: [(Int, String)] -> GrState ()
+print_multi ls = GrState (\gr -> let d = free_common_depth (fst $ unzip ls) $ columns gr in
                                 if d == -1 then
                                   let nc = Col { chars = fromList ls } in
                                   (gr { columns = nc:(columns gr) }, ())
                                 else
-                                  (List.foldl (\gr (l, s) -> gr { columns = printAt l d s $ columns gr }) gr ls, ()))
+                                  (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ()))
 
 
 -- Print a gate
-printGate :: Gate -> GrState ()
-printGate g = do
-  printMulti $ model g
+print_gate :: Gate -> GrState ()
+print_gate g = do
+  print_multi $ model g
 
 -- Fill the gaps
-outputLine :: Int -> GrState String
-outputLine l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars $ last $ columns gr of
+output_line :: Int -> GrState String
+output_line l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars $ last $ columns gr of
                                                         Just sym -> if isSuffixOf "|-" sym then ("   ", False)
                                                                     else if l `mod` 2 == 0 then ("---", True)
                                                                     else ("   ", False)
@@ -271,14 +263,14 @@ outputLine l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars $
 -- Output the whole grid
 output :: GrState String
 output = GrState (\gr -> let num = take (gsize gr) $ iterate (+1) 0 in
-                         (gr, List.foldl (\s l -> let GrState run = do outputLine l in
+                         (gr, List.foldl (\s l -> let GrState run = do output_line l in
                                                   let (_, ln) = run gr in
                                                   (s ++ ln ++ "\n")) "\n" num))
 
 instance PPrint Circuit where
   pprint c =
     let (gates, lns) = allocate c in
-    let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = printGate g in
+    let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = print_gate g in
                                                           run gr) (gr, ()) gates) in
     let GrState run = (runGr >>= (\_ -> output)) in
     let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [] }) in

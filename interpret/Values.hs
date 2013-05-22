@@ -39,19 +39,19 @@ instance PPrint Value where
   sprintn _ v = pprint v
 
 -- Associate values to gates
-gateValues :: [(String, Value)]
+gate_values :: [(String, Value)]
 -------------------------------
-gateValues =
-  let initValues = [("INIT0", VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQBit 0)),
+gate_values =
+  let init_values = [("INIT0", VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQBit 0)),
                     ("INIT1", VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQBit 0)) ] in
-  let termValues = [("TERM0", VCirc (VQBit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit),
+  let term_values = [("TERM0", VCirc (VQBit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit),
                     ("TERM1", VCirc (VQBit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit) ] in
-  let unaryValues = List.map (\s -> (s, VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Unary s 0 ], qOut = [0] }) (VQBit 0))) unaryGates in
-  let binaryValues = List.map (\s -> (s, VCirc (VPair (VQBit 0) (VQBit 1))
+  let unary_values = List.map (\s -> (s, VCirc (VQBit 0) (Circ { qIn = [0], gates = [ Unary s 0 ], qOut = [0] }) (VQBit 0))) unary_gates in
+  let binary_values = List.map (\s -> (s, VCirc (VPair (VQBit 0) (VQBit 1))
                                                (Circ { qIn = [0, 1], gates = [ Binary s 0 1 ], qOut = [0, 1] })
-                                               (VPair (VQBit 0) (VQBit 1)))) binaryGates in
+                                               (VPair (VQBit 0) (VQBit 1)))) binary_gates in
 
-  initValues ++ termValues ++ unaryValues ++ binaryValues
+  init_values ++ term_values ++ unary_values ++ binary_values
 
 -- Definition of the context
 
@@ -77,11 +77,11 @@ data Context =
   }
 
 -- Definition of a empty context :
-emptyContext :: Context
+empty_context :: Context
 ---------------------
-emptyContext =
+empty_context =
   Ctx {
-    extent = extentUnknown,
+    extent = extent_unknown,
     bindings = empty,
     circuit = Circ { qIn = [], qOut = [], gates = [] },
     qId = 0
@@ -110,13 +110,13 @@ instance Monad State where
 -- Context manipulation --
 
 -- Whole
-getContext :: State Context
-putContext :: Context -> State ()       -- Note : only the bindings ar modified
-swapContext :: Context -> State Context -- Note : the circuit is left unchanged, all other attribute are swapped
+get_context :: State Context
+put_context :: Context -> State ()       -- Note : only the bindings ar modified
+swap_context :: Context -> State Context -- Note : the circuit is left unchanged, all other attribute are swapped
 
 -- Extent
-getExtent :: State Extent
-setExtent :: Extent -> State ()
+get_etxent :: State Extent
+set_extent :: Extent -> State ()
 
 -- Bindings
 insert :: String -> Value -> State ()
@@ -125,18 +125,18 @@ delete :: String -> State ()
 
 -- Circuit construction
 unencap :: Circuit -> Binding -> State Binding
-openBox :: [Int] -> State Circuit     -- Note : from a list of addresses, open a new circuit, while the old one is returned
-closeBox :: Circuit -> State Circuit  -- Note : put the old circuit back in place and return the new one
+open_box :: [Int] -> State Circuit     -- Note : from a list of addresses, open a new circuit, while the old one is returned
+close_box :: Circuit -> State Circuit  -- Note : put the old circuit back in place and return the new one
 
 -- Fresh id generation
-newId :: State Int
+new_id :: State Int
 -------------------------
-getContext = State (\ctx -> (ctx, Ok ctx))
-putContext ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, Ok ()))
-swapContext ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, Ok ctx'))
+get_context = State (\ctx -> (ctx, Ok ctx))
+put_context ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, Ok ()))
+swap_context ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, Ok ctx'))
 
-getExtent = State (\ctx -> (ctx, Ok $ extent ctx))
-setExtent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
+get_etxent = State (\ctx -> (ctx, Ok $ extent ctx))
+set_extent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
 
 insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, Ok ()))
 find x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
@@ -146,8 +146,8 @@ delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, Ok ()
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
                              (ctx { circuit = c' }, Ok b'))
-openBox ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, Ok $ circuit ctx))
-closeBox c = State (\ctx -> (ctx { circuit = c }, Ok $ circuit ctx))
+open_box ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, Ok $ circuit ctx))
+close_box c = State (\ctx -> (ctx { circuit = c }, Ok $ circuit ctx))
 
-newId = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, Ok $ qId ctx))
+new_id = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, Ok $ qId ctx))
 

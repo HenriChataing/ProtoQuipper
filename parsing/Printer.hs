@@ -75,63 +75,63 @@ instance PPrint Pattern where
 {- Expression printing -}
 
 -- Second argument is indentation level
-indentSprintn :: Lvl -> String -> Expr -> String
+indent_sprintn :: Lvl -> String -> Expr -> String
 ------------------------------------------------
-indentSprintn _ _ EUnit = "<>"
-indentSprintn _ _ (EVar x) = x
-indentSprintn _ _ ERev = "rev"
-indentSprintn _ _ (EBox a) = "box[" ++ pprint a ++ "]"
-indentSprintn _ _ (EBool b) = if b then "true" else "false"
+indent_sprintn _ _ EUnit = "<>"
+indent_sprintn _ _ (EVar x) = x
+indent_sprintn _ _ ERev = "rev"
+indent_sprintn _ _ (EBox a) = "box[" ++ pprint a ++ "]"
+indent_sprintn _ _ (EBool b) = if b then "true" else "false"
 
-indentSprintn (Nth 0) _ _ = "..."
+indent_sprintn (Nth 0) _ _ = "..."
 
-indentSprintn lv ind (ELet p e f) =
+indent_sprintn lv ind (ELet p e f) =
   let dlv = decr lv in
-  "let " ++ sprintn dlv p ++ " = " ++ indentSprintn dlv ind e ++ " in\n" ++
-  ind ++ indentSprintn dlv ind f
+  "let " ++ sprintn dlv p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
+  ind ++ indent_sprintn dlv ind f
 
-indentSprintn lv ind (EPair e f) =
-  "<" ++ indentSprintn (decr lv) ind e ++ ", " ++ indentSprintn (decr lv) ind f ++ ">"
+indent_sprintn lv ind (EPair e f) =
+  "<" ++ indent_sprintn (decr lv) ind e ++ ", " ++ indent_sprintn (decr lv) ind f ++ ">"
 
-indentSprintn lv ind (EIf e f g) =
+indent_sprintn lv ind (EIf e f g) =
   let dlv = decr lv in
-  "if " ++ indentSprintn dlv ind e ++ " then\n" ++
-  ind ++ "  " ++ indentSprintn dlv (ind ++ "  ") f ++ "\n" ++
+  "if " ++ indent_sprintn dlv ind e ++ " then\n" ++
+  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") f ++ "\n" ++
   ind ++ "else\n" ++
-  ind ++ "  " ++ indentSprintn dlv (ind ++ "  ") g
+  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") g
 
-indentSprintn lv ind (EApp e f) =
+indent_sprintn lv ind (EApp e f) =
   let dlv = decr lv in
   (case e of
-     EIf _ _ _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-     EFun _ _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-     _ -> indentSprintn dlv ind e) ++ " " ++
+     EIf _ _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+     EFun _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+     _ -> indent_sprintn dlv ind e) ++ " " ++
   (case f of
-     EIf _ _ _ ->  "(" ++ indentSprintn dlv ind f ++ ")"
-     EFun _ _ -> "(" ++ indentSprintn dlv ind f ++ ")"
-     EApp _ _ -> "(" ++ indentSprintn dlv ind f ++ ")"
-     EUnbox _ -> "(" ++ indentSprintn dlv ind f ++ ")"
-     _ -> indentSprintn dlv ind f)
+     EIf _ _ _ ->  "(" ++ indent_sprintn dlv ind f ++ ")"
+     EFun _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
+     EApp _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
+     EUnbox _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
+     _ -> indent_sprintn dlv ind f)
 
-indentSprintn lv ind (EUnbox e) =
+indent_sprintn lv ind (EUnbox e) =
   let dlv = decr lv in
   "unbox" ++ (case e of
-                EIf _ _ _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-                EApp _ _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-                EFun _ _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-                EUnbox _ -> "(" ++ indentSprintn dlv ind e ++ ")"
-                _ -> indentSprintn dlv ind e)
+                EIf _ _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+                EApp _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+                EFun _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+                EUnbox _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
+                _ -> indent_sprintn dlv ind e)
 
-indentSprintn lv ind (EFun p e) =
+indent_sprintn lv ind (EFun p e) =
   let dlv = decr lv in
   "fun " ++ sprintn dlv p ++ " ->\n" ++
-  ind ++ "    " ++ indentSprintn dlv (ind ++ "    ") e
+  ind ++ "    " ++ indent_sprintn dlv (ind ++ "    ") e
 
-indentSprintn lv ind (EConstraint e t) = "(" ++ indentSprintn (decr lv) ind e ++ " : " ++ pprint t ++ ")"
-indentSprintn lv ind (ELocated e _) = indentSprintn lv ind e
+indent_sprintn lv ind (EConstraint e t) = "(" ++ indent_sprintn (decr lv) ind e ++ " : " ++ pprint t ++ ")"
+indent_sprintn lv ind (ELocated e _) = indent_sprintn lv ind e
  
 instance PPrint Expr where
-  sprintn lv e = indentSprintn lv "" e
+  sprintn lv e = indent_sprintn lv "" e
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
 

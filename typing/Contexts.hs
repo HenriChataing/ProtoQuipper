@@ -67,7 +67,7 @@ data Context =
 -- Create an empty context (without the basic gates)
 emptyContext :: Context
 -----------------------
-emptyContext = Ctx { extent = extentUnknown,
+emptyContext = Ctx { extent = extent_unknown,
                      bindings = empty,
                      tConstraints = [],
                      fConstraints = [],
@@ -85,7 +85,7 @@ emptyContext = Ctx { extent = extentUnknown,
 freshVar :: Context -> (Variable, Context)
 --------------------------------------
 freshVar ctx =
-  (Var { uid = varId ctx, ext = extentUnknown }, ctx { varId = (+1) $ varId ctx })
+  (Var { uid = varId ctx, ext = extent_unknown }, ctx { varId = (+1) $ varId ctx })
 
 -- Type Id generation
 freshType :: Context -> (Int, Context)

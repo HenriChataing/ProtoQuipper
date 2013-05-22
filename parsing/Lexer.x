@@ -44,14 +44,14 @@ tokens :-
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
 
-  $alpha [$alpha $digit]*             { \p s -> TkVar (fromPosn p s, s) }
+  $alpha [$alpha $digit]*             { \p s -> TkVar (from_posn p s, s) }
   
 {
 ---------------------------
 -- Localization in files --
 
-fromPosn :: AlexPosn -> String -> Extent
-fromPosn (AlexPn p l c) s =
+from_posn :: AlexPosn -> String -> Extent
+from_posn (AlexPn p l c) s =
   Ext { lbegin = Loc { line = l, column = c },
         lend = Loc { line = l, column = c+length s-1 }}
 
@@ -79,7 +79,7 @@ data Token =
     deriving Show
 
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
-locate_token k p s = k (fromPosn p s)
+locate_token k p s = k (from_posn p s)
 
 mylex :: String -> String -> [Token]
 mylex filename contents =

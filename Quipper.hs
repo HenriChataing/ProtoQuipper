@@ -69,7 +69,7 @@ main = do
 
   if inter opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
-    case Interpret.run (dropConstraints prog) of
+    case Interpret.run (drop_constraints prog) of
       Ok v -> do
           putStrLn $ pprint v
       Failed s ex -> do

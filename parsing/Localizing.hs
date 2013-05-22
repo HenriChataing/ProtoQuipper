@@ -23,16 +23,16 @@ instance Show Extent where
        (show $ column $ lend ex))
 
 -- Default locus
-locusUnknown :: Locus
+locus_unknown :: Locus
 ---------------------
-locusUnknown =
+locus_unknown =
   Loc { line = 0, column = 0 }
 
 -- Default extent
-extentUnknown :: Extent
+extent_unknown :: Extent
 -----------------------
-extentUnknown =
-  Ext { lbegin = locusUnknown, lend = locusUnknown }
+extent_unknown =
+  Ext { lbegin = locus_unknown, lend = locus_unknown }
 
 -- Build an extent starting from ex1 and ending at ex2
 fromto :: Extent -> Extent -> Extent
@@ -42,8 +42,8 @@ fromto ex1 ex2 =
         lend = Loc { line = line $ lend ex2, column = column $ lend ex2 } }
 
 -- Same as fromto with optional parameters
-fromtoOpt :: Maybe Extent -> Maybe Extent -> Maybe Extent
+fromto_opt :: Maybe Extent -> Maybe Extent -> Maybe Extent
 ---------------------------------------------------------
-fromtoOpt _ Nothing = Nothing
-fromtoOpt Nothing _ = Nothing
-fromtoOpt (Just ex1) (Just ex2) = Just (fromto ex1 ex2)
+fromto_opt _ Nothing = Nothing
+fromto_opt Nothing _ = Nothing
+fromto_opt (Just ex1) (Just ex2) = Just (fromto ex1 ex2)

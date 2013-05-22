@@ -9,24 +9,24 @@ import Data.List as List
 -------------- Unary gates -------------------
 
 -- Name of the gates
-unaryGates :: [String]
+unary_gates :: [String]
 ----------------------
-unaryGates =
+unary_gates =
   [ "H", "NOT", "Y", "Z", "S", "T", "IS", "IT" ]
 
 -- Attribution of the inverses
-unaryRev :: [(String, String)]
+unary_rev :: [(String, String)]
 ------------------------------
-unaryRev =
+unary_rev =
   [ ("H", "H"),
     ("NOT", "NOT"), ("Y", "Y"), ("Z", "Z"),
     ("S", "IS"), ("IS", "S"),
     ("T", "IT"), ("IT", "T") ]
 
 -- Symbolic representation
-unarySym :: [(String, String)]
+unary_sym :: [(String, String)]
 ------------------------------
-unarySym =
+unary_sym =
   [ ("H", "[H]"),
     ("NOT", "(X)"),
     ("Y", "[Y]"), ("Z", "[Z]"),
@@ -34,49 +34,49 @@ unarySym =
     ("T", "[T]"), ("IT", "[\x0305T]") ]
 
 -- General type for unary gates
-unaryType :: Type
+unary_type :: Type
 -----------------
-unaryType = TCirc TQBit TQBit
+unary_type = TCirc TQBit TQBit
 
 ----------------------------------------------
 ------------- Binary gates -------------------
 
 -- Name if the gates
-binaryGates :: [String]
+binary_gates :: [String]
 -----------------------
-binaryGates =
+binary_gates =
   [ "SWAP", "CNOT" ]
 
 -- Attribution of the inverses
-binaryRev :: [(String, String)]
+binary_rev :: [(String, String)]
 -------------------------------
-binaryRev =
+binary_rev =
   [ ("SWAP", "SWAP"),
     ("CNOT", "CNOT") ]
 
 -- Symbolic representation
-binarySym :: [(String, (String, String))]
+binary_sym :: [(String, (String, String))]
 ---------------------------------------
-binarySym =
+binary_sym =
   [ ("SWAP", ("-X-", "-X-")),
     ("CNOT", ("(+)", "-*-")) ]
 
 -- General type for binary gates
-binaryType :: Type
+binary_type :: Type
 ------------------
-binaryType = TCirc (TTensor TQBit TQBit) (TTensor TQBit TQBit)
+binary_type = TCirc (TTensor TQBit TQBit) (TTensor TQBit TQBit)
 
 ----------------------------------------------
 ------------- Typing environment -------------
 
 -- Generation of the typing environment
-typingEnvironment :: [(String, Type)]
+typing_environment :: [(String, Type)]
 ------------------------------------
-typingEnvironment =
-  let initTypes = [("INIT0", TCirc TUnit TQBit), ("INIT1", TCirc TUnit TQBit)] in
-  let termTypes = [("TERM0", TCirc TQBit TUnit), ("TERM1", TCirc TQBit TUnit)] in
-  let unaryTypes = List.map (\s -> (s, unaryType)) unaryGates in
-  let binaryTypes = List.map (\s -> (s, binaryType)) binaryGates in
+typing_environment =
+  let init_types = [("INIT0", TCirc TUnit TQBit), ("INIT1", TCirc TUnit TQBit)] in
+  let term_types = [("TERM0", TCirc TQBit TUnit), ("TERM1", TCirc TQBit TUnit)] in
+  let unary_types = List.map (\s -> (s, unary_type)) unary_gates in
+  let binary_types = List.map (\s -> (s, binary_type)) binary_gates in
 
-  initTypes ++ termTypes ++ unaryTypes ++ binaryTypes
+  init_types ++ term_types ++ unary_types ++ binary_types
 
