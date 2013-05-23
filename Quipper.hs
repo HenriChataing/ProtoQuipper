@@ -7,13 +7,14 @@ import Classes
 
 import Syntax
 import Printer
-import CoreSyntax
-import TransCore
+
+import CCoreSyntax
+import CTransCore
+import TypingMain
 
 import qualified Interpret
 import Values
 import TypeInference
-import CTypeInference
 
 import System.IO
 import System.Environment
@@ -61,9 +62,9 @@ main = do
   if printp opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Printing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
-    putStrLn $ pprint prog
+    putStrLn $ pprint (clear_location prog)
     putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
-    putStrLn (pshow $ fst $ translateExpr prog CTypeInference.newContext) 
+    putStrLn (pprint $ snd $ (let CTransCore.State run = translateExpr (drop_constraints $ clear_location prog)  in run CTransCore.empty_context)) 
   else
     return ()
 
@@ -81,9 +82,10 @@ main = do
   if typ opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
-    putStrLn (pprint $ TypeInference.principalType prog)
-    putStrLn $ "\x1b[1m" ++ "CTypeInference :" ++ "\x1b[0m"
-    putStrLn (show $ CTypeInference.principalType prog)
+    --putStrLn (pprint $ TypeInference.principalType prog)
+    putStrLn $ "\x1b[1m" ++ "Test TypeInference :" ++ "\x1b[0m"
+--    putStrLn $ pprint_constraints $ type_inference prog
+    putStrLn $ full_inference prog
   else
     return ()
  

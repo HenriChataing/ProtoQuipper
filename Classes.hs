@@ -39,6 +39,7 @@ class PShow a where
 class Located a where
   locate :: a -> Extent -> a
   locate_opt :: a -> Maybe Extent -> a
+  clear_location :: a -> a
   location :: a -> Maybe Extent
 
 --------------------------------

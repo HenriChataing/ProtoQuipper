@@ -174,11 +174,20 @@ instance Eq Type where
 instance Located Type where
   locate (TLocated t ex) _ = TLocated t ex
   locate t ex = TLocated t ex
+
   location (TLocated _ ex) = Just ex
   location _ = Nothing
+
   locate_opt t Nothing = t
   locate_opt t (Just ex) = locate t ex
 
+  clear_location (TLocated t _) = clear_location t
+  clear_location (TCirc t u) = TCirc (clear_location t) (clear_location u)
+  clear_location (TTensor t u) = TTensor (clear_location t) (clear_location u)
+  clear_location (TArrow t u) = TArrow (clear_location t) (clear_location u)
+  clear_location (TExp t) = TExp (clear_location t)
+  clear_location t = t
+ 
 {-
    Instance declarations and functions of data type Pattern :   
   
@@ -194,10 +203,17 @@ instance Located Type where
 instance Located Pattern where
   locate (PLocated p ex) _ = PLocated p ex
   locate p ex = PLocated p ex
+
   location (PLocated _ ex) = Just ex
   location _ = Nothing
+
   locate_opt p Nothing = p
   locate_opt p (Just ex) = locate p ex
+
+  clear_location (PLocated p _) = clear_location p
+  clear_location (PPair p q) = PPair (clear_location p) (clear_location q)
+  clear_location (PConstraint p t) = PConstraint (clear_location p) t
+  clear_location p = p
 
 instance Constraint Pattern where
   drop_constraints (PConstraint p _) = p
@@ -234,10 +250,23 @@ isValue _ = True
 instance Located Expr where
   locate (ELocated e ex) _ = ELocated e ex
   locate e ex = ELocated e ex
+
   location (ELocated _ ex) = Just ex
   location _ = Nothing
+
   locate_opt e Nothing = e
   locate_opt e (Just ex) = locate e ex
+
+  clear_location (ELocated e _) = clear_location e
+  clear_location (EConstraint e t) = EConstraint (clear_location e) t
+  clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
+  clear_location (ELet p e f) = ELet (clear_location p) (clear_location e) (clear_location f)
+  clear_location (EApp e f) = EApp (clear_location e) (clear_location f)
+  clear_location (EPair e f) = EPair (clear_location e) (clear_location f)
+  clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
+  clear_location (EUnbox e) = EUnbox (clear_location e)
+  clear_location (EBox t) = EBox (clear_location t)
+  clear_location e = e
 
 instance Atomic Expr where
   is_atomic (ELocated e _) = is_atomic e
