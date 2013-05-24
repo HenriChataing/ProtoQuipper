@@ -5,6 +5,9 @@ data Locus = Loc {
   column :: Int
 }
 
+instance Eq Locus where
+  (==) la lb = line la == line lb && column la == column lb
+
 data Extent = Ext {
   lbegin :: Locus,
   lend :: Locus
@@ -21,6 +24,9 @@ instance Show Extent where
        (show $ column $ lbegin ex) ++ "-" ++
        (show $ line $ lend ex) ++ ":" ++
        (show $ column $ lend ex))
+
+instance Eq Extent where
+  (==) exa exb = lbegin exa == lbegin exb && lend exa == lend exb
 
 -- Default locus
 locus_unknown :: Locus
