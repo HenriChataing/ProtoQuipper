@@ -1,3 +1,4 @@
+-- This module provides several custom class definitions
 module Classes where
 
 import Localizing
@@ -27,10 +28,6 @@ class PPrint a where
   sprint  :: a -> String
   -- Pretty printing : Lvl = +oo
   pprint :: a -> String
-
--- Deprecated
-class PShow a where
-  pshow :: a -> String
 
 ---------------------------------
 -- Class of objects that can   --
