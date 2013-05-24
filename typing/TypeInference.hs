@@ -1,11 +1,12 @@
 module TypeInference where
 
+import Classes
+import Utils
+import Localizing
+
 import CoreSyntax
 
 import Contexts
-
-import Classes
-import Utils
 
 import Data.List as List
 import Data.Sequence as Seq
@@ -49,7 +50,7 @@ build_constraints EUnit t = do
 -}
 
 build_constraints (EVar x) u = do
-  t <- CContexts.find x
+  t <- Contexts.find x
   ann <- flag_annotations
   ann' <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) ann
   return ([(t, u)], List.map (\(_, f) -> (1, f)) ann')
@@ -67,15 +68,15 @@ build_constraints (EApp t u) b = do
   fvt <- return $ free_variables t
   fvu <- return $ free_variables u
   -- Filter on the free variables of t and type t
-  non_fvt <- CContexts.filter (\x -> List.elem x fvt)
+  non_fvt <- Contexts.filter (\x -> List.elem x fvt)
   (lcons, fcons) <- build_constraints t (TArrow (TVar a) b)
   -- Filter on the free variables of u and type u
-  CContexts.union non_fvt
-  non_fvu <- CContexts.filter (\x -> List.elem x fvu)
+  Contexts.union non_fvt
+  non_fvu <- Contexts.filter (\x -> List.elem x fvu)
   (lcons', fcons') <- build_constraints u (TVar a)
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
-  CContexts.union non_fvu
+  Contexts.union non_fvu
   dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
   ann <- flag_annotations
   ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
@@ -102,7 +103,7 @@ build_constraints (EFun x e) t = do
   -- Build the context constraints : n <= I
   ann_cons <- return $ List.map (\(_, f) -> (n, f)) ann
   -- Remove x from the context
-  CContexts.delete x
+  Contexts.delete x
 
   return ((TExp n $ TArrow a b, t):lcons, fcons ++ ann_cons)
 
@@ -176,17 +177,8 @@ data Diagram =
     visit :: Set.Set Variable 
   }
 
--- Result of a computation
-data Compute a = Ok a | Error String
-instance Monad Compute where
-  return a = Ok a
-  fail s = Error s
-  a >>= action = case a of
-                   Ok a -> action a
-                   Error s -> Error s
-
 -- State monad
-newtype Build a = Build (Diagram -> (Diagram, Compute a))
+newtype Build a = Build (Diagram -> (Diagram, Computed a))
 
 instance Monad Build where
   return a = Build (\dia -> (dia, Ok a))
@@ -194,8 +186,8 @@ instance Monad Build where
                                         case a of
                                           Ok a -> let Build run' = action a in
                                                   run' dia'
-                                          Error s -> (dia, Error s))
-  fail s = Build (\dia -> (dia, Error s))
+                                          Failed s -> (dia, Failed s))
+  fail s = Build (\dia -> (dia, Failed (CustomError s extent_unknown)))
 
 
 -- Diagram containing the vertices from 0 to n, and no edges
@@ -343,7 +335,7 @@ create_edges (c:cl) = do
 
 
 -- Infer the age of the type variables       (second arg is number of type variables
-age_inference :: [LinearConstraint] -> Variable -> Compute (Map.Map Variable Age)
+age_inference :: [LinearConstraint] -> Variable -> Computed (Map.Map Variable Age)
 -----------------------------------------------------------------------------
 age_inference constraints n =
   let init = init_diagram n in
@@ -366,10 +358,10 @@ age_inference constraints n =
   snd $ run init
 
 -- Print age map
-pprint_ages :: Compute (Map.Map Variable Age) -> String
+pprint_ages :: Computed (Map.Map Variable Age) -> String
 -------------------------------------------------------
 pprint_ages map =
   case map of
-    Error s -> s
+    Failed e -> show e
     Ok m -> Map.foldWithKey (\v a s -> s ++ subscript ("X" ++ show v) ++ " @ " ++ show a ++ "\n") "" m 
 

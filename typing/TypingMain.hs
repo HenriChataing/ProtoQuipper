@@ -6,11 +6,11 @@ import Utils
 import qualified Syntax as S
 import Printer
 import ExpGeneration
-import CCoreSyntax
-import CTransCore as Translate
+import CoreSyntax
+import TransSyntax
 
-import CContexts as Context
-import CCTypeInference
+import Contexts
+import TypeInference
 
 import Data.List as List
 
@@ -18,36 +18,36 @@ import Data.List as List
 type_inference :: S.Expr -> ConstraintSet
 -----------------------------------------
 type_inference e =
-  let Translate.State run = do
+  let TransSyntax.State run = do
       translateExpr (drop_constraints $ clear_location e)
   in
-  let coreProg = snd $ run $ Translate.empty_context in
+  let coreProg = snd $ run $ TransSyntax.empty_context in
 
-  let Context.State run = do
+  let Contexts.State run = do
       a <- new_type
       constraints <- build_constraints coreProg a
       non_composite <- return $ break_composite constraints
       return non_composite
   in
-  snd $ run $ Context.empty_context
+  snd $ run $ Contexts.empty_context
 
 
 full_inference :: S.Expr -> String
 ----------------------------------
 full_inference e =
-  let Translate.State run = do
+  let TransSyntax.State run = do
       translateExpr (drop_constraints $ clear_location e)
   in
-  let coreProg = snd $ run $ Translate.empty_context in
+  let coreProg = snd $ run $ TransSyntax.empty_context in
 
-  let Context.State run = do
+  let Contexts.State run = do
       a <- new_type
       constraints <- build_constraints coreProg a
       non_composite <- return $ break_composite constraints
       return non_composite
   in
   -- building constraints
-  let (ctx, constraints) = run $ Context.empty_context in
+  let (ctx, constraints) = run $ Contexts.empty_context in
   -- break composite constraints
   let reduced = break_composite constraints in
   -- infer age

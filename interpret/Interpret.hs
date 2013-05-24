@@ -17,7 +17,7 @@ importGates :: State ()
 ---------------------
 importGates = State (\c ->
                        foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
-                                                       run c') (c, Ok ()) gate_values)
+                                                       run c') (c, Utils.Ok ()) gate_values)
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
 bind_pattern :: Pattern -> Value -> State ()
@@ -230,7 +230,7 @@ interpret (EUnbox e) = do
 -------------------
 -- Main function --
 
-run :: Expr -> Computed Value
+run :: Expr -> Utils.Computed Value
 --------------------
 run e =
   let State runstate = do

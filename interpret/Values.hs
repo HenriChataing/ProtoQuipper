@@ -92,20 +92,18 @@ instance Show Context where
 
 {- Monad definition -}
 
--- Result of a computation : either the computation succeeded, or it failed at some extent
-data Computed a = Ok a | Failed String Extent
 newtype State a = State (Context -> (Context, Computed a))
 instance Monad State where
   return a = State (\ctx -> (ctx, Ok a))
-  fail s = State (\ctx -> (ctx, Failed s $ extent ctx))
+  fail s = State (\ctx -> (ctx, Failed (CustomError s $ extent ctx)))
   State run >>= action =
     State (\ctx -> let (ctx', a) = run ctx in
                    case a of
-                   Ok a ->
+                     Ok a ->
                        let State run' = action a in
                        run' ctx'
-                   Failed s ex ->
-                       (ctx', Failed s ex))
+                     Failed e ->
+                       (ctx', Failed e))
 
 -- Context manipulation --
 
@@ -141,7 +139,7 @@ set_extent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
 insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, Ok ()))
 find x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
                                 Just v -> Ok v
-                                Nothing -> Failed ("Unbound variable " ++ x) $ extent ctx))
+                                Nothing -> Failed (UnboundVariable x $ extent ctx)))
 delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, Ok ()))
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in

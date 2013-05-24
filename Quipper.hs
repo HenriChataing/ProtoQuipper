@@ -4,17 +4,17 @@ import Parser
 import Lexer
 
 import Classes
+import Utils
 
 import Syntax
 import Printer
 
-import CCoreSyntax
-import CTransCore
+import CoreSyntax
+import TransSyntax
 import TypingMain
 
 import qualified Interpret
 import Values
-import TypeInference
 
 import System.IO
 import System.Environment
@@ -23,6 +23,7 @@ data Options = Opt {
   inter :: Bool,
   typ :: Bool,
   printp :: Bool,
+  test :: Bool,
   filename :: String
 }
 
@@ -30,6 +31,7 @@ initOptions = Opt {
   inter = False,
   typ = False,
   printp = False,
+  test = False,
   filename = ""
 }
 
@@ -37,7 +39,8 @@ options :: [(String, Options -> IO Options)]
 options = [
   ("-i", (\opt -> return opt { inter = True })),
   ("-t", (\opt -> return opt { typ = True })),
-  ("-p", (\opt -> return opt { printp = True })) ]
+  ("-p", (\opt -> return opt { printp = True })),
+  ("-test", (\opt -> return opt { test = True })) ]
 
 parseOptions :: [String] -> IO Options
 parseOptions [] =
@@ -64,7 +67,7 @@ main = do
     putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
     putStrLn $ pprint (clear_location prog)
     putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
-    putStrLn (pprint $ snd $ (let CTransCore.State run = translateExpr (drop_constraints $ clear_location prog)  in run CTransCore.empty_context)) 
+    putStrLn (pprint $ snd $ (let TransSyntax.State run = translateExpr (drop_constraints $ clear_location prog)  in run TransSyntax.empty_context)) 
   else
     return ()
 
@@ -73,19 +76,25 @@ main = do
     case Interpret.run (drop_constraints prog) of
       Ok v -> do
           putStrLn $ pprint v
-      Failed s ex -> do
+      Failed err -> do
           putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
-          putStrLn ("In file : " ++ filename opt ++ ":" ++ show ex ++ " -- " ++ s)
+          putStrLn $ show err
   else
     return ()
 
   if typ opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
-    --putStrLn (pprint $ TypeInference.principalType prog)
-    putStrLn $ "\x1b[1m" ++ "Test TypeInference :" ++ "\x1b[0m"
 --    putStrLn $ pprint_constraints $ type_inference prog
     putStrLn $ full_inference prog
+  else
+    return ()
+
+  if test opt then do
+    putStrLn $ "\x1b[1;33m" ++ ">> Typing test" ++ "\x1b[0m"
+    putStrLn $ "\x1b[1m" ++ "Test TypeInference :" ++ "\x1b[0m"
+--    putStrLn $ pprint_constraints $ type_inference prog
+    putStrLn $ test_full_inference 10
   else
     return ()
  
