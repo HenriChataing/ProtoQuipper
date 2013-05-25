@@ -69,9 +69,9 @@ model (Binary s qa qb) =
               Nothing -> error ("Binary gate " ++ s ++ " has no specified symbolic representation")
             in
   if qa < qb then
-    (2 * qa, fst sym):(2 * qb, snd sym):(take (2 * qb - 2 * qa - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qa + 1, " | "))
+    (2 * qa, fst sym):(List.map (\l -> (l, " | ")) [2*qa+1 .. 2*qb-1])
   else
-    (2 * qa, fst sym):(2 * qb, snd sym):(take (2 * qa - 2 * qb - 1) $ List.iterate (\(l, s) -> (l+1, s)) (2 * qb + 1, " | "))
+    (2 * qa, fst sym):(List.map (\l -> (l, " | ")) [2*qb+1 .. 2*qa-1])
 
 model (Unary s q) =
   let sym = case List.lookup s unary_sym of
@@ -262,7 +262,7 @@ output_line l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars 
 
 -- Output the whole grid
 output :: GrState String
-output = GrState (\gr -> let num = take (gsize gr) $ iterate (+1) 0 in
+output = GrState (\gr -> let num = [0 .. gsize gr - 1] in
                          (gr, List.foldl (\s l -> let GrState run = do output_line l in
                                                   let (_, ln) = run gr in
                                                   (s ++ ln ++ "\n")) "\n" num))
