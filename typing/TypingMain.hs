@@ -5,7 +5,7 @@ import Utils
 
 import qualified Syntax as S
 import Printer
-import ExpGeneration
+import GenSTLC
 import CoreSyntax
 import TransSyntax
 
@@ -59,7 +59,7 @@ full_inference e =
 test_full_inference :: Int -> String
 -----------------------------
 test_full_inference n =
-  List.foldl (\s i -> let geni = generate i in
+  List.foldl (\s i -> let geni = generate_exp i in
                       let print_geni = pprint geni in
                       let pgeni = full_inference geni in
                       s ++ "-------------------------------------------\n" ++ print_geni ++ "\n" ++ pgeni) "" [0..n]

@@ -9,7 +9,6 @@ import Syntax
 
 instance PPrint Type where
   -- Print unto Lvl = n
-  sprintn _ (TVar x) = x
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
   sprintn _ TQBit = "qbit"

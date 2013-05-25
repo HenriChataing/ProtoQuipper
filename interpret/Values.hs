@@ -8,6 +8,8 @@ import Localizing
 import Utils
 
 import Syntax
+import Printer
+
 import Classes
 import Circuits
 import Gates
@@ -32,6 +34,7 @@ instance PPrint Value where
   pprint (VQBit q) = subscript ("q" ++ show q)
   pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
   pprint (VCirc _ c _) = pprint c
+  pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
   pprint (VBool b) = if b then "true" else "false"
   pprint VUnit = "<>"
 
