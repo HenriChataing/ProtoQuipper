@@ -69,9 +69,9 @@ model (Binary s qa qb) =
               Nothing -> error ("Binary gate " ++ s ++ " has no specified symbolic representation")
             in
   if qa < qb then
-    (2 * qa, fst sym):(List.map (\l -> (l, " | ")) [2*qa+1 .. 2*qb-1])
+    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, " | ")) [2*qa+1 .. 2*qb-1])
   else
-    (2 * qa, fst sym):(List.map (\l -> (l, " | ")) [2*qb+1 .. 2*qa-1])
+    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, " | ")) [2*qb+1 .. 2*qa-1])
 
 model (Unary s q) =
   let sym = case List.lookup s unary_sym of
