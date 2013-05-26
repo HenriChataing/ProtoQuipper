@@ -1,14 +1,14 @@
 {
 module Parser where
 
-import Data.Char
-import ParserUtils
+import Classes
+import Localizing
+
 import Lexer
 
-import Localizing
 import Syntax
-import Classes
 
+import Data.Char
 import Data.List as List
 }
 
