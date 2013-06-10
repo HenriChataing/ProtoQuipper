@@ -16,6 +16,7 @@ tokens :-
   $white+                             ;
   "--".*                              ;
 
+  "<:"                                { locate_token TkSubType }
   "*"                                 { locate_token TkStar }
   ","                                 { locate_token TkComma }
   ":"                                 { locate_token TkColon }
@@ -73,6 +74,7 @@ data Token =
   | TkEq Extent
   | TkBang Extent
   | TkArrow Extent
+  | TkSubType Extent
   | TkLParen Extent   | TkRParen Extent
   | TkLChevron Extent | TkRChevron Extent
   | TkLBracket Extent | TkRBracket Extent

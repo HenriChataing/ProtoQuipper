@@ -34,63 +34,53 @@ data Expr =
   | EPair Expr Expr                     -- <t, u>
   deriving Show
 
--- Extract all the variables
-free_variables :: Expr -> [Int]
+---------------------------------
+-- Instance delcarations       --
+
+instance Param Expr where
+  free_var EUnit = []
+  free_var (EVar x) = [x]
+  
+  free_var (EFun x e) = 
+    let fve = free_var e in
+    List.delete x fve
+
+  free_var (ELet x y e f) =
+    let fve = free_var e
+        fvf = free_var f in
+    (fve ++ fvf) \\ [x, y]
+
+  free_var (EApp e f) =
+    free_var e ++ free_var f
+
+  free_var (EPair e f) =
+    free_var e ++ free_var f
+
+  subs_var _ _ e = e
+  subs _ _ e = e
+
 -------------------------------
-free_variables EUnit = []
-free_variables (EVar x) = [x]
 
-free_variables (EFun x e) =
-  let fve = free_variables e in
-  List.delete x fve
+instance Param Type where
+  free_var (TVar x) = [x]
+  free_var (TTensor t u) = free_var t ++ free_var u
+  free_var (TArrow t u) = free_var t ++ free_var u
+  free_var (TExp _ t) = free_var t
+  free_var _ = []
 
-free_variables (ELet x y e f) =
-  let fve = free_variables e
-      fvf = free_variables f in
-  (fve ++ fvf) \\ [x, y]
+  subs_var a b (TVar x) | x == a = TVar b
+                        | otherwise = TVar x
+  subs_var _ _ TUnit = TUnit
+  subs_var a b (TExp n t) = TExp n (subs_var a b t)
+  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
+  subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
 
-free_variables (EApp e f) =
-  free_variables e ++ free_variables f
-
-free_variables (EPair e f) =
-  free_variables e ++ free_variables f
-
-
--- Extract all the free type variables
-free_type_variables :: Type -> [Int]
-------------------------------------
-free_type_variables (TVar x) = [x]
-free_type_variables (TTensor t u) = free_type_variables t ++ free_type_variables u
-free_type_variables (TArrow t u) = free_type_variables t ++ free_type_variables u
-free_type_variables (TExp _ t) = free_type_variables t
-free_type_variables _ = []
-
-type Mapping = (Variable, Type)
-
--- Substitute type variable x by type a in type t
--- The flags are left untouched in the original type
-subst :: Type -> Mapping -> Type
----------------------------------------
-subst (TVar x) (y, a) | x == y = a
-                      | otherwise = TVar x
-subst (TTensor t u) m = TTensor (subst t m) (subst u m)
-subst (TArrow t u) m = TArrow (subst t m) (subst u m)
-subst (TExp f t) m = TExp f (subst t m)
-subst t _ = t
-
-type Substitution = [Mapping]
-
--- Apply all the substitutions defined by the map
-subst_all :: Type -> Substitution -> Type
--------------------------------------------
-subst_all (TVar x) sub =
-  case List.lookup x sub of
-  Just t -> t
-  Nothing -> TVar x
-subst_all (TTensor t u) sub = TTensor (subst_all t sub) (subst_all u sub)
-subst_all (TArrow t u) sub = TArrow (subst_all t sub) (subst_all u sub)
-subst_all (TExp f t) sub = TExp f (subst_all t sub)
-subst_all t _ = t
+  subs x a (TVar y) | x == y = a
+                    | otherwise = TVar y
+  subs x a (TTensor t u) = TTensor (subs x a t) (subs x a u)
+  subs x a (TArrow t u) = TArrow (subs x a t) (subs x a u)
+  subs x a (TExp f t) = TExp f (subs x a t)
+  subs _ _ t = t
 
 -----------------------
 -- Comparable things --
@@ -122,9 +112,9 @@ instance PPrint Type where
        TArrow _ _ -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " * " ++
     (case b of
-       TArrow _ _ -> "(" ++ sprintn dlv a ++ ")"
-       TTensor _ _ -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a)
+       TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
+       TTensor _ _ -> "(" ++ sprintn dlv b ++ ")"
+       _ -> sprintn dlv b)
 
   sprintn lv (TArrow a b) =
     let dlv = decr lv in

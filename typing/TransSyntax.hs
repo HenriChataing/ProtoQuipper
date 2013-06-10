@@ -32,6 +32,13 @@ find s = State (\bc -> (bc, case Map.lookup s $ bindings bc of
                               Just x -> x
                               Nothing -> error ("Unbound variable" ++ s)))
 
+safe_find :: String -> State Int
+safe_find s = State (\bc -> case Map.lookup s $ bindings bc of
+                              Just n -> (bc, n)
+                              Nothing -> (bc { var_id = (+1) $ var_id bc,
+                                               names = Map.insert (var_id bc) s $ names bc,
+                                               bindings = Map.insert s (var_id bc) $ bindings bc }, var_id bc))
+
 set_mark :: State ()
 set_mark = State (\bc -> (bc { mark = (bindings bc):(mark bc) }, ()))
 
@@ -52,39 +59,62 @@ empty_context =
 --------------------------------------
 -- Translation into internal Syntax --
 
+translate_type :: S.Type -> State Type
+--------------------------------------
+translate_type (S.TVar x) = do
+  n <- safe_find x
+  return $ TVar n
+
+translate_type (S.TArrow t u) = do
+  t' <- translate_type t
+  u' <- translate_type u
+  return $ TArrow t' u'
+
+translate_type (S.TTensor t u) = do
+  t' <- translate_type t
+  u' <- translate_type u
+  return $ TTensor t' u'
+
+translate_type (S.TExp t) = do
+  t' <- translate_type t
+  return $ TExp 1 t'
+
+translate_type (S.TLocated t _) = do
+  translate_type t
+
 -- Translation of expressions
-translateExpr :: S.Expr -> State Expr
------------------------------------------------------
-translateExpr S.EUnit = do
+translate_expression :: S.Expr -> State Expr
+--------------------------------------------
+translate_expression S.EUnit = do
   return EUnit
 
-translateExpr (S.EVar v) = do
+translate_expression (S.EVar v) = do
   x <- find v
   return (EVar x)
 
-translateExpr (S.EFun (S.PVar v) e) = do
+translate_expression (S.EFun (S.PVar v) e) = do
   set_mark
   x <- label v
-  e' <- translateExpr e
+  e' <- translate_expression e
   reset
   return (EFun x e')
 
-translateExpr (S.ELet (S.PPair (S.PVar u) (S.PVar v)) e f) = do
+translate_expression (S.ELet (S.PPair (S.PVar u) (S.PVar v)) e f) = do
   set_mark
   x <- label u
   y <- label v
-  e' <- translateExpr e
-  f' <- translateExpr f
+  e' <- translate_expression e
+  f' <- translate_expression f
   reset
   return (ELet x y e' f')
 
-translateExpr (S.EApp e f) = do
-  e' <- translateExpr e
-  f' <- translateExpr f
+translate_expression (S.EApp e f) = do
+  e' <- translate_expression e
+  f' <- translate_expression f
   return (EApp e' f')
 
-translateExpr (S.EPair e f) = do
-  e' <- translateExpr e
-  f' <- translateExpr f
+translate_expression (S.EPair e f) = do
+  e' <- translate_expression e
+  f' <- translate_expression f
   return (EPair e' f')
 

@@ -60,4 +60,12 @@ class Constraint a where
 class Reversible a where
   rev :: a -> a
 
+-----------------------------------
+-- Class of parametrized objects --
+
+class Param a where
+  free_var :: a -> [Int]
+  subs_var :: Int -> Int -> a -> a
+  subs :: Int -> a -> a -> a
+
 

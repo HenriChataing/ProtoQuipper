@@ -8,23 +8,14 @@ import CoreSyntax
 
 import Contexts
 
+import Subtyping
+import Ordering
+
 import Data.List as List
 import Data.Sequence as Seq
 import Data.Array as Array
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
--------------------------
--- Various constraints --
-
-type LinearConstraint =         
-  (Type, Type)      -- T <: U
-
-type FlagConstraint =
-  (Flag, Flag)      -- n <= m
-
-type ConstraintSet =
-  ([LinearConstraint], [FlagConstraint])
 
 -----------------------------------------------------------------
 -----------------------------------------------------------------
@@ -34,51 +25,51 @@ build_constraints :: Expr -> Type -> State ConstraintSet
 
 -- Unit typing rule
 {-
-    ---------------------
-      !I G  |- * : !n T    {1 <= I} 
+    -----------------------------------
+      !I G  |- * : !n T    [{1 <= I}]
 -} 
 
 build_constraints EUnit t = do
-  ann <- flag_annotations
+  ann <- context_annotation
   return ([(t, TUnit)], List.map (\(_, f) -> (1, f)) ann)
   
 -- Var typing rule
 {-
      
-   ------------------------------------------
-     !IG, t : T |- t : U    {T <: U, 1 <= I} 
+   ---------------------------------------------
+     !IG, t : T |- t : U    [{T <: U, 1 <= I}]
 -}
 
 build_constraints (EVar x) u = do
-  t <- Contexts.find x
-  ann <- flag_annotations
+  t <- find_var x
+  ann <- context_annotation
   ann' <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) ann
   return ([(t, u)], List.map (\(_, f) -> (1, f)) ann')
 
 -- App typing rule
 {-
-     G1, !ID |- t : a -> T  {L, C}       G2, !ID |- u : a  {L', C'}
-   -----------------------------------------------------------------
-         G1, G2, !ID |- t u : T  {L u L', C u C' u 1 <= I}
+     G1, !ID |- t : a -> T  [L]      G2, !ID |- u : a  [L']
+   -----------------------------------------------------------
+         G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
 -}
 
 build_constraints (EApp t u) b = do
-  a <- fresh_type
+  a <- new_type
   -- Extract the free variables of t and u
-  fvt <- return $ free_variables t
-  fvu <- return $ free_variables u
+  fvt <- return $ free_var t
+  fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
-  non_fvt <- Contexts.filter (\x -> List.elem x fvt)
-  (lcons, fcons) <- build_constraints t (TArrow (TVar a) b)
+  non_fvt <- filter_by (\x -> List.elem x fvt)
+  (lcons, fcons) <- build_constraints t (TArrow a b)
   -- Filter on the free variables of u and type u
   Contexts.union non_fvt
-  non_fvu <- Contexts.filter (\x -> List.elem x fvu)
-  (lcons', fcons') <- build_constraints u (TVar a)
+  non_fvu <- filter_by (\x -> List.elem x fvu)
+  (lcons', fcons') <- build_constraints u a
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
   Contexts.union non_fvu
   dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
-  ann <- flag_annotations
+  ann <- context_annotation
   ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
                                                  else (1, f):cl) [] ann
   
@@ -86,26 +77,94 @@ build_constraints (EApp t u) b = do
 
 -- Lambda typing rule
 {-
-     !IG, x : a |- t : b  {L, C}
+     !IG, x : a |- t : b  [L]
    ---------------------------------------------
-     !IG |- \x.t : !n(a -> b)  {L, C u n <= Ii}
+     !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
 -}
 
 build_constraints (EFun x e) t = do
   a <- new_annotated_type
   b <- new_type
   n <- fresh_flag
-  ann <- flag_annotations
+  ann <- context_annotation
   -- Bind x in the context
-  bind x a
+  bind_var x a
   -- Type the expression e
   (lcons, fcons) <- build_constraints e b
   -- Build the context constraints : n <= I
   ann_cons <- return $ List.map (\(_, f) -> (n, f)) ann
   -- Remove x from the context
-  Contexts.delete x
+  delete_var x
 
   return ((TExp n $ TArrow a b, t):lcons, fcons ++ ann_cons)
+
+-- Tensor intro typing rule
+{-
+     G1, !ID |- t : a  [L]           G2, !ID |- u : b  [L']
+   ----------------------------------------------------------
+     G1, G2, !ID |- <t, u> : a * b   [L u L' u {1 <= I}]
+-}
+
+build_constraints (EPair t u) typ = do
+  a <- new_type
+  b <- new_type
+  -- Extract the free variables of t and u
+  fvt <- return $ free_var t
+  fvu <- return $ free_var u
+  -- Filter on the free variables of t and type t
+  non_fvt <- filter_by (\x -> List.elem x fvt)
+  (lcons, fcons) <- build_constraints t a
+  -- Filter on the free variables of u and type u
+  Contexts.union non_fvt
+  non_fvu <- filter_by (\x -> List.elem x fvu)
+  (lcons', fcons') <- build_constraints u b
+  -- Reset the environment, and add the last constraints
+    -- Need to perform : FV(t) + FV(u) (disjoint union)
+  Contexts.union non_fvu
+  dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
+  ann <- context_annotation
+  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
+                                                 else (1, f):cl) [] ann
+  
+  return (lcons' ++ lcons ++ [(TTensor a b, typ)], fcons' ++ fcons ++ ann_cons)
+
+
+-- Tensor elim typing rule
+{-
+     G1, !ID |- t : !n<a, b>  [L]    G2, !ID, x : !na, y : !nb |- u : T  [L']
+   -----------------------------------------------------------------------------
+     G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
+-}
+
+build_constraints (ELet x y t u) typ = do
+  a <- new_type
+  b <- new_type
+  n <- fresh_flag
+  -- Extract the free variables of t and u
+  fvt <- return $ free_var t
+  fvu <- return $ free_var u
+  -- Filter on the free variables of t and type t
+  non_fvt <- filter_by (\x -> List.elem x fvt)
+  (lcons, fcons) <- build_constraints t (TExp n (TTensor a b))
+  -- Filter on the free variables
+  Contexts.union non_fvt
+  non_fvu <- filter_by (\x -> List.elem x fvu)
+  -- Add x and y to the context
+  bind_var x (TExp n a)
+  bind_var y (TExp n b)
+  -- Type u
+  (lcons', fcons') <- build_constraints u typ
+  -- Clean the context
+  delete_var x
+  delete_var y
+  Contexts.union non_fvu
+  -- Generate the flag constraints for the intersection
+  dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
+  ann <- context_annotation
+  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
+                                                 else (1, f):cl) [] ann
+  
+  return (lcons' ++ lcons, fcons' ++ fcons ++ ann_cons)
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -114,254 +173,314 @@ build_constraints (EFun x e) t = do
   -- T -> U <: T' -> U'
   -- ! T <: ! U
 
-break_composite :: ConstraintSet -> ConstraintSet
+break_composite :: ConstraintSet -> State ConstraintSet
 
 -- Nothing to do
-break_composite ([], lc) = ([], lc)
+break_composite ([], lc) = return ([], lc)
 
 -- Break constraints
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite ((TArrow t u, TArrow t' u'):lc, fc) =
+break_composite ((TArrow t u, TArrow t' u'):lc, fc) = do
   break_composite ((t', t):(u, u'):lc, fc)
+
+-- Break constraints
+  -- T * U <: T' * U'
+-- Into
+  -- T <: T' && U <: U'
+
+break_composite ((TTensor t u, TTensor t' u'):lc, fc) = do
+  break_composite ((t, t'):(u, u'):lc, fc)
 
 -- Break constraints
   -- !n T <: !m U
 -- Into
   -- T <: U && m <= n
-break_composite ((TExp n t, TExp m u):lc, fc) =
+break_composite ((TExp n t, TExp m u):lc, fc) = do
   break_composite ((t, u):lc, (m, n):fc)
 
 -- Break constraints
   -- !n T <: U
 -- Into
   -- T <: U
-break_composite ((TExp _ t, u):lc, fc) =
+break_composite (c@(TExp _ _, TVar _):lc, fc) = do
+  (lc', fc') <- break_composite (lc, fc)
+  return (c:lc', fc')
+
+break_composite ((TExp _ t, u):lc, fc) = do
   break_composite ((t, u):lc, fc)
 
 -- Break constraints
   -- T <: !n U
 -- Into
   -- T <: U && n <= 0
-break_composite ((t, TExp n u):lc, fc) =
+break_composite (c@(TVar _, TExp _ _):lc, fc) = do
+  (lc', fc') <- break_composite (lc, fc)
+  return (c:lc', fc')
+
+break_composite ((t, TExp n u):lc, fc) = do
   break_composite ((t, u):lc, (n, 0):fc)
 
 -- Other non composite constraints
-break_composite (c:lc, fc) =
-  let (lc', fc') = break_composite (lc, fc) in
-  (c:lc', fc')
+break_composite (c:lc, fc) = do
+  (lc', fc') <- break_composite (lc, fc)
+  return (c:lc', fc')
 
---------------------------------------------------------------------------
---------------------------------------------------------------------------
+-------------------------------------- UNIFICATION -----------------------------------------------------
 
--- Determining the age of the type variables :
-  -- if there is a subtyping relation a <: T then a is younger than any
-  -- free type variable of T
--- The goal is to sort variables by their age, and rule out cyclic dependencies
+-- Sort constraints that have a as right hand side
+with_rhs :: Variable -> [LinearConstraint] -> State ([LinearConstraint], [LinearConstraint])
 
-data Vertex =
-  Vertex {
-    incoming :: Set.Set Variable,
-    outcoming :: Set.Set Variable
-  }
-
--- The diagram definition includes :
-  -- a graph definition
-  -- an exploration queue
-  -- a set of visited points
-data Diagram =
-  Graph {
-    vertices :: Array Variable Vertex,
-    start :: Seq Variable,
-    visit :: Set.Set Variable 
-  }
-
--- State monad
-newtype Build a = Build (Diagram -> (Diagram, Computed a))
-
-instance Monad Build where
-  return a = Build (\dia -> (dia, Ok a))
-  Build run >>= action = Build (\dia -> let (dia', a) = run dia in
-                                        case a of
-                                          Ok a -> let Build run' = action a in
-                                                  run' dia'
-                                          Failed s -> (dia, Failed s))
-  fail s = Build (\dia -> (dia, Failed (CustomError s extent_unknown)))
-
-
--- Diagram containing the vertices from 0 to n, and no edges
-init_diagram :: Int -> Diagram
------------i-------------------
-init_diagram n =
-  Graph {
-    vertices = Array.array (0, n-1)  -- Array index bounds
-                           (List.map (\ix -> (ix, Vertex { incoming = Set.empty, outcoming = Set.empty })) [0..n-1]),
-    start = empty,
-    visit = Set.empty
-  }
-
--- Add a new edge to the diagram, point from the first variable to the second
-new_edge :: Variable -> Variable -> Build ()
-new_edges :: Variable -> [Variable] -> Build ()
---------------------------------------------
-new_edge v1 v2 =
-  Build (\dia -> let vx1 = vertices dia ! v1
-                     vx2 = vertices dia ! v2 in
-                 (dia { vertices = (vertices dia) // [(v1, vx1 { outcoming = Set.insert v2 $ outcoming vx1 }),
-                                                      (v2, vx2 { incoming = Set.insert v1 $ incoming vx2 })] }, Ok ()))
-
-new_edges v1 [] = return ()
-new_edges v1 (v2:cv2) = do
-  new_edge v1 v2
-  new_edges v1 cv2
-
--- Find the root vertices, towards which no edge points
-find_roots :: Build [Variable]
----------------------------
-find_roots =
-  Build (\dia -> let roots = List.foldl (\roots (i, e) -> if Set.null $ incoming e then
-                                                            i:roots
-                                                          else
-                                                            roots) [] $ assocs $ vertices dia in
-                 case roots of
-                   [] -> (dia, fail "Error : cyclic dependency detected in the constraint set")
-                   _ -> (dia, return roots))
-
--- Give the vertices pointing to, or starting from, a vertex
-incoming_edges :: Variable -> Build [Variable]
-outcoming_edges :: Variable -> Build [Variable]
-----------------------------------------
-incoming_edges v =
-  Build (\dia -> (dia, return $ Set.toList $ incoming $ (vertices dia) ! v))
-outcoming_edges v =
-  Build (\dia -> (dia, return $ Set.toList $ outcoming $ (vertices dia) ! v))
-
--- Remove all edges starting from this vertex
-cut_vertex :: Variable -> Build ()
-----------------------------------
-cut_vertex v =
-  Build (\dia -> let dest = outcoming $ (vertices dia) ! v in
-                 let vertices' = Set.fold (\d ary -> let inc = incoming $ ary ! d in
-                                                     ary // [(d, (ary ! d) { incoming = Set.delete v inc })])
-                                          (vertices dia) dest in
-                 (dia { vertices = vertices' }, return ()))
-
--- Find the new roots
-filter_roots :: [Variable] -> Build [Variable]
-----------------------------------------------
-filter_roots vs =
-  Build (\dia -> (dia, return $ List.foldl (\filt v -> if Set.null $ incoming $ (vertices dia) ! v then
-                                                         (v:filt)
-                                                       else
-                                                         filt) [] vs))
-
--- Queue management
-is_queue_empty :: Build Bool
-next :: Build Variable
-put :: [Variable] -> Build ()
------------------------------
-is_queue_empty =
-  Build (\dia -> (dia, return $ Seq.null $ start dia))
-next =
-  Build (\dia -> case viewr $ start dia of
-                   EmptyR -> (dia, fail "Empty queue")
-                   seq :> v -> (dia { start = seq }, return v))
-put vl =
-  Build (\dia -> (dia { start = (fromList vl) >< (start dia) }, return ()))
-
----- Main Function : bfs ----
-type Age = Int
-
--- Bfs walk
-bfs_walk :: Map.Map Variable Age -> Build (Map.Map Variable Age)
---------------------------------------------------------
-bfs_walk records = do
-  v <- next
-  agev <- case Map.lookup v records of
-            Just a -> return a
-            Nothing -> fail ("No age recorded for variable " ++ show v)
-  -- Outcoming edges of v
-  out <- outcoming_edges v
-  -- Remove any edge pointing from v
-  -- Filter the new roots (no incoming edge)
-  cut_vertex v
-  out' <- filter_roots out
-  -- Define the age of the new roots
-  records' <- List.foldl (\rec v' -> do
-                              r <- rec
-                              agev' <- return $ Map.lookup v' r
-                              case agev' of
-                                Nothing -> return $ Map.insert v' (agev + 1) r
-                                Just _ -> fail "Cyclic dependency in constraint set") (return $ records) out'
-  -- Put the new roots in the queue
-  put out'
-
-  -- Recursive call
-  empt <- is_queue_empty
-  if not empt then
-    bfs_walk records'
-  else
-    return records'
-
--- Init the walk : find the roots and define their age
-init_walk :: Build (Map.Map Variable Age)
------------------------------------------
-init_walk = do
-  roots <- find_roots
-  records <- return $ List.foldl (\rec r -> Map.insert r 0 rec) Map.empty roots
-  put roots
-  return records
-
--- Create edges from constraints
-create_edges :: [LinearConstraint] -> Build ()
-----------------------------------------------
-create_edges [] = return ()
-create_edges (c:cl) = do
-    case c of
-      -- a <: b   --> atomic constraint
-      (TVar _, TVar _) -> return ()
-      -- a <: T
-      (TVar x, u) -> do
-          fvu <- return $ free_type_variables u
-          new_edges x fvu
-      -- T <: a
-      (t, TVar x) -> do
-          fvt <- return $ free_type_variables t
-          new_edges x fvt
-      -- composite
-      (t, u) -> fail ("Error : unreduced composite constraint : " ++ pprint t ++ " <: " ++ pprint u)
-    create_edges cl
-
-
--- Infer the age of the type variables       (second arg is number of type variables
-age_inference :: [LinearConstraint] -> Variable -> Computed (Map.Map Variable Age)
+-- Sort constraints that have a as left hand side
+with_lhs :: Variable -> [LinearConstraint] -> State ([LinearConstraint], [LinearConstraint])
 -----------------------------------------------------------------------------
-age_inference constraints n =
-  let init = init_diagram n in
+with_rhs x lc = do
+  return $ List.partition (\(_, u) -> case u of
+                                        TVar y -> x == y
+                                        _ -> False) lc
+with_lhs x lc = do
+  return $ List.partition (\(t, _) -> case t of
+                                        TVar y -> x == y
+                                        _ -> False) lc
+
+-- Break a composite against a variable
+break_var :: LinearConstraint -> State ([Variable],ConstraintSet)
+-------------------------------------------------------------------------
+{- Break the constraint
+     x <: t -> u
+   into
+     x := !n (t' -> u')
+     t <: t'
+     u' <: u
+-}
+
+break_var (TVar x, TArrow t u) = do
+  t' <- fresh_type
+  u' <- fresh_type
+  n <- fresh_flag
+
+  mapsto x (TExp n $ TArrow (TVar t') (TVar u'))
+  return ([t', u'], ([ (t, TVar t'), (TVar u', u) ], []))
+
+{- Break the constraint
+     t -> u <: x
+   into
+     x := t' -> u'
+     t' <: t
+     u <: u'
+-}
+
+break_var (TArrow t u, TVar x) = do
+  t' <- fresh_type
+  u' <- fresh_type
+
+  mapsto x (TArrow (TVar t') (TVar u'))
+  return ([t', u'], ([ (TVar t', t), (u, TVar u') ], []))
+
+---
+
+{- Break the constraint
+     x <: t * u
+   into
+     x := !n (t' * u')
+     t' <: t
+     u' <: u
+-}
+
+break_var (TVar x, TTensor t u) = do
+  t' <- fresh_type
+  u' <- fresh_type
+  n <- fresh_flag
+
+  mapsto x (TExp n $ TTensor (TVar t') (TVar u'))
+  return ([t', u'], ([ (TVar t', t), (TVar u', u) ], []))
+
+{- Break the constraint
+     t * u <: x
+   into
+     x := t' * u'
+     t <: t'
+     u <: u'
+-}
+
+break_var (TTensor t u, TVar x) = do
+  t' <- fresh_type
+  u' <- fresh_type
+
+  mapsto x (TTensor (TVar t') (TVar u'))
+  return ([t', u'], ([ (t, TVar t'), (u, TVar u') ], []))
+
+---
+
+{- Break the constraint
+     x <: !n t
+   into
+     x := !m t'
+     t' <: t
+     n <= m
+-}
+
+break_var (TVar x, TExp n t) = do
+  t' <- fresh_type
+  m <- fresh_flag
+
+  mapsto x (TExp m (TVar t'))
+  return ([t'], ([ (TVar t', t) ], [ (n, m) ]))
+
+{- Break the constraint
+     !n t <: x
+   into
+     x := !m t'
+     t <: t'
+     m <= n
+-}
+
+break_var (TExp n t, TVar x) = do
+  t' <- fresh_type
+  m <- fresh_flag
+
+  mapsto x (TExp m (TVar t'))
+  return ([t'], ([ (t, TVar t') ], [ (m, n) ]))
+
+---
+
+{- Break the constraint
+     x <: T
+   into
+     x := T
+-}
+
+break_var (TUnit, TVar x) = do
+  mapsto x TUnit
+  return ([], ([], []))
+
+{- Break the constraint
+     x <: T
+   into
+     x := T
+-}
+
+break_var (TVar x, TUnit) = do
+  mapsto x TUnit
+  return ([], ([], []))
+
+break_var (TVar _, TVar _) = do
+  fail "Unwelcomed atomic constraint"
+
+
+-- Unification algorithm :
+  -- Each step eliminates a variable
+  -- Variables are taken youngest first
+  -- If we get the following case :
+    -- x is lhs/rhs of only one constraint -> break that constraint and substitute x
+    -- x is lhs/rhs of several constraints -> generate the constraints rhs <: lhs and eliminate x
+
+unify :: ConstraintSet -> State ConstraintSet
+----------------------------------------------------------------------------
+unify (lc, fc) = do
+  -- Recursive check
+  stop <- null_heuristic
   
-  let Build run = do
-      -- Add the initial edges
-        -- for each constraint a <: T or T <: a, a is declared younger than any free variable of T
-      create_edges constraints
+  if stop then
+    return (lc, fc)
+  else do
+      x <- fitting_var 
 
-      -- Init the walk
-      records <- init_walk
+      -- Identify the constraint with x as left or right hand side
+      (lhs, non_lhs) <- with_lhs x lc
+      (rhs, non_rhs) <- with_rhs x non_lhs
 
-      -- Launch the walk
-      records' <- bfs_walk records
+      -- Check the next action
+      case (List.partition atomic lhs, List.partition atomic rhs) of
 
-      -- Return the result
-      return records' 
-  in
+        -- No semi-composite constraints
+        ((atoml, []), (atomr, [])) -> do
+            unify (lc, fc)
 
-  snd $ run init
+        -- Semi composite on the right
+        ((atoml, []), (atomr, c:cset)) -> do
+            -- Break the semi-composite constraint
+            (nvar, (lc', fc')) <- break_var c
+            xt <- appmap x
+            -- Substitute x
+            atoml' <- return $ List.map (\(_, u) -> (xt, u)) atoml
+            atomr' <- return $ List.map (\(t, _) -> (t, xt)) atomr
+            cset' <- return $ List.map (\(t, _) -> (t, xt)) cset
+            -- Break the composite constraints in cset'
+            (cset'', fc'') <- break_composite (cset', fc ++ fc')
+            -- Add the new variables to the heuristic
+            fvtl <- return $ List.concat $ List.map (\(_, u) -> free_var u) atoml
+            fvtr <- return $ List.concat $ List.map (\(t, _) -> free_var t) atomr
+            
+            insert_all_after nvar (fvtl ++ fvtr)
+            -- Rec call
+            unify (non_rhs ++ lc' ++ atoml' ++ atomr' ++ cset'', fc'')
 
--- Print age map
-pprint_ages :: Computed (Map.Map Variable Age) -> String
--------------------------------------------------------
-pprint_ages map =
-  case map of
-    Failed e -> show e
-    Ok m -> Map.foldWithKey (\v a s -> s ++ subscript ("X" ++ show v) ++ " @ " ++ show a ++ "\n") "" m 
+        -- Semi composite on the left
+        ((atoml, c:cset), (atomr, natomr)) -> do
+            -- Break the semi-composite constraint
+            (nvar, (lc', fc')) <- break_var c
+            xt <- appmap x
+            -- Substitute x
+            atoml' <- return $ List.map (\(_, u) -> (xt, u)) atoml
+            atomr' <- return $ List.map (\(t, _) -> (t, xt)) atomr
+            cset' <- return $ List.map (\(_, u) -> (xt, u)) cset
+            natomr' <- return $ List.map (\(t, _) -> (t, xt)) natomr
+            -- Break the composite constraints
+            (cset'', fc'') <- break_composite (cset' ++ natomr', fc ++ fc')
+             -- Add the new variables to the heuristic
+            fvtl <- return $ List.concat $ List.map (\(_, u) -> free_var u) atoml
+            fvtr <- return $ List.concat $ List.map (\(t, _) -> free_var t) atomr
+            
+            insert_all_after nvar (fvtl ++ fvtr)
+            -- Rec call
+            unify (non_rhs ++ lc' ++ atoml' ++ atomr' ++ cset'', fc'')
+
+-- Flag unification
+
+-- Set a flag value
+set_flag :: Flag -> Int -> Map.Map Flag Int -> State (Map.Map Flag Int)
+-----------------------------------------------------------------------
+set_flag f n val = do
+  case Map.lookup f val of
+    Just m | m == n -> do return val
+           | otherwise -> do fail "Unsolvable flag constraint set"
+    _ -> do return $ Map.insert f 1 val 
+
+-- Solve the constraint set
+solve_annotation :: [FlagConstraint] -> State (Map.Map Flag Int)
+----------------------------------------------------------------
+solve_annotation fc = do
+  -- Empty valuation
+  valuation <- return $ Map.empty
+  -- Elimination of trivial constraints f <= 1 and 0 <= f
+  fc' <- return $ List.filter (\(m, n) -> (m /= 0 && n /= 1)) fc
+
+  -- Application of the constraints 1 <= f and f <= 0
+  (fc_set, fc_impl) <- return $ List.partition (\(m, n) -> (m == 1 || n == 0)) fc'
+  valuation <- List.foldl (\val c -> case c of
+                                       (1, 0) -> do
+                                           fail "Absurd constraint 1 <= 0"
+
+                                       (n, 0) -> do
+                                           v <- val
+                                           set_flag n 0 v
+
+                                       (1, n) -> do
+                                           v <- val
+                                           set_flag n 1 v
+
+                                       ) (return valuation) fc_set
+
+  -- Application of the constraints f <= g
+  valuation <- List.foldl (\val (n, m) -> do
+                               v <- val
+                               case Map.lookup n v of
+                                 Just 1 -> do
+                                     set_flag m 1 v
+                                 _ -> do
+                                     return v) (return valuation) fc_impl
+
+  return valuation
 

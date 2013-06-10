@@ -11,7 +11,8 @@ import Classes
 -- types                       --
 
 data Type =
-    TUnit                     -- T
+    TVar String               -- a
+  | TUnit                     -- T
   | TBool                     -- bool
   | TQBit                     -- qbit
   | TCirc Type Type           -- circ (A, B)

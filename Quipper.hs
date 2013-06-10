@@ -1,7 +1,9 @@
 module Main where
 
 import Parser
+import ConstraintParser
 import Lexer
+import QuipperExport
 
 import Classes
 import Utils
@@ -20,72 +22,62 @@ import Values
 import System.IO
 import System.Environment
 
-data Options = Opt {
-  -- Current options
-  do_interpret :: Bool,
-  do_typing :: Bool,
-  do_printing :: Bool,
-  do_testing :: Bool, testing_lvl :: Int,
-  filename :: String
-}
-
--- Some setters
-set_interpret :: Options -> Options
-set_typing :: Options -> Options
-set_printing :: Options -> Options
-set_testing :: Int -> Options -> Options
-parse_file :: String -> Options -> Options
---------------------------------
-set_interpret opt = opt { do_interpret = True }
-set_typing opt = opt { do_typing = True }
-set_printing opt = opt { do_printing = True }
-set_testing n opt = opt { do_testing = True, testing_lvl = n }
-parse_file f opt = opt { filename = f }
-
--- Intitial state
-init_options = Opt {
-  do_interpret = False,
-  do_typing = False,
-  do_printing = False,
-  do_testing = False, testing_lvl = 0,
-  filename = ""
-}
-
--- Option continuations
-option_defs :: ParseResult Options ()
-option_defs = do
-  when_parse "-i" (do apply set_interpret)
-  when_parse "-t" (do apply set_typing)
-  when_parse "-p" (do apply set_printing)
-  when_parse "-test" (do
-      s <- next
+-- Specification of the input parser
+option_spec :: Options ()
+option_spec = do
+  -- Option init
+  "do_interpret" <-- False
+  "do_type" <-- False
+  "do_print" <-- False
+  "do_test" <-- False
+  "do_unify" <-- False
+  "test_lvl" <-- (0 :: Int)
+  "filename" <-- ""
+  "unify" <-- ""
+  -- Continuations
+  when_parse "-i" (do "do_interpret" <-- True)
+  when_parse "-t" (do "do_type" <-- True)
+  when_parse "-p" (do "do_print" <-- True)
+  when_parse "--test" (do
+      s <- next_arg
       n <- return (read s :: Int)
-      apply $ set_testing n)
-  when_default (\s -> do apply $ parse_file s)
+      "do_test" <-- True
+      "test_lvl" <-- n)
+  when_parse "--unify" (do
+      s <- next_arg
+      "do_unify" <-- True
+      "unify" <-- s)
+  when_default (\s -> do "filename" <-- s)
 
 -------------------------------------------------------------
 
 main = do
   -- Parse program options
   args <- getArgs
-  opt <- return $ run_parser init_options args option_defs
+  opt <- return $ run_parser args option_spec
+  filename <- return $ ((value "filename" opt) :: String)
 
   -- Lex and parse file
-  putStrLn $ "\x1b[1;34m" ++ "## Parsing content of file " ++ filename opt ++ "\x1b[0m"
-  contents <- readFile $ filename opt
-  prog <- return (parse $ mylex (filename opt) contents)
+  prog <- case value "filename" opt of
+            "" -> do
+                putStrLn "unspecified input file"
+                return Syntax.EUnit
+            _ -> do
+                putStrLn $ "\x1b[1;34m" ++ "## Parsing content of file " ++ filename ++ "\x1b[0m"
+                contents <- readFile filename
+                return (parse $ mylex filename contents)
 
   -- Actions
-  if do_printing opt then do
+  if value "do_print" opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Printing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
     putStrLn $ pprint (clear_location prog)
     putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
-    putStrLn (pprint $ snd $ (let TransSyntax.State run = translateExpr (drop_constraints $ clear_location prog)  in run TransSyntax.empty_context)) 
+    putStrLn (pprint $ snd $ (let TransSyntax.State run = translate_expression (drop_constraints $ clear_location prog)  in run TransSyntax.empty_context)) 
   else
     return ()
 
-  if do_interpret opt then do
+  if value "do_interpret" opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
     case Interpret.run (drop_constraints prog) of
       Ok v -> do
@@ -96,7 +88,7 @@ main = do
   else
     return ()
 
-  if do_typing opt then do
+  if value "do_type" opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
 --    putStrLn $ pprint_constraints $ type_inference prog
@@ -104,11 +96,17 @@ main = do
   else
     return ()
 
-  if do_testing opt then do
+  if value "do_test" opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing test" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "Test TypeInference :" ++ "\x1b[0m"
 --    putStrLn $ pprint_constraints $ type_inference prog
-    putStrLn $ test_full_inference 10
+    putStrLn $ test_full_inference $ value "test_lvl" opt
   else
     return ()
- 
+
+  if value "do_unify" opt then do
+    putStrLn  $ "\x1b[1;33m" ++ ">> unification test" ++ "\x1b[0m"
+    set <- return $ parse_constraints $ mylex "" $ value "unify" opt
+    putStrLn $ test_unification set
+  else
+    return () 

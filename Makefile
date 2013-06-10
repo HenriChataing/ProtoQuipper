@@ -1,14 +1,14 @@
-INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest
+INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -iexport
 
 BUILD_DIR = _build
 
-GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
+GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE) -XTypeSynonymInstances -XFlexibleInstances
 HAPPY = happy --ghc
 ALEX = alex
 
 MAIN = Quipper
 
-all : Parser.hs Lexer.hs
+all : Parser.hs ConstraintParser.hs Lexer.hs
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parser.hs :
@@ -18,6 +18,13 @@ Parser.hs :
 	$(HAPPY) parsing/Parser.y ; \
 	cp parsing/Parser.y _build/ ; \
 	fi
+ConstraintParser.hs :
+	if [ -e _build/ConstraintParser.y ] && diff parsing/ConstraintParser.y _build/ConstraintParser.y > /dev/null ; then \
+	echo "Ignoring ConstraintParser.y" ; \
+	else \
+	$(HAPPY) parsing/ConstraintParser.y ; \
+	cp parsing/ConstraintParser.y _build/ ; \
+	fi
 Lexer.hs :
 	if [ -e _build/Lexer.x ] && diff parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
 	echo "Ignoring Lexer.x" ; \
@@ -26,7 +33,7 @@ Lexer.hs :
 	cp parsing/Lexer.x _build/ ; \
 	fi
 clean :
-	rm parsing/Parser.hs parsing/Lexer.hs
+	rm parsing/Parser.hs parsing/Lexer.hs parsing/ConstraintParser.hs
 	rm _build/*
 
 distclean : clean
