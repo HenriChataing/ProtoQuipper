@@ -6,22 +6,13 @@ import Localizing
 import Classes
 import Utils
 
+import Subtyping
+
 import qualified Data.Map as Map
 import Data.List as List
 import Data.Array as Array
 import qualified Data.Set as Set
 import Data.Sequence as Seq 
-
-{- Representation of a graph vertex.
-  The data structure includes a set of incoming and a set of outgoing
-  edges. The walk in the graph follows the outgoing edges, while the
-  incoming ones serve to decide whether the vertex is a root vertex or not
--}
-data Vertex =
-  Vertex {
-    incoming :: Set.Set Variable,
-    outgoing :: Set.Set Variable
-  }
 
 -------------------------
 -- Contexts definition --
@@ -52,12 +43,11 @@ data Context =
     -- VARIABLE DATING STUFF
     --
 
-    -- Vertices of the graph
-    vertices :: Array Variable Vertex,
-    -- The set of the roots of the graph
-    roots :: Seq Variable,
-    -- The result of the datation is a list of the variables, sorted from youngest to oldest
-    heuristic :: [Variable],
+    -- Variable classes
+    variables :: [Variable],
+    relations :: [(Int, Int)],
+    clusters :: Map.Map Int [Variable],  -- Age clusters definition
+    ages :: Map.Map Variable Int,  -- Map variables to age clusters (not the age itself)
 
     --
     -- UNIFICATION STUFF
@@ -86,15 +76,28 @@ empty_context =
     logfile = [">> Log start <<"],
     bindings = Map.empty,
 
-    vertices = Array.array (0,0) [],
-    roots = Seq.empty,
-    heuristic = [],
+    variables = [],
+    relations = [],
+    clusters = Map.empty,
+    ages = Map.empty,
 
     flag_id = 2,   -- Flag ids 0 and 1 are reserved, and represent the values 0 and 1
     type_id = 0,
       
     mappings = Map.empty
   }
+
+-- ========================== --
+-- ====== Log file ========== --
+
+create_log :: String -> State ()
+print_logs :: State String
+--------------------------
+create_log p =
+  State (\ctx -> (ctx { logfile = p:(logfile ctx) }, return ()))
+
+print_logs =
+  State (\ctx -> (ctx, return $ List.foldl (\s lg -> lg ++ "\n" ++ s) ">> Log end <<" $ logfile ctx))
 
 -- ========================== --
 -- ===== Id generation ====== --
@@ -164,50 +167,6 @@ filter_by f = State (\ctx -> let (ptrue, pfalse) = Map.partitionWithKey (\x _ ->
 
 union m = State (\ctx -> (ctx { bindings = Map.union m $ bindings ctx }, return ()))
 
--- ============================== --
--- ===== Variable ordering ====== --
-
--- Init the preferred order list
-set_heuristic :: [Variable] -> State ()
--- Get and remove the first variable in the list
-fitting_var :: State Variable
--- Set the new preferred variable
-new_fitting :: Variable -> State ()
--- Test whether the preference list is empty
-null_heuristic :: State Bool
--- Insert variables in the queue
-insert_after :: Variable -> [Variable] -> State ()
-insert_all_after :: [Variable] -> [Variable] -> State ()
---------------------------------------------------------
-set_heuristic ord =
-  State (\ctx -> (ctx { heuristic = ord }, return ()))
-
-fitting_var =
-  State (\ctx -> case heuristic ctx of
-                   [] -> (ctx, fail "Prefered order list is empty")
-                   x:xc -> (ctx { heuristic = xc }, return x))
-
-new_fitting x =
-  State (\ctx -> (ctx { heuristic = x:(heuristic ctx) }, return ()))
-
-null_heuristic = 
-  State (\ctx -> (ctx, return $ heuristic ctx == []))
-                   
-insert_after x l =
-  State (\ctx -> let insert = \h -> case h of
-                                         [] -> [x]
-                                         (y:hc) -> if List.elem y l then
-                                                     (x:y:hc)
-                                                   else
-                                                     (y:(insert hc))
-                 in
-                 (ctx { heuristic = List.reverse (insert $ List.reverse $ heuristic ctx) }, return ()))
-
-insert_all_after [] l = do return ()
-insert_all_after (v:cv) l = do
-  insert_after v l
-  insert_all_after cv l
-
 
 -- =============================== --
 -- ========= Substitution ======== --
@@ -243,7 +202,7 @@ map_type (TExp n t) = do
   -- In this line : possible collision between the flag n and the flag of t' (if any)
   return (TExp n t')
 
-------------------------
+-------------------
 -- Some printing --
 
 instance Show Context where

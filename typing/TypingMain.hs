@@ -48,16 +48,19 @@ full_inference e =
       constraints <- build_constraints coreProg a
       non_composite <- break_composite constraints
 
-      order_variables $ fst non_composite
-
+      -- Unification
+      init_ordering
+      register_constraints $ fst non_composite
       red_constraints <- unify non_composite
+      logs <- print_logs
 
-      sol <- solve_annotation $ snd red_constraints
+ --     sol <- solve_annotation $ snd red_constraints
 
       return $ pprint_constraints constraints ++ "\n\n" ++
                pprint_constraints non_composite ++ "\n\n" ++
                pprint_constraints red_constraints ++ "\n\n" ++
-               pprint_val sol
+               logs
+   --            pprint_val sol
   in
   
   case snd $ run $ Contexts.empty_context of
@@ -81,8 +84,6 @@ translate_list ((t, u):l) = do
   l' <- translate_list l
   return $ (t', u'):l'
 
-show_heuristic :: Contexts.State String
-show_heuristic = Contexts.State (\ctx -> (ctx, return $ List.foldl (\s h -> s ++ " " ++ show h) "" $ heuristic ctx))
 
 test_unification :: [(S.Type, S.Type)] -> String
 ------------------------------------------------ 
@@ -99,15 +100,16 @@ test_unification set =
       constraints <- return (core_set, [])
       non_composite <- break_composite constraints
 
-      order_variables $ fst non_composite
-
+      -- Unification
+      init_ordering
+      register_constraints $ fst non_composite
       red_constraints <- unify non_composite
-      heuristic <- show_heuristic
+      logs <- print_logs
 
       return $ pprint_constraints constraints ++ "\n\n" ++
                pprint_constraints non_composite ++ "\n\n" ++
-               heuristic ++ "\n\n" ++
-               pprint_constraints red_constraints
+               pprint_constraints red_constraints ++ "\n\n" ++
+               logs
   in
 
   case snd $ run $ Contexts.empty_context { type_id = var_id $ fst $ trans } of

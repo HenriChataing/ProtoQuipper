@@ -245,129 +245,57 @@ with_lhs x lc = do
                                         _ -> False) lc
 
 -- Break a composite against a variable
-break_var :: LinearConstraint -> State ([Variable],ConstraintSet)
+map_to_model :: Variable -> Type -> State Type
 -------------------------------------------------------------------------
-{- Break the constraint
-     x <: t -> u
-   into
-     x := !n (t' -> u')
-     t <: t'
-     u' <: u
--}
+map_to_model x TUnit = do
+  mapsto x TUnit
+  return TUnit
 
-break_var (TVar x, TArrow t u) = do
+map_to_model x (TArrow _ _) = do
   t' <- fresh_type
   u' <- fresh_type
   n <- fresh_flag
+  
+  add_variable t'
+  add_variable u'
+   
+  xt <- return $ TExp n $ TArrow (TVar t') (TVar u')
+  mapsto x xt
+  return xt
 
-  mapsto x (TExp n $ TArrow (TVar t') (TVar u'))
-  return ([t', u'], ([ (t, TVar t'), (TVar u', u) ], []))
-
-{- Break the constraint
-     t -> u <: x
-   into
-     x := t' -> u'
-     t' <: t
-     u <: u'
--}
-
-break_var (TArrow t u, TVar x) = do
-  t' <- fresh_type
-  u' <- fresh_type
-
-  mapsto x (TArrow (TVar t') (TVar u'))
-  return ([t', u'], ([ (TVar t', t), (u, TVar u') ], []))
-
----
-
-{- Break the constraint
-     x <: t * u
-   into
-     x := !n (t' * u')
-     t' <: t
-     u' <: u
--}
-
-break_var (TVar x, TTensor t u) = do
+map_to_model x (TTensor _ _) = do
   t' <- fresh_type
   u' <- fresh_type
   n <- fresh_flag
+  
+  add_variable t'
+  add_variable u'
+   
+  xt <- return $ TExp n $ TTensor (TVar t') (TVar u')
+  mapsto x xt
+  return xt
 
-  mapsto x (TExp n $ TTensor (TVar t') (TVar u'))
-  return ([t', u'], ([ (TVar t', t), (TVar u', u) ], []))
+map_to_model x (TExp _ TUnit) = do
+  map_to_model x TUnit
 
-{- Break the constraint
-     t * u <: x
-   into
-     x := t' * u'
-     t <: t'
-     u <: u'
--}
+map_to_model x (TExp _ (TArrow t u)) = do
+  map_to_model x (TArrow t u)
 
-break_var (TTensor t u, TVar x) = do
+map_to_model x (TExp _ (TTensor t u)) = do
+  map_to_model x (TTensor t u)
+
+map_to_model x (TExp _ _) = do
   t' <- fresh_type
-  u' <- fresh_type
+  n <- fresh_flag
+  
+  add_variable t'
 
-  mapsto x (TTensor (TVar t') (TVar u'))
-  return ([t', u'], ([ (t, TVar t'), (u, TVar u') ], []))
+  xt <- return $ TExp n (TVar t')
+  mapsto x xt
+  return xt
 
----
-
-{- Break the constraint
-     x <: !n t
-   into
-     x := !m t'
-     t' <: t
-     n <= m
--}
-
-break_var (TVar x, TExp n t) = do
-  t' <- fresh_type
-  m <- fresh_flag
-
-  mapsto x (TExp m (TVar t'))
-  return ([t'], ([ (TVar t', t) ], [ (n, m) ]))
-
-{- Break the constraint
-     !n t <: x
-   into
-     x := !m t'
-     t <: t'
-     m <= n
--}
-
-break_var (TExp n t, TVar x) = do
-  t' <- fresh_type
-  m <- fresh_flag
-
-  mapsto x (TExp m (TVar t'))
-  return ([t'], ([ (t, TVar t') ], [ (m, n) ]))
-
----
-
-{- Break the constraint
-     x <: T
-   into
-     x := T
--}
-
-break_var (TUnit, TVar x) = do
-  mapsto x TUnit
-  return ([], ([], []))
-
-{- Break the constraint
-     x <: T
-   into
-     x := T
--}
-
-break_var (TVar x, TUnit) = do
-  mapsto x TUnit
-  return ([], ([], []))
-
-break_var (TVar _, TVar _) = do
-  fail "Unwelcomed atomic constraint"
-
+map_to_model x (TVar _) = do
+  fail "Cannot map to a variable model"
 
 -- Unification algorithm :
   -- Each step eliminates a variable
@@ -377,65 +305,78 @@ break_var (TVar _, TVar _) = do
     -- x is lhs/rhs of several constraints -> generate the constraints rhs <: lhs and eliminate x
 
 unify :: ConstraintSet -> State ConstraintSet
-----------------------------------------------------------------------------
+---------------------------------------------
 unify (lc, fc) = do
   -- Recursive check
-  stop <- null_heuristic
+  stop <- null_cluster
   
   if stop then
     return (lc, fc)
   else do
-      x <- fitting_var 
+      cx <- youngest_variables 
 
-      -- Identify the constraint with x as left or right hand side
-      (lhs, non_lhs) <- with_lhs x lc
-      (rhs, non_rhs) <- with_rhs x non_lhs
+      -- Filter the constraint which have an element of cx as right or left hand side
+      (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
+                                                          (TVar x, _) -> List.elem x cx
+                                                          (_, TVar y) -> List.elem y cx) lc
+        
+      -- Log
+      logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
+      lognonx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" non_lcx
+      create_log logx
+      create_log lognonx
+                                             
+      -- Filter the atomic constraints
+      (atomx, natomx) <- return $ List.partition atomic lcx
 
       -- Check the next action
-      case (List.partition atomic lhs, List.partition atomic rhs) of
+      case (atomx, natomx) of
 
-        -- No semi-composite constraints
-        ((atoml, []), (atomr, [])) -> do
-            unify (lc, fc)
+        -- No semi-composite constraints : trivial solution with x1 = .. = xn,  unify the rest
+        (atomx, []) -> do
+            (non_lcx', fc') <- unify (non_lcx, fc)
+            return (non_lcx' ++ atomx, fc')
 
-        -- Semi composite on the right
-        ((atoml, []), (atomr, c:cset)) -> do
-            -- Break the semi-composite constraint
-            (nvar, (lc', fc')) <- break_var c
-            xt <- appmap x
-            -- Substitute x
-            atoml' <- return $ List.map (\(_, u) -> (xt, u)) atoml
-            atomr' <- return $ List.map (\(t, _) -> (t, xt)) atomr
-            cset' <- return $ List.map (\(t, _) -> (t, xt)) cset
-            -- Break the composite constraints in cset'
-            (cset'', fc'') <- break_composite (cset', fc ++ fc')
-            -- Add the new variables to the heuristic
-            fvtl <- return $ List.concat $ List.map (\(_, u) -> free_var u) atoml
-            fvtr <- return $ List.concat $ List.map (\(t, _) -> free_var t) atomr
+        -- Semi-composite constraints :
+           -- Pick up a sample type, and map all variables of cx to an instance of this type
+        (atomx, c:cset) -> do
+             
+            model <- case c of
+                       (TVar _, t) -> return t
+                       (t, TVar _) -> return t
+                       _ -> fail "Unfiltered atomic or composite constraint"
+
+            List.foldl (\rec x -> do
+                           rec
+                           _ <- map_to_model x model
+                           return ()) (return ()) cx
             
-            insert_all_after nvar (fvtl ++ fvtr)
-            -- Rec call
-            unify (non_rhs ++ lc' ++ atoml' ++ atomr' ++ cset'', fc'')
+            -- Rewrite and reduce the atomic constraints
+            atomx' <- List.foldl (\rec (TVar x, TVar y) -> do
+                                    (lr, fr) <- rec
+                                    xt <- appmap x
+                                    yt <- appmap y
+                                    (lr', fr')  <- break_composite ([(xt, yt)], fr)
+                                    return (lr' ++ lr, fr')) (return (non_lcx, fc)) atomx
 
-        -- Semi composite on the left
-        ((atoml, c:cset), (atomr, natomr)) -> do
-            -- Break the semi-composite constraint
-            (nvar, (lc', fc')) <- break_var c
-            xt <- appmap x
-            -- Substitute x
-            atoml' <- return $ List.map (\(_, u) -> (xt, u)) atoml
-            atomr' <- return $ List.map (\(t, _) -> (t, xt)) atomr
-            cset' <- return $ List.map (\(_, u) -> (xt, u)) cset
-            natomr' <- return $ List.map (\(t, _) -> (t, xt)) natomr
-            -- Break the composite constraints
-            (cset'', fc'') <- break_composite (cset' ++ natomr', fc ++ fc')
-             -- Add the new variables to the heuristic
-            fvtl <- return $ List.concat $ List.map (\(_, u) -> free_var u) atoml
-            fvtr <- return $ List.concat $ List.map (\(t, _) -> free_var t) atomr
-            
-            insert_all_after nvar (fvtl ++ fvtr)
-            -- Rec call
-            unify (non_rhs ++ lc' ++ atoml' ++ atomr' ++ cset'', fc'')
+            -- Rewrite and reduce the remaining constraints
+            (cset', lc'') <- List.foldl (\rec c -> do
+                                   (lr, fr) <- rec
+                                   c' <- case c of
+                                           (TVar x, t) -> do
+                                               xt <- appmap x
+                                               return (xt, t)
+                                           (t, TVar x) -> do
+                                               xt <- appmap x
+                                               return (t, xt)
+                                   (lr', fr') <- break_composite ([c'], fr)
+                                   return (lr' ++ lr, fr')) (return atomx') (c:cset)
+              
+            -- Register the new relations defined by those constraints
+            register_constraints cset'
+
+            -- Unifcation of the remaining
+            unify (cset', lc'')
 
 -- Flag unification
 
