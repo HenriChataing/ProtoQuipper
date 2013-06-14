@@ -82,6 +82,23 @@ translate_type (S.TExp t) = do
 translate_type (S.TLocated t _) = do
   translate_type t
 
+
+-- Translation of patterns
+translate_pattern :: S.Pattern -> State Pattern
+-----------------------------------------------
+translate_pattern S.PUnit = do
+  return PUnit
+
+translate_pattern (S.PVar v) = do
+  x <- label v
+  return (PVar x)
+
+translate_pattern (S.PPair p q) =  do
+  p' <- translate_pattern p
+  q' <- translate_pattern q
+  return (PPair p' q')
+
+
 -- Translation of expressions
 translate_expression :: S.Expr -> State Expr
 --------------------------------------------
@@ -92,21 +109,20 @@ translate_expression (S.EVar v) = do
   x <- find v
   return (EVar x)
 
-translate_expression (S.EFun (S.PVar v) e) = do
+translate_expression (S.EFun p e) = do
   set_mark
-  x <- label v
+  p' <- translate_pattern p
   e' <- translate_expression e
   reset
-  return (EFun x e')
+  return (EFun p' e')
 
-translate_expression (S.ELet (S.PPair (S.PVar u) (S.PVar v)) e f) = do
+translate_expression (S.ELet p e f) = do
   set_mark
-  x <- label u
-  y <- label v
+  p' <- translate_pattern p
   e' <- translate_expression e
   f' <- translate_expression f
   reset
-  return (ELet x y e' f')
+  return (ELet p' e' f')
 
 translate_expression (S.EApp e f) = do
   e' <- translate_expression e

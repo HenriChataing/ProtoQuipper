@@ -23,13 +23,22 @@ data Type =
   | TArrow Type Type           -- a -> b
 
 ---------------------------------
+-- Quipper's patterns          --
+
+data Pattern =
+    PUnit                      -- <>
+  | PVar Variable              -- x
+  | PPair Pattern Pattern      -- <p, q>
+  deriving Show 
+
+---------------------------------
 -- Quipper's terms             --
 
 data Expr =
     EUnit                               -- *
   | EVar Variable                       -- x
-  | EFun Variable Expr                  -- fun x -> t
-  | ELet Variable Variable Expr Expr    -- let <x, y> = e in f
+  | EFun Pattern Expr                   -- fun p -> t
+  | ELet Pattern Expr Expr              -- let p = e in f
   | EApp Expr Expr                      -- t u
   | EPair Expr Expr                     -- <t, u>
   deriving Show
@@ -37,24 +46,34 @@ data Expr =
 ---------------------------------
 -- Instance delcarations       --
 
+instance Param Pattern where
+  free_var PUnit = []
+  free_var (PVar x) = [x]
+  free_var (PPair p q) = List.union (free_var p) (free_var q)
+
+  subs_var _ _ p = p
+  subs _ _ p = p
+
 instance Param Expr where
   free_var EUnit = []
   free_var (EVar x) = [x]
   
-  free_var (EFun x e) = 
-    let fve = free_var e in
-    List.delete x fve
-
-  free_var (ELet x y e f) =
+  free_var (EFun p e) = 
     let fve = free_var e
-        fvf = free_var f in
-    (fve ++ fvf) \\ [x, y]
+        fvp = free_var p in
+    fve \\ fvp
+
+  free_var (ELet p e f) =
+    let fve = free_var e
+        fvf = free_var f
+        fvp = free_var p in
+    (List.union fve fvf) \\ fvp
 
   free_var (EApp e f) =
-    free_var e ++ free_var f
+    List.union (free_var e) (free_var f)
 
   free_var (EPair e f) =
-    free_var e ++ free_var f
+    List.union (free_var e) (free_var f)
 
   subs_var _ _ e = e
   subs _ _ e = e
@@ -63,8 +82,8 @@ instance Param Expr where
 
 instance Param Type where
   free_var (TVar x) = [x]
-  free_var (TTensor t u) = free_var t ++ free_var u
-  free_var (TArrow t u) = free_var t ++ free_var u
+  free_var (TTensor t u) = List.union (free_var t) (free_var u)
+  free_var (TArrow t u) = List.union (free_var t) (free_var u)
   free_var (TExp _ t) = free_var t
   free_var _ = []
 
@@ -141,6 +160,25 @@ instance PPrint Type where
   -- Print unto Lvl = default
   sprint a = sprintn defaultLvl a
 
+{- Pattern printing -}
+
+instance PPrint Pattern where
+   -- Print unto Lvl = n
+  sprintn _ (PVar x) = subscript ("x" ++ show x)
+  sprintn _ PUnit = "<>"
+  sprintn (Nth 0) _ = "..."
+
+  sprintn lv (PPair a b) =
+    let dlv = decr lv in
+    "<" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ">"
+
+  -- Print unto Lvl = +oo
+  pprint a = sprintn Inf a
+
+  -- Print unto Lvl = default
+  sprint a = sprintn defaultLvl a
+
+
 {- Expression printing -}
 
 print_var x = subscript ("x" ++ show x)
@@ -153,9 +191,9 @@ indent_sprintn _ _ (EVar x) = print_var x
 
 indent_sprintn (Nth 0) _ _ = "..."
 
-indent_sprintn lv ind (ELet x y e f) =
+indent_sprintn lv ind (ELet p e f) =
   let dlv = decr lv in
-  "let <" ++ print_var x ++ ", " ++ print_var y ++ "> = " ++ indent_sprintn dlv ind e ++ " in\n" ++
+  "let " ++ pprint p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
   ind ++ indent_sprintn dlv ind f
 
 indent_sprintn lv ind (EPair e f) =
@@ -171,9 +209,9 @@ indent_sprintn lv ind (EApp e f) =
      EApp _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
      _ -> indent_sprintn dlv ind f)
 
-indent_sprintn lv ind (EFun x e) =
+indent_sprintn lv ind (EFun p e) =
   let dlv = decr lv in
-  "fun " ++ print_var x ++ " ->\n" ++
+  "fun " ++ pprint p ++ " ->\n" ++
   ind ++ "    " ++ indent_sprintn dlv (ind ++ "    ") e
  
 instance PPrint Expr where
