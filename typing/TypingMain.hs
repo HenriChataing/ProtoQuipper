@@ -54,13 +54,23 @@ full_inference e =
       red_constraints <- unify non_composite
       logs <- print_logs
 
- --     sol <- solve_annotation $ snd red_constraints
+      inferred <- map_type a
+
+      sol <- solve_annotation $ snd red_constraints
+      valinf <- app_val inferred sol
+      
+
+      maps <- mapping_list
+      pmaps <- List.foldl (\rec (x, t) -> do
+                             s <- rec
+                             return $ (subscript $ "X" ++ show x) ++ " |-> " ++ pprint t ++ "\n" ++ s) (return "") maps
 
       return $ pprint_constraints constraints ++ "\n\n" ++
-               pprint_constraints non_composite ++ "\n\n" ++
                pprint_constraints red_constraints ++ "\n\n" ++
+               pmaps ++ "\n\n" ++
+               pprint_val sol ++ "\n\n" ++
+               pprint valinf ++ "\n\n" ++ 
                logs
-   --            pprint_val sol
   in
   
   case snd $ run $ Contexts.empty_context of

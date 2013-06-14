@@ -118,18 +118,22 @@ instance PPrint Type where
 
   sprintn lv (TArrow a b) =
     let dlv = decr lv in
-    sprintn dlv a ++ " -> " ++
-    (case b of
-       TTensor _ _ -> "(" ++ sprintn dlv b ++ ")"
-       TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
-       _ -> sprintn dlv b)
+    (case a of
+       TArrow _ _ -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a)  ++ " -> " ++
+    sprintn dlv b
 
   sprintn lv (TExp f a) =
-    superscript ("!" ++ show f) ++
-           (case a of
-              TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
-              TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
-              _ -> sprintn lv a)
+    (if f == 0 then
+       ""
+     else if f == 1 then
+       "!"
+     else
+       superscript ("!" ++ show f)) ++
+    (case a of
+       TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
+       TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
+       _ -> sprintn lv a)
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a

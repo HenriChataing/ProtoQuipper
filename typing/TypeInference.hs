@@ -244,58 +244,40 @@ with_lhs x lc = do
                                         TVar y -> x == y
                                         _ -> False) lc
 
--- Break a composite against a variable
+-- Instanciation of model types
+  -- The bang annotations of the model are ignored
+model_of :: Type -> State Type
 map_to_model :: Variable -> Type -> State Type
 -------------------------------------------------------------------------
-map_to_model x TUnit = do
-  mapsto x TUnit
+model_of TUnit = do
   return TUnit
 
-map_to_model x (TArrow _ _) = do
-  t' <- fresh_type
-  u' <- fresh_type
+model_of (TArrow t u) = do
+  t' <- model_of t
+  u' <- model_of u
   n <- fresh_flag
-  
-  add_variable t'
-  add_variable u'
-   
-  xt <- return $ TExp n $ TArrow (TVar t') (TVar u')
-  mapsto x xt
-  return xt
+  return $ TExp n $ TArrow t' u'
 
-map_to_model x (TTensor _ _) = do
-  t' <- fresh_type
-  u' <- fresh_type
+model_of (TTensor t u) = do
+  t' <- model_of t
+  u' <- model_of u
   n <- fresh_flag
-  
-  add_variable t'
-  add_variable u'
-   
-  xt <- return $ TExp n $ TTensor (TVar t') (TVar u')
-  mapsto x xt
-  return xt
+  return $ TExp n $ TTensor t' u'
 
-map_to_model x (TExp _ TUnit) = do
-  map_to_model x TUnit
+model_of (TExp _ t) = do
+  model_of t
 
-map_to_model x (TExp _ (TArrow t u)) = do
-  map_to_model x (TArrow t u)
-
-map_to_model x (TExp _ (TTensor t u)) = do
-  map_to_model x (TTensor t u)
-
-map_to_model x (TExp _ _) = do
-  t' <- fresh_type
+model_of (TVar _) = do
+  x <- fresh_type
   n <- fresh_flag
-  
-  add_variable t'
-
-  xt <- return $ TExp n (TVar t')
-  mapsto x xt
-  return xt
-
-map_to_model x (TVar _) = do
-  fail "Cannot map to a variable model"
+  -- Add the variable to the list managed by the ordering process
+  add_variable x
+  return $ TExp n $ TVar x
+-------------
+map_to_model x t = do
+  t' <- model_of t
+  mapsto x t'
+  return t'
 
 -- Unification algorithm :
   -- Each step eliminates a variable
@@ -323,8 +305,8 @@ unify (lc, fc) = do
       -- Log
       logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
       lognonx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" non_lcx
-      create_log logx
-      create_log lognonx
+      new_log logx
+      new_log lognonx
                                              
       -- Filter the atomic constraints
       (atomx, natomx) <- return $ List.partition atomic lcx
@@ -339,44 +321,92 @@ unify (lc, fc) = do
 
         -- Semi-composite constraints :
            -- Pick up a sample type, and map all variables of cx to an instance of this type
-        (atomx, c:cset) -> do
-             
-            model <- case c of
-                       (TVar _, t) -> return t
-                       (t, TVar _) -> return t
-                       _ -> fail "Unfiltered atomic or composite constraint"
+        (atomx, cset) -> do
+           {- onesided <- return $ one_sided cset
+            -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
+            cset <- if onesided then do
+                      cxh <- return $ List.head cx
+                      List.foldl (\rec x -> do
+                                      rec
+                                      mapsto x $ TVar cxh) (return ()) $ List.tail cx
+                      return $ List.map (\c -> case c of
+                                                 (TVar _, t) -> (TVar cxh, t)
+                                                 (t, TVar _) -> (t, TVar cxh)) cset
+                    else do
+                      return cset -}
 
-            List.foldl (\rec x -> do
-                           rec
-                           _ <- map_to_model x model
-                           return ()) (return ()) cx
+            -- If all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T
+            (ischain, sorted) <- return $ chain_constraints lcx
             
-            -- Rewrite and reduce the atomic constraints
-            atomx' <- List.foldl (\rec (TVar x, TVar y) -> do
-                                    (lr, fr) <- rec
-                                    xt <- appmap x
-                                    yt <- appmap y
-                                    (lr', fr')  <- break_composite ([(xt, yt)], fr)
-                                    return (lr' ++ lr, fr')) (return (non_lcx, fc)) atomx
+            leftend <- return $ fst $ List.head sorted
+            rightend <- return $ snd $ List.last sorted
 
-            -- Rewrite and reduce the remaining constraints
-            (cset', lc'') <- List.foldl (\rec c -> do
-                                   (lr, fr) <- rec
-                                   c' <- case c of
-                                           (TVar x, t) -> do
-                                               xt <- appmap x
-                                               return (xt, t)
-                                           (t, TVar x) -> do
-                                               xt <- appmap x
-                                               return (t, xt)
-                                   (lr', fr') <- break_composite ([c'], fr)
-                                   return (lr' ++ lr, fr')) (return atomx') (c:cset)
+            if ischain then do
+              new_log "CHAINED"
+              -- Map x1 .. xn to T or U
+              case (leftend, rightend) of
+                (TVar x, _) -> do
+                    List.foldl (\rec x -> do
+                                  rec
+                                  mapsto x rightend) (return ()) cx
+                    -- Unify the rest
+                    unify (non_lcx, fc)
+                    
+                (_, TVar x) -> do
+                    List.foldl (\rec x -> do
+                                  rec
+                                  mapsto x leftend) (return ()) cx
+                    -- Unify the rest
+                    unify (non_lcx, fc)
+
+                _ -> do
+                    List.foldl (\rec x -> do
+                                  rec
+                                  mapsto x leftend) (return ()) cx
+
+                    (cset', fc') <- break_composite ([(leftend, rightend)], fc)
+                    register_constraints cset'
+                    -- Unify the rest
+                    unify (cset' ++ non_lcx, fc')
+
+            else do           
+              new_log "UNCHAINED"
+              model <- return $ constraint_unifier cset
+
+              new_log $ pprint model
+
+            
+              List.foldl (\rec x -> do
+                             rec
+                             _ <- map_to_model x model
+                             return ()) (return ()) cx
+            
+              -- Rewrite and reduce the atomic constraints
+              atomx' <- List.foldl (\rec (TVar x, TVar y) -> do
+                                      (lr, fr) <- rec
+                                      xt <- appmap x
+                                      yt <- appmap y
+                                      (lr', fr')  <- break_composite ([(xt, yt)], fr)
+                                      return (lr' ++ lr, fr')) (return (non_lcx, fc)) atomx
+
+              -- Rewrite and reduce the remaining constraints
+              (cset', fc'') <- List.foldl (\rec c -> do
+                                     (lr, fr) <- rec
+                                     c' <- case c of
+                                             (TVar x, t) -> do
+                                                 xt <- appmap x
+                                                 return (xt, t)
+                                             (t, TVar x) -> do
+                                                 xt <- appmap x
+                                                 return (t, xt)
+                                     (lr', fr') <- break_composite ([c'], fr)
+                                     return (lr' ++ lr, fr')) (return atomx') cset
               
-            -- Register the new relations defined by those constraints
-            register_constraints cset'
+              -- Register the new relations defined by those constraints
+              register_constraints cset'
 
-            -- Unifcation of the remaining
-            unify (cset', lc'')
+              -- Unifcation of the remaining
+              unify (cset', fc'')
 
 -- Flag unification
 
