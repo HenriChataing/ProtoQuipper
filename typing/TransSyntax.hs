@@ -3,8 +3,10 @@ module TransSyntax where
 import CoreSyntax
 import qualified Syntax as S
 
-import Data.Map as Map
+import Gates
 
+import Data.Map as Map
+import qualified Data.List as List
 
 
 data BindingContext =
@@ -57,27 +59,53 @@ empty_context =
   }
 
 --------------------------------------
+-- Gate import                      --
+
+translate_gates :: State [(Variable, Type)]
+----------------------------------------
+translate_gates = do
+  List.foldl (\rec (s, t) -> do
+                c <- rec
+                x <- label s
+                t' <- translate_type t
+                return ((x, t'):c)) (return []) typing_environment
+
+--------------------------------------
 -- Translation into internal Syntax --
 
 translate_type :: S.Type -> State Type
 --------------------------------------
+translate_type S.TUnit = do
+  return $ TExp (-1) TUnit
+
+translate_type S.TBool = do
+  return $ TExp (-1) TBool
+
+translate_type S.TQBit = do
+  return $ TExp 0 TQBit
+
 translate_type (S.TVar x) = do
   n <- safe_find x
-  return $ TVar n
+  return $ TExp 0 $ TVar n
 
 translate_type (S.TArrow t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TArrow t' u'
+  return $ TExp 0 $ TArrow t' u'
 
 translate_type (S.TTensor t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TTensor t' u'
+  return $ TExp 0 $ TTensor t' u'
 
 translate_type (S.TExp t) = do
-  t' <- translate_type t
+  TExp _ t' <- translate_type t
   return $ TExp 1 t'
+
+translate_type (S.TCirc t u) = do
+  t' <- translate_type t
+  u' <- translate_type u
+  return $ TExp (-1) (TCirc t' u')
 
 translate_type (S.TLocated t _) = do
   translate_type t
@@ -105,6 +133,9 @@ translate_expression :: S.Expr -> State Expr
 translate_expression S.EUnit = do
   return EUnit
 
+translate_expression (S.EBool b) = do
+  return $ EBool b
+
 translate_expression (S.EVar v) = do
   x <- find v
   return (EVar x)
@@ -117,9 +148,9 @@ translate_expression (S.EFun p e) = do
   return (EFun p' e')
 
 translate_expression (S.ELet p e f) = do
+  e' <- translate_expression e
   set_mark
   p' <- translate_pattern p
-  e' <- translate_expression e
   f' <- translate_expression f
   reset
   return (ELet p' e' f')
@@ -134,3 +165,16 @@ translate_expression (S.EPair e f) = do
   f' <- translate_expression f
   return (EPair e' f')
 
+translate_expression (S.EIf e f g) = do
+  e' <- translate_expression e
+  f' <- translate_expression f
+  g' <- translate_expression g
+  return $ EIf e' f' g'
+
+translate_expression (S.EBox t) = do
+  t' <- translate_type t
+  return $ EBox t'
+
+translate_expression (S.EUnbox t) = do
+  t' <- translate_expression t
+  return $ EUnbox t'

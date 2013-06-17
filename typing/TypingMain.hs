@@ -22,11 +22,14 @@ type_inference :: S.Expr -> Computed ConstraintSet
 -----------------------------------------
 type_inference e =
   let TransSyntax.State run = do
-      translate_expression (drop_constraints $ clear_location e)
+      gates <- translate_gates
+      prog <- translate_expression (drop_constraints $ clear_location e)
+      return (gates, prog)
   in
-  let coreProg = snd $ run $ TransSyntax.empty_context in
+  let (gates, coreProg) = snd $ run $ TransSyntax.empty_context in
 
   let Contexts.State run = do
+      import_gates gates
       a <- new_type
       constraints <- build_constraints coreProg a
       non_composite <- break_composite constraints
@@ -39,11 +42,14 @@ full_inference :: S.Expr -> String
 ----------------------------------
 full_inference e =
   let TransSyntax.State run = do
-      translate_expression (drop_constraints $ clear_location e)
+      gates <- translate_gates
+      prog <- translate_expression (drop_constraints $ clear_location e)
+      return (gates, prog)
   in
-  let coreProg = snd $ run $ TransSyntax.empty_context in
+  let (gates, coreProg) = snd $ run $ TransSyntax.empty_context in
 
   let Contexts.State run = do
+      import_gates gates
       a <- new_type
       constraints <- build_constraints coreProg a
       non_composite <- break_composite constraints
@@ -57,7 +63,7 @@ full_inference e =
       inferred <- map_type a
 
       sol <- solve_annotation $ snd red_constraints
-      valinf <- app_val inferred sol
+      valinf <- app_val_to_type inferred sol
       
 
       maps <- mapping_list
@@ -69,7 +75,8 @@ full_inference e =
                pprint_constraints red_constraints ++ "\n\n" ++
                pmaps ++ "\n\n" ++
                pprint_val sol ++ "\n\n" ++
-               pprint valinf ++ "\n\n" ++ 
+               pprint inferred ++ "\n\n" ++
+               pprint valinf ++ "\n\n" ++
                logs
   in
   
@@ -104,7 +111,7 @@ test_unification set =
   in
 
   let trans = run $ TransSyntax.empty_context in
-  let core_set = snd $ trans in
+  let core_set = List.map (\(t, u) -> NonLinear t u) (snd trans) in
 
   let Contexts.State run = do
       constraints <- return (core_set, [])
@@ -130,19 +137,22 @@ test_unification set =
 pprint_constraints :: ConstraintSet -> String
 ---------------------------------------------
 
-pprint_constraints ((t, u):lc, fc) =
+pprint_constraints ((Linear t u):lc, fc) =
+  pprint t ++ " <: " ++ pprint u ++ "\n" ++
+  pprint_constraints (lc, fc)
+
+pprint_constraints ((NonLinear t u):lc, fc) =
   pprint t ++ " <: " ++ pprint u ++ "\n" ++
   pprint_constraints (lc, fc)
 
 pprint_constraints ([], (n, m):fc) =
-  (if n >= 2 then subscript ("f" ++ show n) else show n) ++ " <= " ++
-  (if m >= 2 then subscript ("f" ++ show m) else show m) ++ "\n" ++
+  show n ++ " <= " ++ show m ++ "\n" ++ 
   pprint_constraints ([], fc)
 
 pprint_constraints ([], []) =
  ""
 
-pprint_val :: Map Flag Int -> String
+pprint_val :: Map Int Int -> String
 ------------------------------------
 pprint_val val =
   Map.foldWithKey (\f n s -> s ++ " | " ++ subscript ("f" ++ show f) ++ "=" ++ show n) "" val

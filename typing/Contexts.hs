@@ -55,7 +55,7 @@ data Context =
     --
 
     -- Substitution from type variable to types
-    mappings :: Map.Map Variable Type
+    mappings :: Map.Map Variable LinType
   }
 newtype State a = State (Context -> (Context, Computed a))
 
@@ -68,6 +68,12 @@ instance Monad State where
                                                   run' ctx'
                                           Failed err -> (ctx', Failed err))
 
+
+-- Fail with a specific error message
+failwith :: Error -> State a
+-----------------------------
+failwith err =
+  State (\ctx -> (ctx, error_fail err)) 
 
 -- Create an empty context (without the basic gates)
 empty_context :: Context
@@ -89,6 +95,13 @@ empty_context =
       
     mappings = Map.empty
   }
+
+import_gates :: [(Variable, Type)] -> State ()
+----------------------------------------------
+import_gates l = do
+  List.foldl (\rec (x, t) -> do
+                rec
+                bind_var x t) (return ()) l
 
 -- ========================== --
 -- ====== Log file ========== --
@@ -129,7 +142,6 @@ ntypes :: State Int
 
 -- Generate a type of the form a or !n a 
 new_type :: State Type
-new_annotated_type :: State Type
 --------------------------------
 
 fresh_type = State (\ctx -> (ctx { type_id = (+1) $ type_id ctx }, Ok $ type_id ctx))
@@ -138,10 +150,6 @@ fresh_flag = State (\ctx -> (ctx { flag_id = (+1) $ flag_id ctx }, Ok $ flag_id 
 ntypes = State (\ctx -> (ctx, Ok $ type_id ctx))
 
 new_type = do
-  x <- fresh_type
-  return (TVar x)
-
-new_annotated_type = do
   x <- fresh_type
   f <- fresh_flag
   return (TExp f $ TVar x)
@@ -152,10 +160,7 @@ new_annotated_type = do
 -- Return the flag annotation of the context, as a list of associations (term * flag)
 context_annotation :: State [(Variable, Flag)]
 ----------------------------------------------
-context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x t ann -> case t of
-                                                                               TExp f _ -> (x, f):ann
-                                                                               TUnit -> (x, 1):ann
-                                                                               _ -> error ("No flag annotation specified for the type of " ++ subscript ("x" ++ show x)))
+context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x (TExp f _) ann -> (x, f):ann)
                                                                 [] $ bindings ctx))
 
 -- ============================ --
@@ -163,6 +168,10 @@ context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x t ann -> cas
 
 -- Add a new bindings (var * type) in the current typing context
 bind_var :: Variable -> Type -> State ()
+-- Create types for each of the variables of the pattern, bind those variables in the context, and return the resulting type
+bind_pattern :: Pattern -> State Type
+bind_pattern_with_type :: Pattern -> Type -> State ()
+create_pattern_type :: Pattern -> State Type
 -- Find the type given to a variable
 find_var :: Variable -> State Type
 -- Remove a variable from the context
@@ -173,6 +182,46 @@ filter_by :: (Variable -> Bool) -> State (Map.Map Variable Type)  -- Select a pa
 union :: (Map.Map Variable Type) -> State ()
 ---------------------------------------------------------
 bind_var x t = State (\ctx -> (ctx { bindings = Map.insert x t $ bindings ctx }, return ()))
+
+bind_pattern PUnit = do
+  return $ TExp (-1) TUnit
+
+bind_pattern (PVar x) = do
+  a <- new_type
+  bind_var x a
+  return a
+
+bind_pattern (PPair p q) = do
+  t@(TExp f _) <- bind_pattern p
+  u@(TExp g _) <- bind_pattern q
+  n <- fresh_flag
+  return $ TExp n (TTensor t u)
+
+bind_pattern_with_type PUnit (TExp _ TUnit) = do
+  return ()
+
+bind_pattern_with_type (PVar x) t = do
+  bind_var x t
+
+bind_pattern_with_type (PPair p q) (TExp _ (TTensor t u)) = do
+  bind_pattern_with_type p t
+  bind_pattern_with_type q u
+
+bind_pattern_with_type _ _ = do
+  fail "Unmatching pair of pattern / type"
+
+create_pattern_type PUnit = do
+  return $ TExp (-1) TUnit
+
+create_pattern_type (PVar _) = do
+  t <- new_type
+  return t
+
+create_pattern_type (PPair p q) = do
+  t@(TExp f _) <- create_pattern_type p
+  u@(TExp g _) <- create_pattern_type q
+  n <- fresh_flag
+  return $ TExp n (TTensor t u)
 
 find_var x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
                                 Just t -> return t
@@ -190,16 +239,19 @@ union m = State (\ctx -> (ctx { bindings = Map.union m $ bindings ctx }, return 
 -- ========= Substitution ======== --
 
 -- Insert a new mapping in the substitution
-mapsto :: Variable -> Type -> State ()
+mapsto :: Variable -> LinType -> State ()
 -- Find the type a variable is mapped to
-appmap :: Variable -> State Type
+appmap :: Variable -> State LinType
 -- Output the list of mappings
-mapping_list :: State [(Int, Type)]
+mapping_list :: State [(Int, LinType)]
 -- Apply the mappings to a type
 map_type_step :: Type -> State Type
-map_type :: Type -> State Type   -- Caution : this function disregards the flag annotations when subs. (!n t) in (!m x)
+map_lintype_step :: LinType -> State LinType
+map_type :: Type -> State Type
 -- Apply a valuation to a type
-app_val :: Type -> Map.Map Flag Int -> State Type
+app_val_to_flag :: Flag -> Map.Map Int Int -> State Flag
+app_val_to_lintype :: LinType -> Map.Map Int Int -> State LinType
+app_val_to_type :: Type -> Map.Map Int Int -> State Type
 -------------------------------------------------
 mapsto x t = State (\ctx -> (ctx { mappings = Map.insert x t $ mappings ctx }, return ()))
 
@@ -210,23 +262,37 @@ appmap x = State (\ctx -> (ctx, case Map.lookup x $ mappings ctx of
 mapping_list =
   State (\ctx -> (ctx, return $ Map.assocs $ mappings ctx))
 
-map_type_step (TVar x) = do
-  appmap x
+map_lintype_step TUnit = do
+  return TUnit
 
-map_type_step (TArrow t u) = do
+map_lintype_step TBool = do
+  return TBool
+
+map_lintype_step TQBit = do
+  return TQBit
+
+map_lintype_step (TVar x) = do
+  t <- appmap x
+  return t
+
+map_lintype_step (TArrow t u) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return (TArrow t' u')
+  return $ TArrow t' u'
 
-map_type_step (TTensor t u) = do
+map_lintype_step (TTensor t u) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return (TTensor t' u')
+  return $ TTensor t' u'
 
-map_type_step (TExp n t) = do
+map_lintype_step (TCirc t u) = do
   t' <- map_type_step t
-  -- In this line : possible collision between the flag n and the flag of t' (if any)
-  return (TExp n t')
+  u' <- map_type_step u
+  return $ TCirc t' u'
+
+map_type_step (TExp f t) = do
+  t' <- map_lintype_step t
+  return $ TExp f t'
 
 map_type t = do
   t' <- map_type_step t
@@ -235,30 +301,48 @@ map_type t = do
   else
     map_type t'
 
-app_val (TExp n t) map = do
-  t' <- app_val t map
-  case Map.lookup n map of
-    Just x -> do
-        if x == 0 then do
-          return t'
-        else do
-          return $ TExp 1 t'
+app_val_to_flag n map = do
+  if n < 2 then
+    return n
+  else do
+    case Map.lookup n map of
+      Just x -> do
+          return x
 
-    Nothing -> do
-        return t'
+      Nothing -> do
+          return n
 
-app_val (TArrow t u) map = do
-  t' <- app_val t map
-  u' <- app_val u map
-  return (TArrow t' u')
+app_val_to_lintype TUnit _ = do
+  return TUnit
 
-app_val (TTensor t u) map = do
-  t' <- app_val t map
-  u' <- app_val u map
-  return (TTensor t' u')
+app_val_to_lintype TBool _ = do
+  return TBool
 
-app_val t _ = do
-  return t
+app_val_to_lintype TQBit _ = do
+  return TQBit
+
+app_val_to_lintype (TVar x) _ = do
+  return $ TVar x
+
+app_val_to_lintype (TArrow t u) map = do
+  t' <- app_val_to_type t map
+  u' <- app_val_to_type u map
+  return $ TArrow t' u'
+
+app_val_to_lintype (TTensor t u) map = do
+  t' <- app_val_to_type t map
+  u' <- app_val_to_type u map
+  return $ TTensor t' u'
+
+app_val_to_lintype (TCirc t u) map = do
+  t' <- app_val_to_type t map
+  u' <- app_val_to_type u map
+  return $ TCirc t' u'
+
+app_val_to_type (TExp f t) map = do
+  fv <- app_val_to_flag f map
+  t' <- app_val_to_lintype t map
+  return $ TExp fv t'
 
 
 -------------------

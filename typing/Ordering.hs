@@ -75,18 +75,18 @@ init_ordering =
                   ages = Map.fromList $ List.map (\x -> (x, x)) [0 .. type_id ctx - 1] }, return ()))
 
 -- Add all the relations introduced by a sub-typing constraint
-register_constraint :: LinearConstraint -> State ()
-register_constraints :: [LinearConstraint] -> State ()
+register_constraint :: TypeConstraint -> State ()
+register_constraints :: [TypeConstraint] -> State ()
 cluster_relations :: State [(Int, Int)]
 ---------------------------------------------------
 register_constraint c = do
   case c of
-    (TVar x, TVar y) -> do
+    Linear (TVar x) (TVar y) -> do
         cx <- cluster_of x
         cy <- cluster_of y
         merge_clusters cx cy
 
-    (TVar x, u) -> do
+    Linear (TVar x) u -> do
         cx <- cluster_of x
         fvu <- return $ free_var u
         List.foldl (\e y -> do
@@ -95,7 +95,7 @@ register_constraint c = do
                       new_relation cx cy
                       return ()) (return ()) fvu
         
-    (t, TVar x) -> do
+    Linear t (TVar x) -> do
         cx <- cluster_of x
         fvt <- return $ free_var t
         List.foldl (\e y -> do
