@@ -178,3 +178,6 @@ translate_expression (S.EBox t) = do
 translate_expression (S.EUnbox t) = do
   t' <- translate_expression t
   return $ EUnbox t'
+
+translate_expression S.ERev = do
+  return ERev

@@ -55,6 +55,7 @@ data Expr =
   | EIf Expr Expr Expr                  -- if e then f else g
   | EBox Type                           -- box[T]
   | EUnbox Expr                         -- unbox t
+  | ERev                                -- rev
 
 ---------------------------------
 -- Instance declarations       --
@@ -272,6 +273,9 @@ indent_sprintn _ _ (EBox t) =
 
 indent_sprintn lv ind (EUnbox t) =
   "unbox (" ++ indent_sprintn (decr lv) ind t ++ ")"
+
+indent_sprintn _ _ ERev =
+  "rev"
  
 instance PPrint Expr where
   sprintn lv e = indent_sprintn lv "" e

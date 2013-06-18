@@ -67,7 +67,22 @@ build_constraints (EApp (EBox a) t) typ = do
   -- Type the term t
   (lcons, fcons) <- build_constraints t (TExp 0 (TArrow a b))
   
-  return ((NonLinear typ (TExp 1 (TCirc a b))):lcons, fcons)
+  return ((NonLinear (TExp (-1) (TCirc a b)) typ):lcons, fcons)
+
+-- rev typing rule
+{-
+         G |- t : Circ (T, U)  [L]
+       --------------------------------
+         G |- rev t : Circ (U, T)  [L]
+-}
+build_constraints (EApp ERev t) typ = do
+  a <- new_type
+  b <- new_type
+  -- Type t
+  (lcons, fcons) <- build_constraints t (TExp (-1) (TCirc a b))
+
+  return ((NonLinear (TExp (-1) (TCirc b a)) typ):lcons, fcons)
+
 
 -- App typing rule
 {-
