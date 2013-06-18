@@ -5,35 +5,64 @@ import Utils
 
 import Data.List as List
 
------------------------
--- Type renaming     --
+{-
+  Definition of types :
+    - Variable : to represent type variables, as well as language variables
+    
+    - Flag : to represent flag values. The values of flags are divided as follow :
+      - 0 and 1 are reserved and are the expected value 0 and 1 (not variables)
+      - -1 represent any value (0 or 1) : for example the type bool is automatically duplicable,
+        so no value needs to be given to its prefix flag
+      - the remaining are flag variables
+-}
 
 type Variable = Int
-type Flag = Int   -- 0 and 1 are reserved, -1 represents any value (for types like bool which can be either !bool or bool), and all others are flag variables
+type Flag = Int
 
----------------------------------
--- Representation of Quipper's --
--- types                       --
+{-
+  Definition of types
+  To force the presence of flags, the definition is divided between :
+  
+  - LinType : 'linear types', types that are not prefixed by any annotations
+ 
+  - Type : linear types with the addition of a prefix flag
 
--- Set of linear types (no ! annotation)
+  The division may need to be reviewed in regard of certain type constants like bool,
+  unit, qbit ; flag annotation are unecessary for those constants since bool and unit
+  are automatically duplicable, and qbit can never be such
+
+  Another division would be
+    - LinType : TTensor, TArrow
+    - Type : TVar, TQbit, TUnit, TCirc (duplicable as well), TExp
+-}
+
 data LinType =
     TVar Variable              -- a
   | TBool                      -- bool
   | TUnit                      -- 1
-  | TQBit                      -- qbit
+  | TQbit                      -- qbit
   | TTensor Type Type          -- a * b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
 
 data Type =
-  -- Unit, circ and bool types are implicitely duplicable, so it is not necessary to give a bang annotation
---    TUnit                      -- !n T
---  | TBool                      -- !n bool
---  | TCirc Type Type            -- circ (a, b)
     TExp Flag LinType          -- !n a
 
----------------------------------
--- Quipper's patterns          --
+
+{-
+  The pattern structure has been left in the core syntax, although it is a syntactic sugar.
+  The code produced by the desugarization would be quite longer
+
+  Note that the desugared code for the following would be :
+  
+    - fun p -> e   ==>  fun x -> let p = x in e  (and desugared again)
+
+    - let <p, q> = e in f ==> if p, q are variables, then it is a structure of the language
+                              if not, the code   let <x, y> = e in
+                                                 let p = x in
+                                                 let q = y in
+                                                 e
+-}
 
 data Pattern =
     PUnit                      -- <>
@@ -41,8 +70,9 @@ data Pattern =
   | PPair Pattern Pattern      -- <p, q>
   deriving Show 
 
----------------------------------
--- Quipper's terms             --
+{-
+  Definition of the expressions, nothing more to say
+-}
 
 data Expr =
     EUnit                               -- *
@@ -57,8 +87,157 @@ data Expr =
   | EUnbox Expr                         -- unbox t
   | ERev                                -- rev
 
----------------------------------
--- Instance declarations       --
+{-
+  Construction of the unfier of two / a list of types
+  Supposing that the types have the same skeleton, the unifier is the type holding
+  the most information about that commin skeleton, eg the unifier of
+  (a -> b) -> c and d -> (e * f) would be
+  (a -> b) -> (e * f)
+-}
+
+lintype_unifier :: LinType -> LinType -> LinType
+type_unifier :: Type -> Type -> Type
+list_unifier :: [LinType] -> LinType
+------------------------------------
+lintype_unifier TUnit _ = TUnit
+lintype_unifier _ TUnit = TUnit
+lintype_unifier TBool _ = TBool
+lintype_unifier _ TBool = TBool
+lintype_unifier TQbit _ = TQbit
+lintype_unifier _ TQbit = TQbit
+lintype_unifier (TVar _) t = t
+lintype_unifier t (TVar _) = t
+lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
+lintype_unifier (TTensor t u) (TTensor t' u') = TTensor (type_unifier t t') (type_unifier u u')
+lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
+
+type_unifier (TExp m t) (TExp _ u) = TExp m $ lintype_unifier t u
+
+list_unifier (t:ct) =
+  List.foldl (\unif u -> lintype_unifier unif u) t ct
+
+{-
+  Instance declarations of Flag, LinType, Type, Pattern, Expr :
+    - Flag is instance of
+      - PPrint
+
+    - LinType is instance of
+      - PPrint
+      - Param
+      - Eq
+ 
+    - Type is instance of
+      - PPrint
+      - Param
+      - Eq
+
+    - Pattern is instance of
+      - PPrint
+      - Param
+
+    - Expr is instance of
+      - PPrint
+      - Param
+-}
+
+instance PPrint Flag where
+  sprintn _ n | n <= 0 = ""
+              | n == 1 = "!"
+              | otherwise = "!" ++ (superscript $ show n)
+
+  sprint n = sprintn defaultLvl n
+  pprint n = sprintn Inf n
+
+
+
+instance Param LinType where
+  free_var (TVar x) = [x]
+  free_var (TTensor t u) = List.union (free_var t) (free_var u)
+  free_var (TArrow t u) = List.union (free_var t) (free_var u)
+  free_var (TCirc t u) = List.union (free_var t) (free_var u)
+  free_var _ = []
+
+  subs_var a b (TVar x) | x == a = TVar b
+                        | otherwise = TVar x
+  subs_var _ _ TUnit = TUnit
+  subs_var _ _ TBool = TBool
+  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
+  subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
+  subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
+
+instance Eq LinType where
+  (==) (TVar x) (TVar y) = x == y
+  (==) TUnit TUnit = True
+  (==) TBool TBool = True
+  (==) TQbit TQbit = True
+  (==) (TTensor t u) (TTensor t' u') = (t == t') && (u == u')
+  (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
+  (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
+  (==) _ _ = False
+
+instance PPrint LinType where
+  -- Print unto Lvl = n
+  sprintn _ (TVar x) = subscript ("X" ++ show x)
+  sprintn _ TUnit = "T"
+  sprintn _ TBool = "bool"
+  sprintn _ TQbit = "qbit"
+  sprintn (Nth 0) _ = "..."
+
+  sprintn lv (TTensor a b) =
+    let dlv = decr lv in
+    (case a of
+       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
+       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++ " * " ++
+    (case b of
+       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv b ++ ")"
+       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv b ++ ")"
+       _ -> sprintn dlv b)
+
+  sprintn lv (TArrow a b) =
+    let dlv = decr lv in
+    (case a of
+       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++ " -> " ++
+    sprintn dlv b
+
+  sprintn lv (TCirc a b) =
+    let dlv = decr lv in
+    "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
+
+  -- Print unto Lvl = +oo
+  pprint a = sprintn Inf a
+
+  -- Print unto Lvl = default
+  sprint a = sprintn defaultLvl a
+
+
+
+instance Param Type where
+  free_var (TExp _ t) = free_var t
+  subs_var a b (TExp n t) = TExp n (subs_var a b t)
+
+instance Eq Type where
+  (==) (TExp m t) (TExp n t') = m == n && t == t'
+
+instance PPrint Type where
+  sprintn lv (TExp f a) =
+    let pf = pprint f in
+    if List.length pf == 0 then
+      pf ++ sprintn lv a
+    else
+      pf ++ (case a of
+               TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
+               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
+               _ -> sprintn lv a)
+ 
+  -- Print unto Lvl = +oo
+  pprint a = sprintn Inf a
+
+  -- Print unto Lvl = default
+  sprint a = sprintn defaultLvl a
+
+
 
 instance Param Pattern where
   free_var PUnit = []
@@ -66,6 +245,24 @@ instance Param Pattern where
   free_var (PPair p q) = List.union (free_var p) (free_var q)
 
   subs_var _ _ p = p
+
+instance PPrint Pattern where
+   -- Print unto Lvl = n
+  sprintn _ (PVar x) = subscript ("x" ++ show x)
+  sprintn _ PUnit = "<>"
+  sprintn (Nth 0) _ = "..."
+
+  sprintn lv (PPair a b) =
+    let dlv = decr lv in
+    "<" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ">"
+
+  -- Print unto Lvl = +oo
+  pprint a = sprintn Inf a
+
+  -- Print unto Lvl = default
+  sprint a = sprintn defaultLvl a
+
+
 
 instance Param Expr where
   free_var (EVar x) = [x]
@@ -97,135 +294,6 @@ instance Param Expr where
     []
 
   subs_var _ _ e = e
-
--------------------------------
-
-instance Param LinType where
-  free_var (TVar x) = [x]
-  free_var (TTensor t u) = List.union (free_var t) (free_var u)
-  free_var (TArrow t u) = List.union (free_var t) (free_var u)
-  free_var (TCirc t u) = List.union (free_var t) (free_var u)
-  free_var _ = []
-
-  subs_var a b (TVar x) | x == a = TVar b
-                        | otherwise = TVar x
-  subs_var _ _ TUnit = TUnit
-  subs_var _ _ TBool = TBool
-  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
-  subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
-  subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
-
-instance Param Type where
-  free_var (TExp _ t) = free_var t
-  subs_var a b (TExp n t) = TExp n (subs_var a b t)
-
------------------------
--- Comparable things --
-
--- Eq instance declaration of types
--- The declaration takes into account the ismorphism : !! A = ! A
-instance Eq LinType where
-  (==) (TVar x) (TVar y) = x == y
-  (==) TUnit TUnit = True
-  (==) TBool TBool = True
-  (==) TQBit TQBit = True
-  (==) (TTensor t u) (TTensor t' u') = (t == t') && (u == u')
-  (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
-  (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
-  (==) _ _ = False
-
-instance Eq Type where
-  (==) (TExp m t) (TExp n t') = m == n && t == t'
-
---------------
--- Printing --
-
-{- Flag printing -}
-
-instance PPrint Flag where
-  sprintn _ n | n <= 0 = ""
-              | n == 1 = "!"
-              | otherwise = "!" ++ (superscript $ show n)
-
-  sprint n = sprintn defaultLvl n
-  pprint n = sprintn Inf n
-
-{- Type printing -}
-
-instance PPrint LinType where
-  -- Print unto Lvl = n
-  sprintn _ (TVar x) = subscript ("X" ++ show x)
-  sprintn _ TUnit = "T"
-  sprintn _ TBool = "bool"
-  sprintn _ TQBit = "qbit"
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (TTensor a b) =
-    let dlv = decr lv in
-    (case a of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
-       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " * " ++
-    (case b of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv b ++ ")"
-       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv b ++ ")"
-       _ -> sprintn dlv b)
-
-  sprintn lv (TArrow a b) =
-    let dlv = decr lv in
-    (case a of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " -> " ++
-    sprintn dlv b
-
-  sprintn lv (TCirc a b) =
-    let dlv = decr lv in
-    "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
-
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
-
-instance PPrint Type where
-  sprintn lv (TExp f a) =
-    let pf = pprint f in
-    if List.length pf == 0 then
-      pf ++ sprintn lv a
-    else
-      pf ++ (case a of
-               TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
-               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
-               _ -> sprintn lv a)
- 
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
-
-
-{- Pattern printing -}
-
-instance PPrint Pattern where
-   -- Print unto Lvl = n
-  sprintn _ (PVar x) = subscript ("x" ++ show x)
-  sprintn _ PUnit = "<>"
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (PPair a b) =
-    let dlv = decr lv in
-    "<" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ">"
-
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
-
-
-{- Expression printing -}
 
 print_var x = subscript ("x" ++ show x)
 
