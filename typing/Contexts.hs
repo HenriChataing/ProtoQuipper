@@ -14,32 +14,56 @@ import Data.Array as Array
 import qualified Data.Set as Set
 import Data.Sequence as Seq 
 
--------------------------
--- Context definition  --
+{-
+  Definition of the context
+  A same context is used for all the steps of the type inference algorithm (to avoid having to convey in information
+  from one to another).
+
+  The specification of the context is
+
+  - logs : a small logging system is added to have in place printing (for debugging purposes)
+    This include a logfile (each log takes a line), and a boolean flag to enable/disable logging
+    (in which case the logs are not saved)
+
+  - translation of programs : the programs have to be translated to the core syntax (few differences)
+    Variables are labelled with a unique id at this moment, and type variables the same
+
+  - 
+-}
 
 data Context =
   Ctx {
-    --
-    -- LOG
-    --
+
+    {- Log file and logging -}
 
     log_enabled :: Bool,
     logfile :: [String],
 
-    --
-    -- ID GENERATION
-    --
+    {- Id generation -}
 
     type_id :: Int, 
     flag_id :: Int,
+    var_id :: Int,
 
- --   type_ann :: Map.Map Int Type, -- Records the mappings flag <-> type,  eg in !nT, n points to T
+    {-
+       Translation to core syntax :
 
-    --
-    --  CONSTRAINT BUILDING STUFF
-    --
+       - name_to_var remembers the bindings from the variable names to the given variable id
+         It is organized in layers, each corresponding to a scope in the context
+         Eg : in let p = e in f, the variables of p are registered in a new layer in the context of f
+         One can not simply erase the name from the context since one name can be used multiple times in the same context
 
-    -- Map of bindings : Term variable -> Type
+       - var_to_name remembers the name of the variable an id points to
+    -}
+     
+    name_to_var :: [Map.Map String Int],
+    var_to_name :: Map.Map Int String,
+
+    {-
+       Constraint typing algorithm
+       Need only the bindings var <-> type of the current context
+    -}
+
     bindings :: Map.Map Int Type,
 
     --
@@ -59,6 +83,9 @@ data Context =
     -- Substitution from type variable to types
     mappings :: Map.Map Variable LinType
   }
+
+{- Monad instance declaration of the above context -}
+
 newtype State a = State (Context -> (Context, Computed a))
 
 instance Monad State where
@@ -70,8 +97,7 @@ instance Monad State where
                                                   run' ctx'
                                           Failed err -> (ctx', Failed err))
 
-
--- Fail with a specific error message
+-- Additional state function : fail with a specific error message
 failwith :: Error -> State a
 -----------------------------
 failwith err =
@@ -85,6 +111,9 @@ empty_context =
     log_enabled = True,
     logfile = ["\x1b[1m" ++ ">> Log start <<" ++ "\x1b[0m"],
 
+    name_to_var = [Map.empty],
+    var_to_name = Map.empty,
+
     bindings = Map.empty,
 
     variables = [],
@@ -92,30 +121,24 @@ empty_context =
     clusters = Map.empty,
     ages = Map.empty,
 
-    flag_id = 2,   -- Flag ids 0 and 1 are reserved, and represent the values 0 and 1
+    flag_id = 2,   -- Flag ids 0 and 1 are reserved
     type_id = 0,
+    var_id = 0,
       
     mappings = Map.empty
   }
 
-import_gates :: [(Variable, Type)] -> State ()
-----------------------------------------------
-import_gates l = do
-  List.foldl (\rec (x, t) -> do
-                rec
-                bind_var x t) (return ()) l
-
--- ========================== --
--- ====== Log file ========== --
-
--- Enable or disable the logging -- The logging is initially enabled
+{- 
+  Log file and logging. The function provided are :
+ 
+  - enable/disable_logs : do as the name indicates
+  - new_log : enter a new log in the log file
+  - print_logs : returns the logs contained in the file, and empty the log file
+-}
+  
 enable_logs :: State ()
 disable_logs :: State ()
-
--- If the log file is enabled, create a new log entry, if not, do nothing
 new_log :: String -> State ()
-
--- Flush the log entries
 print_logs :: State String
 --------------------------
 enable_logs =
@@ -133,23 +156,23 @@ new_log p =
 print_logs =
   State (\ctx -> (ctx { logfile = [] }, return $ List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
 
--- ========================== --
--- ===== Id generation ====== --
+
+{-
+  Id generation
+    - fresh_var/type/flag return a fresh id of the corresponding kind
+    - new_type creates a new type !n a where n and a are fresh
+-}
 
 fresh_type :: State Variable
 fresh_flag :: State Flag
-
--- Number of generated type variables
-ntypes :: State Int
-
--- Generate a type of the form a or !n a 
+fresh_var :: State Variable
 new_type :: State Type
---------------------------------
-
+----------------------
 fresh_type = State (\ctx -> (ctx { type_id = (+1) $ type_id ctx }, Ok $ type_id ctx))
+
 fresh_flag = State (\ctx -> (ctx { flag_id = (+1) $ flag_id ctx }, Ok $ flag_id ctx))
 
-ntypes = State (\ctx -> (ctx, Ok $ type_id ctx))
+fresh_var = State (\ctx -> (ctx { var_id = (+1) $ var_id ctx }, Ok $ var_id ctx))
 
 new_type = do
   x <- fresh_type
