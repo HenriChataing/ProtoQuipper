@@ -1,4 +1,5 @@
 Parser.hs
+ConstraintParser.hs
 Lexer.hs
 Quipper
 *~
