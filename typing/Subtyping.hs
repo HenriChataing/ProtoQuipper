@@ -1,79 +1,111 @@
-module Subtyping where
+module Subtyping (TypeConstraint(..), FlagConstraint(..), ConstraintSet(..),
+                  is_trivial, is_atomic, is_composite, is_semi_composite,
+                  is_one_sided,
+                  constraint_unifier,
+                  chain_constraints) where
 
 import Classes
+import Utils
 
 import CoreSyntax
 
 import Data.List as List
 
--------------------------
--- Various constraints --
+{-
+  Definition of the generated constraints :
+    - typing constraints, which can be either
+        T <: U   or   A <: B
+      where T, U are types ; and A, B linear types (no ! annotation)
+
+    - flag constraints, of the form
+        n <= m
+      where n, m can be 0, 1 or a flag id
+
+    - constraint sets, combining typing constraints and flag constraints
+-}
 
 data TypeConstraint =
     Linear LinType LinType
   | NonLinear Type Type
 
 type FlagConstraint =
-  (Flag, Flag)      -- n <= m
+  (Flag, Flag)
 
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
+{-
+  Constraint properties
+    - Atomicity : a constraint is atomic if of the form a <: b
+      where a, b are type variables
+  
+    - Trivial : apply to constraints of the form T <: T or A <: A
+      which are solved by reflexivity
+ 
+    - Composite : apply to constraints of the form T <: U
+      for any composite types T, U
 
-instance Eq TypeConstraint where
-  (==) (Linear t u) (Linear t' u') = t == t' && u == u'
-  (==) (NonLinear t u) (NonLinear t' u') = t == t' && u == u'
-  (==) _ _ = False
+    - Semi-composite : apply to constraints of the form a <: T or T <: a
+      with a a type variable and T a composite type
+-}
 
--- Constraint properties
-trivial :: TypeConstraint -> Bool
-atomic :: TypeConstraint -> Bool
------------------------------------
-trivial (Linear (TVar x) (TVar y)) = x == y
-trivial _ = False
+is_trivial :: TypeConstraint -> Bool
+is_atomic :: TypeConstraint -> Bool
+is_composite :: TypeConstraint -> Bool
+is_semi_composite :: TypeConstraint -> Bool
+----------------------------------------
+is_trivial (Linear a b) = a == b
+is_trivial (NonLinear t u) = t == u
 
-atomic (Linear (TVar _) (TVar _)) = True
-atomic _ = False
+is_atomic (Linear (TVar _) (TVar _)) = True
+is_atomic _ = False
 
--- Check whether the semi-composite constraints are all one-sided or not
-one_sided :: [TypeConstraint] -> Bool
-left_sided :: [TypeConstraint] -> Bool
-right_sided :: [TypeConstraint] -> Bool
------------------------------------------------
-one_sided [] = True
-one_sided ((Linear (TVar _) _):cset) = left_sided cset
-one_sided ((Linear _ (TVar _)):cset) = right_sided cset
+is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
-left_sided [] = True
-left_sided ((Linear (TVar _) _):cset) = left_sided cset
-left_sided _ = False
+is_semi_composite (NonLinear _ _) = False
+is_semi_composite (Linear (TVar _) (TVar _)) = False
+is_semi_composite (Linear (TVar _) _) = True
+is_semi_composite (Linear _ (TVar _)) = True
+is_semi_composite _ = False
 
-right_sided [] = True
-right_sided ((Linear _ (TVar _)):cset) = right_sided cset
-right_sided _ = False
+{-
+  Check whether all the constraints of a list have the same property of being right / left sided, ie :
+    - of the form a <: T : left-sided
+    - of the from T <: a : right-sided
 
--- Looking for the most general type
-linear_type_unifier :: LinType -> LinType -> LinType  -- Find an unifier of two linear types
-type_unifier :: Type -> Type -> Type
-list_unifier :: [LinType] -> LinType        -- Same as type_unifier, but applied to a whole list of types
-constraint_unifier :: [TypeConstraint] -> LinType  -- Take in semi-composite constraints a <: T or T <: a, and get an unifier of the composite types
-------------------------------------------------
-linear_type_unifier TUnit _ = TUnit
-linear_type_unifier _ TUnit = TUnit
-linear_type_unifier TBool _ = TBool
-linear_type_unifier _ TBool = TBool
-linear_type_unifier TQBit _ = TQBit
-linear_type_unifier _ TQBit = TQBit
-linear_type_unifier (TVar _) t = t
-linear_type_unifier t (TVar _) = t
-linear_type_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
-linear_type_unifier (TTensor t u) (TTensor t' u') = TTensor (type_unifier t t') (type_unifier u u')
-linear_type_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
-type_unifier (TExp m t) (TExp _ u) = TExp m $ linear_type_unifier t u
+  The function is_right_sided returns true if all the constraints are right sided
+               is_left_sided returns true if all the constraints are left sided
+               is_one_sided returns true if either is_left_sided or is_right_sided is true
+-}
 
-list_unifier (t:ct) =
-  List.foldl (\unif u -> linear_type_unifier unif u) t ct
+is_one_sided :: [TypeConstraint] -> Bool
+is_left_sided :: [TypeConstraint] -> Bool
+is_right_sided :: [TypeConstraint] -> Bool
+---------------------------------------
+is_one_sided [] = True
+is_one_sided ((Linear (TVar _) _):cset) = is_left_sided cset
+is_one_sided ((Linear _ (TVar _)):cset) = is_right_sided cset
 
+is_left_sided [] = True
+is_left_sided ((Linear (TVar _) _):cset) = is_left_sided cset
+is_left_sided _ = False
+
+is_right_sided [] = True
+is_right_sided ((Linear _ (TVar _)):cset) = is_right_sided cset
+is_right_sided _ = False
+
+{-
+  Finds the 'most general unifier' (not in the sense of unification) of a list of type constraints.
+  The unifier is a type chosen to carry the most information about the structure of the types of the constraints
+  (which has to be the same for each type). For example, the chosen unifier of ((a -> b) -> c) and (d -> (e -> f)) is
+  ((a -> b) -> (e -> f))
+
+  The list given as argument is assumed to form a 'class' of semi-composite constraints :
+    - all the constraints must be semi-composite
+    - all the variable of the semi-composite constraints are of the same age class (ie linked together by atomic constraints)
+-}
+constraint_unifier :: [TypeConstraint] -> LinType
+-------------------------------------------------
 constraint_unifier constraints =
   let comptypes = List.map (\c -> case c of
                                     Linear (TVar _) t -> t
@@ -81,10 +113,18 @@ constraint_unifier constraints =
   in
   list_unifier comptypes
 
--- Chaining constraints together
+{-
+  Attempts to link together the input constraints, for example the set { b <: U, a <: b, T <: a } can
+  be rearranged as { T <: a <: b <: U }
+
+  The result is used in the unfication algorithm : if the constraints can be linked, the approximation
+    { T <: a <: b <: U }  <=>  a :=: b :=: T, { T <: U } can be made
+  (Since if a solution of the approximation can be found, it is also a solution of the initial set, and conversely)
+-}
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
-----------------------------------------------------------------------------------------------------
+chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
+----------------------------------------------------------------------------------------------
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
   case List.find (\c -> case c of
@@ -127,6 +167,20 @@ chain_constraints l =
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
+{-
+  Instance declaration
+
+  TypeConstraint is instance of
+    - PPrint
+    - Param
+    - Eq
+
+  FlagConstraint is instance of
+    - PPrint
+
+  ConstraintSet is instance of
+    - PPrint
+-}
 
 instance Param TypeConstraint where
   free_var (Linear t u) = free_var t ++ free_var u
@@ -140,3 +194,56 @@ instance PPrint TypeConstraint where
   pprint (NonLinear t u) = pprint t ++ " <: " ++ pprint u
   sprintn _ c = pprint c
   sprint c = pprint c
+
+instance Eq TypeConstraint where
+  (==) (Linear t u) (Linear t' u') = t == t' && u == u'
+  (==) (NonLinear t u) (NonLinear t' u') = t == t' && u == u'
+  (==) _ _ = False
+
+instance PPrint FlagConstraint where
+  pprint (m, n) =
+    (if m < 2 then
+       show m
+     else
+       "f" ++ (subscript $ show m)) ++ " <= " ++
+    (if n < 2 then
+       show n
+     else
+       "f" ++ (subscript $ show n))
+
+  sprintn _ c = pprint c
+  sprint c = pprint c
+
+instance PPrint ConstraintSet where
+  pprint (lcs, fcs) =
+    let screenw = 120 in
+    let plcs = List.map pprint lcs in
+    let maxw = List.maximum $ List.map List.length plcs in
+    let nline = screenw `quot` (maxw + 5) in 
+
+    let slcons = fst $ List.foldl (\(s, nth) pc ->
+                        let padding = List.take (maxw - List.length pc + 5) $ List.repeat ' ' in
+
+                        if nth == 0 then
+                          (s ++ "\n" ++ pc ++ padding, nline)
+                        else
+                          (s ++ pc ++ padding, nth-1)) ("", nline+1) plcs
+    in
+
+    let pfcs = List.map pprint fcs in
+    let maxw = List.maximum $ List.map List.length pfcs in
+    let nline = screenw `quot` (maxw + 5) in
+
+    let sfcons = fst $ List.foldl (\(s, nth) pc ->
+                        let padding = List.take (maxw - List.length pc + 5) $ List.repeat ' ' in
+
+                        if nth == 0 then
+                          (s ++ "\n" ++ pc ++ padding, nline)
+                        else
+                          (s ++ pc ++ padding, nth-1)) ("", nline+1) pfcs
+    in
+
+    slcons ++ "\n" ++ sfcons
+
+  sprintn _ cs = pprint cs
+  sprint cs = pprint cs
