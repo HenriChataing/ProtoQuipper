@@ -5,7 +5,6 @@ import Utils
 
 import qualified Syntax as S
 import Printer
-import GenSTLC
 import CoreSyntax
 import TransSyntax
 
@@ -17,26 +16,6 @@ import TypeInference
 
 import Data.List as List
 import Data.Map as Map
-
-type_inference :: S.Expr -> Computed ConstraintSet
------------------------------------------
-type_inference e =
-  let TransSyntax.State run = do
-      gates <- translate_gates
-      prog <- translate_expression (drop_constraints $ clear_location e)
-      return (gates, prog)
-  in
-  let (gates, coreProg) = snd $ run $ TransSyntax.empty_context in
-
-  let Contexts.State run = do
-      import_gates gates
-      a <- new_type
-      constraints <- build_constraints coreProg a
-      non_composite <- break_composite constraints
-      return non_composite
-  in
-  snd $ run $ Contexts.empty_context
-
 
 full_inference :: S.Expr -> String
 ----------------------------------
@@ -51,7 +30,7 @@ full_inference e =
   let Contexts.State run = do
       import_gates gates
       a <- new_type
-      constraints <- build_constraints coreProg a
+      constraints <- constraint_typing coreProg a
       non_composite <- break_composite constraints
 
       -- Unification
@@ -71,8 +50,8 @@ full_inference e =
                              s <- rec
                              return $ (subscript $ "X" ++ show x) ++ " |-> " ++ pprint t ++ "\n" ++ s) (return "") maps
 
-      return $ pprint_constraints constraints ++ "\n\n" ++
-               pprint_constraints red_constraints ++ "\n\n" ++
+      return $ pprint constraints ++ "\n\n" ++
+               pprint red_constraints ++ "\n\n" ++
                pmaps ++ "\n\n" ++
                pprint_val sol ++ "\n\n" ++
                pprint inferred ++ "\n\n" ++
@@ -84,14 +63,6 @@ full_inference e =
     Ok s -> s
     Failed err -> show err
 
--- Test of the inference on the exponential size typed term TWICE
-test_full_inference :: Int -> String
------------------------------
-test_full_inference n =
-  List.foldl (\s i -> let geni = generate_exp i in
-                      let print_geni = pprint geni in
-                      let pgeni = full_inference geni in
-                      s ++ "-------------------------------------------\n" ++ print_geni ++ "\n" ++ pgeni) "" [0..n]
 
 -- Unification test
 translate_list [] = do return []
@@ -100,7 +71,6 @@ translate_list ((t, u):l) = do
   u' <- translate_type u
   l' <- translate_list l
   return $ (t', u'):l'
-
 
 test_unification :: [(S.Type, S.Type)] -> String
 ------------------------------------------------ 
@@ -123,34 +93,15 @@ test_unification set =
       red_constraints <- unify non_composite
       logs <- print_logs
 
-      return $ pprint_constraints constraints ++ "\n\n" ++
-               pprint_constraints non_composite ++ "\n\n" ++
-               pprint_constraints red_constraints ++ "\n\n" ++
+      return $ pprint constraints ++ "\n\n" ++
+               pprint non_composite ++ "\n\n" ++
+               pprint red_constraints ++ "\n\n" ++
                logs
   in
 
   case snd $ run $ Contexts.empty_context { type_id = var_id $ fst $ trans } of
     Ok s -> s
     Failed err -> show err
-
----------------------------------------------
-pprint_constraints :: ConstraintSet -> String
----------------------------------------------
-
-pprint_constraints ((Linear t u):lc, fc) =
-  pprint t ++ " <: " ++ pprint u ++ "\n" ++
-  pprint_constraints (lc, fc)
-
-pprint_constraints ((NonLinear t u):lc, fc) =
-  pprint t ++ " <: " ++ pprint u ++ "\n" ++
-  pprint_constraints (lc, fc)
-
-pprint_constraints ([], (n, m):fc) =
-  show n ++ " <= " ++ show m ++ "\n" ++ 
-  pprint_constraints ([], fc)
-
-pprint_constraints ([], []) =
- ""
 
 pprint_val :: Map Int Int -> String
 ------------------------------------

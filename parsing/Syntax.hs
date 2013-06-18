@@ -179,7 +179,6 @@ instance Constraint Pattern where
      -- Show
      -- Constraint
      -- Located
-     -- Atomic
 
    Functions declared :
      -- isValue :: Expr -> Bool 
@@ -218,13 +217,6 @@ instance Located Expr where
   clear_location (EUnbox e) = EUnbox (clear_location e)
   clear_location (EBox t) = EBox (clear_location t)
   clear_location e = e
-
-instance Atomic Expr where
-  is_atomic (ELocated e _) = is_atomic e
-  is_atomic (EApp _ _) = False
-  is_atomic (EIf _ _ _) = False
-  is_atomic (EFun _ _) = False
-  is_atomic _ = True
 
 instance Constraint Expr where
   drop_constraints (EConstraint e _) = e

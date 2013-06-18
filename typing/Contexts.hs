@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 import Data.Sequence as Seq 
 
 -------------------------
--- Contexts definition --
+-- Context definition  --
 
 data Context =
   Ctx {
@@ -32,6 +32,8 @@ data Context =
 
     type_id :: Int, 
     flag_id :: Int,
+
+ --   type_ann :: Map.Map Int Type, -- Records the mappings flag <-> type,  eg in !nT, n points to T
 
     --
     --  CONSTRAINT BUILDING STUFF
@@ -171,7 +173,7 @@ bind_var :: Variable -> Type -> State ()
 -- Create types for each of the variables of the pattern, bind those variables in the context, and return the resulting type
 bind_pattern :: Pattern -> State Type
 bind_pattern_with_type :: Pattern -> Type -> State ()
-create_pattern_type :: Pattern -> State Type
+create_pattern_type :: Pattern -> State (Type, [FlagConstraint])
 -- Find the type given to a variable
 find_var :: Variable -> State Type
 -- Remove a variable from the context
@@ -211,17 +213,17 @@ bind_pattern_with_type _ _ = do
   fail "Unmatching pair of pattern / type"
 
 create_pattern_type PUnit = do
-  return $ TExp (-1) TUnit
+  return (TExp (-1) TUnit, [])
 
 create_pattern_type (PVar _) = do
   t <- new_type
-  return t
+  return (t, [])
 
 create_pattern_type (PPair p q) = do
-  t@(TExp f _) <- create_pattern_type p
-  u@(TExp g _) <- create_pattern_type q
+  (t@(TExp f _), fct) <- create_pattern_type p
+  (u@(TExp g _), fcu) <- create_pattern_type q
   n <- fresh_flag
-  return $ TExp n (TTensor t u)
+  return (TExp n (TTensor t u), (n, f):(n, g):(fct ++ fcu))
 
 find_var x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
                                 Just t -> return t
@@ -268,8 +270,8 @@ map_lintype_step TUnit = do
 map_lintype_step TBool = do
   return TBool
 
-map_lintype_step TQBit = do
-  return TQBit
+map_lintype_step TQbit = do
+  return TQbit
 
 map_lintype_step (TVar x) = do
   t <- appmap x
@@ -318,8 +320,8 @@ app_val_to_lintype TUnit _ = do
 app_val_to_lintype TBool _ = do
   return TBool
 
-app_val_to_lintype TQBit _ = do
-  return TQBit
+app_val_to_lintype TQbit _ = do
+  return TQbit
 
 app_val_to_lintype (TVar x) _ = do
   return $ TVar x

@@ -29,20 +29,13 @@ option_spec = do
   "do_interpret" <-- False
   "do_type" <-- False
   "do_print" <-- False
-  "do_test" <-- False
   "do_unify" <-- False
-  "test_lvl" <-- (0 :: Int)
   "filename" <-- ""
   "unify" <-- ""
   -- Continuations
   when_parse "-i" (do "do_interpret" <-- True)
   when_parse "-t" (do "do_type" <-- True)
   when_parse "-p" (do "do_print" <-- True)
-  when_parse "--test" (do
-      s <- next_arg
-      n <- return (read s :: Int)
-      "do_test" <-- True
-      "test_lvl" <-- n)
   when_parse "--unify" (do
       s <- next_arg
       "do_unify" <-- True
@@ -91,16 +84,7 @@ main = do
   if value "do_type" opt then do
     putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
---    putStrLn $ pprint_constraints $ type_inference prog
     putStrLn $ full_inference prog
-  else
-    return ()
-
-  if value "do_test" opt then do
-    putStrLn $ "\x1b[1;33m" ++ ">> Typing test" ++ "\x1b[0m"
-    putStrLn $ "\x1b[1m" ++ "Test TypeInference :" ++ "\x1b[0m"
---    putStrLn $ pprint_constraints $ type_inference prog
-    putStrLn $ test_full_inference $ value "test_lvl" opt
   else
     return ()
 

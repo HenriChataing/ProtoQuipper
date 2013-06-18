@@ -17,11 +17,8 @@ import Data.Array as Array
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
------------------------------------------------------------------
------------------------------------------------------------------
-
 -- Build all the deriving constraints
-build_constraints :: Expr -> Type -> State ConstraintSet
+constraint_typing :: Expr -> Type -> State ConstraintSet
 
 -- Unit typing rule
 {-
@@ -29,7 +26,7 @@ build_constraints :: Expr -> Type -> State ConstraintSet
       !I G  |- * : !n T    [{1 <= I}]
 -} 
 
-build_constraints EUnit t = do
+constraint_typing EUnit t = do
   ann <- context_annotation
   return ([NonLinear t (TExp 1 TUnit)], List.map (\(_, f) -> (1, f)) ann)
 
@@ -39,7 +36,7 @@ build_constraints EUnit t = do
      !I G |- True / False : !n T   [{1 <= I}]
 -} 
 
-build_constraints (EBool _) t = do
+constraint_typing (EBool _) t = do
   ann <- context_annotation
   return ([NonLinear t (TExp 1 TBool)], List.map (\(_, f) -> (1, f)) ann)
 
@@ -50,7 +47,7 @@ build_constraints (EBool _) t = do
      !IG, t : T |- t : U    [{T <: U, 1 <= I}]
 -}
 
-build_constraints (EVar x) u = do
+constraint_typing (EVar x) u = do
   t <- find_var x
   ann <- context_annotation
   ann' <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) ann
@@ -62,10 +59,10 @@ build_constraints (EVar x) u = do
    -----------------------------------------------  (box 1)
      G |- box[T] t : T'  [L u {T' <: circ (T, U)]
 -}
-build_constraints (EApp (EBox a) t) typ = do
+constraint_typing (EApp (EBox a) t) typ = do
   b <- new_type
   -- Type the term t
-  (lcons, fcons) <- build_constraints t (TExp 0 (TArrow a b))
+  (lcons, fcons) <- constraint_typing t (TExp 0 (TArrow a b))
   
   return ((NonLinear (TExp (-1) (TCirc a b)) typ):lcons, fcons)
 
@@ -75,11 +72,11 @@ build_constraints (EApp (EBox a) t) typ = do
        --------------------------------
          G |- rev t : Circ (U, T)  [L]
 -}
-build_constraints (EApp ERev t) typ = do
+constraint_typing (EApp ERev t) typ = do
   a <- new_type
   b <- new_type
   -- Type t
-  (lcons, fcons) <- build_constraints t (TExp (-1) (TCirc a b))
+  (lcons, fcons) <- constraint_typing t (TExp (-1) (TCirc a b))
 
   return ((NonLinear (TExp (-1) (TCirc b a)) typ):lcons, fcons)
 
@@ -91,18 +88,18 @@ build_constraints (EApp ERev t) typ = do
          G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
 -}
 
-build_constraints (EApp t u) b = do
+constraint_typing (EApp t u) b = do
   a <- new_type
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
   non_fvt <- filter_by (\x -> List.elem x fvt)
-  (lcons, fcons) <- build_constraints t (TExp 0 (TArrow a b))
+  (lcons, fcons) <- constraint_typing t (TExp 0 (TArrow a b))
   -- Filter on the free variables of u and type u
   Contexts.union non_fvt
   non_fvu <- filter_by (\x -> List.elem x fvu)
-  (lcons', fcons') <- build_constraints u a
+  (lcons', fcons') <- constraint_typing u a
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
   Contexts.union non_fvu
@@ -120,7 +117,7 @@ build_constraints (EApp t u) b = do
      !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
 -}
 
-build_constraints (EFun p e) t = do
+constraint_typing (EFun p e) t = do
   b <- new_type
   n <- fresh_flag
 
@@ -131,7 +128,7 @@ build_constraints (EFun p e) t = do
   a <- bind_pattern p
 
   -- Type the expression e
-  (lcons, fcons) <- build_constraints e b
+  (lcons, fcons) <- constraint_typing e b
   -- Build the context constraints : n <= I
   ann_cons <- return $ List.map (\(_, f) -> (n, f)) ann
   -- Remove p from the context
@@ -148,7 +145,7 @@ build_constraints (EFun p e) t = do
      G1, G2, !ID |- <t, u> : T   [L u L' u {1 <= I} u {!n (a * b) <: T}]
 -}
 
-build_constraints (EPair t u) typ = do
+constraint_typing (EPair t u) typ = do
   ta@(TExp n a) <- new_type
   tb@(TExp m b) <- new_type
   p <- fresh_flag
@@ -157,11 +154,11 @@ build_constraints (EPair t u) typ = do
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
   non_fvt <- filter_by (\x -> List.elem x fvt)
-  (lcons, fcons) <- build_constraints t ta
+  (lcons, fcons) <- constraint_typing t ta
   -- Filter on the free variables of u and type u
   Contexts.union non_fvt
   non_fvu <- filter_by (\x -> List.elem x fvu)
-  (lcons', fcons') <- build_constraints u tb
+  (lcons', fcons') <- constraint_typing u tb
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
   Contexts.union non_fvu
@@ -180,22 +177,22 @@ build_constraints (EPair t u) typ = do
      G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
 -}
 
-build_constraints (ELet p t u) typ = do
-  a <- create_pattern_type p
+constraint_typing (ELet p t u) typ = do
+  (a, fca) <- create_pattern_type p
   n <- fresh_flag
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
   non_fvt <- filter_by (\x -> List.elem x fvt)
-  (lcons, fcons) <- build_constraints t a
+  (lcons, fcons) <- constraint_typing t a
   -- Filter on the free variables of u
   Contexts.union non_fvt
   non_fvu <- filter_by (\x -> List.elem x fvu)
   -- Add x and y to the context
   bind_pattern_with_type p a
   -- Type u
-  (lcons', fcons') <- build_constraints u typ
+  (lcons', fcons') <- constraint_typing u typ
   -- Clean the context
   List.foldl (\rec x -> do
                 rec
@@ -207,7 +204,7 @@ build_constraints (ELet p t u) typ = do
   ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
                                                  else (1, f):cl) [] ann
   
-  return (lcons' ++ lcons, fcons' ++ fcons ++ ann_cons)
+  return (lcons' ++ lcons, fcons' ++ fcons ++ ann_cons ++ fca)
 
 -- Typing rule (if)
 {-
@@ -217,21 +214,21 @@ build_constraints (ELet p t u) typ = do
      G1, G2, !ID |- if e then f else g : T   [L u L' u L'' u {1 <= I}]
 -}
 
-build_constraints (EIf e f g) typ = do
+constraint_typing (EIf e f g) typ = do
   -- Extract the free variables of e, f and g
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
   
   -- Filter on the free variables of e and type e
   non_fve <- filter_by (\x -> List.elem x fve)
-  (lcons, fcons) <- build_constraints e (TExp 0 TBool)
+  (lcons, fcons) <- constraint_typing e (TExp 0 TBool)
 
   -- Filter on the free variables of f an g
   Contexts.union non_fve
   non_fvfg <- filter_by (\x -> List.elem x fvfg)
   -- Type f and g
-  (lconsf, fconsf) <- build_constraints f typ
-  (lconsg, fconsg) <- build_constraints g typ
+  (lconsf, fconsf) <- constraint_typing f typ
+  (lconsg, fconsg) <- constraint_typing g typ
   Contexts.union non_fvfg
 
   -- Generate the flag constraints for the intersection
@@ -249,12 +246,12 @@ build_constraints (EIf e f g) typ = do
      G |- unbox t : !n (T -> U)  [L]
 -}
 
-build_constraints (EUnbox t) typ = do
+constraint_typing (EUnbox t) typ = do
   a <- new_type
   b <- new_type
   n <- fresh_flag
   -- Type t
-  (lcons, fcons) <- build_constraints t (TExp 1 (TCirc a b))
+  (lcons, fcons) <- constraint_typing t (TExp 1 (TCirc a b))
   -- Return
   return ((NonLinear (TExp n (TArrow a b)) typ):lcons, fcons)
 
@@ -276,7 +273,7 @@ break_composite ((Linear TUnit TUnit):lc, fc) = do
 break_composite ((Linear TBool TBool):lc, fc) = do
   break_composite (lc, fc)
 
-break_composite ((Linear TQBit TQBit):lc, fc) = do
+break_composite ((Linear TQbit TQbit):lc, fc) = do
   break_composite (lc, fc)
 
 -- Break constraints
@@ -305,11 +302,11 @@ break_composite ((Linear (TCirc t u) (TCirc t' u')):lc, fc) = do
   -- !n T <: !m U
 -- Into
   -- T <: U && m <= n
-break_composite ((NonLinear (TExp n TQBit) (TExp m u)):lc, fc) = do
-  break_composite ((Linear TQBit u):lc, (m, 0):fc)
+break_composite ((NonLinear (TExp n TQbit) (TExp m u)):lc, fc) = do
+  break_composite ((Linear TQbit u):lc, (m, 0):fc)
 
-break_composite ((NonLinear (TExp n t) (TExp m TQBit)):lc, fc) = do
-  break_composite ((Linear t TQBit):lc, (n, 0):fc)
+break_composite ((NonLinear (TExp n t) (TExp m TQbit)):lc, fc) = do
+  break_composite ((Linear t TQbit):lc, (n, 0):fc)
 
 break_composite ((NonLinear (TExp n t) (TExp m u)):lc, fc) = do
   break_composite ((Linear t u):lc, (m, n):fc)
@@ -341,8 +338,8 @@ model_of_lin TUnit = do
 model_of_lin TBool = do
   return TBool
 
-model_of_lin TQBit = do
-  return TQBit
+model_of_lin TQbit = do
+  return TQbit
 
 model_of_lin (TArrow t u) = do
   t' <- model_of t
@@ -406,7 +403,7 @@ unify (lc, fc) = do
       new_log lognonx
                                              
       -- Filter the atomic constraints
-      (atomx, natomx) <- return $ List.partition atomic lcx
+      (atomx, natomx) <- return $ List.partition is_atomic lcx
 
       -- Check the next action
       case (atomx, natomx) of

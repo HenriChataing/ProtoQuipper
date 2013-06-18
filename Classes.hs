@@ -40,14 +40,6 @@ class Located a where
   location :: a -> Maybe Extent
 
 --------------------------------
--- Class of objects that can  --
--- have the property of being --
--- atomic                     --
-
-class Atomic a where
-  is_atomic :: a -> Bool
-
---------------------------------
 -- Class of objects with type --
 -- annotations                --
 

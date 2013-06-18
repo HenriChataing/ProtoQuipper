@@ -82,7 +82,7 @@ translate_type S.TBool = do
   return $ TExp (-1) TBool
 
 translate_type S.TQBit = do
-  return $ TExp 0 TQBit
+  return $ TExp 0 TQbit
 
 translate_type (S.TVar x) = do
   n <- safe_find x
