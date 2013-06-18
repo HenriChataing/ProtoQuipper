@@ -1,80 +1,105 @@
 module TransSyntax where
 
+import Utils
+import Localizing
+
 import CoreSyntax
 import qualified Syntax as S
 
-import Gates
+import Contexts
 
 import Data.Map as Map
 import qualified Data.List as List
 
 
-data BindingContext =
-  Ctx {
-    bindings :: Map String Int,
-    names :: Map Int String,
-    var_id :: Int,
-    mark :: [Map String Int] -- Screenshot of the bindings at some point
-  }
-newtype State a = State (BindingContext -> (BindingContext, a))
+{-
+  Complement to the functions defined in the Contexts module :
+  A set of functions dedicated to the labelling of variables,
+  and the bindings manipulation :
 
-instance Monad State where
-  return a = State (\bc -> (bc, a))
-  State run >>= action = State (\bc -> let (bc', a) = run bc in
-                                       let State run' = action a in
-                                       run' bc')
+  - label : create a new variable id, and bind the name in the context (current layer)
+  - find_name : retrieves the id associated with a name, if the name can't be found, an scope error is generated
+  - find : same as find_name, only if the name isn't found in the context, a new label is created
+
+  And for the layer manipulation :
+  - new_layer : creates an new empty layer
+  - drop_layer : removes the top layer and all its bindings
+
+  Some additional functions manipulate type ids instead of variable ids :
+  - label_type : same as label, instead generates a type id
+  - find_tyep : same as find_name, but never fails, if the name isn't found, a new id is generated
+-}
 
 label :: String -> State Int
-label s = State (\bc -> (bc { var_id = (+1) $ var_id bc,
-                              bindings = Map.insert s (var_id bc) $ bindings bc,
-                              names = Map.insert (var_id bc) s $ names bc }, var_id bc))
+label_type :: String -> State Int
+find_name :: String -> State Int
+find_type :: String -> State Int
 
-find :: String -> State Int
-find s = State (\bc -> (bc, case Map.lookup s $ bindings bc of
-                              Just x -> x
-                              Nothing -> error ("Unbound variable" ++ s)))
+new_layer :: State ()
+drop_layer :: State ()
+----------------------
+label s = State (\ctx -> case name_to_var ctx of
+                           [] ->
+                               (ctx { var_id = (+1) $ var_id ctx,
+                                      name_to_var = [ Map.singleton s (var_id ctx) ],
+                                      var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, return $ var_id ctx)
+                           toplayer:rest -> 
+                               (ctx { var_id = (+1) $ var_id ctx,
+                                      name_to_var = (Map.insert s (var_id ctx) toplayer):rest,
+                                      var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, return $ var_id ctx))
 
-safe_find :: String -> State Int
-safe_find s = State (\bc -> case Map.lookup s $ bindings bc of
-                              Just n -> (bc, n)
-                              Nothing -> (bc { var_id = (+1) $ var_id bc,
-                                               names = Map.insert (var_id bc) s $ names bc,
-                                               bindings = Map.insert s (var_id bc) $ bindings bc }, var_id bc))
+label_type s = State (\ctx -> case name_to_var ctx of
+                           [] ->
+                               (ctx { type_id = (+1) $ type_id ctx,
+                                      name_to_var = [ Map.singleton s (type_id ctx) ] }, return $ type_id ctx)
+                           toplayer:rest -> 
+                               (ctx { var_id = (+1) $ var_id ctx,
+                                      name_to_var = (Map.insert s (var_id ctx) toplayer):rest }, return $ type_id ctx))
 
-set_mark :: State ()
-set_mark = State (\bc -> (bc { mark = (bindings bc):(mark bc) }, ()))
+-- Auxiliary function that looks for the variable in the successive layers
+find_rec :: String -> [Map.Map String Int] -> Maybe Int
+find_rec _ [] = Nothing
+find_rec s (top:rest) =
+  case Map.lookup s top of
+    Just x -> Just x
+    Nothing -> find_rec s rest
 
-reset :: State ()
-reset = State (\bc -> case mark bc of
-                        [] -> error "Cannot reset the bindings, no mark taken"
-                        m:mc -> (bc { bindings = m, mark = mc }, ()))
+find_name s = State (\ctx ->
+                      case find_rec s $ name_to_var ctx of
+                        Just x -> (ctx, return x)
+                        Nothing -> (ctx, error_fail $ UnboundVariable s extent_unknown))
 
-empty_context :: BindingContext
-empty_context =
-  Ctx {
-    bindings = empty,
-    names = empty,
-    var_id = 0,
-    mark = []
-  }
+find_type s = State (\ctx ->
+                      case find_rec s $ name_to_var ctx of
+                        Just x -> (ctx, return x)
+                        Nothing -> let State run = label_type s in
+                                   run ctx)
 
---------------------------------------
--- Gate import                      --
 
-translate_gates :: State [(Variable, Type)]
-----------------------------------------
-translate_gates = do
-  List.foldl (\rec (s, t) -> do
-                c <- rec
-                x <- label s
-                t' <- translate_type t
-                return ((x, t'):c)) (return []) typing_environment
+new_layer =
+  State (\ctx -> (ctx { name_to_var = Map.empty:(name_to_var ctx) }, return ()))
 
---------------------------------------
--- Translation into internal Syntax --
+drop_layer =
+  State (\ctx -> (ctx { name_to_var = case name_to_var ctx of
+                                        [] -> []
+                                        _:rest -> rest }, return ()))
+
+
+
+{-
+  Translation from surface syntax to core syntax, three functions provided :
+ 
+  - translate_type
+  - translate_pattern
+  - translate_expression
+
+  which do as their name indicates
+-}
 
 translate_type :: S.Type -> State Type
---------------------------------------
+translate_pattern :: S.Pattern -> State Pattern
+translate_expression :: S.Expr -> State Expr
+-------------------------------------------
 translate_type S.TUnit = do
   return $ TExp (-1) TUnit
 
@@ -85,7 +110,7 @@ translate_type S.TQBit = do
   return $ TExp 0 TQbit
 
 translate_type (S.TVar x) = do
-  n <- safe_find x
+  n <- find_type x
   return $ TExp 0 $ TVar n
 
 translate_type (S.TArrow t u) = do
@@ -110,10 +135,7 @@ translate_type (S.TCirc t u) = do
 translate_type (S.TLocated t _) = do
   translate_type t
 
-
--- Translation of patterns
-translate_pattern :: S.Pattern -> State Pattern
------------------------------------------------
+------------------------------
 translate_pattern S.PUnit = do
   return PUnit
 
@@ -126,10 +148,7 @@ translate_pattern (S.PPair p q) =  do
   q' <- translate_pattern q
   return (PPair p' q')
 
-
--- Translation of expressions
-translate_expression :: S.Expr -> State Expr
---------------------------------------------
+---------------------------------
 translate_expression S.EUnit = do
   return EUnit
 
@@ -137,22 +156,22 @@ translate_expression (S.EBool b) = do
   return $ EBool b
 
 translate_expression (S.EVar v) = do
-  x <- find v
+  x <- find_name v
   return (EVar x)
 
 translate_expression (S.EFun p e) = do
-  set_mark
+  new_layer
   p' <- translate_pattern p
   e' <- translate_expression e
-  reset
+  drop_layer
   return (EFun p' e')
 
 translate_expression (S.ELet p e f) = do
   e' <- translate_expression e
-  set_mark
+  new_layer
   p' <- translate_pattern p
   f' <- translate_expression f
-  reset
+  drop_layer
   return (ELet p' e' f')
 
 translate_expression (S.EApp e f) = do
