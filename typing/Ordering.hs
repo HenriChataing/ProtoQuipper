@@ -10,21 +10,46 @@ import Contexts
 import Subtyping
 
 import Data.List as List
-import Data.Sequence as Seq
-import Data.Array as Array
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
--- ============================== --
--- ==== Cluster manipulation ==== --
+{-
+  This module (Ordering) is dedicated to finding the minimum of the poset formed
+  by the type variables, where the relation is given by the typing constraints.
 
-cluster_of :: Variable -> State Int
+  As a reminder, for every constraint :
+
+    - a <: b, the relation a = b is added
+    - a <: T or T <: a, a relation a < b is added for every b free type variable of T
+
+  Variables are later organized in clusters (= classes) of variables with the same age,
+  and the relations between variables are changed into relations between the assiciated
+  clusters.
+  
+  The algorithm for finding the youngest cluster (= set of youngest variables) has a complexity
+  O (n2) where n is the number of clusters, and in practice tries every cluster c, and checks
+  whether there is a relation c' < c, with c' another cluster.
+
+  The following functions are :
+    - cluster_of : returns the cluster the variable is part of
+    - new_cluster : creates a new singleton cluster (with the same as the variable)
+    - cluster_content : returns the variable content of a cluster
+    - merge_clusters : merge two clusters, and do the necessary changes (typically used when coming upon a constraint a <: b)
+    - new_relation : extend the partial relation with c < c'
+    - add_variable : insert a new variable in the system, and creates a new matching cluster at the same time
+    - null_cluster : checks whether the number of clusters is 0
+    - cluster_relations : returns the partial relations
+-}
+
+type Cluster = Int
+
+cluster_of :: Variable -> State Cluster
 new_cluster :: Variable -> State ()
-cluster_content :: Int -> State [Variable]
-merge_clusters :: Int -> Int -> State ()
-new_relation :: Int -> Int -> State ()
-add_variable :: Variable -> State ()
+cluster_content :: Cluster -> State [Variable]
+merge_clusters :: Cluster -> Cluster -> State ()
+new_relation :: Cluster -> Cluster -> State ()
+add_variable :: Cluster -> State ()
 null_cluster :: State Bool
+cluster_relations :: State [(Cluster, Cluster)]
 ----------------------------------------
 cluster_of x =
   State (\ctx -> (ctx, case Map.lookup x $ ages ctx of
@@ -64,9 +89,24 @@ add_variable x =
 null_cluster =
   State (\ctx -> (ctx, return $ Map.null $ clusters ctx))
 
--- Create an empty graph, with as each variable assigned to a different vertex
+cluster_relations =
+  State (\ctx -> (ctx, return $ relations ctx))
+
+
+{-
+  Construction of the poset, with two functions to instanciate the poset, and insert new relations defined by
+  typing constraints.
+
+  - init_ordering : inserts all the type variables in the ordering system
+  - register_constraint / register_constraints : following the forma of the constraint :
+     - if the constraint is atomic : a <: b, then a and b must be in the same cluster, so merge the clusters of a and b
+     - if the constraint is a <: T or T <: a, for every b free variable of T, add the relation cluster a < cluster b
+-}
+
 init_ordering :: State ()
--------------------------
+register_constraint :: TypeConstraint -> State ()
+register_constraints :: [TypeConstraint] -> State ()
+----------------------------------------------------
 init_ordering =
   State (\ctx -> let n = type_id ctx in
            (ctx { variables = [0 .. type_id ctx - 1],
@@ -74,11 +114,6 @@ init_ordering =
                   clusters = Map.fromList $ List.map (\x -> (x, [x])) [0 .. type_id ctx - 1],
                   ages = Map.fromList $ List.map (\x -> (x, x)) [0 .. type_id ctx - 1] }, return ()))
 
--- Add all the relations introduced by a sub-typing constraint
-register_constraint :: TypeConstraint -> State ()
-register_constraints :: [TypeConstraint] -> State ()
-cluster_relations :: State [(Int, Int)]
----------------------------------------------------
 register_constraint c = do
   case c of
     Linear (TVar x) (TVar y) -> do
@@ -111,17 +146,25 @@ register_constraints (c:cc) = do
   register_constraint c
   register_constraints cc
 
-cluster_relations =
-  State (\ctx -> (ctx, return $ relations ctx))
 
--- ================================ --
--- ====== Variable selection ====== --
+{-
+  Core of the algorithm :
+  
+  - some_cluster : returns any cluster
+  - try_cluster : returns True iff the cluster is a minimum. It takes as input a cluster, and the list of processed clusters, and
+                  returns either the same cluster if it was a minimum, or a new candidate deduced from the relation that forbade c as a minimum.
+                  If the new candidate is in the list of processed clusters, that means a cyclic dependency === trying to build an infinite type
+  - find_youngest_cluster : try every cluster, starting from a random one, until it finds a minimum, which it returns
+  - youngest_cluster :
+  - remove_cluster : remove the cluster from the system : erases the relations involving this cluster, removes the definition of the cluster..
+  - younngest_variables : same as youngest_cluster, only it returns the contents of the youngest cluster
 
-some_cluster :: State Int   -- Return an arbitrary cluster
-try_cluster :: Int -> [Int] -> State (Int, [Int])
-find_youngest_cluster :: Int -> [Int] -> State Int
-youngest_cluster :: State Int
-remove_cluster :: Int -> State ()
+-}
+some_cluster :: State Cluster
+try_cluster :: Cluster -> [Cluster] -> State (Cluster, [Cluster])
+find_youngest_cluster :: Cluster -> [Cluster] -> State Cluster
+youngest_cluster :: State Cluster
+remove_cluster :: Cluster -> State ()
 youngest_variables :: State [Variable]
 --------------------------------------
 some_cluster =
