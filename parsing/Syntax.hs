@@ -172,6 +172,21 @@ instance Constraint Pattern where
   drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
   drop_constraints p = p
 
+-- Translate an pattern into the matching expression
+expr_of_pattern :: Pattern -> Expr
+----------------------------------
+expr_of_pattern PUnit = EUnit
+expr_of_pattern (PVar x) = EVar x
+expr_of_pattern (PPair p q) = EPair (expr_of_pattern p) (expr_of_pattern q)
+expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
+
+pattern_of_expr :: Expr -> Pattern
+----------------------------------
+pattern_of_expr EUnit = PUnit
+pattern_of_expr (EVar x) = PVar x
+pattern_of_expr (EPair e f) = PPair (pattern_of_expr e) (pattern_of_expr f)
+pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
+
 {-
    Instance declarations and functions of data type Expr :
   
