@@ -34,10 +34,13 @@ import Data.Sequence as Seq
 data Context =
   Ctx {
 
-    {- Log file and logging -}
+    {- Log file, logging and debugging -}
 
     log_enabled :: Bool,
     logfile :: [String],
+
+    current_location :: Extent,
+    type_of :: Map.Map Variable (Expr, Extent),
 
     {- Id generation -}
 
@@ -54,18 +57,20 @@ data Context =
          One can not simply erase the name from the context since one name can be used multiple times in the same context
 
        - var_to_name remembers the name of the variable an id points to
+
+       - var location is the location of the variable declaration
     -}
      
-    name_to_var :: [Map.Map String Int],
-    var_to_name :: Map.Map Int String,
+    name_to_var :: [Map.Map String Variable],
+    var_to_name :: Map.Map Variable String,
 
     {-
        Constraint typing algorithm
        Need only the bindings var <-> type of the current context
     -}
 
-    bindings :: Map.Map Int Type,
-
+    bindings :: Map.Map Variable Type,
+    
     --
     -- VARIABLE DATING STUFF
     --
@@ -110,6 +115,8 @@ empty_context =
   Ctx {
     log_enabled = True,
     logfile = ["\x1b[1m" ++ ">> Log start <<" ++ "\x1b[0m"],
+    current_location = extent_unknown,
+    type_of = Map.empty,
 
     name_to_var = [Map.empty],
     var_to_name = Map.empty,
@@ -134,13 +141,19 @@ empty_context =
   - enable/disable_logs : do as the name indicates
   - new_log : enter a new log in the log file
   - print_logs : returns the logs contained in the file, and empty the log file
+
+  - set_location / get_location : do as their name indicates
+  - is_type_of : record the type of an expression (more like the expression of a type)
 -}
   
 enable_logs :: State ()
 disable_logs :: State ()
 new_log :: String -> State ()
 print_logs :: State String
---------------------------
+
+set_location :: Extent -> State ()
+get_location :: State Extent
+----------------------------
 enable_logs =
   State (\ctx -> (ctx { log_enabled = True }, return ()))
 
@@ -156,18 +169,28 @@ new_log p =
 print_logs =
   State (\ctx -> (ctx { logfile = [] }, return $ List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
 
+set_location ex =
+  State (\ctx -> (ctx { current_location = ex }, return ()))
+
+get_location =
+  State (\ctx -> (ctx, return $ current_location ctx))
+
+(is_type_of) x e =
+  State (\ctx -> (ctx { type_of = Map.insert x e $ type_of ctx }, return ()))
 
 {-
   Id generation
     - fresh_var/type/flag return a fresh id of the corresponding kind
     - new_type creates a new type !n a where n and a are fresh
+    - create_pattern_type creates a type matching the structure of the pattern
 -}
 
 fresh_type :: State Variable
 fresh_flag :: State Flag
 fresh_var :: State Variable
 new_type :: State Type
-----------------------
+create_pattern_type :: Pattern -> State (Type, [FlagConstraint])
+----------------------------------------------------------------
 fresh_type = State (\ctx -> (ctx { type_id = (+1) $ type_id ctx }, Ok $ type_id ctx))
 
 fresh_flag = State (\ctx -> (ctx { flag_id = (+1) $ flag_id ctx }, Ok $ flag_id ctx))
@@ -178,62 +201,6 @@ new_type = do
   x <- fresh_type
   f <- fresh_flag
   return (TExp f $ TVar x)
-
--- =========================== --
--- === Context annotations === --
-
--- Return the flag annotation of the context, as a list of associations (term * flag)
-context_annotation :: State [(Variable, Flag)]
-----------------------------------------------
-context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x (TExp f _) ann -> (x, f):ann)
-                                                                [] $ bindings ctx))
-
--- ============================ --
--- === Context manipulation === --
-
--- Add a new bindings (var * type) in the current typing context
-bind_var :: Variable -> Type -> State ()
--- Create types for each of the variables of the pattern, bind those variables in the context, and return the resulting type
-bind_pattern :: Pattern -> State Type
-bind_pattern_with_type :: Pattern -> Type -> State ()
-create_pattern_type :: Pattern -> State (Type, [FlagConstraint])
--- Find the type given to a variable
-find_var :: Variable -> State Type
--- Remove a variable from the context
-delete_var :: Variable -> State ()
--- Filter on the variables contained in the context
-filter_by :: (Variable -> Bool) -> State (Map.Map Variable Type)  -- Select a part of the bindings and return the unselected part
--- Insert a set of bindings
-union :: (Map.Map Variable Type) -> State ()
----------------------------------------------------------
-bind_var x t = State (\ctx -> (ctx { bindings = Map.insert x t $ bindings ctx }, return ()))
-
-bind_pattern PUnit = do
-  return $ TExp (-1) TUnit
-
-bind_pattern (PVar x) = do
-  a <- new_type
-  bind_var x a
-  return a
-
-bind_pattern (PPair p q) = do
-  t@(TExp f _) <- bind_pattern p
-  u@(TExp g _) <- bind_pattern q
-  n <- fresh_flag
-  return $ TExp n (TTensor t u)
-
-bind_pattern_with_type PUnit (TExp _ TUnit) = do
-  return ()
-
-bind_pattern_with_type (PVar x) t = do
-  bind_var x t
-
-bind_pattern_with_type (PPair p q) (TExp _ (TTensor t u)) = do
-  bind_pattern_with_type p t
-  bind_pattern_with_type q u
-
-bind_pattern_with_type _ _ = do
-  fail "Unmatching pair of pattern / type"
 
 create_pattern_type PUnit = do
   return (TExp (-1) TUnit, [])
@@ -248,16 +215,59 @@ create_pattern_type (PPair p q) = do
   n <- fresh_flag
   return (TExp n (TTensor t u), (n, f):(n, g):(fct ++ fcu))
 
+
+{-
+  Manipulation of the bindings (typing context) :
+  
+  - bind_var : add a new binding x <-> t in the context
+  - bind_pattern : add as many bindings as the free variables of the pattern in the current context
+
+  - find_var : retrieve the type of a variable
+  - delete_var : remove a variable from the typing context
+
+  And more global functions, applying to the whole context :
+  - context_annotation : returns the vector of the flag annotations of the types in the context
+  - filter_bindings : filter the bindings of the typing context, and return the unselected ones
+  - import_bindings : add a set of bindings in the current typing context
+-}
+
+bind_var :: Variable -> Type -> State ()
+bind_pattern :: Pattern -> Type -> State ()
+find_var :: Variable -> State Type
+delete_var :: Variable -> State ()
+
+context_annotation :: State [(Variable, Flag)]
+filter_bindings :: (Variable -> Bool) -> State (Map.Map Variable Type)
+import_bindings :: (Map.Map Variable Type) -> State ()
+------------------------------------------------------
+bind_var x t = State (\ctx -> (ctx { bindings = Map.insert x t $ bindings ctx }, return ()))
+
+bind_pattern PUnit (TExp _ TUnit) = do
+  return ()
+
+bind_pattern (PVar x) t = do
+  bind_var x t
+
+bind_pattern (PPair p q) (TExp _ (TTensor t u)) = do
+  bind_pattern p t
+  bind_pattern q u
+
+bind_pattern _ _ = do
+  fail "Unmatching pair of pattern / type"
+
 find_var x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
                                 Just t -> return t
-                                Nothing -> fail ("Unbound variable " ++ subscript ("x" ++ show x))))
+                                Nothing -> error_fail (UnboundVariable (subscript ("x" ++ show x)) extent_unknown)))
 
 delete_var x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, return ()))
 
-filter_by f = State (\ctx -> let (ptrue, pfalse) = Map.partitionWithKey (\x _ -> f x) $ bindings ctx in
-                          (ctx { bindings = ptrue }, return pfalse))
+context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x (TExp f _) ann -> (x, f):ann)
+                                                                [] $ bindings ctx))
 
-union m = State (\ctx -> (ctx { bindings = Map.union m $ bindings ctx }, return ()))
+filter_bindings f = State (\ctx -> let (ptrue, pfalse) = Map.partitionWithKey (\x _ -> f x) $ bindings ctx in
+                                   (ctx { bindings = ptrue }, return pfalse))
+
+import_bindings m = State (\ctx -> (ctx { bindings = Map.union m $ bindings ctx }, return ()))
 
 
 -- =============================== --

@@ -2,6 +2,7 @@ module CoreSyntax where
 
 import Classes
 import Utils
+import Localizing
 
 import Data.List as List
 
@@ -86,6 +87,7 @@ data Expr =
   | EBox Type                           -- box[T]
   | EUnbox Expr                         -- unbox t
   | ERev                                -- rev
+  | ELocated Expr Extent                -- e @ ex
 
 {-
   Construction of the unfier of two / a list of types

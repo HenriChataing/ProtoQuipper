@@ -1,4 +1,5 @@
-module TransSyntax where
+module TransSyntax (translate_type, translate_pattern, translate_expression,
+                    label) where
 
 import Utils
 import Localizing
@@ -200,3 +201,7 @@ translate_expression (S.EUnbox t) = do
 
 translate_expression S.ERev = do
   return ERev
+
+translate_expression (S.ELocated e ex) = do
+  e' <- translate_expression e
+  return $ ELocated e' ex

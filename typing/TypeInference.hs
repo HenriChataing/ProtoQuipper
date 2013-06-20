@@ -20,6 +20,11 @@ import qualified Data.Set as Set
 -- Build all the deriving constraints
 constraint_typing :: Expr -> Type -> State ConstraintSet
 
+-- Located things
+constraint_typing (ELocated e ex) t = do
+  set_location ex
+  constraint_typing e t
+
 -- Unit typing rule
 {-
     -----------------------------------
@@ -94,15 +99,15 @@ constraint_typing (EApp t u) b = do
   fvt <- return $ free_var t
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_by (\x -> List.elem x fvt)
+  non_fvt <- filter_bindings (\x -> List.elem x fvt)
   (lcons, fcons) <- constraint_typing t (TExp 0 (TArrow a b))
   -- Filter on the free variables of u and type u
-  Contexts.union non_fvt
-  non_fvu <- filter_by (\x -> List.elem x fvu)
+  Contexts.import_bindings non_fvt
+  non_fvu <- filter_bindings (\x -> List.elem x fvu)
   (lcons', fcons') <- constraint_typing u a
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
-  Contexts.union non_fvu
+  import_bindings non_fvu
   dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
   ann <- context_annotation
   ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
@@ -125,7 +130,8 @@ constraint_typing (EFun p e) t = do
   ann <- context_annotation
 
   -- Bind p in the current context
-  a <- bind_pattern p
+  (a, fca) <- create_pattern_type p
+  bind_pattern p a
 
   -- Type the expression e
   (lcons, fcons) <- constraint_typing e b
@@ -136,7 +142,7 @@ constraint_typing (EFun p e) t = do
                  rec
                  delete_var x) (return ()) (free_var p)
 
-  return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ ann_cons)
+  return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ ann_cons ++ fca)
 
 -- Tensor intro typing rule
 {-
@@ -153,15 +159,15 @@ constraint_typing (EPair t u) typ = do
   fvt <- return $ free_var t
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_by (\x -> List.elem x fvt)
+  non_fvt <- filter_bindings (\x -> List.elem x fvt)
   (lcons, fcons) <- constraint_typing t ta
   -- Filter on the free variables of u and type u
-  Contexts.union non_fvt
-  non_fvu <- filter_by (\x -> List.elem x fvu)
+  import_bindings non_fvt
+  non_fvu <- filter_bindings (\x -> List.elem x fvu)
   (lcons', fcons') <- constraint_typing u tb
   -- Reset the environment, and add the last constraints
     -- Need to perform : FV(t) + FV(u) (disjoint union)
-  Contexts.union non_fvu
+  import_bindings non_fvu
   dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
   ann <- context_annotation
   ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
@@ -184,20 +190,20 @@ constraint_typing (ELet p t u) typ = do
   fvt <- return $ free_var t
   fvu <- return $ free_var u
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_by (\x -> List.elem x fvt)
+  non_fvt <- filter_bindings (\x -> List.elem x fvt)
   (lcons, fcons) <- constraint_typing t a
   -- Filter on the free variables of u
-  Contexts.union non_fvt
-  non_fvu <- filter_by (\x -> List.elem x fvu)
+  import_bindings non_fvt
+  non_fvu <- filter_bindings (\x -> List.elem x fvu)
   -- Add x and y to the context
-  bind_pattern_with_type p a
+  bind_pattern p a
   -- Type u
   (lcons', fcons') <- constraint_typing u typ
   -- Clean the context
   List.foldl (\rec x -> do
                 rec
                 delete_var x) (return ()) (free_var p)
-  Contexts.union non_fvu
+  import_bindings non_fvu
   -- Generate the flag constraints for the intersection
   dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
   ann <- context_annotation
@@ -220,16 +226,16 @@ constraint_typing (EIf e f g) typ = do
   fvfg <- return $ List.union (free_var f) (free_var g)
   
   -- Filter on the free variables of e and type e
-  non_fve <- filter_by (\x -> List.elem x fve)
+  non_fve <- filter_bindings (\x -> List.elem x fve)
   (lcons, fcons) <- constraint_typing e (TExp 0 TBool)
 
   -- Filter on the free variables of f an g
-  Contexts.union non_fve
-  non_fvfg <- filter_by (\x -> List.elem x fvfg)
+  import_bindings non_fve
+  non_fvfg <- filter_bindings (\x -> List.elem x fvfg)
   -- Type f and g
   (lconsf, fconsf) <- constraint_typing f typ
   (lconsg, fconsg) <- constraint_typing g typ
-  Contexts.union non_fvfg
+  import_bindings non_fvfg
 
   -- Generate the flag constraints for the intersection
   dis_union <- return $ List.union (fve \\ fvfg) (fvfg \\ fve)

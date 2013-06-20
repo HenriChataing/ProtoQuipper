@@ -65,8 +65,6 @@ main = do
     putStrLn $ "\x1b[1;33m" ++ ">> Printing" ++ "\x1b[0m"
     putStrLn $ "\x1b[1m" ++ "Surface syntax :" ++ "\x1b[0m"
     putStrLn $ pprint (clear_location prog)
-    putStrLn $ "\x1b[1m" ++ "Core syntax :" ++ "\x1b[0m"
-    putStrLn (pprint $ snd $ (let TransSyntax.State run = translate_expression (drop_constraints $ clear_location prog)  in run TransSyntax.empty_context)) 
   else
     return ()
 

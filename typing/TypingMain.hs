@@ -8,6 +8,8 @@ import Printer
 import CoreSyntax
 import TransSyntax
 
+import Gates
+
 import Subtyping
 import Ordering
 
@@ -17,20 +19,26 @@ import TypeInference
 import Data.List as List
 import Data.Map as Map
 
+-- Import the gates into the current context
+import_gates :: [(String, S.Type)] -> State ()
+----------------------------------------------
+import_gates gates = do
+  List.foldl (\rec (s, t) -> do
+                rec
+                t' <- translate_type t
+                x <- label s
+                bind_var x t') (return ()) gates
+
 full_inference :: S.Expr -> String
 ----------------------------------
 full_inference e =
-  let TransSyntax.State run = do
-      gates <- translate_gates
-      prog <- translate_expression (drop_constraints $ clear_location e)
-      return (gates, prog)
-  in
-  let (gates, coreProg) = snd $ run $ TransSyntax.empty_context in
 
   let Contexts.State run = do
-      import_gates gates
+      import_gates $ typing_environment
+      prog <- translate_expression (drop_constraints $ clear_location e)
+
       a <- new_type
-      constraints <- constraint_typing coreProg a
+      constraints <- constraint_typing prog a
       non_composite <- break_composite constraints
 
       -- Unification
@@ -76,16 +84,14 @@ test_unification :: [(S.Type, S.Type)] -> String
 ------------------------------------------------ 
 test_unification set =
 
-  let TransSyntax.State run = do
-      translate_list set
-  in
-
-  let trans = run $ TransSyntax.empty_context in
-  let core_set = List.map (\(t, u) -> NonLinear t u) (snd trans) in
-
   let Contexts.State run = do
-      constraints <- return (core_set, [])
-      non_composite <- break_composite constraints
+      constraints <- List.foldl (\rec (t, u) -> do
+                                   r <- rec
+                                   t' <- translate_type t
+                                   u' <- translate_type u
+                                   return $ (NonLinear t' u'):r) (return []) set
+
+      non_composite <- break_composite (constraints, [])
 
       -- Unification
       init_ordering
@@ -93,13 +99,13 @@ test_unification set =
       red_constraints <- unify non_composite
       logs <- print_logs
 
-      return $ pprint constraints ++ "\n\n" ++
+      return $ pprint ((constraints, []) :: ConstraintSet) ++ "\n\n" ++
                pprint non_composite ++ "\n\n" ++
                pprint red_constraints ++ "\n\n" ++
                logs
   in
 
-  case snd $ run $ Contexts.empty_context { type_id = var_id $ fst $ trans } of
+  case snd $ run $ Contexts.empty_context of
     Ok s -> s
     Failed err -> show err
 
