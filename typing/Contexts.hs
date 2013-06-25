@@ -40,7 +40,6 @@ data Context =
     logfile :: [String],
 
     current_location :: Extent,
-    type_of :: Map.Map Variable (Expr, Extent),
 
     {- Id generation -}
 
@@ -116,7 +115,6 @@ empty_context =
     log_enabled = True,
     logfile = ["\x1b[1m" ++ ">> Log start <<" ++ "\x1b[0m"],
     current_location = extent_unknown,
-    type_of = Map.empty,
 
     name_to_var = [Map.empty],
     var_to_name = Map.empty,
@@ -143,7 +141,6 @@ empty_context =
   - print_logs : returns the logs contained in the file, and empty the log file
 
   - set_location / get_location : do as their name indicates
-  - is_type_of : record the type of an expression (more like the expression of a type)
 -}
   
 enable_logs :: State ()
@@ -174,9 +171,6 @@ set_location ex =
 
 get_location =
   State (\ctx -> (ctx, return $ current_location ctx))
-
-(is_type_of) x e =
-  State (\ctx -> (ctx { type_of = Map.insert x e $ type_of ctx }, return ()))
 
 {-
   Id generation
