@@ -44,17 +44,9 @@
 
 \begin{defn} The types of language are defined by the following grammar :
 	\begin{center}
-	\begin{tabular}{l}
-		$\texttt{Variable} ~ \alpha ~ ::= ~ \alpha$ \\
-		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U$\\
-		$\texttt{Type} ~ T, U       ~ ::= ~ A ~|~ \bang A$
-	\end{tabular}
+		$\texttt{Type} ~ T, U ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U ~|~ \bang U$
 	\end{center}
-	This grammar distinguishes between linear types and types to ban expressions doubling the $!$ annotation
-	like in $\bang \bang \alpha$. In the rest of the article, we will use the shortened grammar
-		$$\texttt{Type} ~ T, U ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T * U ~|~ \bang T$$
-	with the understanding that $\bang T$ imply $T$ be a linear type. In general, we will use the names
-	$A, B \dots$ for linear types, and $T, U \dots$ for normal types.
+	$\alpha$ is a type variable, of which we suppose having an infinite number.
 	We use the notation $FTV$ for the free type variables of a type.
 \end{defn}
 
@@ -82,7 +74,7 @@
   	\RightLabel{$(\otimes)$}
   	\BinaryInfC{$T \otimes U <: T' \otimes U'$}
   \end{prooftree}
-  under the condition that $m \le n$, with $n, m$ ranging over $\{ 0, 1 \}$.
+  under the condition that $m \le n$.
 \end{defn}
 
 \begin{lemma} \it The sub-typing relation $<:$ is reflexive, transitive.
@@ -102,7 +94,7 @@
 	\begin{prooftree}
 		\AxiomC{$! \Gamma, x : T \vdash t : U$}
 		\RightLabel{$(\lambda_2)$}
-		\UnaryInfC{$! \Gamma \vdash \lambda x.t : ~ \bang (T \multimap U)$}
+		\UnaryInfC{$! \Gamma \vdash \lambda x.t : ~ !^{n+1} (T \multimap U)$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\Gamma_1, !\Delta \vdash t : T \multimap U$}
@@ -112,17 +104,16 @@
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\Gamma_1, !\Delta \vdash t : \, !^nT$}
-		\AxiomC{$\Gamma_2, !\Delta \vdash u : \, !^mU$}
+		\AxiomC{$\Gamma_2, !\Delta \vdash u : \, !^nU$}
 		\RightLabel{$(\otimes\text{-i})$}
-		\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \, \pair{t}{u} \, : \,!^p(\,!^nT * \,!^mU)$}
+		\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \, \pair{t}{u} \, : \,!^n(T \otimes U)$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, !\Delta \vdash t : \, !^n (T * U)$}
-		\AxiomC{$\Gamma_2, !\Delta, x : T, y : U \vdash u : V$}
+		\AxiomC{$\Gamma_1, !\Delta \vdash t : \, !^n (T \otimes U)$}
+		\AxiomC{$\Gamma_2, !\Delta, x : \,!^nT, y : \,!^nU \vdash u : V$}
 		\RightLabel{$(\otimes\text{-e})$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : V$}
 	\end{prooftree}
-	Where $n, m, p$ range over $\{0, 1\}$, with the condition that $p \le n$ and $p \le m$.
 \end{defn}
 
 \subsection{Linear logic adapted to the type inference : LL'}
@@ -134,14 +125,12 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \begin{defn} The types of LL' are defined by the following grammar :
 	\begin{center}
 	\begin{tabular}{l}
-		$\texttt{Variable} ~ \alpha ~ ::= ~ \alpha$ \\
 		$\texttt{Flag} ~ m, n ::= ~ n ~|~ 0 ~|~ 1$ \\		
-		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T * U$ \\
+		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U$ \\
 		$\texttt{Type	} ~	T, U ~ ::= ~ !^n A$
 	\end{tabular}
 	\end{center}
-	The grammar separates linear types and types the same way the grammar of LL types does. Note that the grammar of the types
-	of LL' enforces that every type be preceded by a flag annotation.
+	Note that the grammar of the types of LL' forces every type to be preceded by a flag annotation.
 \end{defn}
 
 \begin{defn}
@@ -167,7 +156,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
   	\AxiomC{$T <: T'$}
   	\AxiomC{$U <: U'$}
   	\RightLabel{$(\otimes)$}
-  	\BinaryInfC{$T * U <: T' * U'$}
+  	\BinaryInfC{$T \otimes U <: T' \otimes U'$}
   \end{prooftree}
 \end{defn}
 
@@ -188,7 +177,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
  		\begin{tabular}{l}
  			$\bar{\sigma}(\alpha) = \sigma(\alpha)$ \\
  			$\bar{\sigma}(T \multimap U) = \bar{\sigma}T \multimap \bar{\sigma}U$ \\
- 			$\bar{\sigma}(T * U) = \bar{\sigma}T * \bar{\sigma}U$ \\
+ 			$\bar{\sigma}(T \otimes U) = \bar{\sigma}T \otimes \bar{\sigma}U$ \\
  			$\bar{\sigma}(!^n T) = ~ !^{\sigma(n)} \bar{\sigma}T$
  		\end{tabular}
  		\end{center}
@@ -236,10 +225,10 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		\AxiomC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L'}} u : \, !^m U$}
 		\RightLabel{$(\otimes\text{-i})$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{1 \le I, \, p \le n, \, p \le m \} }
-			\pair{t}{u}:\, !^p(\,!^nT * \, !^mU)$}
+			\pair{t}{u}:\, !^p(\,!^nT \otimes !^mU)$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^n (T * U)$}
+		\AxiomC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^n (T \otimes U)$}
 		\AxiomC{$\Gamma_2, !^I\Delta, x : T, y : U \vdash_\mathcal{L'} u : V$}
 		\RightLabel{$(\otimes\text{-e})$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{ 1 \le I \} }
@@ -249,14 +238,14 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 
 \subsection{Soundness and completeness of LL'}
 
-\begin{defn} $\tau$ is the transposition of LL types to LL'.
-	A correct definition of $\tau$ needs to distinguish between $\tau_L$ applied to
-	linear types and $\tau$ to general types :
+\begin{defn} We equip ourselves with is a transposition $\tau$ from LL types to LL'.
   \begin{center}
 	\begin{tabular}{l}
-		$\tau_L\alpha = ~ \alpha$ \\
-		$\tau_L(T \multimap U) ~ = ~ \tau T \multimap \tau U$ \\
-		$\tau_L(T * U) ~=~ \tau T * \tau U$ \\
+		$\tau \alpha ~=~ \alpha$ \\
+		$\tau(!^n (T \multimap U)) ~=~ \, !^1(\tau T \multimap \tau U)$ \\
+		$\tau(T \multimap U) ~=~ \, !^0(\tau T \multimap \tau U)$ \\
+		$\tau(!^n(T \otimes U)) ~=~ \tau T \otimes \tau U$ \\
+		$\tau(T \otimes U) ~=~ \tau T \otimes \tau U$ \\
 		$\tau(\bang A) ~ = ~ !^1 \tau_L A$ \\
 		$\tau A ~ = ~ !^0 \tau_L A$
 	\end{tabular}
