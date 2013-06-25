@@ -422,19 +422,7 @@ unify (lc, fc) = do
         -- Semi-composite constraints :
            -- Pick up a sample type, and map all variables of cx to an instance of this type
         (atomx, cset) -> do
-           {- onesided <- return $ one_sided cset
-            -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
-            cset <- if onesided then do
-                      cxh <- return $ List.head cx
-                      List.foldl (\rec x -> do
-                                      rec
-                                      mapsto x $ TVar cxh) (return ()) $ List.tail cx
-                      return $ List.map (\c -> case c of
-                                                 (TVar _, t) -> (TVar cxh, t)
-                                                 (t, TVar _) -> (t, TVar cxh)) cset
-                    else do
-                      return cset -}
-
+            
             -- If all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T
             (ischain, sorted) <- return $ chain_constraints lcx
             
@@ -473,6 +461,22 @@ unify (lc, fc) = do
 
             else do           
               new_log "UNCHAINED"
+              
+              onesided <- return $ is_one_sided cset
+              -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
+              cset <- if onesided then do
+                      new_log "ONE SIDED"
+                      cxh <- return $ List.head cx
+                      List.foldl (\rec x -> do
+                                      rec
+                                      mapsto x $ TVar cxh) (return ()) $ List.tail cx
+                      return $ List.map (\c -> case c of
+                                                 Linear (TVar _) t -> Linear (TVar cxh) t
+                                                 Linear t (TVar _) -> Linear t (TVar cxh)) cset
+                    else do
+                      return cset
+
+
               model <- return $ constraint_unifier cset
 
               new_log $ pprint model
