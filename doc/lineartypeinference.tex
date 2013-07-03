@@ -1,12 +1,12 @@
 \title{
-	Notes on type linear type inference
+	Notes on linear type inference
 }
 \author{
-        Henri Chataing
+	Henri Chataing
 }
 \date{\today}
 
-\documentclass[10pt]{article}
+\documentclass[9pt]{article}
 
 \usepackage[utf8]{inputenc}
 \usepackage{amsthm}
@@ -23,9 +23,10 @@
 \newtheorem{exmp}{Example} % same for example numbers
 \newtheorem{prop}{Proposition}[section]
 \newtheorem{lemma}{Lemma}[section]
+\newtheorem{coro}{Corollary}
 
 %% LINEAR LOGIC %%
-\def\bang{!\,}
+\def\bang{\,!\,}
 \newcommand{\pair}[2]{\langle #1, #2 \rangle}
 
 \begin{document}
@@ -39,14 +40,14 @@
 
 \begin{defn} The terms of the language are defined by the following grammar :
 	$$\texttt{Term} ~ t, u ~ ::= ~ x ~ | ~ \lambda x.t ~ | ~ t u ~|~ \pair{t}{u} ~|~ \text{let} ~ \pair{x}{y} = t ~ \text{in} ~ u  $$
-	The free variables of a term are calculated by the function $FV$, whose definition is not given.
+	The free variables of a term are given by the function $FV$.
 \end{defn}
 
 \begin{defn} The types of language are defined by the following grammar :
 	\begin{center}
 		$\texttt{Type} ~ T, U ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U ~|~ \bang U$
 	\end{center}
-	$\alpha$ is a type variable, of which we suppose having an infinite number.
+	$\alpha$ is a type variable, of which we have an infinite number.
 	We use the notation $FTV$ for the free type variables of a type.
 \end{defn}
 
@@ -55,7 +56,7 @@
 	\begin{prooftree}
   	\AxiomC{}
   	\RightLabel{$(var)$}
-  	\UnaryInfC{$!^n \alpha <: ~ !^m \alpha$}
+  	\UnaryInfC{$\alpha <: ~ \alpha$}
   \end{prooftree}
   \begin{prooftree}	
   	\AxiomC{$A <: B$}
@@ -74,7 +75,7 @@
   	\RightLabel{$(\otimes)$}
   	\BinaryInfC{$T \otimes U <: T' \otimes U'$}
   \end{prooftree}
-  under the condition that $m \le n$.
+  under the condition that $m \le n$. In the rule for $(!)$, the types $A$ and $B$ are linear (not banged)
 \end{defn}
 
 \begin{lemma} \it The sub-typing relation $<:$ is reflexive, transitive.
@@ -105,16 +106,31 @@
 	\begin{prooftree}
 		\AxiomC{$\Gamma_1, !\Delta \vdash t : \, !^nT$}
 		\AxiomC{$\Gamma_2, !\Delta \vdash u : \, !^nU$}
-		\RightLabel{$(\otimes\text{-i})$}
+		\RightLabel{$(\otimes.I)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \, \pair{t}{u} \, : \,!^n(T \otimes U)$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\Gamma_1, !\Delta \vdash t : \, !^n (T \otimes U)$}
 		\AxiomC{$\Gamma_2, !\Delta, x : \,!^nT, y : \,!^nU \vdash u : V$}
-		\RightLabel{$(\otimes\text{-e})$}
+		\RightLabel{$(\otimes.E)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : V$}
 	\end{prooftree}
 \end{defn}
+
+\begin{lemma}
+	\label{sub-judgement}
+	Let $\Gamma \vdash t : T$ be a valid typing judgement in LL. Let $\Delta$ and $U$ be such that
+	$\Delta <: \Gamma$ and $T <: U$. Then $\Delta \vdash t : U$ is a valid typing judgement as well.
+\end{lemma}
+
+\begin{coro} The following typing rule is admissible in LL
+	\begin{prooftree}
+		\AxiomC{$\Gamma \vdash t : T$}
+		\AxiomC{$T <: U$}
+		\RightLabel{(sub-typing)}
+		\BinaryInfC{$\Gamma \vdash t : U$}
+	\end{prooftree}
+\end{coro}
 
 \subsection{Linear logic adapted to the type inference : LL'}
 
@@ -131,14 +147,16 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\end{tabular}
 	\end{center}
 	Note that the grammar of the types of LL' forces every type to be preceded by a flag annotation.
+	In the rest of these notes, the names $A$, $B \dots$ we will be used to designate linear types, and
+	$T$, $U \dots$ banged types.
 \end{defn}
 
 \begin{defn}
-  The sub-typing relation $<:$ is defined as the smallest relation on LL' types satisfying the rules
+  The sub-typing relation $<:$ is defined as the smallest relation on LL' types (and linear types) satisfying the rules
   \begin{prooftree}
-  	\AxiomC{$m \le n$}
+  	\AxiomC{}
   	\RightLabel{$(var)$}
-  	\UnaryInfC{$!^n \alpha <: ~ !^m \alpha$}
+  	\UnaryInfC{$\alpha <: \alpha$}
   \end{prooftree}
   \begin{prooftree}
   	\AxiomC{$m \le n$}
@@ -166,7 +184,10 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \begin{defn} Sub-typing constraints $T <: U$ are defined over LL' types. A constraint $T <: U$ is atomic
   when $T$ and $U$ are both type variables, and composite when both are not type variables. Otherwise, the constraint is
   semi-composite. \\
-  Similarly, flag constraints $n \le m$ are defined over flag annotations.
+  Similarly, flag constraints $n \le m$ are defined over flag annotations. Though all flag constraints are written in the same
+  form, they can hold different meanings, for example $n \le 0$ is the constraint $n = 0$, $1 \le m$ is the constraint
+  $m = 1$, and $n \le m$ is the constraint $n = 1 \Rightarrow m = 1$.
+  
 \end{defn}
 
 \begin{defn} A substitution $\sigma$ is the composition of a finite list of mappings $\alpha \mapsto A$ from type variables to
@@ -178,7 +199,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
  			$\bar{\sigma}(\alpha) = \sigma(\alpha)$ \\
  			$\bar{\sigma}(T \multimap U) = \bar{\sigma}T \multimap \bar{\sigma}U$ \\
  			$\bar{\sigma}(T \otimes U) = \bar{\sigma}T \otimes \bar{\sigma}U$ \\
- 			$\bar{\sigma}(!^n T) = ~ !^{\sigma(n)} \bar{\sigma}T$
+ 			$\bar{\sigma}(!^n A) = ~ !^{\sigma(n)} \bar{\sigma}A$
  		\end{tabular}
  		\end{center}
  	The notation $|\sigma|$ is used to designate the set of mapped variables, for example
@@ -188,7 +209,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \begin{defn} We name $\mathcal{L}$ a set of constraints, which is comprised of sub-typing constraints
   and flag constraints. A constraint set can have the following properties :
   \begin{itemize}
-  	\item[]{\bf Atomicity} A set is atomic when all the constraints (typing constraints and flag constraints) forming it are atomic.
+  	\item[]{\bf Atomicity} A set is atomic when all the constraints (typing constraints) forming it are atomic.
   	\item[]{\bf Satisfiability} A set is \textit{tautological} when all the included constraints can be solved by application of one or
   		more of the sub-typing rules (typing constraints) or by transitivity (flag constraints).
   		Following, a set $\mathcal{L}$ is \textit{satisfiable} if there exists a substitution $\sigma$ such that $\sigma \mathcal{L}$
@@ -202,7 +223,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	meaning \textit{Under the condition that $\mathcal{L}$ is satisfied, the judgement $\Gamma \vdash t : T$ holds}.
 	A sequent is \textit{valid} if a typing derivation can be constructed using the typing rules of LL'.
   In the typing rules, we use the notation $!^I \Gamma$ to designate contexts of the form 
-  $!^I \Gamma = x_1 : \,!^{i_1}T_1 \dots x_n : \,!^{i_n}T_n$ and $I = \{i_1 \dots i_n\}$. \\
+  $!^I \Gamma = x_1 : \,!^{i_1}A_1 \dots x_n : \,!^{i_n}A_n$ and $I = \{i_1 \dots i_n\}$. \\
 
 	\begin{prooftree}
 		\AxiomC{}
@@ -221,61 +242,93 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{1 \le I\} } t u : U$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}} t : \, !^n T$}
-		\AxiomC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L'}} u : \, !^m U$}
-		\RightLabel{$(\otimes\text{-i})$}
+		\AxiomC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}} t : \, !^n A$}
+		\AxiomC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L'}} u : \, !^m B$}
+		\RightLabel{$(\otimes.I)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{1 \le I, \, p \le n, \, p \le m \} }
-			\pair{t}{u}:\, !^p(\,!^nT \otimes !^mU)$}
+			\pair{t}{u}:\, !^p(\,!^nA \otimes !^mB)$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^n (T \otimes U)$}
-		\AxiomC{$\Gamma_2, !^I\Delta, x : T, y : U \vdash_\mathcal{L'} u : V$}
-		\RightLabel{$(\otimes\text{-e})$}
-		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{ 1 \le I \} }
-			\, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : V$}
+		\AxiomC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^p (!^nA \otimes \,!^mB)$}
+		\AxiomC{$\Gamma_2, !^I\Delta, x : \,!^nA, y : \,!^mB \vdash_\mathcal{L'} u : V$}
+		\RightLabel{$(\otimes.E)$}
+		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L \cup L'} \cup \{ 1 \le I, p \le n, p \le m \} }
+			\, \text{let} \pair{x}{y} = t ~ \text{in} ~ u \, : V$}
 	\end{prooftree}
 \end{defn}
 
 \subsection{Soundness and completeness of LL'}
 
-\begin{defn} We equip ourselves with is a transposition $\tau$ from LL types to LL'.
+\begin{defn} We equip ourselves with is a transposition $\tau$ from LL types to LL', defined as follow :
   \begin{center}
-	\begin{tabular}{l}
-		$\tau \alpha ~=~ \alpha$ \\
-		$\tau(!^n (T \multimap U)) ~=~ \, !^1(\tau T \multimap \tau U)$ \\
-		$\tau(T \multimap U) ~=~ \, !^0(\tau T \multimap \tau U)$ \\
-		$\tau(!^n(T \otimes U)) ~=~ \tau T \otimes \tau U$ \\
-		$\tau(T \otimes U) ~=~ \tau T \otimes \tau U$ \\
-		$\tau(\bang A) ~ = ~ !^1 \tau_L A$ \\
-		$\tau A ~ = ~ !^0 \tau_L A$
+	\begin{tabular}{ll}
+	  $\tau (!^n \alpha) ~=~ !^1 \alpha$ &	$\tau \alpha ~=~ !^0 \alpha$ \\
+		$\tau(!^n (T \multimap U)) ~=~ \, !^1(\tau T \multimap \tau U)$ & 	$\tau(T \multimap U) ~=~ !^0(\tau T \multimap \tau U)$ \\
+		$\tau(!^n(T \otimes U)) ~=~ !^1 (\tau (! T) \, \otimes \, \tau(! U))$ & $\tau(T \otimes U) ~=~ !^0 (\tau T \otimes \tau U)$
 	\end{tabular}
 	\end{center}
-	The definition of $\tau$ makes it that the return value of $\tau$ is always a LL' type (not a linear type).
+	where $n > 0$.
+	The definition of $\tau$ ensures that the return value of $\tau$ is always a LL' banged type.
 \end{defn}
 
-\begin{lemma} Let $T, U$ be LL types. If $T <: U$ then $\tau T <: \tau U$.
+\begin{lemma} Let $T, U$ be LL types, the following propositions are equivalent :
+  \label{subtype-eq}
+	\begin{center}
+	\begin{tabular}{ll}
+		$(a)$ & $\tau T <: \tau U$ \\
+		$(b)$ & $\tau (\bang T) <: \tau U$ \\
+		$(c)$ & $\tau (\bang T) <: \tau (\bang U)$
+	\end{tabular}
+	\end{center}
+	
+	\begin{proof} By induction on the size of $T$ and $U$, which size is be given by the number
+		of free type variables. It can be showed that if any of the above proposition is satisfied, $T$ and $U$ must have
+		the same size.
+	\end{proof}
+\end{lemma}
+
+\begin{lemma}
+	\label{subLL=>subLL'}
+	Let $T, U$ be LL types. If $T <: U$ then $\tau T <: \tau U$.
 
 	\begin{proof}
 		By induction on the sub-typing derivation :
 		\begin{itemize}
-			\item If the rule is $(var)$. The application of $\tau$ leaves $!^n \alpha$ and $!^m \alpha$ unchanged.
-				The condition $m \le n$ being fulfilled, the application of the sub-typing rule $(var)$ of LL' yields
-				$\tau (!^n \alpha) <: \tau (!^m \alpha)$.
-				
-			\item If the rule is $(!)$. By induction on $A <: B$, we have $\tau_L A <: \tau_L B$. The condition $m \le n$
-				is satisfied, and the rule $(!)$ of LL' applied to $\tau_L A$ and $\tau_L B$ yields $!^n \tau_L A <: ~ !^m \tau_L B$.
-				Thus, by definition of $\tau$, $\tau (!^n A) <: \tau (!^m B)$.
-
+			\item If the rule is $(var)$, $T = U = \alpha$. By reflexivity of the sub-typing relation $<:$ in LL', $\tau \alpha <: \tau \alpha$.
+			
 			\item If the rule is $(\multimap)$ or $(\otimes)$. By induction on $T' <: T$ and $U <: U'$, we have $\tau T' <: \tau T$ and
 				$\tau U <: \tau U'$. Hence, by application of the rule $(\multimap)$ (resp. $(\otimes)$) of LL',
-				$\tau T \multimap \tau U <: \tau T' \multimap \tau U$ (resp. $\tau T * \tau U <: \tau T' * \tau U$).
+				$\tau T \multimap \tau U <: \tau T' \multimap \tau U$ (resp. $\tau T \otimes \tau U <: \tau T' \otimes \tau U$).			
 				
+			\item If the rule is $(!)$. If $A$ and $B$ are both type variables, or linear implications, the induction is easily proved.
+				However, it is not the case with $A = T_A \otimes U_A$, and $B = T_B \otimes U_B$.
+				The induction hypothesis, and the rule $(\otimes)$ of LL' give the relations $\tau T_A <: \tau T_B$ and $\tau U_A <: \tau U_B$.
+				
+				Depending on the respective value of $n, m$, three cases present themselves.
+				The first case, with $n = m = 0$, can be eliminated as being trivial.
+				If $n > 0$ and $m = 0$,
+					\begin{center}
+					\begin{tabular}{c}
+					$\tau (!^n A) = ~ !^1 (\tau (\bang T_A) \otimes \tau (\bang U_A))$ \\
+					$\tau (!^m B) = ~ !^0 (\tau T_B \otimes \tau U_B)$					
+					\end{tabular}
+					\end{center}
+				From the lemma \ref{subtype-eq} and the induction hypothesis, it follows that $\tau (\bang T_A) <: \tau T_B$ and
+				$\tau (\bang U_A) <: \tau U_B$. Thence, by application of the rule $(\otimes)$ of LL',
+					$$ \tau (\bang T_A) \otimes \tau (\bang U_A) ~ <: ~ \tau T_B \otimes U_B$$
+				Consequently, by application of the rule $(!)$,
+					$$ !^1 (\tau (\bang T_A) \otimes \tau (\bang U_A)) ~ <: ~ !^0 (\tau T_B \otimes U_B)$$
+				which is the same as $\tau (!^nA) <: \tau (!^mB)$.
+				The last case, where $n, m > 0$, is proved using the same method.
+
 		\end{itemize}
 	\end{proof}
 \end{lemma}
 	
-\begin{prop} Let $t$ be a term, and $\Pi$ a typing derivation of the typing judgement
-	$\Gamma \vdash t : T$ is valid :
+\begin{prop}
+	\label{LL=>LL'}
+	Let $t$ be a term, and $\Pi$ a typing derivation of the typing judgement
+	$\Gamma \vdash t : T$ :
 	\begin{prooftree}
 		\AxiomC{$\Pi$}
 		\UnaryInfC{$\Gamma \vdash t : T$}
@@ -302,7 +355,6 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 						\UnaryInfC{$!^I \tau\Delta, x : \tau T \vdash x : \tau U$}
 					\end{prooftree}
 					with $I = 1 \dots 1$.
-					
 					Using the constraint set $\mathcal{L} = \{ \tau T <: \tau U \} \cup \{ 1 \le I \}$,
 					the typing derivation becomes valid in LL'. We now need to show that $\mathcal{L}$ is satisfied.
 					Since $T <: U$, by application of the lemma, the sub-typing constraint $\tau T <: \tau U$ is satisfied.
@@ -310,20 +362,16 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					
 				\item{$(\lambda_1)$} The typing derivation
 					\begin{prooftree}
-						\AxiomC{$\Pi$}
-						\noLine
-						\UnaryInfC{$\vdots$}
-						\noLine
+						\AxiomC{$\Pi$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
 						\UnaryInfC{$\Gamma, x : T \vdash t : U$}
 						\RightLabel{$(\lambda_1)$}
 						\UnaryInfC{$\Gamma \vdash \lambda x.t : T \multimap U$}
 					\end{prooftree}
 					is transformed by application of $\tau$ into
 					\begin{prooftree}
-						\AxiomC{$\tau\Pi$}
-						\noLine
-						\UnaryInfC{$\vdots$}
-						\noLine
+						\AxiomC{$\tau\Pi$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
 						\UnaryInfC{$!^I \tau\Gamma, x : \tau T \vdash t : \tau U$}
 						\RightLabel{$(\lambda_1)$}
 						\UnaryInfC{$!^I \tau \Gamma \vdash \lambda x.t : ~ !^0(\tau T \multimap \tau U)$}
@@ -364,15 +412,11 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					
 				\item{$(app)$} The typing derivation
 					\begin{prooftree}
-						\AxiomC{$\Pi_1$}
-						\noLine
-						\UnaryInfC{$\vdots$}
-						\noLine
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
 						\UnaryInfC{$\Gamma_1, !\Delta \vdash t : T \multimap U$}
-						\AxiomC{$\Pi_2$}
-						\noLine
-						\UnaryInfC{$\vdots$}
-						\noLine
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
 						\UnaryInfC{$\Gamma_2, !\Delta \vdash u : T$}
 						\RightLabel{$(app)$}
 						\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash t u : U$}
@@ -396,26 +440,121 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					Using the constraint set $\mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I \}$, by application of the typing rule $(app)$ of LL',
 					the typing judgement $\tau\Gamma_1, \tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L''} t u : \tau U$ is valid.
 					Now, since $I = 1 \dots 1$, all the constraints in $\{ 1 \le I \}$ are satisfied.
+					
+				\item{$(\otimes.I)$} The typing derivation
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_1, !\Delta \vdash t :\, !^nT$}
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_2, !\Delta \vdash u :\, !^nU$}
+						\RightLabel{$(\otimes.I)$}
+						\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \pair{t}{u} : \, !^n(T \otimes U)$}
+					\end{prooftree}
+					Two cases now may occur, whether $n$ is zero or not.
+					If $n = 0$, then the derivation is transformed by application of $\tau$ into
+					\begin{prooftree}
+						\AxiomC{$\tau\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_1, !^I\tau\Delta \vdash t : \tau T$}
+						\AxiomC{$\tau\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_2, !^I\tau\Delta \vdash u : \tau U$}
+						\RightLabel{$(\otimes.I)$}
+						\BinaryInfC{$\tau\Gamma_1, \tau\Gamma_2, !^I\tau\Delta \vdash \pair{t}{u} : \, !^0 (\tau T \otimes \tau U))$}
+					\end{prooftree}
+					with $I = 1 \dots 1$.
+					The induction hypothesis applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
+					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$ such that
+					$\tau\Gamma_1, !^I \tau\Delta \vdash_\mathcal{L} t : \tau T$ and
+					$\tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L'} u : \tau U$ are valid. Let us write $\tau T = \, !^p T'$ and
+					$\tau U = \, !^q U'$. Using the constraint set
+						$$ \mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I, 0 \le p, 0 \le q \}$$
+					by application of the typing rule $(\otimes.I)$ of LL', the typing judgement
+					$\tau\Gamma_1, \tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L''} t u : \tau U$ is valid.
+					The constraints of $\mathcal{L''}$ are all satisfied.
+					
+					
+					If $n > 0$, then the derivation is transformed by application of $\tau$ into
+					\begin{prooftree}
+						\AxiomC{$\tau\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_1, !^I\tau\Delta \vdash t : \tau (!^nT)$}
+						\AxiomC{$\tau\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_2, !^I\tau\Delta \vdash u : \tau (!^nU)$}
+						\RightLabel{$(\otimes.I)$}
+						\BinaryInfC{$\tau\Gamma_1, \tau\Gamma_2, !^I\tau\Delta \vdash \pair{t}{u} : \, !^1 (\tau (\bang T) \otimes \tau (\bang U))$}
+					\end{prooftree}
+					with $I = 1 \dots 1$.
+					The application of $\tau$ to $\bang T$ and $\bang U$ will yield $!^1 T'$ and $!^1 U'$. The induction
+					hypothesis applied applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
+					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$. Using the constraint set
+						$$ \mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I, 1 \le 1, 1 \le 1 \}$$
+					by application of the typing rule $(\otimes.I)$ of LL', the typing judgement
+					$\tau\Gamma_1, \tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L''} t u : \tau U$ is valid, and all the constraints of
+					$\mathcal{L''}$ are satisfied.
+					
+				\item{$(\otimes.E)$} The typing derivation
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_1, !\Delta \vdash t : \, !^n(T \otimes U)$}
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_2, !\Delta, x : \, !^nT, y : \, !^nU \vdash u : V$}
+						\RightLabel{$(\otimes.E)$}
+						\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \text{let} ~\pair{x}{y} = t ~\text{in}~ u : V$}
+					\end{prooftree}
+					is transformed by application of $\tau$ into
+					\begin{center}
+					\footnotesize
+					\begin{prooftree}
+						\AxiomC{$\tau\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_1, !^I\tau\Delta \vdash t : \,!^p (\tau (!^nT) \otimes \tau (!^nU))$}
+						\AxiomC{$\tau\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\tau\Gamma_2, !^I\tau\Delta, x : \, \tau(!^nT), y : \, \tau(!^nU) \vdash u : \tau V$}
+						\RightLabel{$(\otimes.E)$}
+						\BinaryInfC{$\tau\Gamma_1, \tau\Gamma_2, !^I\tau\Delta \vdash \text{let} ~\pair{x}{y} = t ~\text{in}~ u : \tau V$}
+					\end{prooftree}
+					\end{center}
+					with $I = 1 \dots 1$, and $p = 1$ if $n > 0$ and else $0$.
+					The induction hypothesis applied applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
+					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$, such that the typing judgements
+  					 $$\tau\Gamma_1, !^I \tau\Delta \vdash_\mathcal{L} t : \,!^p (\tau (!^nT) \otimes \tau (!^nU))$$
+	  				 $$\tau\Gamma_2, !^I \tau\Delta, x : \, \tau(!^nT), y : \, \tau(!^nU) \vdash_\mathcal{L'} u : \tau V$$
+					are valid. Supposing $\tau (!^n T) = \, !^{n'}T'$ and $\tau (!^n U) = \,!^{m'}U'$, using the constraint set
+						$$ \mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I, p \le m', p \le n' \}$$
+					by application of the typing rule $(\otimes.E)$ of LL', the typing judgement
+					$\tau\Gamma_1, \tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L''} \text{let} ~\pair{x}{y} = t ~\text{in}~ u : \tau V$
+				  is valid, and all the constraints of $\mathcal{L''}$ are satisfied.
+					
 			\end{itemize}	
 	\end{proof}
 \end{prop}
 
-\begin{defn} Let $\sigma$ be a substitution, $\tau_\sigma$ is a transposition of LL types to LL', parametrized by $\sigma$.
-	A correct definition of $\tau_\sigma$ needs to distinguish between $\tau_{\sigma L}$ applied to
-	linear types and $\tau$ to general types :
+\begin{defn} Again we define a transposition $\rho$ from LL' types to LL.
+	In the definition, it is assumed that all the annotation flags are $0$ or $1$.
   \begin{center}
-	\begin{tabular}{l}
-		$\tau_{\sigma L} \alpha = ~ \sigma (\alpha)$ \\
-		$\tau_{\sigma L}(T \multimap U) ~ = ~ \tau_\sigma T \multimap \tau_\sigma U$ \\
-		$\tau_\sigma (!^n A) ~ = ~ \text{if} ~ \sigma(n) = 0 ~ \text{then} ~
-			\tau_{\sigma L} A ~ \text{else} ~
-			\bang \tau_{\sigma L} A $
+	\begin{tabular}{ll}
+		$\rho (!^0 \alpha) = \alpha $ & $\rho (!^1 \alpha) = \bang \alpha$ \\
+		$\rho (!^0 (T \multimap U)) ~=~ \rho T \multimap \rho U$ & $\rho (!^1(T \multimap U)) ~=~ \bang (\rho T \multimap \rho U)$ \\
+		$\rho (!^0 (T \otimes U)) ~=~ \rho T \otimes \rho U$ & $\rho (!^1(T \otimes U)) ~=~ \bang (\rho T \otimes \rho U)$ 
 	\end{tabular}
 	\end{center}
-	This definition respects the non-doubling property we included in the grammar of LL types.
 \end{defn}
 
-\begin{prop} Let $t$ be a term, $\mathcal{L}$ a satisfiable set of constraints and $\Pi$ a typing derivation of the typing judgement
+\begin{lemma}
+	\label{subLL'=>subLL}
+	Let $T$ and $U$ be LL' types. If $T <: U$, then $\rho T <: \rho U$.
+\end{lemma}
+
+\begin{prop}
+	\label{LL'=>LL}
+	Let $t$ be a term, $\mathcal{L}$ a satisfiable set of constraints and $\Pi$ a typing derivation of the typing judgement
 	$\Gamma \vdash_\mathcal{L} t : T$ is valid :
 	\begin{prooftree}
 		\AxiomC{$\Pi$}
@@ -423,28 +562,30 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\end{prooftree}
 	Then for every substitution $\sigma$ solution of $\mathcal{L}$, the following typing derivation holds :
 	\begin{prooftree}
-		\AxiomC{$\tau_\sigma\Pi$}
-		\UnaryInfC{$\tau_\sigma\Gamma \vdash t : \tau_\sigma T$}
+		\AxiomC{$(\rho \circ \sigma) \Pi$}
+		\UnaryInfC{$(\rho \circ \sigma) \Gamma \vdash t : (\rho \circ \sigma) T$}
 	\end{prooftree}
 	
 	\begin{proof}
-		Let $\sigma$ be such a substitution. By induction on the typing derivation : if the last typing rule used is
+		The proposition is proved by induction on the typing derivation. In all the cases, $\sigma$ is any substitution solution
+		of the constraint set of the conclusion sequent. The notation $\rho_\sigma$ will be used as a shortcut for $\rho \circ \sigma$.
+		If the last typing rule used is
 			\begin{itemize}
 				\item{$(ax)$} The typing derivation is
 					\begin{prooftree}
-						\AxiomC{$T <: U$}
+						\AxiomC{}
 						\RightLabel{$(ax)$}
 						\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U$}
 					\end{prooftree}
-					with $\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$.
-					By hypothesis, $\sigma$ satisfies $\mathcal{L}$. We have in particular : $\tau_\sigma T <: \tau_\sigma U$ and
-					$\sigma I = 1 \dots 1$. Consequently, by application of $\tau_\sigma$, the above typing derivation is transformed into :
+					with $\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. By hypothesis, $\sigma T <: \sigma U$ is satisfied, and $\sigma I = 1 \dots 1$.
+					Moreover, the lemma \ref{subLL'=>subLL} ensures that $\rho_\sigma T <: \rho_\sigma U$.
+					Consequently, by application of $\rho_\sigma$, the above typing derivation is transformed into :
 					\begin{prooftree}
-						\AxiomC{$\tau_\sigma T <: \tau_\sigma U$}
+						\AxiomC{$\rho_\sigma T <: \rho_\sigma U$}
 						\RightLabel{$(ax)$}
-						\UnaryInfC{$! \tau_\sigma\Delta, x : \tau_\sigma T \vdash x : \tau_\sigma U$}
+						\UnaryInfC{$! \rho_\sigma \Delta, x : \rho_\sigma T \vdash x : \rho_\sigma U$}
 					\end{prooftree}
-					Since the constraint $\tau_\sigma T <: \tau_\sigma U$ is satisfied, the typing derivation is valid in LL.
+					Since the constraint $\rho_\sigma T <: \rho_\sigma U$ is satisfied, the typing derivation is valid in LL.
 					
 				\item{$(\lambda)$} The typing derivation is
 					\begin{prooftree}
@@ -456,31 +597,31 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					\end{prooftree}
 					with $\mathcal{L'} = \mathcal{L} \cup \{ n \le I \}$. \\
 					$\sigma$ being a solution to $\mathcal{L'}$, is also a solution to $\mathcal{L}$.
-					The induction hypothesis is applicable, and $\tau_\sigma \Gamma, x : \tau_\sigma T \vdash t : \tau_\sigma U$ is a valid
+					The induction hypothesis is applicable, and $\rho_\sigma \Gamma, x : \rho_\sigma T \vdash t : \rho_\sigma U$ is a valid
 					typing judgement in LL. \\
 					The term $\sigma(n)$ can have the value $0$ or $1$ :\\
 						\begin{itemize}
 							\item If the value is $0$, then we can apply the typing rule $(\lambda_1)$, and
 								\begin{prooftree}
-									\AxiomC{$\tau_\sigma\Pi$}
+									\AxiomC{$\rho_\sigma\Pi$}
 									\noLine
 									\UnaryInfC{$\vdots$}
 									\noLine
-									\UnaryInfC{$\tau_\sigma\Gamma, x : \tau_\sigma T \vdash t : \tau_\sigma U$}
+									\UnaryInfC{$\rho_\sigma\Gamma, x : \rho_\sigma T \vdash t : \rho_\sigma U$}
 									\RightLabel{$(\lambda_1)$}
-									\UnaryInfC{$\tau_\sigma \Gamma \vdash \lambda x.t : ~ \tau_\sigma T \multimap \tau_\sigma U$}
+									\UnaryInfC{$\rho_\sigma \Gamma \vdash \lambda x.t : ~ \rho_\sigma T \multimap \rho_\sigma U$}
 								\end{prooftree}
 								is a valid typing derivation in LL.
-							\item If the value is $1$, since $\sigma$ satisfies $\mathcal{L'}$, and in
-								particular $\{ 1 \le I \}$, $\sigma I = 1 \dots 1$. Then we can apply the typing rule $(\lambda_2)$, and
+							\item If the value is $1$, since $\sigma$ satisfies $\mathcal{L'}$, and especially $\{ 1 \le I \}$,
+							$\sigma I = 1 \dots 1$. Then we can apply the typing rule $(\lambda_2)$, and
 								\begin{prooftree}
-									\AxiomC{$\tau_\sigma\Pi$}
+									\AxiomC{$\rho_\sigma\Pi$}
 									\noLine
 									\UnaryInfC{$\vdots$}
 									\noLine
-									\UnaryInfC{$!\tau_\sigma\Gamma, x : \tau_\sigma T \vdash t : \tau_\sigma U$}
+									\UnaryInfC{$!\rho_\sigma\Gamma, x : \rho_\sigma T \vdash t : \rho_\sigma U$}
 									\RightLabel{$(\lambda_1)$}
-									\UnaryInfC{$!\tau_\sigma \Gamma \vdash \lambda x.t : ~ \bang (\tau_\sigma T \multimap \tau_\sigma U)$}
+									\UnaryInfC{$!\rho_\sigma \Gamma \vdash \lambda x.t : ~ \bang (\rho_\sigma T \multimap \rho_\sigma U)$}
 								\end{prooftree}
 								is a valid typing derivation in LL.
 						\end{itemize}
@@ -501,29 +642,152 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					and $\sigma I = 1 \dots 1$.
 					
 					By induction on $\Pi_1$ and $\Pi_2$, both typing judgements
-						$$\tau_\sigma \Gamma_1, !\tau_\sigma \Delta \vdash t : \tau_\sigma T \multimap \tau_\sigma U$$
+						$$\rho_\sigma \Gamma_1, !\rho_\sigma \Delta \vdash t : \rho_\sigma T \multimap \rho_\sigma U$$
 					and
-						$$\tau_\sigma \Gamma_2, !\tau_\sigma \Delta \vdash u : \tau_\sigma T$$
+						$$\rho_\sigma \Gamma_2, !\rho_\sigma \Delta \vdash u : \rho_\sigma T$$
 					are valid in LL.
 					Thus, by application of the typing rule $(app)$ of LL we get that
 						\begin{prooftree}
-							\AxiomC{$\tau_\sigma\Pi_1$} \noLine
+							\AxiomC{$\rho_\sigma\Pi_1$} \noLine
 							\UnaryInfC{$\vdots$} \noLine
-							\UnaryInfC{$\tau_\sigma\Gamma_1, !\tau_\sigma\Delta \vdash t : \tau_\sigma T \multimap \tau_\sigma U$}
-							\AxiomC{$\tau_\sigma\Pi_2$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_1, !\rho_\sigma\Delta \vdash t : \rho_\sigma T \multimap \rho_\sigma U$}
+							\AxiomC{$\rho_\sigma\Pi_2$} \noLine
 							\UnaryInfC{$\vdots$} \noLine
-							\UnaryInfC{$\tau_\sigma\Gamma_2, !\tau_\sigma\Delta \vdash u : \tau_\sigma T$}
+							\UnaryInfC{$\rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash u : \rho_\sigma T$}
 							\RightLabel{$(app)$}
-							\BinaryInfC{$\tau_\sigma\Gamma_1, \tau_\sigma\Gamma_2, !\tau_\sigma\Delta \vdash t u : \tau_\sigma U$}
+							\BinaryInfC{$\rho_\sigma\Gamma_1, \rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash t u : \rho_\sigma U$}
 						\end{prooftree}
 					is a valid typing derivation in LL.
+					
+				\item{$(\otimes.I)$} The typing derivation is
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^nA$}
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_2, !^I\Delta \vdash_\mathcal{L'} u : \, !^mB$}
+						\RightLabel{$(\otimes.I)$}
+						\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_\mathcal{L''} \pair{t}{u} : \, !^p(!^n A \otimes !^m B)$}
+					\end{prooftree}
+					with $\mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I \} \cup \{ p \le n, p \le m \}$. \\
+					Since $\sigma$ is a solution to $\mathcal{L''}$, it is also a solution to $\mathcal{L}$ and $\mathcal{L'}$,
+					and verifies $\sigma I = 1 \dots 1$, $\sigma(p) \le \sigma(n)$, $\sigma(p) \le \sigma(m)$.
+					
+					By induction on $\Pi_1$ and $\Pi_2$, both typing judgements
+						$$\rho_\sigma \Gamma_1, !\rho_\sigma \Delta \vdash t : \rho_\sigma(!^n A)$$
+						$$\rho_\sigma \Gamma_2, !\rho_\sigma \Delta \vdash u : \rho_\sigma(!^m B)$$
+					are valid in LL.
+					Depending on the value of $\sigma (p)$ : \\
+					If $\sigma (p) = 1$, then due to the constraints $\sigma (n) = \sigma(m) = 1$ as well.
+					By definition of $\rho$, $\rho_\sigma (!^nT) = \,\bang \rho_\sigma T$, $\rho_\sigma(!^mU) = \, \bang \rho_\sigma U$ and
+						$$\rho_\sigma (!^p(!^n T \otimes !^m U)) = \,\bang (\bang \rho_\sigma T \otimes \,\bang \rho_\sigma U)$$
+					Thus, by application of the typing rule $(\otimes.I)$ of LL we get that
+						\begin{prooftree}
+							\AxiomC{$\rho_\sigma\Pi_1$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_1, !\rho_\sigma\Delta \vdash t : \,\bang\bang \rho_\sigma T$}
+							\AxiomC{$\rho_\sigma\Pi_2$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash u : \,\bang\bang \rho_\sigma U$}
+							\RightLabel{$(app)$}
+							\BinaryInfC{$\rho_\sigma\Gamma_1, \rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash
+								\pair{t}{u} : \,\bang (\bang \rho_\sigma T \otimes \,\bang \rho_\sigma U)$}
+						\end{prooftree}
+					is a valid typing derivation in LL (on the condition that there exists an isomorphism $\bang\bang T \equiv \bang T$).
+					If $\sigma (p) = 0$, no condition restricts $\sigma (n)$ and $\sigma(m)$.
+					By application of the typing rule $(\otimes.I)$ of LL we get that
+						\begin{prooftree}
+							\AxiomC{$\rho_\sigma\Pi_1$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_1, !\rho_\sigma\Delta \vdash t : \rho_\sigma (!^nT)$}
+							\AxiomC{$\rho_\sigma\Pi_2$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash u : \rho_\sigma (!^mU)$}
+							\RightLabel{$(app)$}
+							\BinaryInfC{$\rho_\sigma\Gamma_1, \rho_\sigma\Gamma_2, !\rho_\sigma\Delta \vdash
+								\pair{t}{u} : \rho_\sigma (!^nT) \otimes \rho_\sigma (!^mU)$}
+						\end{prooftree}
+					is a valid typing derivation in LL.
+					
+				\item{$(\otimes.E)$} The typing derivation
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_1, !^I\Delta \vdash_\mathcal{L} t : \, !^p(!^nT \otimes !^mU)$}
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\vdots$} \noLine
+						\UnaryInfC{$\Gamma_2, !^I\Delta, x : \, !^nT, y : \, !^mU \vdash_\mathcal{L'} u : V$}
+						\RightLabel{$(\otimes.E)$}
+						\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_\mathcal{L''} \text{let} ~\pair{x}{y} = t ~\text{in}~ u : V$}
+					\end{prooftree}
+					with $\mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I, p \le n, p \le m \}$.
+					$\sigma$ being a solution of $\mathcal{L''}$ satisfies $\mathcal{L}$ and $\mathcal{L'}$ as well, and $\sigma I = 1 \dots 1$.
+					The induction hypothesis applied to $\Pi_1$ and $\Pi_2$ assures that the typing judgements
+						\begin{center}
+						\begin{tabular}{c}
+							$\rho_\sigma \Gamma_1, \,\bang \rho_\sigma \Delta \vdash t : \rho_\sigma (!^p(!^nT \otimes !^mU))$ \\
+							$\rho_\sigma \Gamma_2, \,\bang \rho_\sigma \Delta, x : \rho_\sigma (!^nT), y : \rho_\sigma(!^mU)
+								 \vdash u : \rho_\sigma V$
+						\end{tabular}
+						\end{center}				
+					are valid in LL.
+					If $\sigma (p) = 1$, then
+						\begin{center}
+						\begin{tabular}{l}
+							$\rho_\sigma (!^nT) = \,\bang \rho_\sigma T$ \\
+							$\rho_\sigma (!^mU) = \,\bang \rho_\sigma U$ \\
+							$\rho_\sigma (!^p(!^nT \otimes !^mU)) = \,\bang (\bang \rho_\sigma T \otimes \,\bang \rho_\sigma U)$
+						\end{tabular}
+						\end{center}
+					The typing rule $(\otimes.E)$ of LL can be applied to $\rho_\sigma \Pi_1$ and $\rho_\sigma \Pi_2$, yielding the
+					derivation
+						\begin{center}
+						\footnotesize
+						\begin{prooftree}
+							\AxiomC{$\rho_\sigma \Pi_1$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma \Gamma_1, \bang\rho_\sigma \Delta \vdash t : \bang(\bang \rho_\sigma T \otimes \bang \rho_\sigma U)$}
+							\AxiomC{$\rho_\sigma \Pi_2$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_2, !\rho_\sigma\Delta, x : \bang\bang \rho_\sigma T, y : \bang\bang \rho_\sigma U \vdash
+								u : \rho_\sigma V$}
+							\RightLabel{$(\otimes.E)$}
+							\BinaryInfC{$\rho_\sigma \Gamma_1, \rho_\sigma \Gamma_2, ! \rho_\sigma \Delta \vdash
+								\text{let} ~\pair{x}{y} = t ~\text{in}~ u : \rho_\sigma V$}
+						\end{prooftree}
+						\end{center}
+					provided that $\bang \bang T \equiv \bang T$.
+					If $\sigma (p) = 0$, then the following derivation is valid
+						\begin{center}
+						\footnotesize
+						\begin{prooftree}
+							\AxiomC{$\rho_\sigma \Pi_1$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma \Gamma_1, \bang\rho_\sigma \Delta \vdash t : \rho_\sigma (!^nT) \otimes \rho_\sigma (!^mU)$}
+							\AxiomC{$\rho_\sigma \Pi_2$} \noLine
+							\UnaryInfC{$\vdots$} \noLine
+							\UnaryInfC{$\rho_\sigma\Gamma_2, !\rho_\sigma\Delta, x : \rho_\sigma (!^nT), y : \rho_\sigma (!^mU) \vdash
+								u : \rho_\sigma V$}
+							\RightLabel{$(\otimes.E)$}
+							\BinaryInfC{$\rho_\sigma \Gamma_1, \rho_\sigma \Gamma_2, ! \rho_\sigma \Delta \vdash
+								\text{let} ~\pair{x}{y} = t ~\text{in}~ u : \rho_\sigma V$}
+						\end{prooftree}
+						\end{center}
+					In any case, the typing judgement
+						$$ \rho_\sigma \Gamma_1, \rho_\sigma \Gamma_2, ! \rho_\sigma \Delta \vdash
+								\text{let} ~\pair{x}{y} = t ~\text{in}~ u : \rho_\sigma V $$
+					has a valid typing derivation in LL.
+					
 			\end{itemize}
 	\end{proof}
 \end{prop}
 	
-\begin{thm}{\bf Soundness and completeness} \it Let $t$ be a term, and $\Gamma$ a typing context in LL. $t$ can be typed
+\begin{thm}{\bf Soundness and completeness}
+	\label{soundness}
+ 	\it Let $t$ be a term, and $\Gamma$ a typing context in LL. $t$ can be typed
 	in the context $\Gamma$ in LL if and 	only if $t$ that can be typed in the context $\tau\Gamma$ in LL'.
-	\begin{proof} By application of the propositions.
+	\begin{proof} By application of the propositions \ref{LL=>LL'} and \ref{LL'=>LL}.
 	\end{proof}
 \end{thm}	
 	
@@ -538,6 +802,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	  $$x_1 : T_1 \dots x_n : T_n ~ \vdash_{\mathcal{L}} ~ M : T$$
 	is valid. The algorithm never fails to provide such set, the unification algorithm will tell if this
 	set is satisfiable, and so if the term can be typed.
+	The notation $\Gamma|_t$ is used to represent $\Gamma|_{FV(t)}$.
 	
 	The algorithm proceeds as follow :
 	\begin{itemize}
@@ -545,20 +810,42 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		  \begin{tabular}{l}
 				output $\{ T <: U \} \cup \{ 1 \le I \}$
 		  \end{tabular}
+		  
 		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash t u : T ~) = $ \\
 			\begin{tabular}{l}
 				let $\alpha$ be a fresh type variable, and $n$ a fresh flag \\
-				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ (~ \Gamma|_{FV(t)} \vdash t : \, !^n\alpha \multimap T ~)$ \\
-				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_{FV(u)} \vdash u : \, !^n\alpha ~)$ \\
+				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ (~ \Gamma|_t \vdash t : \, !^n\alpha \multimap T ~)$ \\
+				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_u \vdash u : \, !^n\alpha ~)$ \\
 				let $!^I\Delta = \Gamma ~ \backslash ~ (FV(t) \oplus FV(u))$ \\
 				output $\mathcal{L \cup L'} \cup \{ 1 \le I \}$
 			\end{tabular}
+			
 		\item $\text{ConstraintTyping} ~ (~ !^I \Gamma \vdash \lambda x.t : T ~) = $ \\
 			\begin{tabular}{l}
 				let $\alpha$ and $\beta$ be fresh type variables \\
 				let $n$, $m$ and $p$ be fresh flags \\
 				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ ( \, !^I \Gamma, ~ x : \, !^m \alpha \vdash  t : \, !^n\beta)$ \\
 				output $\mathcal{L} \cup \{ p \le I \} \cup \{ \, !^p (!^m \alpha \multimap \, !^n \beta) <: T\}$
+			\end{tabular}
+			
+		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash \pair{t}{u} : T ~) = $ \\
+			\begin{tabular}{l}
+				let $\alpha$ and $\beta$ be fresh type variables \\
+				let $n$, $m$ and $p$ be fresh flags \\
+				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ ( \, \Gamma|_t \vdash t : \, !^n\alpha)$ \\
+				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( \, \Gamma|_u \vdash u : \, !^m\beta)$ \\
+				let $!^I\Delta = \Gamma ~ \backslash ~ (FV(t) \oplus FV(u))$ \\
+				output $\mathcal{L \cup L'} \cup \{ 1 \le I, p \le n, p \le m \} \cup \{ \, !^p (!^n \alpha \otimes \, !^m \beta) <: T\}$
+			\end{tabular}
+			
+		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash ~\text{let}~ \pair{x}{y} = t ~\text{in}~ u : T ~) = $ \\
+			\begin{tabular}{l}
+				let $\alpha$ and $\beta$ be fresh type variables \\
+				let $n$, $m$ and $p$ be fresh flags \\
+				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ ( \, \Gamma|_t \vdash t : \, !^p(!^n \alpha \otimes !^m \beta)$ \\
+				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( \, \Gamma|_u, x : \,!^n \alpha, y : \,!^m \beta \vdash u : T)$ \\
+				let $!^I\Delta = \Gamma ~ \backslash ~ (FV(t) \oplus FV(u))$ \\
+				output $\mathcal{L \cup L'} \cup \{ 1 \le I, p \le n, p \le m \}$
 			\end{tabular}
 	\end{itemize}
 	
@@ -568,17 +855,18 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\label{tau-context}
 	Let $\sigma$ be a substitution. If the output of the constraint typing algorithm applied to $\Gamma \vdash t : T$ is $\mathcal{L}$,
 	and the same applied to $\sigma \Gamma \vdash t : \sigma T$ is $\mathcal{L'}$,
-	then $\mathcal{L'} = \sigma \mathcal{L}$.
+	then $\mathcal{L'} = \sigma \mathcal{L}$ up to the renaming of the fresh variables introduced in the construction of $\mathcal{L}$ and
+	$\mathcal{L'}$. If we suppose that the variable generation is deterministic, then $\mathcal{L'} = \sigma \mathcal{L}$.
 	
 	\begin{proof}
-		By induction on the typing derivation.
+		By induction on the function calls to ContraintTyping (induction on the term $t$).
 	\end{proof}
 \end{lemma}
 
 \begin{lemma}
 	\label{red-context}
 	Let $\mathcal{L}$ and $\mathcal{L'}$ be the output of the constraint typing algorithm applied respectively to
-	$\Gamma \vdash t : T$ and $\Gamma |_{FV(t)} \vdash t : T$. Then, supposing that $\Gamma = \Gamma |_{FV(t)}, !^I \Delta$,
+	$\Gamma \vdash t : T$ and $\Gamma |_t \vdash t : T$. Then, supposing that $\Gamma = \Gamma |_t, !^I \Delta$,
 	the following is true :
 		$$ \mathcal{L} = \mathcal{L'} \cup \{ 1 \le I \} $$
 		
@@ -593,14 +881,15 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	Then there exists a substitution $\sigma$ such that
 		\begin{center}
 		\begin{tabular}{l}
-			$| \sigma | \cap (FTV(\Gamma) \cup FTV(T)) = \varnothing$ \\
+			$| \sigma |$ is composed of variables freshly generated \\
 			$\mathcal{L} \vdash \sigma \mathcal{L'}$.
 		\end{tabular}
 		\end{center}
 		
-	\begin{proof} By induction on the typing derivation. If the last typing rule used is
+	\begin{proof} By induction on the typing derivation. Since the typing system is deterministic, as well as the constraint
+		typing algorithm, the typing derivation matches the calls to ConstraintTyping. If the last typing rule used is
 		\begin{itemize}
-			\item $(ax)$. The typing derivation is
+			\item $(ax)$. The typing rule is
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(ax)$}
@@ -609,11 +898,9 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				with $\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. The output of the constraint typing algorithm is exactly the
 				set $\mathcal{L}$, and $\mathcal{L} \vdash \mathcal{L}$ trivially holds.
 				
-			\item $(\lambda)$. The typing derivation is
+			\item $(\lambda)$. The typing rule is
 				\begin{prooftree}
-						\AxiomC{$\Pi$} \noLine
-						\UnaryInfC{$\vdots$} \noLine
-						\UnaryInfC{$!^I \Gamma, x : T \vdash_\mathcal{L} t : U$}
+						\AxiomC{$!^I \Gamma, x : T \vdash_\mathcal{L} t : U$}
 						\RightLabel{$(\lambda)$}
 						\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L} \cup \{ n \le I \}} \lambda x.t : ~ !^n(T \multimap U)$}
 					\end{prooftree}
@@ -622,28 +909,20 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					$$\mathcal{L''} = \mathcal{L'} \cup \{p \le I \} \cup \{\, !^p (\,!^q\alpha \multimap \,!^r\beta) <: \, !^n (T \multimap U) \}$$
 					
 				Let $\sigma$ be the substitution :
-					$$ \sigma = [ !^q \alpha \mapsto T, ~ !^r \beta \mapsto U ] $$
+					$$ \sigma = [ !^q \alpha \mapsto T, ~ !^r \beta \mapsto U , ~ p \mapsto n ] $$
 				By application of the lemma \ref{tau-context},
 					$$ \text{ConstraintTyping} \, (!^I \Gamma, x : T \vdash t : U) = \sigma \mathcal{L'} $$
 				The application of the induction hypothesis yields an substitution $\tau$ such that
-				$\mathcal{L} \vdash (\tau \circ \sigma) \mathcal{L'}$ and $|\tau| \cap (FTV(\Gamma, x : T) \cup (FTV(U)) = \varnothing$.				
-					
-				Let $\sigma' = \tau \circ \sigma$. Since $p$ is fresh, $\sigma'$ can be extended with the mapping $[p \mapsto n]$.
-				Thence,
-					$$\sigma' \mathcal{L''} = \sigma' \mathcal{L'} \cup \{ n \le I \} \cup \{ !^n(T \multimap U) <: \, !^n(T \multimap U) \}$$
+				$\mathcal{L} \vdash (\tau \circ \sigma) \mathcal{L'}$. Thence,
+					$$(\tau \circ \sigma) \mathcal{L''} = (\tau \circ \sigma) \mathcal{L'} \cup \{ n \le I \} \cup
+						\{ !^n(T \multimap U) <: \, !^n(T \multimap U) \}$$
 				The sub-typing constraint $!^n(T \multimap U) <: \, !^n(T \multimap U)$ can be directly solved by reflexivity. Consequently,
-					$$\mathcal{L} \cup \{ 1 \le I \} \vdash \sigma' \mathcal{L''}$$
-				Finally, $\alpha, \beta, p, q \notin FTV(\Gamma) \cup FTV(T \multimap U)$, thus the following condition is respected :
-					$$ |\sigma'| \cap (FTV(\Gamma) \cup FTV(T \multimap U)) = \varnothing $$
-					
-			\item $(app)$. The typing derivation is
+					$$\mathcal{L} \cup \{ 1 \le I \} \vdash (\tau \circ \sigma) \mathcal{L''}$$
+				
+			\item $(app)$. The typing rule is
 				\begin{prooftree}
-					\AxiomC{$\Pi_1$} \noLine
-					\UnaryInfC{$\vdots$} \noLine
-					\UnaryInfC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}_1} t : T \multimap U$}
-					\AxiomC{$\Pi_2$} \noLine
-					\UnaryInfC{$\vdots$} \noLine
-					\UnaryInfC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L}_2} u : T$}
+					\AxiomC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}_1} t : T \multimap U$}
+					\AxiomC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L}_2} u : T$}
 					\RightLabel{$(app)$}
 					\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_\mathcal{L} t u : U$}
 				\end{prooftree}
@@ -652,8 +931,8 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				With $\Lambda = \Gamma_1, \Gamma_2, !^I \Delta$, the following properties hold :
 					\begin{center}
 					\begin{tabular}{cl}
-						$(a)$ & $ \Gamma_1, !^I\Delta|_{FV(t)} = \Lambda |_{FV(t)} $ \\
-						$(b)$ & $ \Gamma_2, !^I\Delta|_{FV(u)} = \Lambda |_{FV(u)} $	\\
+						$(a)$ & $ \Gamma_1, !^I\Delta|_t = \Lambda |_t $ \\
+						$(b)$ & $ \Gamma_2, !^I\Delta|_u = \Lambda |_u $	\\
 						$(c)$ & $ \Gamma_1, \Gamma_2 = \Lambda |_{FV(t) \oplus FV(u)} $ \\
 						$(d)$ & $ !^I \Delta = \Lambda \backslash_{FV(t) \oplus FV(u)} $
 					\end{tabular}
@@ -662,18 +941,18 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			 	is legitimate. The constraint typing algorithm inputs the non-separated set $\Lambda$, and makes two recursive calls
 			 		\begin{center}
 			 		\begin{tabular}{l}
-			 			$\text{ConstraintTyping} \, (\Lambda |_{FV(t)} \vdash t : \, !^n\alpha \multimap U) = \mathcal{L}_t$ \\
-			 			$\text{ConstraintTyping} \, (\Lambda |_{FV(u)} \vdash u : \, !^n\alpha) = \mathcal{L}_u$
+			 			$\text{ConstraintTyping} \, (\Lambda |_t \vdash t : \, !^n\alpha \multimap U) = \mathcal{L}_t$ \\
+			 			$\text{ConstraintTyping} \, (\Lambda |_u \vdash u : \, !^n\alpha) = \mathcal{L}_u$
 			 		\end{tabular}
 			 		\end{center}
 			 	and returns the set
-			 		$$ \mathcal{L''} = \mathcal{L}_t \cup \mathcal{L}_u \cup \{ 1 \le I' \} $$
+			 		$$ \mathcal{L'} = \mathcal{L}_t \cup \mathcal{L}_u \cup \{ 1 \le I' \} $$
 			 	where $!^{I'} \Delta = \Lambda \backslash_{FV(t) \oplus FV(u)}$.
 			 	The property $(d)$ ensures that $I = I'$, and the properties $(a)$ and $(b)$ show that
 			 		\begin{center}
 			 		\begin{tabular}{l}
-			 			$\mathcal{L}_t = \text{ConstraintTyping} \, (\Gamma_1, !^I \Delta |_{FV(t)} \vdash t : \, !^n\alpha \multimap U)$ \\
-			 			$\mathcal{L}_u = \text{ConstraintTyping} \, (\Gamma_2, !^I \Delta |_{FV(u)} \vdash u : \, !^n\alpha)$
+			 			$\mathcal{L}_t = \text{ConstraintTyping} \, (\Gamma_1, !^I \Delta |_t \vdash t : \, !^n\alpha \multimap U)$ \\
+			 			$\mathcal{L}_u = \text{ConstraintTyping} \, (\Gamma_2, !^I \Delta |_u \vdash u : \, !^n\alpha)$
 			 		\end{tabular}
 			 		\end{center}
 			 	Let $\mathcal{L'}_t$ and $\mathcal{L'}_u$ be
@@ -683,7 +962,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			 			$\mathcal{L'}_u = \text{ConstraintTyping} \, (\Gamma_2, !^I \Delta \vdash u : \, !^n\alpha)$
 			 		\end{tabular}
 			 		\end{center}
-			 	By application of the lemma \ref{red-context}, $\mathcal{L}_t \subseteq \mathcal{L'}_t$ and $\mathcal{L}_u \subset \mathcal{L'}_u$.
+			 	By application of the lemma \ref{red-context}, $\mathcal{L}_t \subseteq \mathcal{L'}_t$ and $\mathcal{L}_u \subseteq \mathcal{L'}_u$.
 			 	Let $\sigma$ be the substitution $\sigma = [\, !^n\alpha \mapsto T]$. By application of the lemma \ref{tau-context}, 
 			 		\begin{center}
 			 		\begin{tabular}{l}
@@ -694,8 +973,6 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			 	From the induction hypothesis, it follows that there exist $\tau_1$ and $\tau_2$, such that
 			 		\begin{center}
 			 		\begin{tabular}{l}
-			 			$|\tau_1| \cap (FV(\Gamma_1, !^I\Delta) \cup FV(T) \cup FV(U)) = \varnothing$ \\
-			 			$|\tau_2| \cap (FV(\Gamma_2, !^I\Delta) \cup FV(T)) = \varnothing$ \\
 			 			$\mathcal{L}_1 \vdash (\tau_1 \circ \sigma) \mathcal{L'}_t$ \\
 			 			$\mathcal{L}_2 \vdash (\tau_2 \circ \sigma) \mathcal{L'}_u$
 			 		\end{tabular}
@@ -707,13 +984,99 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			 			$\mathcal{L}_2 \vdash (\tau_2 \circ \sigma) \mathcal{L}_u$
 			 		\end{tabular}
 			 		\end{center}
-			 	Since the sets of variables mapped by $\tau_1$ and $\tau_2$ are distinct from the set of type variables currently used in the context, 
-			 	they can be composed without any ambiguity, and
+			 	Moreover, the substitutions $\tau_1$ and $\tau_2$ map variables fresh in the current context, with the
+			 	additional property $|\tau_1| \cap |\tau_2| = \varnothing$. Thus, they can be composed without any ambiguity, and
+			 		\begin{center}
+			 		\begin{tabular}{lcl}
+			 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L'}$ & $=$ & 
+				 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_t \cup (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_u \cup \{1 \le I\}$ \\
+				 		& $=$ & $(\tau_1 \circ \sigma) \mathcal{L}_t \cup (\tau_2 \circ \sigma) \mathcal{L}_u \cup \{1 \le I\}$
+			 		\end{tabular}
+			 		\end{center}
+			 	Consequently,
+			 		$$ \mathcal{L} \vdash (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L'} $$
+			 		
+			\item $(\otimes.I)$. The typing rule is
+				\begin{prooftree}
+					\AxiomC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}_1} t : \,!^nA$}
+					\AxiomC{$\Gamma_2, !^I\Delta \vdash_{\mathcal{L}_2} u : \,!^mB$}
+					\RightLabel{$(app)$}
+					\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_\mathcal{L} \pair{t}{u} : \,!^p(!^nA \otimes \,!^mB)$}
+				\end{prooftree}
+				with $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m \}$.
+				This case is greatly similar to the typing rule $(app)$, in the sense that it relies upon a division of the context.
+				The same properties proved in case $(app)$ again hold.
+				With $\Lambda = \Gamma_1, \Gamma_2, !^I \Delta$,
+				the constraint typing algorithm inputs the non-separated set $\Lambda$, and makes two recursive calls
+			 		\begin{center}
+			 		\begin{tabular}{l}
+			 			$\text{ConstraintTyping} \, (\Lambda |_t \vdash t : \, !^a\alpha) = \mathcal{L}_t$ \\
+			 			$\text{ConstraintTyping} \, (\Lambda |_u \vdash u : \, !^b\beta) = \mathcal{L}_u$
+			 		\end{tabular}
+			 		\end{center}
+			 	and returns the set
+			 		$$ \mathcal{L'} = \mathcal{L}_t \cup \mathcal{L}_u \cup \{ 1 \le I', c \le a, c \le b \} \cup
+			 			\{ \,!^c(!^a\alpha \otimes \,!^b\beta) <: \,!^p(!^nA \otimes \,!^mB) \} $$
+			 	where $!^{I'} \Delta = \Lambda \backslash_{FV(t) \oplus FV(u)}$.
+			 	The reasoning from the case of the application still holds with the substitution
+			 	$\sigma = [\, !^a\alpha \mapsto \,!^nA, ~!^b\beta \mapsto \,!^mB, ~ c \mapsto p ]$.
+			 	From the induction hypothesis (and the reasoning of case $(app)$), it follows that there exist $\tau_1$ and $\tau_2$, such that
+			 		\begin{center}
+			 		\begin{tabular}{l}
+			 			$\mathcal{L}_1 \vdash (\tau_1 \circ \sigma) \mathcal{L}_t$ \\
+			 			$\mathcal{L}_2 \vdash (\tau_2 \circ \sigma) \mathcal{L}_u$
+			 		\end{tabular}
+			 		\end{center}
+				The substitutions $\tau_1$ and $\tau_2$ can be composed, and commute, giving
 			 		\begin{center}
 			 		\begin{tabular}{lcl}
 			 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}'$ & $=$ & 
-				 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_t \cup (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_u \cup \{1 \le I\}$ \\
-				 		& $=$ & $(\tau_1 \circ \sigma) \mathcal{L}_t \cup (\tau_2 \circ \sigma) \mathcal{L}_u \cup \{1 \le I\}$
+				 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_t \cup (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_u \cup
+				 				\{1 \le I, p \le n, p \le m\}$ \\
+				 	 	&& $\cup \{ \,!^p(!^nA \otimes \,!^mB) <: \,!^p(!^nA \otimes \,!^mB) \} $ \\
+				 		& $=$ & $(\tau_1 \circ \sigma) \mathcal{L}_t \cup (\tau_2 \circ \sigma) \mathcal{L}_u \cup
+				 				\{1 \le I, p \le n, p \le m\}$ \\
+				 	 	&& $\cup \{ \,!^p(!^nA \otimes \,!^mB) <: \,!^p(!^nA \otimes \,!^mB) \} $
+			 		\end{tabular}
+			 		\end{center}
+			 	Consequently,
+			 		$$ \mathcal{L} \vdash (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L'} $$
+			 		
+			\item $(\otimes.E)$. The typing rule is
+				\begin{prooftree}
+					\AxiomC{$\Gamma_1, !^I\Delta \vdash_{\mathcal{L}_1} t : \,!^p(!^nA \otimes \,!^mB)$}
+					\AxiomC{$\Gamma_2, !^I\Delta, x : \,!^nA, y : \,!^mB \vdash_{\mathcal{L}_2} u : T$}
+					\RightLabel{$(\otimes.E)$}
+					\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_\mathcal{L} ~\text{let}~\pair{x}{y} = t ~\text{in}~ u : T$}
+				\end{prooftree}
+				with $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m \}$.
+				This case is again similar to the one of typing rule $(app)$.
+				The constraint typing algorithm inputs the non-separated set $\Lambda$, and makes two recursive calls
+			 		\begin{center}
+			 		\begin{tabular}{l}
+			 			$\text{ConstraintTyping} \, (\Lambda |_t \vdash t : \, !^c(!^a\alpha \otimes \,!^b\beta)) = \mathcal{L}_t$ \\
+			 			$\text{ConstraintTyping} \, (\Lambda |_u, x : \,!^a\alpha, y : \,!^b\beta \vdash u : T) = \mathcal{L}_u$
+			 		\end{tabular}
+			 		\end{center}
+			 	and returns the set
+			 		$$ \mathcal{L''} = \mathcal{L}_t \cup \mathcal{L}_u \cup \{ 1 \le I', c \le a, c \le b \} $$
+			 	where $!^{I'} \Delta = \Lambda \backslash_{FV(t) \oplus FV(u)}$.
+			 	Let $\sigma$ be the substitution $\sigma = [\, !^a\alpha \mapsto \,!^nA, ~!^b\beta \mapsto \,!^mB, ~ c \mapsto p ]$.
+			 	From the induction hypothesis, it follows that there exist $\tau_1$ and $\tau_2$, such that
+			 		\begin{center}
+			 		\begin{tabular}{l}
+			 			$\mathcal{L}_1 \vdash (\tau_1 \circ \sigma) \mathcal{L}_t$ \\
+			 			$\mathcal{L}_2 \vdash (\tau_2 \circ \sigma) \mathcal{L}_u$
+			 		\end{tabular}
+			 		\end{center}
+				Thus,
+			 		\begin{center}
+			 		\begin{tabular}{lcl}
+			 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}'$ & $=$ & 
+				 			$(\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_t \cup (\tau_1 \circ \tau_2 \circ \sigma) \mathcal{L}_u \cup
+				 				\{1 \le I, p \le n, p \le m\}$ \\
+				 		& $=$ & $(\tau_1 \circ \sigma) \mathcal{L}_t \cup (\tau_2 \circ \sigma) \mathcal{L}_u \cup
+				 				\{1 \le I, p \le n, p \le m\}$
 			 		\end{tabular}
 			 		\end{center}
 			 	Consequently,
@@ -745,13 +1108,125 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		$(\rho \circ \tau \circ \sigma)$ is a solution of $\mathcal{L'}$, which is thus satisfiable.
 	\end{proof}
 \end{prop}
+ 
+\begin{lemma}
+	\label{rule-subtyping}
+	Let $\Gamma \vdash_\mathcal{L} t : T$ be a valid typing judgement in LL'. Let $\Delta$ and $U$ be such that $\Delta <: \Gamma$, $T <: U$.
+	Then there exists a set $\mathcal{L'}$ such that the typing judgement $\Delta \vdash_\mathcal{L'} t : U$ is valid and
+		$$ \mathcal{L} \cup \{ \Delta <: \Gamma \} \cup \{ T <: U \} \vdash \mathcal{L'} $$
+	
+	\begin{proof} By induction on the typing derivation $\Pi$ of the typing judgement $\Gamma \vdash t : T$.
+		If the last rule used is
+		\begin{itemize}
+			\item $(ax)$. The typing derivation is
+				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(ax)$}
+					\UnaryInfC{$!^I\Gamma, x : V \vdash_{\{1 \le I,~ V <: T\}} x : T$}
+				\end{prooftree}
+				By application of the rule $(ax)$ of LL', the following typing derivation is valid
+				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(ax)$}
+					\UnaryInfC{$!^I\Gamma, x : V \vdash_{\{1 \le I,~ V <: U\}} x : U$}
+				\end{prooftree}
+				Moreover, can be established	
+					\begin{center}
+					\begin{tabular}{ll}
+						$ \{ !^{I'} \Delta <: \,!^I\Gamma \} \vdash \{ I \le I' \} $ & by the rule $(!)$ of sub-typing \\
+						$ \{ V <: T,~ T <: U \} \vdash \{ V <: T \} $ & by transitivity
+					\end{tabular}
+					\end{center}
+				Consequently,
+					$$ \{1 \le I,~ V <: T,~ T <: U,~ !^{I'} \Delta <: \,!^I\Gamma \} \vdash \{ I \le I', V <: U \} $$
+					
+			\item $(\lambda)$. The typing derivation is
+				\begin{prooftree}
+					\AxiomC{$\Pi$} \noLine
+					\UnaryInfC{$!^I\Gamma, x : T \vdash_\mathcal{L} t : U$}
+					\RightLabel{$(\lambda)$}
+					\UnaryInfC{$!^I\Gamma \vdash_{\mathcal{L} \cup \{n \le I\}} \lambda x.t : \,!^n (T \multimap U)$}
+				\end{prooftree}
+			We mean to find a set $\mathcal{L''}$ and build a derivation of the typing judgement
+			$!^{I'} \Delta \vdash_\mathcal{L''} \lambda x.t : \,!^m (T' \multimap U')$, under the constraints
+			$!^{I'} \Delta <: \,!^I\Gamma$ and $!^n (T \multimap U) <: \,!^m(T' \multimap U')$.
+			From the rules $(!)$ and $(\multimap)$ of sub-typing, it is necessary that
+				$m \le n,~ T' <: T,~ U <: U'$.
+			Consequently, the induction hypothesis is applicable and yields a set $\mathcal{L'}$ such that
+				\begin{center}
+				\begin{tabular}{l}
+					$\mathcal{L} \cup \{ !^{I'} \Delta, x : T' <: \,!^I\Gamma, x : T \} \cup \{ U <: U' \} \vdash \mathcal{L'}$ \\
+					$!^{I'} \Delta, x : T' \vdash_\mathcal{L'} t : U'$ admits a derivation $\Pi'$
+				\end{tabular}
+				\end{center}
+			By application of the typing rule $(\lambda)$ is built the derivation
+				\begin{prooftree}
+					\AxiomC{$\Pi'$} \noLine
+					\UnaryInfC{$!^{I'}\Delta, x : T' \vdash_\mathcal{L'} t : U'$}
+					\RightLabel{$(\lambda)$}
+					\UnaryInfC{$!^{I'}\Delta \vdash_{\mathcal{L'} \cup \{m \le I'\}} \lambda x.t : \,!^m (T' \multimap U')$}
+				\end{prooftree}
+			Finally, the derivations can be proved :
+				\begin{center}
+				\footnotesize
+				\begin{tabular}{rcl}
+					$\{ !^{I'} \Delta <: \,!^I \Gamma \} \cup \{ !^n(T \multimap U) <: \,!^m(T' \multimap U') \} \cup \{ n \le I \}$ & $\vdash$ & \\
+					$\{ I <: I', m \le n, n \le I \}$ & $\vdash$ & $\{ m \le I' \}$	
+				\end{tabular}
+				\end{center}
+			On the whole,
+				$$ \mathcal{L''} \cup \{ !^{I'} \Delta <: \,!^I \Gamma \} \cup \{ !^n(T \multimap U) <: \,!^m(T' \multimap U') \} \vdash
+					\mathcal{L'} \cup \{ m \le I' \} $$
+									
+			\item $(app)$. The typing derivation is
+				\begin{prooftree}
+					\AxiomC{$\Pi_1$} \noLine
+					\UnaryInfC{$\Gamma_1, !^I \Delta \vdash_{\mathcal{L}_1} t : T \multimap U$}
+					\AxiomC{$\Pi_2$} \noLine
+					\UnaryInfC{$\Gamma_2, !^I \Delta \vdash_{\mathcal{L}_2} u : T$}
+					\RightLabel{$(app)$}
+					\BinaryInfC{$\Gamma_1, \Gamma_2, !^I \Delta \vdash_\mathcal{L} t u : U$}
+				\end{prooftree}
+				with $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$.
+				We mean to find a set $\mathcal{L'}$ and build a typing derivation of the typing judgement
+				$\Gamma_1', \Gamma_2', !^{I'}\Delta' \vdash_\mathcal{L'} t u : U'$, with the constraints
+				$\Gamma_1', \Gamma_2', !^{I'}\Delta' <: \Gamma_1, \Gamma_2, !^I\Delta$ and $U <: U'$.
+				By application of the rule $(\lambda)$ of sub-typing, $T \multimap U <: T \multimap U'$. The induction
+				hypothesis applied to $\Pi_1$ and $\Pi_2$ yields two sets $\mathcal{L'}_1$ and $\mathcal{L'}_2$ such that
+					\begin{center}
+					\begin{tabular}{l}
+						$\mathcal{L}_1 \cup \{ \Gamma_1', !^{I'} \Delta' <: \Gamma_1, !^I \Delta \} \cup \{ T \multimap U <: T \multimap U' \} \vdash
+							\mathcal{L'}_1$ \\
+						$\mathcal{L}_2 \cup \{ \Gamma_2', !^{I'} \Delta' <: \Gamma_2, !^I \Delta \} \cup \{ T <: T \} \vdash
+							\mathcal{L'}_2$ \\
+						$\Gamma_1', !^{I'} \Delta \vdash_{\mathcal{L}_1'} t : T \multimap U'$ admits a derivation $\Pi_1'$ \\
+						$\Gamma_2', !^{I'} \Delta \vdash_{\mathcal{L}_2'} t : T$ admits a derivation $\Pi_2'$
+					\end{tabular}
+					\end{center}
+				By application of the typing rule $(app)$, the following derivation is constructed
+				\begin{prooftree}
+					\AxiomC{$\Pi_1'$} \noLine
+					\UnaryInfC{$\Gamma_1', !^{I'} \Delta' \vdash_{\mathcal{L}_1'} t : T \multimap U'$}
+					\AxiomC{$\Pi_2'$} \noLine
+					\UnaryInfC{$\Gamma_2, !^{I'} \Delta' \vdash_{\mathcal{L}_2'} u : T$}
+					\RightLabel{$(app)$}
+					\BinaryInfC{$\Gamma_1', \Gamma_2', !^{I'} \Delta' \vdash_{\mathcal{L}'} t u : U'$}
+				\end{prooftree}
+				where $\mathcal{L'} = \mathcal{L'}_1 \cup \mathcal{L'}_2 \cup \{ 1 \le I' \}$.
+				With the property $\{ !^{I'} \Delta' <: !^I \Delta \} \vdash \{ I \le I' \}$, putting everything together
+					$$ \mathcal{L} \cup \{ \Gamma_1', \Gamma_2', !^{I'} \Delta' <: \Gamma_1, \Gamma_2, !^I \Delta \} \cup \{ U <: U' \} \vdash
+						\mathcal{L'} $$
+		\end{itemize}
+			
+	\end{proof}
+\end{lemma}
 
 \begin{prop} Let $t$ be a term, $T$ a LL' type and $\Gamma$ a context. If the return set $\mathcal{L}$ of the constraint typing
-	algorithm is satisfiable, then there is a typing derivation $\Pi$ of the typing judgement $\Gamma \vdash_\mathcal{L}$.
+	algorithm is satisfiable, then there exists a set $\mathcal{L'}$ such that $\mathcal{L} \vdash \mathcal{L'}$ and
+	the typing judgement $\Gamma \vdash_\mathcal{L'} t : T$ is valid.
 	
 	\begin{proof}
-		By induction on the form of the term $t$, we can construct a valid typing derivation of the typing judgement
-		$\Gamma \vdash_\mathcal{L} t : T$.
+		By induction on the form of the term $t$.
 		If the term is
 		\begin{itemize}
 			\item $x$, the algorithm applied to $!^I \Gamma, x : T \vdash x : U$ produces the set
@@ -763,31 +1238,115 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				\end{prooftree}
 				holds.
 				
-			\item $t u$, the algorithm applied to $\Gamma \vdash t u : T$ makes two recursive calls on
-				$\Gamma_1, !^I \Delta \vdash t : \alpha \multimap T$ and $\Gamma_2, !^I \Delta \vdash u : \alpha$, where
-				$\Gamma_1 = \Gamma |_{FV(t)}$, $\Gamma_2 = \Gamma |_{FV(u)}$ and $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$, and
-				$\alpha$ is fresh. If the outputs of the recursive calls are $\mathcal{L}_1$ and $\mathcal{L}_2$, the output of
-				the algorithm is $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$. Since $\mathcal{L}$ is satisfiable, so are
-				$\mathcal{L}_1$ and $\mathcal{L}_2$. By induction, we can build two valid typing derivation $\Pi_1$ and $\Pi_2$ of the typing
-				judgements $\Gamma_1, !^I \Delta \vdash_{\mathcal{L}_1} t : \alpha \multimap T$ and
-				$\Gamma_2, !^I \Delta \vdash_{\mathcal{L}_2} u : \alpha$. Using both derivations $\Pi_1$ and $\Pi_2$ and the typing
-				rule $(app)$ of LL, we build a valid typing derivation of $\Gamma \vdash_\mathcal{L} t u : T$
+			\item $t u$, the algorithm applied to $\Gamma \vdash t u : T$ makes two recursive calls
+					\begin{center}
+					\begin{tabular}{c}
+						$\text{ConstraintTyping}\,(\Gamma|_t \vdash t : \,!^n\alpha \multimap T) = \mathcal{L}_1$ \\
+						$\text{ConstraintTyping}\,(\Gamma|_u \vdash u : \,!^n\alpha) = \mathcal{L}_2$
+					\end{tabular}
+					\end{center}
+				where $\alpha$ and $n$ are fresh.
+				The output of the algorithm is the set $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$, $I$ being defined as
+				the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
+				Since $\mathcal{L}$ is satisfiable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				The induction hypothesis applied twice yields the typing derivations
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$}
+						\UnaryInfC{$\Gamma|_t \vdash_{\mathcal{L'}_1} t : \,!^n\alpha \multimap T$}
+					\end{prooftree}
+					\begin{prooftree}
+						\AxiomC{$\Pi_2$}
+						\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L'}_2} t : \,!^n\alpha$}
+					\end{prooftree}
+				with $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$.
+				It has been shown that $\Gamma|_t = \Gamma_1, \,!^I\Delta|_t$ and $\Gamma|_u = \Gamma_2, \,!^I\Delta|_u$.
+				The derivations $\Pi_1$ and $\Pi_2$ can be weakened to be derivations of
+ 						\begin{center}
+ 						\begin{tabular}{l}
+ 							$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1 \}} t : \,!^n\alpha \multimap T$ \\
+							$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2 \}} u : !^n\alpha$
+						\end{tabular}
+						\end{center}
+				with $I_1$ and $I_2$ being the annotation of the additional bindings added to each of the derivations.
+				Clearly, $I_1 \subseteq I$ and $I_2 \subseteq I$.
 				
-			\item $\lambda x.t$, the algorithm makes one recursive call on $!^I \Gamma, x : !^n \alpha \vdash t : \beta$, producing the
+				Using both derivations $\Pi_1$ and $\Pi_2$ and the typing rule $(app)$ of LL, we obtain a valid typing derivation of
+				$\Gamma \vdash_\mathcal{L'} t u : T$, with $\mathcal{L'} = \mathcal{L'}_1 \cup \mathcal{L'}_2 \cup \{ 1 \le I \}$.
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$} \noLine
+						\UnaryInfC{$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1 \}} t : \,!^n\alpha \multimap T$}
+						\AxiomC{$\Pi_2$} \noLine
+						\UnaryInfC{$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2 \}} t : \,!^n\alpha$}
+						\RightLabel{$(app)$}
+						\BinaryInfC{$\Gamma \vdash_\mathcal{L'} t u : T$}
+					\end{prooftree}
+				The condition $\mathcal{L} \vdash \mathcal{L'}$ is respected as well.
+					
+			\item $\lambda x.t$, the algorithm makes one recursive call on $!^I \Gamma, x : \,!^n \alpha \vdash t : \,!^m\beta$, producing the
 				set $\mathcal{L}$. The output of the algorithm is then
-					$\mathcal{L'} = \mathcal{L} \cup \{ !^m(!^n \alpha \multimap \beta) <: T \} \cup \{n \le I\}$. Since $\mathcal{L'}$
+					$\mathcal{L^*} = \mathcal{L} \cup \{ !^p(!^n \alpha \multimap \,!^m\beta) <: T \} \cup \{p \le I\}$. Since $\mathcal{L^*}$
 					is satisfiable, so is $\mathcal{L}$. By the induction hypothesis, we can build a valid typing derivation $\Pi$ of the
-					typing judgement $!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L} t : \beta$, from which we can derive :
+					typing judgement $!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L'} t : \beta$, with $\mathcal{L} \vdash \mathcal{L'}$,
+					from which we can derive, by application of the rule $(\lambda)$ :
 						\begin{prooftree}
 							\AxiomC{$\Pi$} \noLine
-							\UnaryInfC{$\vdots$} \noLine
-							\UnaryInfC{$!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L} t : \beta$}
+							\UnaryInfC{$!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L'} t : \,!^m\beta$}
 							\RightLabel{$(\lambda)$}
-							\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L} \cup \{1 \le I\}} \lambda x.t :\, !^m(!^n \alpha \multimap \beta)$}
-							\RightLabel{sub-typing}
-							\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L} \cup \{1 \le I\} \cup \{ !^m(!^n \alpha \multimap \beta) <: T\}} \lambda x.t : T$}
-						\end{prooftree}					
-					
+							\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L'} \cup \{p \le I\}} \lambda x.t :\, !^p(!^n \alpha \multimap \,!^m\beta)$}
+						\end{prooftree}
+					Using the constraint $!^p(!^n\alpha \multimap \,!^m\beta) <: T$, the application of the lemma \ref{rule-subtyping} yields
+					a set $\mathcal{L^{**}}$ such that
+						\begin{center}
+						\begin{tabular}{l}
+							$\mathcal{L'} \cup \{p \le I \} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \} \vdash \mathcal{L^{**}}$ \\
+							$!^I \Gamma \vdash_\mathcal{L^{**}} \lambda x.t : T$ is a valid typing judgement
+						\end{tabular}
+						\end{center}
+					Since $\mathcal{L} \vdash \mathcal{L'}$, it follows that $\mathcal{L^*} \vdash \mathcal{L^{**}}$.
+				
+			\item $\pair{t}{u}$. The algorithm applied to $\Gamma \vdash \pair{t}{u} : T$ makes two recursive calls
+					\begin{center}
+					\begin{tabular}{c}
+						$\text{ConstraintTyping}\,(\Gamma|_t \vdash t : \,!^n\alpha) = \mathcal{L}_1$ \\
+						$\text{ConstraintTyping}\,(\Gamma|_u \vdash u : \,!^m\beta) = \mathcal{L}_2$
+					\end{tabular}
+					\end{center}
+				where $\alpha, \beta$ and $n, m, p$ are fresh.
+				The output of the algorithm is the set
+					$$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I,~ p \le n,~ p \le m \} \cup
+						\{ \,!^p(!^n\alpha \otimes \,!^m\beta) <: T \}$$
+				$I$ being defined as the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
+				Since $\mathcal{L}$ is satisfiable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				The induction hypothesis applied twice, yields the typing derivations which, modified in the same way as in the application
+				case, are
+					\begin{prooftree}
+						\AxiomC{$\Pi_1$}
+						\UnaryInfC{$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1\} } t : \,!^n\alpha$}
+					\end{prooftree}
+					\begin{prooftree}
+						\AxiomC{$\Pi_2$}
+						\UnaryInfC{$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2\} } t : \,!^m\beta$}
+					\end{prooftree}
+				with $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$.
+				Again, $I_1 \subseteq I$ and $I_2 \subseteq I$.
+				
+				Using both derivations $\Pi_1$ and $\Pi_2$ and the typing rule $(\otimes.I)$ of LL, we obtain a valid typing derivation of
+				$\Gamma \vdash_\mathcal{L'} \pair{t}{u} : \,!^p (!^n \alpha \otimes \,!^m\beta) $, with
+				$\mathcal{L'} = \mathcal{L'}_1 \cup \mathcal{L'}_2 \cup \{ 1 \le I, p \le n, p \le m \}$.
+				Finally, using the constraint $!^p(!^n \alpha \otimes \,!^m\beta) <: T$ and the lemma \ref{rule-subtyping}, we obtain
+				a set $\mathcal{L^*}$ such that
+					\begin{center}
+					\begin{tabular}{l}
+						$ \mathcal{L'} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \} \vdash \mathcal{L^*}$ \\
+						$ \Gamma \vdash_\mathcal{L^*} \pair{t}{u} : T$ is a valid typing judgement
+					\end{tabular}
+					\end{center}
+				Moreover, since $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$, the derivation
+				$\mathcal{L} \vdash \mathcal{L'} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \}$ is verified.
+				Consequently, $\mathcal{L} \vdash \mathcal{L^*}$.
+				
+			\item $\text{let}~ \pair{x}{y} = t ~\text{in}~ u$.
+				This case is similar to the others, only longer, this is way it will not be treated here.
 		\end{itemize}
 	\end{proof}
 \end{prop}
