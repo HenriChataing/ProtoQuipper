@@ -34,6 +34,11 @@ type FlagConstraint =
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
+remove_details :: TypeConstraint -> TypeConstraint
+--------------------------------------------------
+remove_details (Linear t u) = Linear (undetailed t) (undetailed u)
+remove_details c = c
+
 {-
   Constraint properties
     - Atomicity : a constraint is atomic if of the form a <: b
@@ -53,20 +58,25 @@ is_trivial :: TypeConstraint -> Bool
 is_atomic :: TypeConstraint -> Bool
 is_composite :: TypeConstraint -> Bool
 is_semi_composite :: TypeConstraint -> Bool
-----------------------------------------
+-------------------------------------------
 is_trivial (Linear a b) = a == b
 is_trivial (NonLinear t u) = t == u
 
-is_atomic (Linear (TVar _) (TVar _)) = True
+is_atomic (Linear t u) =
+  case (undetailed t, undetailed u) of
+    (TVar _, TVar _) -> True
+    _ -> False
 is_atomic _ = False
 
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
 is_semi_composite (NonLinear _ _) = False
-is_semi_composite (Linear (TVar _) (TVar _)) = False
-is_semi_composite (Linear (TVar _) _) = True
-is_semi_composite (Linear _ (TVar _)) = True
-is_semi_composite _ = False
+is_semi_composite (Linear t u) =
+  case (undetailed t, undetailed u) of
+    (TVar _, TVar _) -> False
+    (TVar _, _) -> True
+    (_, TVar _) -> True
+    _ -> False
 
 {-
   Check whether all the constraints of a list have the same property of being right / left sided, ie :
@@ -83,15 +93,25 @@ is_left_sided :: [TypeConstraint] -> Bool
 is_right_sided :: [TypeConstraint] -> Bool
 ---------------------------------------
 is_one_sided [] = True
-is_one_sided ((Linear (TVar _) _):cset) = is_left_sided cset
-is_one_sided ((Linear _ (TVar _)):cset) = is_right_sided cset
+is_one_sided ((Linear t u):cset) =
+  case (undetailed t, undetailed u) of
+    (TVar _, _) -> is_left_sided cset
+    (_, TVar _) -> is_right_sided cset
+    _ -> False
+is_one_sided _ = False
 
 is_left_sided [] = True
-is_left_sided ((Linear (TVar _) _):cset) = is_left_sided cset
+is_left_sided ((Linear t u):cset) =
+  case (undetailed t, undetailed u) of
+    (TVar _, _) -> is_left_sided cset
+    _ -> False
 is_left_sided _ = False
 
 is_right_sided [] = True
-is_right_sided ((Linear _ (TVar _)):cset) = is_right_sided cset
+is_right_sided ((Linear t u):cset) =
+  case (undetailed t, undetailed u) of
+    (_, TVar _) -> is_right_sided cset
+    _ -> False
 is_right_sided _ = False
 
 {-
@@ -107,7 +127,7 @@ is_right_sided _ = False
 constraint_unifier :: [TypeConstraint] -> LinType
 -------------------------------------------------
 constraint_unifier constraints =
-  let comptypes = List.map (\c -> case c of
+  let comptypes = List.map (\c -> case remove_details c of
                                     Linear (TVar _) t -> t
                                     Linear t (TVar _) -> t) constraints
   in
@@ -127,10 +147,10 @@ chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 ----------------------------------------------------------------------------------------------
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
-  case List.find (\c -> case c of
+  case List.find (\c -> case remove_details c of
                           Linear (TVar y) _ -> y == endvar
                           _ -> False) l of
-    Just c -> case c of
+    Just c -> case remove_details c of
                 Linear (TVar _) (TVar y) -> chain_left_to_right (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, List.reverse (c:chain))
@@ -140,10 +160,10 @@ chain_left_to_right chain endvar l =
 
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
-  case List.find (\c -> case c of
+  case List.find (\c -> case remove_details c of
                           Linear _ (TVar y) -> y == endvar
                           _ -> False) l of
-    Just c -> case c of
+    Just c -> case remove_details c of
                 Linear (TVar y) (TVar _) -> chain_right_to_left (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, c:chain)
@@ -152,17 +172,17 @@ chain_right_to_left chain endvar l =
     Nothing -> (False, [])
 
 chain_constraints l =
-  case List.find (\c -> case c of
+  case List.find (\c -> case remove_details c of
                           Linear (TVar _) _ -> False
                           _ -> True) l of
-    Just c -> case c of
+    Just c -> case remove_details c of
                 Linear _ (TVar y) -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
   
-    Nothing -> case List.find (\c -> case c of
+    Nothing -> case List.find (\c -> case remove_details c of
                                        Linear _ (TVar _) -> False
                                        _ -> True) l of
-                 Just c -> case c of
+                 Just c -> case remove_details c of
                              Linear (TVar y) _ -> chain_right_to_left [c] y (List.delete c l)
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"

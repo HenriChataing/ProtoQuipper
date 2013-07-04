@@ -37,6 +37,11 @@ type Flag = Int
     - Type : TVar, TQbit, TUnit, TCirc (duplicable as well), TExp
 -}
 
+data Detail =
+    TypeOfE Expr
+  | TypeOfP Pattern
+
+
 data LinType =
     TVar Variable              -- a
   | TBool                      -- bool
@@ -45,6 +50,7 @@ data LinType =
   | TTensor Type Type          -- a * b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
+  | TDetailed LinType Detail      -- Type with detailed information, as the term of which it is type
 
 data Type =
     TExp Flag LinType          -- !n a
@@ -90,6 +96,14 @@ data Expr =
   | ELocated Expr Extent                -- e @ ex
 
 {-
+   Remove the addtional information of a linear type
+-}
+undetailed :: LinType -> LinType
+--------------------------------
+undetailed (TDetailed t _) = t
+undetailed t = t
+
+{-
   Construction of the unfier of two / a list of types
   Supposing that the types have the same skeleton, the unifier is the type holding
   the most information about that commin skeleton, eg the unifier of
@@ -112,6 +126,8 @@ lintype_unifier t (TVar _) = t
 lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
 lintype_unifier (TTensor t u) (TTensor t' u') = TTensor (type_unifier t t') (type_unifier u u')
 lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
+lintype_unifier (TDetailed t _) t' = lintype_unifier t t'
+lintype_unifier t (TDetailed t' _) = lintype_unifier t t'
 
 type_unifier (TExp m t) (TExp _ u) = TExp m $ lintype_unifier t u
 
@@ -157,6 +173,7 @@ instance Param LinType where
   free_var (TTensor t u) = List.union (free_var t) (free_var u)
   free_var (TArrow t u) = List.union (free_var t) (free_var u)
   free_var (TCirc t u) = List.union (free_var t) (free_var u)
+  free_var (TDetailed t _) = free_var t
   free_var _ = []
 
   subs_var a b (TVar x) | x == a = TVar b
@@ -166,6 +183,7 @@ instance Param LinType where
   subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
   subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
   subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
+  subs_var a b (TDetailed t d) = TDetailed (subs_var a b t) d
 
 instance Eq LinType where
   (==) (TVar x) (TVar y) = x == y
@@ -175,6 +193,8 @@ instance Eq LinType where
   (==) (TTensor t u) (TTensor t' u') = (t == t') && (u == u')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
+  (==) (TDetailed t _) t' = t == t'
+  (==) t (TDetailed t' _) = t == t'
   (==) _ _ = False
 
 instance PPrint LinType where
@@ -206,6 +226,9 @@ instance PPrint LinType where
   sprintn lv (TCirc a b) =
     let dlv = decr lv in
     "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
+
+  sprintn lv (TDetailed t _) =
+    sprintn lv t
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a

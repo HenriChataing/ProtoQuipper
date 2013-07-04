@@ -14,31 +14,32 @@ import Subtyping
 import Ordering
 
 import Contexts
+import TypingContext
 import TypeInference
 
 import Data.List as List
 import Data.Map as Map
 
 -- Import the gates into the current context
-import_gates :: [(String, S.Type)] -> State ()
-----------------------------------------------
-import_gates gates = do
+gate_context :: [(String, S.Type)] -> State TypingContext
+---------------------------------------------------------
+gate_context gates = do
   List.foldl (\rec (s, t) -> do
-                rec
+                ctx <- rec
                 t' <- translate_type t
                 x <- label s
-                bind_var x t') (return ()) gates
+                bind_var x t' ctx) (return Map.empty) gates
 
 full_inference :: S.Expr -> String
 ----------------------------------
 full_inference e =
 
   let Contexts.State run = do
-      import_gates $ typing_environment
+      typctx <- gate_context typing_environment
       prog <- translate_expression (drop_constraints $ clear_location e)
 
       a <- new_type
-      constraints <- constraint_typing prog a
+      constraints <- constraint_typing typctx prog a
       non_composite <- break_composite constraints
 
       -- Unification

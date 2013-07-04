@@ -141,14 +141,15 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \begin{defn} The types of LL' are defined by the following grammar :
 	\begin{center}
 	\begin{tabular}{l}
-		$\texttt{Flag} ~ m, n ::= ~ n ~|~ 0 ~|~ 1$ \\		
+		$\texttt{Flag} ::= ~ n ~|~ 0 ~|~ 1$ \\		
 		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U$ \\
 		$\texttt{Type	} ~	T, U ~ ::= ~ !^n A$
 	\end{tabular}
 	\end{center}
+	The variables $n, m \dots$ are flag variables, and can take either the value $0$ or $1$.
 	Note that the grammar of the types of LL' forces every type to be preceded by a flag annotation.
 	In the rest of these notes, the names $A$, $B \dots$ we will be used to designate linear types, and
-	$T$, $U \dots$ banged types.
+	$T$, $U \dots$ types.
 \end{defn}
 
 \begin{defn}
@@ -181,18 +182,17 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \begin{lemma} \it The sub-typing relation $<:$ is reflexive, transitive.
 \end{lemma}
 
-\begin{defn} Sub-typing constraints $T <: U$ are defined over LL' types. A constraint $T <: U$ is atomic
-  when $T$ and $U$ are both type variables, and composite when both are not type variables. Otherwise, the constraint is
-  semi-composite. \\
-  Similarly, flag constraints $n \le m$ are defined over flag annotations. Though all flag constraints are written in the same
+\begin{defn} Sub-typing constraints $T <: U$ are defined over LL' types and linear types. A constraint $T <: U$ is atomic
+  when $T$ and $U$ are both type variables, and composite when both are not. Otherwise, the constraint is semi-composite. \\
+  Similarly, flag constraints $n \le m$ are defined over flag variables. Though all flag constraints are written in the same
   form, they can hold different meanings, for example $n \le 0$ is the constraint $n = 0$, $1 \le m$ is the constraint
   $m = 1$, and $n \le m$ is the constraint $n = 1 \Rightarrow m = 1$.
   
 \end{defn}
 
-\begin{defn} A substitution $\sigma$ is the composition of a finite list of mappings $\alpha \mapsto A$ from type variables to
-	\textit{linear} types 	by a valuation of the annotation of a type. A substitution is automatically extended by the identity function
-	to apply on all the type variables and flags.
+\begin{defn} A substitution $\sigma$ is a pair of a finite list of mappings $\alpha \mapsto A$ from type variables to
+	\textit{linear} types 	and finite list of mappings from flag constraints to either $0$ or $1$.
+	A substitution is automatically extended with identity mappings to apply on all type and flag variables.
 	$\bar{\sigma}$ the extension of $\sigma$ to linear and non-linear types is defined as follow :
  		\begin{center}
  		\begin{tabular}{l}
@@ -202,25 +202,28 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
  			$\bar{\sigma}(!^n A) = ~ !^{\sigma(n)} \bar{\sigma}A$
  		\end{tabular}
  		\end{center}
- 	The notation $|\sigma|$ is used to designate the set of mapped variables, for example
+ 	A substitution $\sigma$ is $\textit{complete}$ with regard to a set of flag variables $\mathcal{F}$ if for every flag $n \in \mathcal{F}$,
+ 	$\sigma (n) = 0$ or $\sigma (n) = 1$.
+ 	
+ 	The notation $|\sigma|$ is used to designate the set of mapped type variables, for example
  	$ | \,x \mapsto T, \, y \mapsto U\,| = \{ x, \,y \} $
 \end{defn}
 
 \begin{defn} We name $\mathcal{L}$ a set of constraints, which is comprised of sub-typing constraints
   and flag constraints. A constraint set can have the following properties :
   \begin{itemize}
-  	\item[]{\bf Atomicity} A set is atomic when all the constraints (typing constraints) forming it are atomic.
-  	\item[]{\bf Satisfiability} A set is \textit{tautological} when all the included constraints can be solved by application of one or
-  		more of the sub-typing rules (typing constraints) or by transitivity (flag constraints).
-  		Following, a set $\mathcal{L}$ is \textit{satisfiable} if there exists a substitution $\sigma$ such that $\sigma \mathcal{L}$
-	 		becomes tautological.
+  	\item[]{\bf Atomicity} A set is atomic when all the typing constraints contained are atomic.
+  	\item[]{\bf Satisfiability} A set is \textit{solved} when all the included constraints can be solved by application of one or
+  		more of the sub-typing rules (type constraints) or by transitivity (flag constraints).
+  		Following, a set $\mathcal{L}$ is \textit{solvable} if there exists a substitution $\sigma$ that solves $\sigma \mathcal{L}$.
 	 	\item[]{\bf Derivation} When the validity of a set $\mathcal{L}$ can be deduced from another set $\mathcal{L'}$ by application of
-		  the sub-typing rules, we say that $\mathcal{L}$ \textit{derive} from $\mathcal{L'}$, written $\mathcal{L'} \vdash \mathcal{L}$.
+		  the sub-typing rules and the transitivity, we say that $\mathcal{L}$ \textit{derives} from $\mathcal{L'}$,
+		  written $\mathcal{L'} \vdash \mathcal{L}$.
   \end{itemize}
 \end{defn}
 
 \begin{defn}{\bf Typing rules} A typing judgement is a sequent of the form $\Gamma \vdash_\mathcal{L} t : T$, holding the
-	meaning \textit{Under the condition that $\mathcal{L}$ is satisfied, the judgement $\Gamma \vdash t : T$ holds}.
+	meaning \textit{Under the condition that $\mathcal{L}$ is solvable, the judgement $\Gamma \vdash t : T$ holds}.
 	A sequent is \textit{valid} if a typing derivation can be constructed using the typing rules of LL'.
   In the typing rules, we use the notation $!^I \Gamma$ to designate contexts of the form 
   $!^I \Gamma = x_1 : \,!^{i_1}A_1 \dots x_n : \,!^{i_n}A_n$ and $I = \{i_1 \dots i_n\}$. \\
@@ -259,7 +262,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 
 \subsection{Soundness and completeness of LL'}
 
-\begin{defn} We equip ourselves with is a transposition $\tau$ from LL types to LL', defined as follow :
+\begin{defn} We equip ourselves with is a translation $\tau$ from LL types to LL', defined as follow :
   \begin{center}
 	\begin{tabular}{ll}
 	  $\tau (!^n \alpha) ~=~ !^1 \alpha$ &	$\tau \alpha ~=~ !^0 \alpha$ \\
@@ -268,7 +271,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\end{tabular}
 	\end{center}
 	where $n > 0$.
-	The definition of $\tau$ ensures that the return value of $\tau$ is always a LL' banged type.
+	The definition of $\tau$ ensures that the return value of $\tau$ is always a LL' type.
 \end{defn}
 
 \begin{lemma} Let $T, U$ be LL types, the following propositions are equivalent :
@@ -333,7 +336,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		\AxiomC{$\Pi$}
 		\UnaryInfC{$\Gamma \vdash t : T$}
 	\end{prooftree}
-	Then there exists a tautological set $\mathcal{L}$ such that the following typing derivation holds :
+	Then there exists a solved set $\mathcal{L}$ such that the following typing derivation holds :
 	\begin{prooftree}
 		\AxiomC{$\tau\Pi$}
 		\UnaryInfC{$\tau\Gamma \vdash_\mathcal{L} t : \tau T$}
@@ -377,7 +380,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 						\UnaryInfC{$!^I \tau \Gamma \vdash \lambda x.t : ~ !^0(\tau T \multimap \tau U)$}
 					\end{prooftree}
 					
-					The induction hypothesis applied to the typing derivation $\Pi$ produces a tautological constraint set
+					The induction hypothesis applied to the typing derivation $\Pi$ produces a solved constraint set
 					$\mathcal{L}$ such that $!^I \tau\Gamma, x : \tau T \vdash_\mathcal{L} t : \tau U$ is valid.
 					We now apply the typing rule $(\lambda)$ of LL' with the annotation $n = 0$. The typing judgement
 					$!^I \tau\Gamma \vdash_{\mathcal{L} \cup \{ 0 \le I \}} \lambda x.t : ~ !^0 (\tau T \multimap \tau U)$ is valid,
@@ -404,7 +407,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 						\UnaryInfC{$!^I \tau \Gamma \vdash \lambda x.t : ~ !^1 ( \tau T \multimap \tau U)$}
 					\end{prooftree}
 					with $I = 1 \dots 1$.
-					The induction hypothesis applied to the typing derivation $\Pi$ produces a tautological constraint set
+					The induction hypothesis applied to the typing derivation $\Pi$ produces a solved constraint set
 					$\mathcal{L}$ such that $!^I \tau\Gamma, x : \tau T \vdash_\mathcal{L} t : \tau U$ is valid.
 					We now apply the typing rule $(\lambda)$ of LL' with the annotation $n = 1$. The typing judgement
 					$!^I \tau\Gamma \vdash_{\mathcal{L} \cup \{ 1 \le I \}} \lambda x.t : ~ !^1 (\tau T \multimap \tau U)$ is valid.
@@ -434,7 +437,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					\end{prooftree}
 					with $I = 1 \dots 1$.
 					The induction hypothesis applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
-					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$ such that
+					two solved constraint sets $\mathcal{L}$ and $\mathcal{L'}$ such that
 					$\tau\Gamma_1, !^I \tau\Delta \vdash_\mathcal{L} t : \tau T \multimap \tau U$ and
 					$\tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L'} u : \tau T$ are valid.
 					Using the constraint set $\mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I \}$, by application of the typing rule $(app)$ of LL',
@@ -466,7 +469,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					\end{prooftree}
 					with $I = 1 \dots 1$.
 					The induction hypothesis applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
-					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$ such that
+					two solved constraint sets $\mathcal{L}$ and $\mathcal{L'}$ such that
 					$\tau\Gamma_1, !^I \tau\Delta \vdash_\mathcal{L} t : \tau T$ and
 					$\tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L'} u : \tau U$ are valid. Let us write $\tau T = \, !^p T'$ and
 					$\tau U = \, !^q U'$. Using the constraint set
@@ -490,7 +493,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					with $I = 1 \dots 1$.
 					The application of $\tau$ to $\bang T$ and $\bang U$ will yield $!^1 T'$ and $!^1 U'$. The induction
 					hypothesis applied applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
-					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$. Using the constraint set
+					two solved constraint sets $\mathcal{L}$ and $\mathcal{L'}$. Using the constraint set
 						$$ \mathcal{L''} = \mathcal{L \cup L'} \cup \{ 1 \le I, 1 \le 1, 1 \le 1 \}$$
 					by application of the typing rule $(\otimes.I)$ of LL', the typing judgement
 					$\tau\Gamma_1, \tau\Gamma_2, !^I \tau\Delta \vdash_\mathcal{L''} t u : \tau U$ is valid, and all the constraints of
@@ -523,7 +526,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					\end{center}
 					with $I = 1 \dots 1$, and $p = 1$ if $n > 0$ and else $0$.
 					The induction hypothesis applied applied to the typing derivations $\Pi_1$ and $\Pi_2$ produces
-					two tautological constraint sets $\mathcal{L}$ and $\mathcal{L'}$, such that the typing judgements
+					two solved constraint sets $\mathcal{L}$ and $\mathcal{L'}$, such that the typing judgements
   					 $$\tau\Gamma_1, !^I \tau\Delta \vdash_\mathcal{L} t : \,!^p (\tau (!^nT) \otimes \tau (!^nU))$$
 	  				 $$\tau\Gamma_2, !^I \tau\Delta, x : \, \tau(!^nT), y : \, \tau(!^nU) \vdash_\mathcal{L'} u : \tau V$$
 					are valid. Supposing $\tau (!^n T) = \, !^{n'}T'$ and $\tau (!^n U) = \,!^{m'}U'$, using the constraint set
@@ -536,7 +539,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\end{proof}
 \end{prop}
 
-\begin{defn} Again we define a transposition $\rho$ from LL' types to LL.
+\begin{defn} Again we define a translation $\rho$ from LL' types to LL.
 	In the definition, it is assumed that all the annotation flags are $0$ or $1$.
   \begin{center}
 	\begin{tabular}{ll}
@@ -554,13 +557,13 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 
 \begin{prop}
 	\label{LL'=>LL}
-	Let $t$ be a term, $\mathcal{L}$ a satisfiable set of constraints and $\Pi$ a typing derivation of the typing judgement
+	Let $t$ be a term, $\mathcal{L}$ a solvable set of constraints and $\Pi$ a typing derivation of the typing judgement
 	$\Gamma \vdash_\mathcal{L} t : T$ is valid :
 	\begin{prooftree}
 		\AxiomC{$\Pi$}
 		\UnaryInfC{$\Gamma \vdash_\mathcal{L} t : T$}
 	\end{prooftree}
-	Then for every substitution $\sigma$ solution of $\mathcal{L}$, the following typing derivation holds :
+	Then for any complete substitution $\sigma$ solution of $\mathcal{L}$, the following typing derivation holds :
 	\begin{prooftree}
 		\AxiomC{$(\rho \circ \sigma) \Pi$}
 		\UnaryInfC{$(\rho \circ \sigma) \Gamma \vdash t : (\rho \circ \sigma) T$}
@@ -801,7 +804,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	and outputs a set of linear constraints $\mathcal{L}$ such that the typing judgement
 	  $$x_1 : T_1 \dots x_n : T_n ~ \vdash_{\mathcal{L}} ~ M : T$$
 	is valid. The algorithm never fails to provide such set, the unification algorithm will tell if this
-	set is satisfiable, and so if the term can be typed.
+	set is solvable, and so if the term can be typed.
 	The notation $\Gamma|_t$ is used to represent $\Gamma|_{FV(t)}$.
 	
 	The algorithm proceeds as follow :
@@ -849,7 +852,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			\end{tabular}
 	\end{itemize}
 	
-\subsection{Correction}
+\subsection{Correctness}
 
 \begin{lemma}
 	\label{tau-context}
@@ -1087,7 +1090,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 
 \begin{prop} Let $t$ be a term. If there exists a typing derivation $\Pi$ of the typing judgement
 	$\Gamma \vdash_\mathcal{L} t : T$, then for all types $T'$ and contexts $\Gamma'$ such that $\sigma T' = T$ and $\sigma \Gamma' = \Gamma$
-	for some substitution $\sigma$, the constraint typing algorithm applied to $\Gamma' \vdash t : T'$ outputs a satisfiable set of
+	for some substitution $\sigma$, the constraint typing algorithm applied to $\Gamma' \vdash t : T'$ outputs a solvable set of
 	constraint $\mathcal{L'}$.
 	
 	\begin{proof}
@@ -1103,9 +1106,9 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		there exists a substitution $\tau$ such that $\mathcal{L} \vdash \tau \mathcal{L''}$, and
 		$|\tau| \cap (FTV(\Gamma) \cup FTV(T)) = \varnothing$. Having a separate domain, the substitutions $\sigma$ and $\tau$ can be composed.
 		Thus $\mathcal{L} \vdash (\tau \circ \sigma) \mathcal{L'}$.
-		By validity of the typing derivation, the set $\mathcal{L}$ is satisfiable.
+		By validity of the typing derivation, the set $\mathcal{L}$ is solvable.
 		Let $\rho$ be a solution of $\mathcal{L}$. Then $\rho$ is also a solution of $(\tau \circ \sigma) \mathcal{L'}$, and
-		$(\rho \circ \tau \circ \sigma)$ is a solution of $\mathcal{L'}$, which is thus satisfiable.
+		$(\rho \circ \tau \circ \sigma)$ is a solution of $\mathcal{L'}$, which is thus solvable.
 	\end{proof}
 \end{prop}
  
@@ -1222,7 +1225,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \end{lemma}
 
 \begin{prop} Let $t$ be a term, $T$ a LL' type and $\Gamma$ a context. If the return set $\mathcal{L}$ of the constraint typing
-	algorithm is satisfiable, then there exists a set $\mathcal{L'}$ such that $\mathcal{L} \vdash \mathcal{L'}$ and
+	algorithm is solvable, then there exists a set $\mathcal{L'}$ such that $\mathcal{L} \vdash \mathcal{L'}$ and
 	the typing judgement $\Gamma \vdash_\mathcal{L'} t : T$ is valid.
 	
 	\begin{proof}
@@ -1230,7 +1233,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		If the term is
 		\begin{itemize}
 			\item $x$, the algorithm applied to $!^I \Gamma, x : T \vdash x : U$ produces the set
-				$\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being satisfiable, the typing derivation
+				$\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being solvable, the typing derivation
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(ax)$}
@@ -1248,7 +1251,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				where $\alpha$ and $n$ are fresh.
 				The output of the algorithm is the set $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$, $I$ being defined as
 				the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
-				Since $\mathcal{L}$ is satisfiable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				Since $\mathcal{L}$ is solvable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
 				The induction hypothesis applied twice yields the typing derivations
 					\begin{prooftree}
 						\AxiomC{$\Pi_1$}
@@ -1285,7 +1288,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			\item $\lambda x.t$, the algorithm makes one recursive call on $!^I \Gamma, x : \,!^n \alpha \vdash t : \,!^m\beta$, producing the
 				set $\mathcal{L}$. The output of the algorithm is then
 					$\mathcal{L^*} = \mathcal{L} \cup \{ !^p(!^n \alpha \multimap \,!^m\beta) <: T \} \cup \{p \le I\}$. Since $\mathcal{L^*}$
-					is satisfiable, so is $\mathcal{L}$. By the induction hypothesis, we can build a valid typing derivation $\Pi$ of the
+					is solvable, so is $\mathcal{L}$. By the induction hypothesis, we can build a valid typing derivation $\Pi$ of the
 					typing judgement $!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L'} t : \beta$, with $\mathcal{L} \vdash \mathcal{L'}$,
 					from which we can derive, by application of the rule $(\lambda)$ :
 						\begin{prooftree}
@@ -1316,7 +1319,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					$$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I,~ p \le n,~ p \le m \} \cup
 						\{ \,!^p(!^n\alpha \otimes \,!^m\beta) <: T \}$$
 				$I$ being defined as the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
-				Since $\mathcal{L}$ is satisfiable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				Since $\mathcal{L}$ is solvable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
 				The induction hypothesis applied twice, yields the typing derivations which, modified in the same way as in the application
 				case, are
 					\begin{prooftree}
@@ -1346,12 +1349,12 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				Consequently, $\mathcal{L} \vdash \mathcal{L^*}$.
 				
 			\item $\text{let}~ \pair{x}{y} = t ~\text{in}~ u$.
-				This case is similar to the others, only longer, this is way it will not be treated here.
+				This case is similar to the others, only longer, this is why it will not be treated here.
 		\end{itemize}
 	\end{proof}
 \end{prop}
 
-\section{Unification}
+\section{Unification Algorithm}
 
 \begin{defn}{unification algorithm} \\
 	The algorithm inputs a set of linear constraints $\mathcal{L}$, and returns

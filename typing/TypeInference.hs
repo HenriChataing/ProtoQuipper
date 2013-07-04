@@ -7,6 +7,7 @@ import Localizing
 import CoreSyntax
 
 import Contexts
+import TypingContext
 
 import Subtyping
 import Ordering
@@ -18,12 +19,12 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Build all the deriving constraints
-constraint_typing :: Expr -> Type -> State ConstraintSet
+constraint_typing :: TypingContext -> Expr -> Type -> State ConstraintSet
 
 -- Located things
-constraint_typing (ELocated e ex) t = do
+constraint_typing typctx (ELocated e ex) t = do
   set_location ex
-  constraint_typing e t
+  constraint_typing typctx e t
 
 -- Unit typing rule
 {-
@@ -31,9 +32,11 @@ constraint_typing (ELocated e ex) t = do
       !I G  |- * : !n T    [{1 <= I}]
 -} 
 
-constraint_typing EUnit t = do
-  ann <- context_annotation
-  return ([NonLinear t (TExp 1 TUnit)], List.map (\(_, f) -> (1, f)) ann)
+constraint_typing typctx EUnit t = do
+  flags <- context_annotation typctx
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+
+  return ([NonLinear t (TExp 1 TUnit)], flags_cons)
 
 -- True / False typing rule
 {-
@@ -41,22 +44,25 @@ constraint_typing EUnit t = do
      !I G |- True / False : !n T   [{1 <= I}]
 -} 
 
-constraint_typing (EBool _) t = do
-  ann <- context_annotation
-  return ([NonLinear t (TExp 1 TBool)], List.map (\(_, f) -> (1, f)) ann)
+constraint_typing typctx (EBool _) t = do
+  flags <- context_annotation typctx
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+
+  return ([NonLinear t (TExp 1 TBool)], flags_cons)
 
 -- Var typing rule
 {-
-     
    ---------------------------------------------
      !IG, t : T |- t : U    [{T <: U, 1 <= I}]
 -}
 
-constraint_typing (EVar x) u = do
-  t <- find_var x
-  ann <- context_annotation
-  ann' <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) ann
-  return ([NonLinear t u], List.map (\(_, f) -> (1, f)) ann')
+constraint_typing typctx (EVar x) u = do
+  t <- type_of x typctx
+  flags <- context_annotation typctx
+  flags_nx <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) flags
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags_nx
+
+  return ([NonLinear t u], flags_cons)
 
 -- Box typing rule
 {-
@@ -64,10 +70,10 @@ constraint_typing (EVar x) u = do
    -----------------------------------------------  (box 1)
      G |- box[T] t : T'  [L u {T' <: circ (T, U)]
 -}
-constraint_typing (EApp (EBox a) t) typ = do
+constraint_typing typctx (EApp (EBox a) t) typ = do
   b <- new_type
   -- Type the term t
-  (lcons, fcons) <- constraint_typing t (TExp 0 (TArrow a b))
+  (lcons, fcons) <- constraint_typing typctx t (TExp 0 (TArrow a b))
   
   return ((NonLinear (TExp (-1) (TCirc a b)) typ):lcons, fcons)
 
@@ -77,11 +83,11 @@ constraint_typing (EApp (EBox a) t) typ = do
        --------------------------------
          G |- rev t : Circ (U, T)  [L]
 -}
-constraint_typing (EApp ERev t) typ = do
+constraint_typing typctx (EApp ERev t) typ = do
   a <- new_type
   b <- new_type
   -- Type t
-  (lcons, fcons) <- constraint_typing t (TExp (-1) (TCirc a b))
+  (lcons, fcons) <- constraint_typing typctx t (TExp (-1) (TCirc a b))
 
   return ((NonLinear (TExp (-1) (TCirc b a)) typ):lcons, fcons)
 
@@ -93,27 +99,27 @@ constraint_typing (EApp ERev t) typ = do
          G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
 -}
 
-constraint_typing (EApp t u) b = do
+constraint_typing typctx (EApp t u) b = do
   a <- new_type
+
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
+
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_bindings (\x -> List.elem x fvt)
-  (lcons, fcons) <- constraint_typing t (TExp 0 (TArrow a b))
+  (typctx_fvt, _) <- sub_context fvt typctx
+  (lcons, fcons) <- constraint_typing typctx_fvt t (TExp 0 (TArrow a b))
+
   -- Filter on the free variables of u and type u
-  Contexts.import_bindings non_fvt
-  non_fvu <- filter_bindings (\x -> List.elem x fvu)
-  (lcons', fcons') <- constraint_typing u a
-  -- Reset the environment, and add the last constraints
-    -- Need to perform : FV(t) + FV(u) (disjoint union)
-  import_bindings non_fvu
-  dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
-  ann <- context_annotation
-  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
-                                                 else (1, f):cl) [] ann
+  (typctx_fvu, _) <- sub_context fvu typctx
+  (lcons', fcons') <- constraint_typing typctx_fvu u a
+
+  -- Construction of the constraint for !I Delta (= ctx \\ fvt oplus fvu)
+  (_, typctx_delta) <- sub_context ((fvt \\fvu) ++ (fvu \\ fvt)) typctx
+  flags <- context_annotation typctx_delta
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  return (lcons' ++ lcons, fcons' ++ fcons ++ ann_cons)
+  return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons)
 
 -- Lambda typing rule
 {-
@@ -122,27 +128,24 @@ constraint_typing (EApp t u) b = do
      !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
 -}
 
-constraint_typing (EFun p e) t = do
+constraint_typing typctx (EFun p e) t = do
   b <- new_type
   n <- fresh_flag
 
   -- Context annotations (without the pattern's bindings)
-  ann <- context_annotation
+  flags <- context_annotation typctx
 
   -- Bind p in the current context
   (a, fca) <- create_pattern_type p
-  bind_pattern p a
+  typctx' <- bind_pattern p a typctx
 
   -- Type the expression e
-  (lcons, fcons) <- constraint_typing e b
-  -- Build the context constraints : n <= I
-  ann_cons <- return $ List.map (\(_, f) -> (n, f)) ann
-  -- Remove p from the context
-  List.foldl (\rec x -> do
-                 rec
-                 delete_var x) (return ()) (free_var p)
+  (lcons, fcons) <- constraint_typing typctx' e b
 
-  return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ ann_cons ++ fca)
+  -- Build the context constraints : n <= I
+  flags_cons <- return $ List.map (\(_, f) -> (n, f)) flags
+
+  return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ flags_cons ++ fca)
 
 -- Tensor intro typing rule
 {-
@@ -151,29 +154,29 @@ constraint_typing (EFun p e) t = do
      G1, G2, !ID |- <t, u> : T   [L u L' u {1 <= I} u {!n (a * b) <: T}]
 -}
 
-constraint_typing (EPair t u) typ = do
+constraint_typing typctx (EPair t u) typ = do
   ta@(TExp n a) <- new_type
   tb@(TExp m b) <- new_type
   p <- fresh_flag
+
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
+
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_bindings (\x -> List.elem x fvt)
-  (lcons, fcons) <- constraint_typing t ta
+  (typctx_fvt, _) <- sub_context fvt typctx
+  (lcons, fcons) <- constraint_typing typctx_fvt t ta
+
   -- Filter on the free variables of u and type u
-  import_bindings non_fvt
-  non_fvu <- filter_bindings (\x -> List.elem x fvu)
-  (lcons', fcons') <- constraint_typing u tb
-  -- Reset the environment, and add the last constraints
-    -- Need to perform : FV(t) + FV(u) (disjoint union)
-  import_bindings non_fvu
-  dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
-  ann <- context_annotation
-  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
-                                                 else (1, f):cl) [] ann
+  (typctx_fvu, _) <- sub_context fvu typctx
+  (lcons', fcons') <- constraint_typing typctx_fvu u tb
+
+  -- Construction of the constraints of delta, the intersection
+  (_, typctx_delta) <- sub_context ((fvt \\ fvu) ++ (fvu \\ fvt)) typctx
+  flags <- context_annotation typctx_delta
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  return (lcons' ++ lcons ++ [NonLinear (TExp p $ TTensor ta tb) typ], (p, n):(p, m):(fcons' ++ fcons ++ ann_cons))
+  return (lcons' ++ lcons ++ [NonLinear (TExp p $ TTensor ta tb) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
 
 
 -- Tensor elim typing rule
@@ -183,34 +186,31 @@ constraint_typing (EPair t u) typ = do
      G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
 -}
 
-constraint_typing (ELet p t u) typ = do
+constraint_typing typctx (ELet p t u) typ = do
   (a, fca) <- create_pattern_type p
   n <- fresh_flag
+
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
+
   -- Filter on the free variables of t and type t
-  non_fvt <- filter_bindings (\x -> List.elem x fvt)
-  (lcons, fcons) <- constraint_typing t a
+  (typctx_fvt, _) <- sub_context fvt typctx
+  (lcons, fcons) <- constraint_typing typctx_fvt t a
+
   -- Filter on the free variables of u
-  import_bindings non_fvt
-  non_fvu <- filter_bindings (\x -> List.elem x fvu)
+  (typctx_fvu, _) <- sub_context fvu typctx
   -- Add x and y to the context
-  bind_pattern p a
+  typctx_fvu <- bind_pattern p a typctx_fvu
   -- Type u
-  (lcons', fcons') <- constraint_typing u typ
-  -- Clean the context
-  List.foldl (\rec x -> do
-                rec
-                delete_var x) (return ()) (free_var p)
-  import_bindings non_fvu
-  -- Generate the flag constraints for the intersection
-  dis_union <- return $ List.union (fvt \\ fvu) (fvu \\ fvt)
-  ann <- context_annotation
-  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
-                                                 else (1, f):cl) [] ann
+  (lcons', fcons') <- constraint_typing typctx_fvu u typ
   
-  return (lcons' ++ lcons, fcons' ++ fcons ++ ann_cons ++ fca)
+  -- Generate the flag constraints for the intersection
+  (_, typctx_delta) <- sub_context ((fvt \\ fvu) ++ (fvu \\ fvt)) typctx
+  flags <- context_annotation typctx_delta
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+  
+  return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons ++ fca)
 
 -- Typing rule (if)
 {-
@@ -220,30 +220,28 @@ constraint_typing (ELet p t u) typ = do
      G1, G2, !ID |- if e then f else g : T   [L u L' u L'' u {1 <= I}]
 -}
 
-constraint_typing (EIf e f g) typ = do
+constraint_typing typctx (EIf e f g) typ = do
   -- Extract the free variables of e, f and g
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
   
   -- Filter on the free variables of e and type e
-  non_fve <- filter_bindings (\x -> List.elem x fve)
-  (lcons, fcons) <- constraint_typing e (TExp 0 TBool)
+  (typctx_fve, _) <- sub_context fve typctx
+  (lcons, fcons) <- constraint_typing typctx_fve e (TExp 0 TBool)
 
   -- Filter on the free variables of f an g
-  import_bindings non_fve
-  non_fvfg <- filter_bindings (\x -> List.elem x fvfg)
+  (typctx_fvfg, _) <- sub_context fvfg typctx
+
   -- Type f and g
-  (lconsf, fconsf) <- constraint_typing f typ
-  (lconsg, fconsg) <- constraint_typing g typ
-  import_bindings non_fvfg
+  (lconsf, fconsf) <- constraint_typing typctx_fvfg f typ
+  (lconsg, fconsg) <- constraint_typing typctx_fvfg g typ
 
   -- Generate the flag constraints for the intersection
-  dis_union <- return $ List.union (fve \\ fvfg) (fvfg \\ fve)
-  ann <- context_annotation
-  ann_cons <- return $ List.foldl (\cl (x, f) -> if List.elem x dis_union then cl
-                                                 else (1, f):cl) [] ann
+  (_, typctx_delta) <- sub_context ((fve \\ fvfg) ++ (fvfg \\ fve)) typctx
+  flags <- context_annotation typctx_delta
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  return (lconsf ++ lconsg ++ lcons, fconsf ++ fconsg ++ fcons ++ ann_cons)
+  return (lconsf ++ lconsg ++ lcons, fconsf ++ fconsg ++ fcons ++ flags_cons)
 
 -- Unbox typing rule
 {-
@@ -252,12 +250,12 @@ constraint_typing (EIf e f g) typ = do
      G |- unbox t : !n (T -> U)  [L]
 -}
 
-constraint_typing (EUnbox t) typ = do
+constraint_typing typctx (EUnbox t) typ = do
   a <- new_type
   b <- new_type
   n <- fresh_flag
   -- Type t
-  (lcons, fcons) <- constraint_typing t (TExp 1 (TCirc a b))
+  (lcons, fcons) <- constraint_typing typctx t (TExp 1 (TCirc a b))
   -- Return
   return ((NonLinear (TExp n (TArrow a b)) typ):lcons, fcons)
 
@@ -272,6 +270,23 @@ break_composite :: ConstraintSet -> State ConstraintSet
 
 -- Nothing to do
 break_composite ([], lc) = return ([], lc)
+
+-- Detailed constraints
+break_composite ((Linear (TDetailed t det) u):lc, fc) = do
+  case det of
+    TypeOfE e -> do
+        set_expr e
+    _ -> do
+        return ()
+  break_composite ((Linear t u):lc, fc)
+
+break_composite ((Linear t (TDetailed u det)):lc, fc) = do
+  case det of
+    TypeOfE e -> do
+        set_expr e
+    _ -> do
+        return ()  
+  break_composite ((Linear t u):lc, fc)
 
 break_composite ((Linear TUnit TUnit):lc, fc) = do
   break_composite (lc, fc)
@@ -328,7 +343,9 @@ break_composite (c@(Linear _ (TVar _)):lc, fc) = do
 
 -- Other non composite / non-semi composite constraints
 break_composite ((Linear t u):lc, fc) = do
-  failwith $ TypeMismatch (pprint t) (pprint u)
+  e <- get_expr
+  fail $ "Type mismacth in the type of " ++ pprint e
+  --failwith $ TypeMismatch (pprint t) (pprint u)
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
 

@@ -40,6 +40,7 @@ data Context =
     logfile :: [String],
 
     current_location :: Extent,
+    current_expr :: Expr,
 
     {- Id generation -}
 
@@ -62,13 +63,6 @@ data Context =
      
     name_to_var :: [Map.Map String Variable],
     var_to_name :: Map.Map Variable String,
-
-    {-
-       Constraint typing algorithm
-       Need only the bindings var <-> type of the current context
-    -}
-
-    bindings :: Map.Map Variable Type,
     
     --
     -- VARIABLE DATING STUFF
@@ -115,11 +109,10 @@ empty_context =
     log_enabled = True,
     logfile = ["\x1b[1m" ++ ">> Log start <<" ++ "\x1b[0m"],
     current_location = extent_unknown,
+    current_expr = EUnit,
 
     name_to_var = [Map.empty],
     var_to_name = Map.empty,
-
-    bindings = Map.empty,
 
     variables = [],
     relations = [],
@@ -150,6 +143,8 @@ print_logs :: State String
 
 set_location :: Extent -> State ()
 get_location :: State Extent
+set_expr :: Expr -> State ()
+get_expr :: State Expr
 ----------------------------
 enable_logs =
   State (\ctx -> (ctx { log_enabled = True }, return ()))
@@ -171,6 +166,12 @@ set_location ex =
 
 get_location =
   State (\ctx -> (ctx, return $ current_location ctx))
+
+set_expr e =
+  State (\ctx -> (ctx { current_expr = e }, return ()))
+
+get_expr =
+  State (\ctx -> (ctx, return $ current_expr ctx))
 
 {-
   Id generation
@@ -199,69 +200,17 @@ new_type = do
 create_pattern_type PUnit = do
   return (TExp (-1) TUnit, [])
 
-create_pattern_type (PVar _) = do
-  t <- new_type
-  return (t, [])
+create_pattern_type (PVar x) = do
+  t <- fresh_type
+  n <- fresh_flag
+  dett <- return $ TExp n $ TDetailed (TVar t) (TypeOfP $ PVar x)
+  return (dett, [])
 
 create_pattern_type (PPair p q) = do
   (t@(TExp f _), fct) <- create_pattern_type p
   (u@(TExp g _), fcu) <- create_pattern_type q
   n <- fresh_flag
-  return (TExp n (TTensor t u), (n, f):(n, g):(fct ++ fcu))
-
-
-{-
-  Manipulation of the bindings (typing context) :
-  
-  - bind_var : add a new binding x <-> t in the context
-  - bind_pattern : add as many bindings as the free variables of the pattern in the current context
-
-  - find_var : retrieve the type of a variable
-  - delete_var : remove a variable from the typing context
-
-  And more global functions, applying to the whole context :
-  - context_annotation : returns the vector of the flag annotations of the types in the context
-  - filter_bindings : filter the bindings of the typing context, and return the unselected ones
-  - import_bindings : add a set of bindings in the current typing context
--}
-
-bind_var :: Variable -> Type -> State ()
-bind_pattern :: Pattern -> Type -> State ()
-find_var :: Variable -> State Type
-delete_var :: Variable -> State ()
-
-context_annotation :: State [(Variable, Flag)]
-filter_bindings :: (Variable -> Bool) -> State (Map.Map Variable Type)
-import_bindings :: (Map.Map Variable Type) -> State ()
-------------------------------------------------------
-bind_var x t = State (\ctx -> (ctx { bindings = Map.insert x t $ bindings ctx }, return ()))
-
-bind_pattern PUnit (TExp _ TUnit) = do
-  return ()
-
-bind_pattern (PVar x) t = do
-  bind_var x t
-
-bind_pattern (PPair p q) (TExp _ (TTensor t u)) = do
-  bind_pattern p t
-  bind_pattern q u
-
-bind_pattern _ _ = do
-  fail "Unmatching pair of pattern / type"
-
-find_var x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
-                                Just t -> return t
-                                Nothing -> error_fail (UnboundVariable (subscript ("x" ++ show x)) extent_unknown)))
-
-delete_var x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, return ()))
-
-context_annotation = State (\ctx -> (ctx, Ok $  Map.foldWithKey (\x (TExp f _) ann -> (x, f):ann)
-                                                                [] $ bindings ctx))
-
-filter_bindings f = State (\ctx -> let (ptrue, pfalse) = Map.partitionWithKey (\x _ -> f x) $ bindings ctx in
-                                   (ctx { bindings = ptrue }, return pfalse))
-
-import_bindings m = State (\ctx -> (ctx { bindings = Map.union m $ bindings ctx }, return ()))
+  return (TExp n $ TDetailed (TTensor t u) (TypeOfP $ PPair p q), (n, f):(n, g):(fct ++ fcu))
 
 
 -- =============================== --
@@ -319,6 +268,10 @@ map_lintype_step (TCirc t u) = do
   u' <- map_type_step u
   return $ TCirc t' u'
 
+map_lintype_step (TDetailed t det) = do
+  t' <- map_lintype_step t
+  return $ TDetailed t' det
+
 map_type_step (TExp f t) = do
   t' <- map_lintype_step t
   return $ TExp f t'
@@ -368,15 +321,11 @@ app_val_to_lintype (TCirc t u) map = do
   u' <- app_val_to_type u map
   return $ TCirc t' u'
 
+app_val_to_lintype (TDetailed t det) map = do
+  t' <- app_val_to_lintype t map
+  return $ TDetailed t' det
+
 app_val_to_type (TExp f t) map = do
   fv <- app_val_to_flag f map
   t' <- app_val_to_lintype t map
-  return $ TExp fv t'
-
-
--------------------
--- Some printing --
-
-instance Show Context where
-  show ctx = "[| " ++ (Map.foldWithKey (\k t s -> s ++ subscript ("x" ++ show k) ++ " : " ++ pprint t ++ "\n") "" $ bindings ctx) 
- 
+  return $ TExp fv t' 
