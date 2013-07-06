@@ -23,6 +23,7 @@ tokens :-
   ";"                                 { locate_token TkSemiColon }
   "="                                 { locate_token TkEq }
   "!"                                 { locate_token TkBang }
+  "|"                                 { locate_token TkBar }
   "->"                                { locate_token TkArrow }
   "<-"                                { locate_token TkBackArrow }
   "("                                 { locate_token TkLParen } 
@@ -43,12 +44,16 @@ tokens :-
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
   in                                  { locate_token TkIn }
+  injl                                { locate_token TkInjL }
+  injr                                { locate_token TkInjR }
   let                                 { locate_token TkLet }
+  match                               { locate_token TkMatch }
   qbit                                { locate_token TkQBit }
   rev                                 { locate_token TkRev }
   then                                { locate_token TkThen }
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
+  with                                { locate_token TkWith }
 
   $alpha [$alpha $digit]*             { \p s -> TkVar (from_posn p s, s) }
   
@@ -66,9 +71,12 @@ from_posn (AlexPn p l c) s =
 data Token =
     TkVar (Extent, String)
   | TkBool Extent     | TkQBit Extent
-  | TkBox Extent     | TkUnbox Extent
+  | TkBox Extent      | TkUnbox Extent
   | TkCirc Extent
-  | TkIf Extent       | TkThen Extent   | TkElse Extent  
+  | TkBar Extent
+  | TkIf Extent       | TkThen Extent   | TkElse Extent
+  | TkMatch Extent    | TkWith Extent
+  | TkInjL Extent     | TkInjR Extent
   | TkTrue Extent     | TkFalse Extent
   | TkFun Extent      | TkDo Extent
   | TkLet Extent      | TkIn Extent

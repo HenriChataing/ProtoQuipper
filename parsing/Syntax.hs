@@ -1,10 +1,11 @@
 module Syntax where
 
-import Data.Char
-import Data.Map
-
 import Localizing
 import Classes
+
+import Data.Char
+import Data.Map
+import Data.List as List
 
 ---------------------------------
 -- Representation of Quipper's --
@@ -17,6 +18,7 @@ data Type =
   | TQBit                     -- qbit
   | TCirc Type Type           -- circ (A, B)
   | TTensor Type Type         -- A * B
+  | TSum Type Type            -- A + B
   | TArrow Type Type          -- A -> B
   | TExp Type                 -- !A
   | TLocated Type Extent      -- A @ ex
@@ -45,6 +47,10 @@ data Expr =
   | EApp Expr Expr            -- e f
   | EBool Bool                -- true / false
   | EPair Expr Expr           -- <e, f>
+  | EInjL Expr                -- injl e
+  | EInjR Expr                -- injr e
+  | EMatch Expr [(Pattern, Expr)]
+                              -- match e with (x1 -> f1) (x2 -> f2) ...(xn -> fn)
   | EBox Type                 -- box[A]
   | EUnbox Expr               -- unbox e
   | EIf Expr Expr Expr        -- if e then f else g
@@ -89,6 +95,7 @@ stripExpRec (TExp a) = stripExpRec a
 stripExpRec (TTensor a b) = TTensor (stripExpRec a) (stripExpRec b)
 stripExpRec (TCirc a b) = TCirc (stripExpRec a) (stripExpRec b)
 stripExpRec (TArrow a b) = TArrow (stripExpRec a) (stripExpRec b)
+stripExpRec (TSum a b) = TSum (stripExpRec a) (stripExpRec b)
 stripExpRec a = a
 
 -- Reduce all ! annotations to one
@@ -106,6 +113,7 @@ reduceExpRec (TExp a) = TExp (reduceExpRec a)
 reduceExpRec (TTensor a b) = TTensor (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TCirc a b) = TCirc (reduceExpRec a) (reduceExpRec b)
 reduceExpRec (TArrow a b) = TArrow (reduceExpRec a) (reduceExpRec b)
+reduceExpRec (TSum a b) = TSum (reduceExpRec a) (reduceExpRec b)
 reduceExpRec a = a
 
 -- Eq instance declaration of types
@@ -119,6 +127,7 @@ instance Eq Type where
   (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TTensor t1 t2) (TTensor t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TArrow t1 t2) (TArrow t1' t2') = (t1 == t1') && (t2 == t2')
+  (==) (TSum t1 t2) (TSum t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TExp t1) (TExp t2) = (stripExp t1 == stripExp t2)
   (==) _ _ = False
 
@@ -136,6 +145,7 @@ instance Located Type where
   clear_location (TCirc t u) = TCirc (clear_location t) (clear_location u)
   clear_location (TTensor t u) = TTensor (clear_location t) (clear_location u)
   clear_location (TArrow t u) = TArrow (clear_location t) (clear_location u)
+  clear_location (TSum t u) = TSum (clear_location t) (clear_location u)
   clear_location (TExp t) = TExp (clear_location t)
   clear_location t = t
  
@@ -210,6 +220,9 @@ isValue (EPair e1 e2) = isValue e1 && isValue e2
 isValue (EIf _ _ _) = False
 isValue (EApp _ _) = False
 isValue (ELet _ _ _) = False
+isValue (EInjL e) = isValue e
+isValue (EInjR e) = isValue e
+isValue (EMatch _ _) = False
 isValue _ = True
 
 instance Located Expr where
@@ -231,6 +244,9 @@ instance Located Expr where
   clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
   clear_location (EUnbox e) = EUnbox (clear_location e)
   clear_location (EBox t) = EBox (clear_location t)
+  clear_location (EInjL e) = EInjL (clear_location e)
+  clear_location (EInjR e) = EInjR (clear_location e)
+  clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 
 instance Constraint Expr where
@@ -242,6 +258,9 @@ instance Constraint Expr where
   drop_constraints (EPair e1 e2) = EPair (drop_constraints e1) (drop_constraints e2)
   drop_constraints (EIf e1 e2 e3) = EIf (drop_constraints e1) (drop_constraints e2) (drop_constraints e3)
   drop_constraints (EUnbox e) = EUnbox (drop_constraints e)
+  drop_constraints (EInjL e) = EInjL (drop_constraints e)
+  drop_constraints (EInjR e) = EInjR (drop_constraints e)
+  drop_constraints (EMatch e plist) = EMatch (drop_constraints e) $ List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) plist
   drop_constraints e = e
 
 

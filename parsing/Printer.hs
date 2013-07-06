@@ -5,6 +5,8 @@ import Classes
 
 import Syntax
 
+import Data.List as List
+
 {- Type printing -}
 
 instance PPrint Type where
@@ -40,6 +42,13 @@ instance PPrint Type where
               TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
+
+  sprintn lv (TSum a b) =
+    let dlv = decr lv in
+    (case a of
+       TSum _ _ -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++ " + " ++
+    sprintn dlv b
 
   sprintn lv (TLocated a _) = sprintn lv a
 
@@ -125,6 +134,17 @@ indent_sprintn lv ind (EFun p e) =
   let dlv = decr lv in
   "fun " ++ sprintn dlv p ++ " ->\n" ++
   ind ++ "    " ++ indent_sprintn dlv (ind ++ "    ") e
+
+indent_sprintn lv ind (EInjL e) =
+  "injl(" ++ indent_sprintn (decr lv) ind e ++ ")"
+
+indent_sprintn lv ind (EInjR e) =
+  "injr(" ++ indent_sprintn (decr lv) ind e ++ ")"
+
+indent_sprintn lv ind (EMatch e plist) =
+  let dlv = decr lv in
+  "match " ++ indent_sprintn dlv ind e ++ " with" ++
+    List.foldl (\s (p, f) -> s ++ "\n" ++ ind ++ "  | " ++ sprintn dlv p ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") f) "" plist
 
 indent_sprintn lv ind (EConstraint e t) = "(" ++ indent_sprintn (decr lv) ind e ++ " : " ++ pprint t ++ ")"
 indent_sprintn lv ind (ELocated e _) = indent_sprintn lv ind e

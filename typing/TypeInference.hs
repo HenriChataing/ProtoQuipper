@@ -212,6 +212,77 @@ constraint_typing typctx (ELet p t u) typ = do
   
   return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons ++ fca)
 
+-- Injl typing rule
+{-
+    G |- t : !n A   [L]
+   -------------------------------
+    G |- injl t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
+-}
+
+constraint_typing typctx (EInjL t) typ = do
+  ta@(TExp n a) <- new_type
+  tb@(TExp m b) <- new_type
+  p <- fresh_flag
+
+  (lcons, fcons) <- constraint_typing typctx t ta
+  
+  return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
+
+-- Injl typing rule
+{-
+    G |- t : !m B   [L]
+   -------------------------------
+    G |- inju t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
+-}
+
+constraint_typing typctx (EInjR t) typ = do
+  ta@(TExp n a) <- new_type
+  tb@(TExp m b) <- new_type
+  p <- fresh_flag
+
+  (lcons, fcons) <- constraint_typing typctx t tb
+  
+  return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
+
+-- Match typing rule
+{-
+    G1, !ID |- t : !p(!nA + !m B)   [L1]
+    G2, !ID, x : !nA |- u : V       [L2]
+    G2, !ID, y : !mB |- v : V       [L3]
+   ---------------------------------------------------
+    G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I}]
+-}
+
+constraint_typing typctx (EMatch t (p, u) (q, v)) typ = do
+   -- Extract the free variables of e, f and g
+  fvt <- return $ free_var t
+  fvuv <- return $ List.union (free_var u) (free_var v)
+  
+  -- Create the type of the sum
+  (ta@(TExp n _), fca) <- create_pattern_type p
+  (tb@(TExp m _), fcb) <- create_pattern_type q
+  r <- fresh_flag
+
+  -- Type e
+  (typctx_fvt, _) <- sub_context fvt typctx
+  (lconst, fconst) <- constraint_typing typctx_fvt t (TExp r (TSum ta tb))
+
+  -- Filter on the free variables of f an g
+  (typctx_fvuv, _) <- sub_context fvuv typctx
+
+  -- Type f and g
+  typctx_fvuv1 <- bind_pattern p ta typctx_fvuv
+  (lconsu, fconsu) <- constraint_typing typctx_fvuv1 u typ
+  typctx_fvuv2 <- bind_pattern q tb typctx_fvuv
+  (lconsv, fconsv) <- constraint_typing typctx_fvuv2 v typ
+
+  -- Generate the flag constraints for the intersection
+  (_, typctx_delta) <- sub_context ((fvt \\ fvuv) ++ (fvuv \\ fvt)) typctx
+  flags <- context_annotation typctx_delta
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+  
+  return (lconst ++ lconsu ++ lconsv, [(r, n), (r, m)] ++ fconst ++ fconsu ++ fconsv ++ flags_cons) 
+
 -- Typing rule (if)
 {-
      G1, !ID |- e : bool [L]
@@ -313,6 +384,14 @@ break_composite ((Linear (TTensor t u) (TTensor t' u')):lc, fc) = do
   break_composite ((NonLinear t t'):(NonLinear u u'):lc, fc)
 
 -- Break constraints
+  -- T + U <: T' + U'
+-- Into
+  -- T <: T' && U <: U'
+
+break_composite ((Linear (TSum t u) (TSum t' u')):lc, fc) = do
+  break_composite ((NonLinear t t'):(NonLinear u u'):lc, fc)
+
+-- Break constraints
   -- circ (T, U) <: circ (T', U')
 -- Into
   -- T' <: T && U <: U'
@@ -344,7 +423,7 @@ break_composite (c@(Linear _ (TVar _)):lc, fc) = do
 -- Other non composite / non-semi composite constraints
 break_composite ((Linear t u):lc, fc) = do
   e <- get_expr
-  fail $ "Type mismacth in the type of " ++ pprint e
+  fail $ "Type mismatch in the type of " ++ pprint e
   --failwith $ TypeMismatch (pprint t) (pprint u)
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
@@ -374,6 +453,11 @@ model_of_lin (TTensor t u) = do
   u' <- model_of u
   return $ TTensor t' u'
 
+model_of_lin (TSum t u) = do
+  t' <- model_of t
+  u' <- model_of u
+  return $ TSum t' u'
+
 model_of_lin (TVar _) = do
   x <- fresh_type
   -- Add the variable to the list managed by the ordering process
@@ -384,6 +468,9 @@ model_of_lin (TCirc t u) = do
   t' <- model_of t
   u' <- model_of u
   return $ TCirc t' u'
+
+model_of_lin (TDetailed t _) = do
+  model_of_lin t
 
 model_of (TExp _ t) = do
   n <- fresh_flag

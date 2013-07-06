@@ -48,6 +48,7 @@ data LinType =
   | TUnit                      -- 1
   | TQbit                      -- qbit
   | TTensor Type Type          -- a * b
+  | TSum Type Type             -- a + b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
   | TDetailed LinType Detail      -- Type with detailed information, as the term of which it is type
@@ -90,6 +91,10 @@ data Expr =
   | EApp Expr Expr                      -- t u
   | EPair Expr Expr                     -- <t, u>
   | EIf Expr Expr Expr                  -- if e then f else g
+  | EInjL Expr                          -- injl e
+  | EInjR Expr                          -- injr e
+  | EMatch Expr (Pattern, Expr) (Pattern, Expr)
+                                        -- match e with (x -> f | y -> g)
   | EBox Type                           -- box[T]
   | EUnbox Expr                         -- unbox t
   | ERev                                -- rev
@@ -125,6 +130,7 @@ lintype_unifier (TVar _) t = t
 lintype_unifier t (TVar _) = t
 lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
 lintype_unifier (TTensor t u) (TTensor t' u') = TTensor (type_unifier t t') (type_unifier u u')
+lintype_unifier (TSum t u) (TSum t' u') = TSum (type_unifier t t') (type_unifier u u')
 lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
 lintype_unifier (TDetailed t _) t' = lintype_unifier t t'
 lintype_unifier t (TDetailed t' _) = lintype_unifier t t'
@@ -172,6 +178,7 @@ instance Param LinType where
   free_var (TVar x) = [x]
   free_var (TTensor t u) = List.union (free_var t) (free_var u)
   free_var (TArrow t u) = List.union (free_var t) (free_var u)
+  free_var (TSum t u) = List.union (free_var t) (free_var u)
   free_var (TCirc t u) = List.union (free_var t) (free_var u)
   free_var (TDetailed t _) = free_var t
   free_var _ = []
@@ -181,6 +188,7 @@ instance Param LinType where
   subs_var _ _ TUnit = TUnit
   subs_var _ _ TBool = TBool
   subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
+  subs_var a b (TSum t u) = TSum (subs_var a b t) (subs_var a b u) 
   subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
   subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
   subs_var a b (TDetailed t d) = TDetailed (subs_var a b t) d
@@ -192,6 +200,7 @@ instance Eq LinType where
   (==) TQbit TQbit = True
   (==) (TTensor t u) (TTensor t' u') = (t == t') && (u == u')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
+  (==) (TSum t u) (TSum t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
   (==) (TDetailed t _) t' = t == t'
   (==) t (TDetailed t' _) = t == t'
@@ -221,6 +230,13 @@ instance PPrint LinType where
     (case a of
        TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " -> " ++
+    sprintn dlv b
+
+  sprintn lv (TSum a b) =
+    let dlv = decr lv in
+    (case a of
+       TExp _ (TSum _ _) -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++ " + " ++
     sprintn dlv b
 
   sprintn lv (TCirc a b) =
@@ -312,6 +328,17 @@ instance Param Expr where
   free_var (EIf e f g) =
     List.union (List.union (free_var e) (free_var f)) (free_var g)
 
+  free_var (EInjL e) = free_var e
+  free_var (EInjR e) = free_var e
+
+  free_var (EMatch e (p, f) (q, g)) =
+    let fve = free_var e
+        fvf = free_var f
+        fvg = free_var g
+        fvp = free_var p
+        fvq = free_var q in
+    List.union fve (List.union (fvf \\ fvp) (fvg \\ fvq))
+
   free_var (EUnbox t) =
     free_var t
   
@@ -369,7 +396,19 @@ indent_sprintn lv ind (EUnbox t) =
 
 indent_sprintn _ _ ERev =
   "rev"
- 
+
+indent_sprintn lv ind (EInjL e) =
+  "injl(" ++ indent_sprintn (decr lv) ind e ++ ")"
+
+indent_sprintn lv  ind (EInjR e) =
+  "injr(" ++ indent_sprintn (decr lv) ind e ++ ")"
+
+indent_sprintn lv ind (EMatch e (p, f) (q, g)) =
+  let dlv = decr lv in
+  "match " ++ indent_sprintn dlv ind e ++ " with\n" ++
+  ind ++ "  | " ++ pprint p ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") f ++ "\n" ++
+  ind ++ "  | " ++ pprint q ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") g
+
 instance PPrint Expr where
   sprintn lv e = indent_sprintn lv "" e
   sprint e = sprintn defaultLvl e

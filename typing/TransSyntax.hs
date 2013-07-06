@@ -31,6 +31,7 @@ import qualified Data.List as List
   - find_tyep : same as find_name, but never fails, if the name isn't found, a new id is generated
 -}
 
+dummy_label :: State Int
 label :: String -> State Int
 label_type :: String -> State Int
 find_name :: String -> State Int
@@ -39,6 +40,8 @@ find_type :: String -> State Int
 new_layer :: State ()
 drop_layer :: State ()
 ----------------------
+dummy_label = State (\ctx -> (ctx { var_id = (+1) $ var_id ctx }, return $ var_id ctx))
+
 label s = State (\ctx -> case name_to_var ctx of
                            [] ->
                                (ctx { var_id = (+1) $ var_id ctx,
@@ -124,6 +127,11 @@ translate_type (S.TTensor t u) = do
   u' <- translate_type u
   return $ TExp 0 $ TTensor t' u'
 
+translate_type (S.TSum t u) = do
+  t' <- translate_type t
+  u' <- translate_type u
+  return $ TExp 0 $ TSum t' u'
+
 translate_type (S.TExp t) = do
   TExp _ t' <- translate_type t
   return $ TExp 1 t'
@@ -150,6 +158,24 @@ translate_pattern (S.PPair p q) =  do
   return (PPair p' q')
 
 ---------------------------------
+-- Secifically translate a pattern matching
+translate_match x ((p, f):plist) = do
+  new_layer
+  p' <- translate_pattern p
+  f' <- translate_expression f
+  drop_layer
+  case plist of
+    [(q, g)] -> do
+        new_layer
+        q' <- translate_pattern q
+        g' <- translate_expression g
+        drop_layer
+        return (EMatch x (p', f') (q', g'))
+    _ -> do
+        y <- dummy_label
+        m <- translate_match (EVar y) plist
+        return (EMatch x (p', f') (PVar y, m))
+
 translate_expression S.EUnit = do
   return EUnit
 
@@ -174,6 +200,32 @@ translate_expression (S.ELet p e f) = do
   f' <- translate_expression f
   drop_layer
   return (ELet p' e' f')
+
+translate_expression (S.EInjL e) = do
+  e' <- translate_expression e
+  return (EInjL e')
+
+translate_expression (S.EInjR e) = do
+  e' <- translate_expression e
+  return (EInjR e')
+
+translate_expression (S.EMatch e ((p, f):plist)) = do
+  e' <- translate_expression e
+  new_layer
+  p' <- translate_pattern p
+  f' <- translate_expression f
+  drop_layer
+  case plist of
+    [(q, g)] -> do
+        new_layer
+        q' <- translate_pattern q
+        g' <- translate_expression g
+        drop_layer
+        return (EMatch e' (p', f') (q', g'))
+    _ -> do
+        x <- dummy_label
+        m <- translate_match (EVar x) plist
+        return (EMatch e' (p', f') (PVar x, m))
 
 translate_expression (S.EApp e f) = do
   e' <- translate_expression e

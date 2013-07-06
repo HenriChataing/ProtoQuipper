@@ -22,6 +22,7 @@ import Data.List as List
   ':' { TkColon $$ }
   ';' { TkSemiColon $$ }
   '!' { TkBang $$ }
+  '|' { TkBar $$ }
   '=' { TkEq $$ }
   '(' { TkLParen $$ }
   ')' { TkRParen $$ }
@@ -47,7 +48,12 @@ import Data.List as List
 
   IF { TkIf $$ }
   THEN { TkThen $$ }
-  ELSE { TkElse $$ } 
+  ELSE { TkElse $$ }
+
+  MATCH { TkMatch $$ }
+  WITH { TkWith $$ }
+  INJL { TkInjL $$ }
+  INJR { TkInjR $$ }
  
   TRUE { TkTrue $$ }
   FALSE { TkFalse $$ }
@@ -62,6 +68,7 @@ import Data.List as List
 
 Expr : FUN Pattern_list ARROW Expr            { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
      | IF Expr THEN Expr ELSE Expr            { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
+     | MATCH Expr WITH Binding_list           { EMatch $2 $4 }
      | LET Pattern '=' Expr IN Expr           { locate_opt (ELet $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
      | LET VAR Pattern_list '=' Expr IN Expr  { locate_opt (ELet (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
      | DO '{' Do_expr '}'                     { locate $3 (fromto $1 $4) }
@@ -73,6 +80,8 @@ Do_expr : Expr BACK_ARROW Expr ';' Do_expr { locate_opt (ELet (pattern_of_expr $
 
 Apply_expr : Apply_expr Atom_expr        { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
       | UNBOX Atom_expr                  { locate_opt (EUnbox $2) (fromto_opt (Just $1) (location $2)) }
+      | INJL Atom_expr                   { locate_opt (EInjL $2) (fromto_opt (Just $1) (location $2)) }
+      | INJR Atom_expr                   { locate_opt (EInjR $2) (fromto_opt (Just $1) (location $2)) }
       | Atom_expr                        { $1 }
 
 Atom_expr : '*'                          { locate EUnit $1 }
@@ -95,6 +104,11 @@ Pattern : VAR                            { locate (PVar (snd $1)) (fst $1) }
 
 Pattern_list : Pattern                   { [$1] }
              | Pattern Pattern_list      { $1:$2 }
+
+Binding : '|' Pattern ARROW Expr         { ($2, $4) }
+
+Binding_list : Binding_list Binding      { $1 ++ [$2] }
+             | Binding Binding           { [$1, $2] }
 
 Atom_type : BOOL                         { locate TBool $1 }
           | QBIT                         { locate TQBit $1 }

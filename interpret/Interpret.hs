@@ -129,6 +129,17 @@ interpret_app (VUnbox (VCirc u c u')) t = do
 interpret_app (VUnbox e) _  = do
   fail ("Expected argument of type circ - Actual expression : " ++ sprint e)
 
+-- Pattern matching with the list of cases
+interpret_match (VInjL v) ((p, f):pc) = do
+  bind_pattern p v
+  interpret f
+
+interpret_match (VInjR v) [_, (p, f)] = do
+  bind_pattern p v
+  interpret f
+
+interpret_match (VInjR v) (_:pc) = do
+  interpret_match v pc
 
 -- Location handling
 interpret (ELocated e ex) = do
@@ -200,6 +211,22 @@ interpret (EApp ef arg) = do
 
     _ -> do
         fail ("Expected value of type function - Actual expression : " ++ sprint ef)
+
+-- Patterns and pattern matching
+interpret (EInjL e) = do
+  v <- interpret e
+  return (VInjL v)
+
+interpret (EInjR e) = do
+  v <- interpret e
+  return (VInjR v)
+
+interpret (EMatch e plist) = do
+  v <- interpret e
+  ctx <- get_context
+  v' <- interpret_match v plist
+  put_context ctx
+  return v'
 
 -- Pairs
 interpret (EPair e1 e2) = do

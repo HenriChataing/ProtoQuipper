@@ -26,6 +26,8 @@ data Value =
   | VBox Type
   | VUnbox Value
   | VUnit
+  | VInjL Value
+  | VInjR Value
   | VRev
   | VQBit Int     -- Quantum addresses
   deriving Show
@@ -35,6 +37,8 @@ instance PPrint Value where
   pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
   pprint (VCirc _ c _) = pprint c
   pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
+  pprint (VInjL e) = "injl(" ++ pprint e ++ ")"
+  pprint (VInjR e) = "injr(" ++ pprint e ++ ")"
   pprint (VBool b) = if b then "true" else "false"
   pprint VUnit = "<>"
 

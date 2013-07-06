@@ -263,6 +263,11 @@ map_lintype_step (TTensor t u) = do
   u' <- map_type_step u
   return $ TTensor t' u'
 
+map_lintype_step (TSum t u) = do
+  t' <- map_type_step t
+  u' <- map_type_step u
+  return $ TSum t' u'
+
 map_lintype_step (TCirc t u) = do
   t' <- map_type_step t
   u' <- map_type_step u
@@ -315,6 +320,11 @@ app_val_to_lintype (TTensor t u) map = do
   t' <- app_val_to_type t map
   u' <- app_val_to_type u map
   return $ TTensor t' u'
+
+app_val_to_lintype (TSum t u) map = do
+  t' <- app_val_to_type t map
+  u' <- app_val_to_type u map
+  return $ TSum t' u'
 
 app_val_to_lintype (TCirc t u) map = do
   t' <- app_val_to_type t map
