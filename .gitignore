@@ -6,10 +6,12 @@ Quipper
 *.hi
 *.o
 .*
+*.info
 doc/*.aux
 doc/*.pdf
 doc/*.gz
 doc/*.log
+doc/*.dvi
 
 _build
 
