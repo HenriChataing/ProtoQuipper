@@ -12,12 +12,16 @@ import Printer
 import Values
 import Gates
 
+import qualified Data.List as List
+
 -- Import the basic gates in the current context
 importGates :: State ()
 ---------------------
-importGates = State (\c ->
-                       foldl (\(c', _) (gate, circ) -> let State run = insert gate circ in
-                                                       run c') (c, Utils.Ok ()) gate_values)
+importGates = do
+  List.foldl (\rec (c, circ) -> do
+                rec
+                insert c circ) (return ()) gate_values
+ 
 
 -- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the context
 bind_pattern :: Pattern -> Value -> State ()
@@ -257,12 +261,15 @@ interpret (EUnbox e) = do
 -------------------
 -- Main function --
 
-run :: Expr -> Utils.Computed Value
+run :: Expr -> IO Value
 --------------------
 run e =
   let State runstate = do
                          importGates
                          interpret e
                        in
-  let (_, v) = runstate empty_context in
-  v
+  do
+    (_, v) <- runstate empty_context
+    return v
+
+

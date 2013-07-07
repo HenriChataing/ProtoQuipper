@@ -1,8 +1,8 @@
-INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -iexport
+INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -imonad
 
 BUILD_DIR = _build
 
-GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE) -XTypeSynonymInstances -XFlexibleInstances
+GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE) -XTypeSynonymInstances -XFlexibleInstances -XDeriveDataTypeable -XScopedTypeVariables
 HAPPY = happy --ghc
 ALEX = alex
 

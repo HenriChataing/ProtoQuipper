@@ -3,11 +3,14 @@ module TransSyntax (translate_type, translate_pattern, translate_expression,
 
 import Utils
 import Localizing
+import QuipperError
 
 import CoreSyntax
 import qualified Syntax as S
 
 import Contexts
+
+import Control.Exception
 
 import Data.Map as Map
 import qualified Data.List as List
@@ -40,25 +43,25 @@ find_type :: String -> State Int
 new_layer :: State ()
 drop_layer :: State ()
 ----------------------
-dummy_label = State (\ctx -> (ctx { var_id = (+1) $ var_id ctx }, return $ var_id ctx))
+dummy_label = State (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
 
 label s = State (\ctx -> case name_to_var ctx of
                            [] ->
-                               (ctx { var_id = (+1) $ var_id ctx,
-                                      name_to_var = [ Map.singleton s (var_id ctx) ],
-                                      var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, return $ var_id ctx)
+                               return (ctx { var_id = (+1) $ var_id ctx,
+                                             name_to_var = [ Map.singleton s (var_id ctx) ],
+                                             var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, var_id ctx)
                            toplayer:rest -> 
-                               (ctx { var_id = (+1) $ var_id ctx,
-                                      name_to_var = (Map.insert s (var_id ctx) toplayer):rest,
-                                      var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, return $ var_id ctx))
+                               return (ctx { var_id = (+1) $ var_id ctx,
+                                             name_to_var = (Map.insert s (var_id ctx) toplayer):rest,
+                                             var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, var_id ctx))
 
 label_type s = State (\ctx -> case name_to_var ctx of
                            [] ->
-                               (ctx { type_id = (+1) $ type_id ctx,
-                                      name_to_var = [ Map.singleton s (type_id ctx) ] }, return $ type_id ctx)
+                               return (ctx { type_id = (+1) $ type_id ctx,
+                                             name_to_var = [ Map.singleton s (type_id ctx) ] }, type_id ctx)
                            toplayer:rest -> 
-                               (ctx { var_id = (+1) $ var_id ctx,
-                                      name_to_var = (Map.insert s (var_id ctx) toplayer):rest }, return $ type_id ctx))
+                               return (ctx { var_id = (+1) $ var_id ctx,
+                                             name_to_var = (Map.insert s (var_id ctx) toplayer):rest }, type_id ctx))
 
 -- Auxiliary function that looks for the variable in the successive layers
 find_rec :: String -> [Map.Map String Int] -> Maybe Int
@@ -70,23 +73,23 @@ find_rec s (top:rest) =
 
 find_name s = State (\ctx ->
                       case find_rec s $ name_to_var ctx of
-                        Just x -> (ctx, return x)
-                        Nothing -> (ctx, error_fail $ UnboundVariable s extent_unknown))
+                        Just x -> return (ctx, x)
+                        Nothing -> throw $ UnboundVariable s extent_unknown)
 
 find_type s = State (\ctx ->
                       case find_rec s $ name_to_var ctx of
-                        Just x -> (ctx, return x)
+                        Just x -> return (ctx, x)
                         Nothing -> let State run = label_type s in
                                    run ctx)
 
 
 new_layer =
-  State (\ctx -> (ctx { name_to_var = Map.empty:(name_to_var ctx) }, return ()))
+  State (\ctx -> return (ctx { name_to_var = Map.empty:(name_to_var ctx) }, ()))
 
 drop_layer =
-  State (\ctx -> (ctx { name_to_var = case name_to_var ctx of
-                                        [] -> []
-                                        _:rest -> rest }, return ()))
+  State (\ctx -> return (ctx { name_to_var = case name_to_var ctx of
+                                               [] -> []
+                                               _:rest -> rest }, ()))
 
 
 

@@ -6,6 +6,7 @@ module Values where
 
 import Localizing
 import Utils
+import QuipperError
 
 import Syntax
 import Printer
@@ -13,6 +14,8 @@ import Printer
 import Classes
 import Circuits
 import Gates
+
+import Control.Exception
 
 import Data.Map as Map
 import Data.List as List
@@ -99,18 +102,15 @@ instance Show Context where
 
 {- Monad definition -}
 
-newtype State a = State (Context -> (Context, Computed a))
+newtype State a = State (Context -> IO (Context, a))
 instance Monad State where
-  return a = State (\ctx -> (ctx, Ok a))
-  fail s = State (\ctx -> (ctx, Failed (CustomError s $ extent ctx)))
+  return a = State (\ctx -> return (ctx, a))
+  fail s = State (\ctx -> fail s)
   State run >>= action =
-    State (\ctx -> let (ctx', a) = run ctx in
-                   case a of
-                     Ok a ->
-                       let State run' = action a in
-                       run' ctx'
-                     Failed e ->
-                       (ctx', Failed e))
+    State (\ctx -> do
+             (ctx', a) <- run ctx
+             State run' <- return $ action a
+             run' ctx')
 
 -- Context manipulation --
 
@@ -136,23 +136,23 @@ close_box :: Circuit -> State Circuit  -- Note : put the old circuit back in pla
 -- Fresh id generation
 new_id :: State Int
 -------------------------
-get_context = State (\ctx -> (ctx, Ok ctx))
-put_context ctx = State (\ctx' -> (ctx { circuit = circuit ctx' }, Ok ()))
-swap_context ctx = State (\ctx' -> (ctx { circuit = circuit $ ctx' }, Ok ctx'))
+get_context = State (\ctx -> return (ctx, ctx))
+put_context ctx = State (\ctx' -> return (ctx { circuit = circuit ctx' }, ()))
+swap_context ctx = State (\ctx' -> return (ctx { circuit = circuit $ ctx' }, ctx'))
 
-get_etxent = State (\ctx -> (ctx, Ok $ extent ctx))
-set_extent ext = State (\ctx -> (ctx { extent = ext }, Ok ()))
+get_etxent = State (\ctx -> return (ctx, extent ctx))
+set_extent ext = State (\ctx -> return (ctx { extent = ext }, ()))
 
-insert x v = State (\ctx -> (ctx { bindings = Map.insert x v $ bindings ctx }, Ok ()))
-find x = State (\ctx -> (ctx, case Map.lookup x $ bindings ctx of
-                                Just v -> Ok v
-                                Nothing -> Failed (UnboundVariable x $ extent ctx)))
-delete x = State (\ctx -> (ctx { bindings = Map.delete x $ bindings ctx }, Ok ()))
+insert x v = State (\ctx -> return (ctx { bindings = Map.insert x v $ bindings ctx }, ()))
+find x = State (\ctx -> case Map.lookup x $ bindings ctx of
+                          Just v -> return (ctx, v)
+                          Nothing -> throw $ UnboundVariable x $ extent ctx)
+delete x = State (\ctx -> return (ctx { bindings = Map.delete x $ bindings ctx }, ()))
 
 unencap c b = State (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
-                             (ctx { circuit = c' }, Ok b'))
-open_box ql = State (\ctx -> (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, Ok $ circuit ctx))
-close_box c = State (\ctx -> (ctx { circuit = c }, Ok $ circuit ctx))
+                             return (ctx { circuit = c' }, b'))
+open_box ql = State (\ctx -> return (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, circuit ctx))
+close_box c = State (\ctx -> return (ctx { circuit = c }, circuit ctx))
 
-new_id = State (\ctx -> (ctx { qId = (+1) $ qId ctx }, Ok $ qId ctx))
+new_id = State (\ctx -> return (ctx { qId = (+1) $ qId ctx }, qId ctx))
 

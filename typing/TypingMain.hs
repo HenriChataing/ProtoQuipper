@@ -30,7 +30,7 @@ gate_context gates = do
                 x <- label s
                 bind_var x t' ctx) (return Map.empty) gates
 
-full_inference :: S.Expr -> String
+full_inference :: S.Expr -> IO String
 ----------------------------------
 full_inference e =
 
@@ -66,11 +66,9 @@ full_inference e =
                pprint inferred ++ "\n\n" ++
                pprint valinf ++ "\n\n" ++
                logs
-  in
-  
-  case snd $ run $ Contexts.empty_context of
-    Ok s -> s
-    Failed err -> show err
+  in do
+    (_, s) <- run $ Contexts.empty_context
+    return s
 
 
 -- Unification test
@@ -81,7 +79,7 @@ translate_list ((t, u):l) = do
   l' <- translate_list l
   return $ (t', u'):l'
 
-test_unification :: [(S.Type, S.Type)] -> String
+test_unification :: [(S.Type, S.Type)] -> IO String
 ------------------------------------------------ 
 test_unification set =
 
@@ -105,10 +103,9 @@ test_unification set =
                pprint red_constraints ++ "\n\n" ++
                logs
   in
-
-  case snd $ run $ Contexts.empty_context of
-    Ok s -> s
-    Failed err -> show err
+  do
+    (_, s) <- run $ Contexts.empty_context
+    return s
 
 pprint_val :: Map Int Int -> String
 ------------------------------------

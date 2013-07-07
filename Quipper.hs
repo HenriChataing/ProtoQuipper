@@ -3,6 +3,7 @@ module Main where
 import Parser
 import ConstraintParser
 import Lexer
+import QuipperError
 
 import Classes
 import Utils
@@ -20,6 +21,7 @@ import Values
 import System.IO
 import System.Environment
 import System.Console.GetOpt
+import qualified Control.Exception as E
 
 import Data.List as List
 
@@ -97,7 +99,10 @@ main = do
           putStrLn  $ "\x1b[1;33m" ++ ">> unification test" ++ "\x1b[0m"
           tokens <- mylex "" set
           constraints <- return $ parse_constraints tokens
-          putStrLn $ test_unification constraints
+          (do
+             s <- test_unification constraints
+             putStrLn s) `E.catch` (\(e :: QError) -> do
+                                      putStrLn $ show e)
 
       Nothing ->
           return ()
@@ -117,19 +122,20 @@ main = do
       -- Actions
       if runInterpret opts then do
         putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
-        case Interpret.run (drop_constraints prog) of
-          Ok v -> do
-              putStrLn $ pprint v
-          Failed err -> do
-              putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
-              putStrLn $ show err
+        (do
+           v <- Interpret.run $ drop_constraints prog
+           putStrLn $ pprint v) `E.catch` (\(e :: QError) -> do
+                                             putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
+                                             putStrLn $ show e)
       else
         return ()
 
       if runTyping opts then do
         putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
         putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
-        putStrLn $ full_inference prog
+        (do
+           s <- full_inference prog
+           putStrLn s) `E.catch` (\(e :: QError) -> putStrLn $ show e)
       else
         return ()
   else

@@ -84,22 +84,15 @@ data Context =
 
 {- Monad instance declaration of the above context -}
 
-newtype State a = State (Context -> (Context, Computed a))
+newtype State a = State (Context -> IO (Context, a))
 
 instance Monad State where
-  return a = State (\ctx -> (ctx, Ok a))
-  fail s = State (\ctx -> (ctx, Failed $ CustomError s extent_unknown))
-  State run >>= action = State (\ctx -> let (ctx', a) = run ctx in
-                                        case a of
-                                          Ok a -> let State run' = action a in
-                                                  run' ctx'
-                                          Failed err -> (ctx', Failed err))
-
--- Additional state function : fail with a specific error message
-failwith :: Error -> State a
------------------------------
-failwith err =
-  State (\ctx -> (ctx, error_fail err)) 
+  return a = State (\ctx -> return (ctx, a))
+  fail s = State (\ctx -> fail s)
+  State run >>= action = State (\ctx -> do
+                                   (ctx', a) <- run ctx 
+                                   State run' <- return $ action a
+                                   run' ctx')
 
 -- Create an empty context (without the basic gates)
 empty_context :: Context
@@ -147,31 +140,31 @@ set_expr :: Expr -> State ()
 get_expr :: State Expr
 ----------------------------
 enable_logs =
-  State (\ctx -> (ctx { log_enabled = True }, return ()))
+  State (\ctx -> return (ctx { log_enabled = True }, ()))
 
 disable_logs =
-  State (\ctx -> (ctx { log_enabled = False }, return ()))
+  State (\ctx -> return (ctx { log_enabled = False }, ()))
 
 new_log p =
   State (\ctx -> if log_enabled ctx then
-                   (ctx { logfile = p:(logfile ctx) }, return ())
+                   return (ctx { logfile = p:(logfile ctx) }, ())
                  else
-                   (ctx, return ()))
+                   return (ctx, ()))
 
 print_logs =
-  State (\ctx -> (ctx { logfile = [] }, return $ List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
+  State (\ctx -> return (ctx { logfile = [] }, List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
 
 set_location ex =
-  State (\ctx -> (ctx { current_location = ex }, return ()))
+  State (\ctx -> return (ctx { current_location = ex }, ()))
 
 get_location =
-  State (\ctx -> (ctx, return $ current_location ctx))
+  State (\ctx -> return (ctx, current_location ctx))
 
 set_expr e =
-  State (\ctx -> (ctx { current_expr = e }, return ()))
+  State (\ctx -> return (ctx { current_expr = e }, ()))
 
 get_expr =
-  State (\ctx -> (ctx, return $ current_expr ctx))
+  State (\ctx -> return (ctx, current_expr ctx))
 
 {-
   Id generation
@@ -186,11 +179,11 @@ fresh_var :: State Variable
 new_type :: State Type
 create_pattern_type :: Pattern -> State (Type, [FlagConstraint])
 ----------------------------------------------------------------
-fresh_type = State (\ctx -> (ctx { type_id = (+1) $ type_id ctx }, Ok $ type_id ctx))
+fresh_type = State (\ctx -> return (ctx { type_id = (+1) $ type_id ctx }, type_id ctx))
 
-fresh_flag = State (\ctx -> (ctx { flag_id = (+1) $ flag_id ctx }, Ok $ flag_id ctx))
+fresh_flag = State (\ctx -> return (ctx { flag_id = (+1) $ flag_id ctx }, flag_id ctx))
 
-fresh_var = State (\ctx -> (ctx { var_id = (+1) $ var_id ctx }, Ok $ var_id ctx))
+fresh_var = State (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
 
 new_type = do
   x <- fresh_type
@@ -231,14 +224,14 @@ app_val_to_flag :: Flag -> Map.Map Int Int -> State Flag
 app_val_to_lintype :: LinType -> Map.Map Int Int -> State LinType
 app_val_to_type :: Type -> Map.Map Int Int -> State Type
 -------------------------------------------------
-mapsto x t = State (\ctx -> (ctx { mappings = Map.insert x t $ mappings ctx }, return ()))
+mapsto x t = State (\ctx -> return (ctx { mappings = Map.insert x t $ mappings ctx }, ()))
 
-appmap x = State (\ctx -> (ctx, case Map.lookup x $ mappings ctx of
-                                  Just t -> return t
-                                  _ -> return $ TVar x))
+appmap x = State (\ctx -> return (ctx, case Map.lookup x $ mappings ctx of
+                                         Just t -> t
+                                         _ -> TVar x))
 
 mapping_list =
-  State (\ctx -> (ctx, return $ Map.assocs $ mappings ctx))
+  State (\ctx -> return (ctx, Map.assocs $ mappings ctx))
 
 map_lintype_step TUnit = do
   return TUnit

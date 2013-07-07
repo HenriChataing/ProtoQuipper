@@ -52,45 +52,45 @@ null_cluster :: State Bool
 cluster_relations :: State [(Cluster, Cluster)]
 ----------------------------------------
 cluster_of x =
-  State (\ctx -> (ctx, case Map.lookup x $ ages ctx of
-                         Just c -> return c
-                         Nothing -> fail ("Unassigned variable " ++ show x) ))
+  State (\ctx -> case Map.lookup x $ ages ctx of
+                   Just c -> return (ctx, c)
+                   Nothing -> fail ("Unassigned variable " ++ show x))
 
 cluster_content x =
-  State (\ctx -> (ctx, case Map.lookup x $ clusters ctx of
-                         Just c -> return c
-                         Nothing -> fail "Cluster lacks an accompying definition"))
+  State (\ctx -> case Map.lookup x $ clusters ctx of
+                   Just c -> return (ctx, c)
+                   Nothing -> fail "Cluster lacks an accompying definition")
 
 new_cluster x =
-  State (\ctx -> (ctx { clusters = Map.insert x [x] $ clusters ctx,
-                        ages = Map.insert x x $ ages ctx }, return ()))
+  State (\ctx -> return (ctx { clusters = Map.insert x [x] $ clusters ctx,
+                               ages = Map.insert x x $ ages ctx }, ()))
 
 merge_clusters x y =
   State (\ctx -> if x == y then
-                   (ctx, return ())
+                   return (ctx, ())
                  else
                    case (Map.lookup x $ clusters ctx, Map.lookup y $ clusters ctx) of
                      (Just cx, Just cy) ->
-                         (ctx { ages = Map.map (\z -> if z == y then x else z) $ ages ctx,
-                                clusters = Map.insert x (cx ++ cy) $ Map.delete y $ clusters ctx,
-                                relations = List.map (\(a, b) -> (if a == y then x else a,
-                                                                if b == y then x else b)) $ relations ctx }, return ())
+                         return (ctx { ages = Map.map (\z -> if z == y then x else z) $ ages ctx,
+                                       clusters = Map.insert x (cx ++ cy) $ Map.delete y $ clusters ctx,
+                                       relations = List.map (\(a, b) -> (if a == y then x else a,
+                                                                         if b == y then x else b)) $ relations ctx }, ())
                      _ ->
-                         (ctx, fail ("Cluster #" ++ show x ++ "lacks a defintion")))
+                         fail ("Cluster #" ++ show x ++ "lacks a defintion"))
 
 new_relation x y =
-  State (\ctx -> (ctx { relations = (x, y):(relations ctx) }, return ()))
+  State (\ctx -> return (ctx { relations = (x, y):(relations ctx) }, ()))
 
 add_variable x =
-  State (\ctx -> (ctx { variables = x:(variables ctx),
-                        clusters = Map.insert x [x] $ clusters ctx,
-                        ages = Map.insert x x $ ages ctx }, return ())) 
+  State (\ctx -> return (ctx { variables = x:(variables ctx),
+                               clusters = Map.insert x [x] $ clusters ctx,
+                               ages = Map.insert x x $ ages ctx }, ())) 
 
 null_cluster =
-  State (\ctx -> (ctx, return $ Map.null $ clusters ctx))
+  State (\ctx -> return (ctx, Map.null $ clusters ctx))
 
 cluster_relations =
-  State (\ctx -> (ctx, return $ relations ctx))
+  State (\ctx -> return (ctx, relations ctx))
 
 
 {-
@@ -109,10 +109,10 @@ register_constraints :: [TypeConstraint] -> State ()
 ----------------------------------------------------
 init_ordering =
   State (\ctx -> let n = type_id ctx in
-           (ctx { variables = [0 .. type_id ctx - 1],
-                  relations = [],
-                  clusters = Map.fromList $ List.map (\x -> (x, [x])) [0 .. type_id ctx - 1],
-                  ages = Map.fromList $ List.map (\x -> (x, x)) [0 .. type_id ctx - 1] }, return ()))
+           return (ctx { variables = [0 .. type_id ctx - 1],
+                         relations = [],
+                         clusters = Map.fromList $ List.map (\x -> (x, [x])) [0 .. type_id ctx - 1],
+                         ages = Map.fromList $ List.map (\x -> (x, x)) [0 .. type_id ctx - 1] }, ()))
 
 register_constraint c = do
   case c of
@@ -168,9 +168,9 @@ remove_cluster :: Cluster -> State ()
 youngest_variables :: State [Variable]
 --------------------------------------
 some_cluster =
-  State (\ctx -> (ctx, case Map.keys $ clusters ctx of
-                         [] -> fail "Empty cluster list"
-                         (c:_) -> return c))
+  State (\ctx -> case Map.keys $ clusters ctx of
+                   [] -> fail "Empty cluster list"
+                   (c:_) -> return (ctx, c))
 
 try_cluster c used = do
   rel <- cluster_relations
@@ -206,15 +206,15 @@ youngest_cluster = do
 remove_cluster x =
   State (\ctx -> case Map.lookup x $ clusters ctx of 
                    Just xc ->
-                       (ctx { variables = (variables ctx) \\ xc,
-                              clusters = Map.delete x $ clusters ctx,
-                              ages = List.foldl (\ag y -> Map.delete y ag) (ages ctx) xc,
-                              relations = List.foldl (\r (t, u) -> if List.elem t xc || List.elem u xc then
-                                                                     r
-                                                                   else
-                                                                     (t, u):r) [] $ relations ctx }, return ())
+                       return (ctx { variables = (variables ctx) \\ xc,
+                                     clusters = Map.delete x $ clusters ctx,
+                                     ages = List.foldl (\ag y -> Map.delete y ag) (ages ctx) xc,
+                                     relations = List.foldl (\r (t, u) -> if List.elem t xc || List.elem u xc then
+                                                                            r
+                                                                          else
+                                                                            (t, u):r) [] $ relations ctx }, ())
                    _ ->
-                       (ctx, return ()))
+                       return (ctx, ()))
                         
 youngest_variables = do
   x <- youngest_cluster
