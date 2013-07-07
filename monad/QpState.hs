@@ -1,18 +1,37 @@
 module QpState where
 
-import CoreSyntax
 import Localizing
-
 import Classes
 import Utils
 
+import CoreSyntax
 import Subtyping
+
+import System.IO
 
 import qualified Data.Map as Map
 import Data.List as List
 import Data.Array as Array
 import qualified Data.Set as Set
 import Data.Sequence as Seq 
+
+-- | Implementation of a logger. Logs can be given different priorities, depending on their importance.
+-- The verbose control then discards any log whose priority is lower than the control. The logs are printed
+-- to a channel, which can be, for example, stdout, stderr, any file writing channel
+
+data Logfile = Logfile {
+  channel :: Handle,
+  verbose :: Int
+}
+
+-- | Enter a log with a given priority level
+write_log :: Logfile -> Int -> String -> IO ()
+write_log logfile lvl s = do
+  w <- hIsWritable $ channel logfile
+  if lvl < verbose logfile || not w  then
+    return ()
+  else
+    hPutStrLn (channel logfile) s
 
 {-
   Definition of the context
@@ -31,14 +50,12 @@ import Data.Sequence as Seq
   - 
 -}
 
-data Context =
-  Ctx {
+data Context = Ctx {
+  
+  logfile :: Logfile,
 
-    {- Log file, logging and debugging -}
 
-    log_enabled :: Bool,
-    logfile :: [String],
-
+  -- | 
     current_location :: Extent,
     current_expr :: Expr,
 
@@ -99,8 +116,7 @@ empty_context :: Context
 ------------------------
 empty_context =
   Ctx {
-    log_enabled = True,
-    logfile = ["\x1b[1m" ++ ">> Log start <<" ++ "\x1b[0m"],
+    logfile = Logfile { channel = stdin, verbose = 0 },
     current_location = extent_unknown,
     current_expr = EUnit,
 
@@ -120,6 +136,13 @@ empty_context =
   }
 
 
+-- | Relay actions from the IO monad to the QpState monad
+liftIO :: IO a -> QpState a
+liftIO x = QpState { runS = (\ctx -> do
+                               x' <- x
+                               return (ctx, x')) }
+
+
 -- | Returns the state context
 get_context :: QpState Context
 get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
@@ -130,42 +153,19 @@ set_context :: Context -> QpState ()
 set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
--- | Enable the use of the log file
-enable_logs :: QpState ()
-enable_logs = do
-  cxt <- get_context
-  set_context $ cxt { log_enabled = True }
-
-
--- | Disable the use of the log file. While the log file is diabled,
--- no log can be entered, and any call to the function 'new_log' wiil
--- be ignored
-disable_logs :: QpState ()
-disable_logs = do
-  ctx <- get_context
-  set_context $ ctx { log_enabled = False }
-
-
 -- | Enter a new log entry
-new_log :: String -> QpState ()
-new_log entry = do
+newlog :: Int -> String -> QpState ()
+newlog lvl entry = do
   ctx <- get_context
-  if log_enabled ctx then
-    set_context $ ctx { logfile = entry:(logfile ctx) }
-  else
-    return ()
+  liftIO $ write_log (logfile ctx) lvl entry
 
 
 -- | Flush the log file, and the concatenation of the logs previously in
 -- the log file
-print_logs :: QpState String
-print_logs = do
+flush_logs :: QpState ()
+flush_logs = do
   ctx <- get_context
-  cat <- List.foldl (\rec e -> do
-                       s <- rec
-                       return $ e ++ "\n" ++ s) (return $ "\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") (logfile ctx)
-  set_context $ ctx { logfile = [] }
-  return cat
+  liftIO $ hFlush (channel $ logfile ctx)
 
 
 -- | The set location marker

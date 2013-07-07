@@ -46,7 +46,6 @@ full_inference e =
       init_ordering
       register_constraints $ fst non_composite
       red_constraints <- unify non_composite
-      logs <- print_logs
 
       inferred <- map_type a
 
@@ -64,8 +63,7 @@ full_inference e =
                pmaps ++ "\n\n" ++
                pprint_val sol ++ "\n\n" ++
                pprint inferred ++ "\n\n" ++
-               pprint valinf ++ "\n\n" ++
-               logs
+               pprint valinf
   in do
     (_, s) <- runS run QpState.empty_context
     return s
@@ -96,12 +94,10 @@ test_unification set =
       init_ordering
       register_constraints $ fst non_composite
       red_constraints <- unify non_composite
-      logs <- print_logs
 
       return $ pprint ((constraints, []) :: ConstraintSet) ++ "\n\n" ++
                pprint non_composite ++ "\n\n" ++
-               pprint red_constraints ++ "\n\n" ++
-               logs
+               pprint red_constraints
   in
   do
     (_, s) <- runS run QpState.empty_context

@@ -509,8 +509,8 @@ unify (lc, fc) = do
       -- Log
       logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
       lognonx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" non_lcx
-      new_log logx
-      new_log lognonx
+      newlog 0 logx
+      newlog 0 lognonx
                                              
       -- Filter the atomic constraints
       (atomx, natomx) <- return $ List.partition is_atomic lcx
@@ -531,7 +531,7 @@ unify (lc, fc) = do
             (ischain, sorted) <- return $ chain_constraints lcx
             
             if ischain then do
-              new_log "CHAINED"
+              newlog 0 "CHAINED"
               leftend <- case List.head sorted of
                            Linear t _ -> return $ t
               rightend <- case List.last sorted of
@@ -564,12 +564,12 @@ unify (lc, fc) = do
                     unify (cset' ++ non_lcx, fc')
 
             else do           
-              new_log "UNCHAINED"
+              newlog 0 "UNCHAINED"
               
               onesided <- return $ is_one_sided cset
               -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
               cset <- if onesided then do
-                      new_log "ONE SIDED"
+                      newlog 0 "ONE SIDED"
                       cxh <- return $ List.head cx
                       List.foldl (\rec x -> do
                                       rec
@@ -583,7 +583,7 @@ unify (lc, fc) = do
 
               model <- return $ constraint_unifier cset
 
-              new_log $ pprint model
+              newlog 0 $ pprint model
 
             
               List.foldl (\rec x -> do

@@ -200,7 +200,7 @@ youngest_cluster = do
 
   cyg <- cluster_content yg
   log_yg <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cyg
-  new_log $ "\x1b[1m" ++ log_yg ++ "\x1b[0m"
+  newlog 0 $ "\x1b[1m" ++ log_yg ++ "\x1b[0m"
   return yg
 
 remove_cluster x =
