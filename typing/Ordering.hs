@@ -5,7 +5,7 @@ import Utils
 import Localizing
 
 import CoreSyntax
-import Contexts
+import QpState
 
 import Subtyping
 

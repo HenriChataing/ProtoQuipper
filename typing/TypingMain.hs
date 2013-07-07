@@ -13,7 +13,7 @@ import Gates
 import Subtyping
 import Ordering
 
-import Contexts
+import QpState
 import TypingContext
 import TypeInference
 
@@ -34,7 +34,7 @@ full_inference :: S.Expr -> IO String
 ----------------------------------
 full_inference e =
 
-  let Contexts.QpState run = do
+  let run = do
       typctx <- gate_context typing_environment
       prog <- translate_expression (drop_constraints $ clear_location e)
 
@@ -67,7 +67,7 @@ full_inference e =
                pprint valinf ++ "\n\n" ++
                logs
   in do
-    (_, s) <- run $ Contexts.empty_context
+    (_, s) <- runS run QpState.empty_context
     return s
 
 
@@ -83,7 +83,7 @@ test_unification :: [(S.Type, S.Type)] -> IO String
 ------------------------------------------------ 
 test_unification set =
 
-  let Contexts.QpState run = do
+  let run = do
       constraints <- List.foldl (\rec (t, u) -> do
                                    r <- rec
                                    t' <- translate_type t
@@ -104,7 +104,7 @@ test_unification set =
                logs
   in
   do
-    (_, s) <- run $ Contexts.empty_context
+    (_, s) <- runS run QpState.empty_context
     return s
 
 pprint_val :: Map Int Int -> String

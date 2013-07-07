@@ -6,7 +6,7 @@ import Localizing
 
 import CoreSyntax
 
-import Contexts
+import QpState
 import TypingContext
 
 import Subtyping

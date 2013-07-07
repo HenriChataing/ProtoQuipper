@@ -8,7 +8,7 @@ import QuipperError
 import CoreSyntax
 import qualified Syntax as S
 
-import Contexts
+import QpState
 
 import Control.Exception
 

@@ -1,4 +1,4 @@
-module Contexts where
+module QpState where
 
 import CoreSyntax
 import Localizing

@@ -2,7 +2,7 @@ module TypingContext where
 
 import CoreSyntax
 
-import Contexts
+import QpState
 
 import Data.Map as Map
 import Data.List as List
