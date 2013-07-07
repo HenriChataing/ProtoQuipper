@@ -84,15 +84,15 @@ data Context =
 
 {- Monad instance declaration of the above context -}
 
-newtype State a = State (Context -> IO (Context, a))
+newtype QpState a = QpState { runS :: (Context -> IO (Context, a)) }
 
-instance Monad State where
-  return a = State (\ctx -> return (ctx, a))
-  fail s = State (\ctx -> fail s)
-  State run >>= action = State (\ctx -> do
-                                   (ctx', a) <- run ctx 
-                                   State run' <- return $ action a
-                                   run' ctx')
+instance Monad QpState where
+  return a = QpState { runS = (\ctx -> return (ctx, a)) }
+  fail s = QpState { runS = (\ctx -> fail s) }
+  st >>= action = QpState { runS = (\ctx -> do
+                                    (ctx', a) <- runS st ctx 
+                                    st' <- return $ action a
+                                    runS st' ctx') }
 
 -- Create an empty context (without the basic gates)
 empty_context :: Context
@@ -129,42 +129,42 @@ empty_context =
   - set_location / get_location : do as their name indicates
 -}
   
-enable_logs :: State ()
-disable_logs :: State ()
-new_log :: String -> State ()
-print_logs :: State String
+enable_logs :: QpState ()
+disable_logs :: QpState ()
+new_log :: String -> QpState ()
+print_logs :: QpState String
 
-set_location :: Extent -> State ()
-get_location :: State Extent
-set_expr :: Expr -> State ()
-get_expr :: State Expr
+set_location :: Extent -> QpState ()
+get_location :: QpState Extent
+set_expr :: Expr -> QpState ()
+get_expr :: QpState Expr
 ----------------------------
 enable_logs =
-  State (\ctx -> return (ctx { log_enabled = True }, ()))
+  QpState (\ctx -> return (ctx { log_enabled = True }, ()))
 
 disable_logs =
-  State (\ctx -> return (ctx { log_enabled = False }, ()))
+  QpState (\ctx -> return (ctx { log_enabled = False }, ()))
 
 new_log p =
-  State (\ctx -> if log_enabled ctx then
+  QpState (\ctx -> if log_enabled ctx then
                    return (ctx { logfile = p:(logfile ctx) }, ())
                  else
                    return (ctx, ()))
 
 print_logs =
-  State (\ctx -> return (ctx { logfile = [] }, List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
+  QpState (\ctx -> return (ctx { logfile = [] }, List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
 
 set_location ex =
-  State (\ctx -> return (ctx { current_location = ex }, ()))
+  QpState (\ctx -> return (ctx { current_location = ex }, ()))
 
 get_location =
-  State (\ctx -> return (ctx, current_location ctx))
+  QpState (\ctx -> return (ctx, current_location ctx))
 
 set_expr e =
-  State (\ctx -> return (ctx { current_expr = e }, ()))
+  QpState (\ctx -> return (ctx { current_expr = e }, ()))
 
 get_expr =
-  State (\ctx -> return (ctx, current_expr ctx))
+  QpState (\ctx -> return (ctx, current_expr ctx))
 
 {-
   Id generation
@@ -173,17 +173,17 @@ get_expr =
     - create_pattern_type creates a type matching the structure of the pattern
 -}
 
-fresh_type :: State Variable
-fresh_flag :: State Flag
-fresh_var :: State Variable
-new_type :: State Type
-create_pattern_type :: Pattern -> State (Type, [FlagConstraint])
+fresh_type :: QpState Variable
+fresh_flag :: QpState Flag
+fresh_var :: QpState Variable
+new_type :: QpState Type
+create_pattern_type :: Pattern -> QpState (Type, [FlagConstraint])
 ----------------------------------------------------------------
-fresh_type = State (\ctx -> return (ctx { type_id = (+1) $ type_id ctx }, type_id ctx))
+fresh_type = QpState (\ctx -> return (ctx { type_id = (+1) $ type_id ctx }, type_id ctx))
 
-fresh_flag = State (\ctx -> return (ctx { flag_id = (+1) $ flag_id ctx }, flag_id ctx))
+fresh_flag = QpState (\ctx -> return (ctx { flag_id = (+1) $ flag_id ctx }, flag_id ctx))
 
-fresh_var = State (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
+fresh_var = QpState (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
 
 new_type = do
   x <- fresh_type
@@ -210,28 +210,28 @@ create_pattern_type (PPair p q) = do
 -- ========= Substitution ======== --
 
 -- Insert a new mapping in the substitution
-mapsto :: Variable -> LinType -> State ()
+mapsto :: Variable -> LinType -> QpState ()
 -- Find the type a variable is mapped to
-appmap :: Variable -> State LinType
+appmap :: Variable -> QpState LinType
 -- Output the list of mappings
-mapping_list :: State [(Int, LinType)]
+mapping_list :: QpState [(Int, LinType)]
 -- Apply the mappings to a type
-map_type_step :: Type -> State Type
-map_lintype_step :: LinType -> State LinType
-map_type :: Type -> State Type
+map_type_step :: Type -> QpState Type
+map_lintype_step :: LinType -> QpState LinType
+map_type :: Type -> QpState Type
 -- Apply a valuation to a type
-app_val_to_flag :: Flag -> Map.Map Int Int -> State Flag
-app_val_to_lintype :: LinType -> Map.Map Int Int -> State LinType
-app_val_to_type :: Type -> Map.Map Int Int -> State Type
+app_val_to_flag :: Flag -> Map.Map Int Int -> QpState Flag
+app_val_to_lintype :: LinType -> Map.Map Int Int -> QpState LinType
+app_val_to_type :: Type -> Map.Map Int Int -> QpState Type
 -------------------------------------------------
-mapsto x t = State (\ctx -> return (ctx { mappings = Map.insert x t $ mappings ctx }, ()))
+mapsto x t = QpState (\ctx -> return (ctx { mappings = Map.insert x t $ mappings ctx }, ()))
 
-appmap x = State (\ctx -> return (ctx, case Map.lookup x $ mappings ctx of
+appmap x = QpState (\ctx -> return (ctx, case Map.lookup x $ mappings ctx of
                                          Just t -> t
                                          _ -> TVar x))
 
 mapping_list =
-  State (\ctx -> return (ctx, Map.assocs $ mappings ctx))
+  QpState (\ctx -> return (ctx, Map.assocs $ mappings ctx))
 
 map_lintype_step TUnit = do
   return TUnit

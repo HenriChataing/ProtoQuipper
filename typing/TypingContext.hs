@@ -27,14 +27,14 @@ type TypingContext = Map.Map Variable Type
   - split_context : split the context accordingly to a boolean function
 -}
 
-bind_var :: Variable -> Type -> TypingContext -> State TypingContext
-bind_pattern :: Pattern -> Type -> TypingContext -> State TypingContext
-type_of :: Variable -> TypingContext -> State Type
+bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
+bind_pattern :: Pattern -> Type -> TypingContext -> QpState TypingContext
+type_of :: Variable -> TypingContext -> QpState Type
 
-context_annotation :: TypingContext -> State [(Variable, Flag)]
-merge_contexts :: TypingContext -> TypingContext -> State TypingContext
-split_context :: (Variable -> Bool) -> TypingContext -> State (TypingContext, TypingContext)
-sub_context :: [Variable] -> TypingContext -> State (TypingContext, TypingContext)
+context_annotation :: TypingContext -> QpState [(Variable, Flag)]
+merge_contexts :: TypingContext -> TypingContext -> QpState TypingContext
+split_context :: (Variable -> Bool) -> TypingContext -> QpState (TypingContext, TypingContext)
+sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingContext)
 ----------------------------------------------------------------------------------
 bind_var x t ctx = do
   return $ Map.insert x t ctx

@@ -21,7 +21,7 @@ import Data.List as List
 import Data.Map as Map
 
 -- Import the gates into the current context
-gate_context :: [(String, S.Type)] -> State TypingContext
+gate_context :: [(String, S.Type)] -> QpState TypingContext
 ---------------------------------------------------------
 gate_context gates = do
   List.foldl (\rec (s, t) -> do
@@ -34,7 +34,7 @@ full_inference :: S.Expr -> IO String
 ----------------------------------
 full_inference e =
 
-  let Contexts.State run = do
+  let Contexts.QpState run = do
       typctx <- gate_context typing_environment
       prog <- translate_expression (drop_constraints $ clear_location e)
 
@@ -83,7 +83,7 @@ test_unification :: [(S.Type, S.Type)] -> IO String
 ------------------------------------------------ 
 test_unification set =
 
-  let Contexts.State run = do
+  let Contexts.QpState run = do
       constraints <- List.foldl (\rec (t, u) -> do
                                    r <- rec
                                    t' <- translate_type t

@@ -19,7 +19,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Build all the deriving constraints
-constraint_typing :: TypingContext -> Expr -> Type -> State ConstraintSet
+constraint_typing :: TypingContext -> Expr -> Type -> QpState ConstraintSet
 
 -- Located things
 constraint_typing typctx (ELocated e ex) t = do
@@ -337,7 +337,7 @@ constraint_typing typctx (EUnbox t) typ = do
   -- T -> U <: T' -> U'
   -- ! T <: ! U
 
-break_composite :: ConstraintSet -> State ConstraintSet
+break_composite :: ConstraintSet -> QpState ConstraintSet
 
 -- Nothing to do
 break_composite ([], lc) = return ([], lc)
@@ -430,9 +430,9 @@ break_composite ((Linear t u):lc, fc) = do
 
 -- Instanciation of model types
   -- The bang annotations of the model are ignored
-model_of_lin :: LinType -> State LinType
-model_of :: Type -> State Type
-map_to_model :: Variable -> LinType -> State LinType
+model_of_lin :: LinType -> QpState LinType
+model_of :: Type -> QpState Type
+map_to_model :: Variable -> LinType -> QpState LinType
 -------------------------------------------------------------------------
 model_of_lin TUnit = do
   return TUnit
@@ -490,7 +490,7 @@ map_to_model x t = do
     -- x is lhs/rhs of only one constraint -> break that constraint and substitute x
     -- x is lhs/rhs of several constraints -> generate the constraints rhs <: lhs and eliminate x
 
-unify :: ConstraintSet -> State ConstraintSet
+unify :: ConstraintSet -> QpState ConstraintSet
 ---------------------------------------------
 unify (lc, fc) = do
   -- Recursive check
@@ -621,7 +621,7 @@ unify (lc, fc) = do
 -- Flag unification
 
 -- Set a flag value
-set_flag :: Int -> Int -> Map.Map Int Int -> State (Map.Map Int Int)
+set_flag :: Int -> Int -> Map.Map Int Int -> QpState (Map.Map Int Int)
 -----------------------------------------------------------------------
 set_flag f n val = do
   case Map.lookup f val of
@@ -630,7 +630,7 @@ set_flag f n val = do
     _ -> do return $ Map.insert f n val 
 
 
-apply_constraints :: [FlagConstraint] -> Map.Map Int Int -> State (Bool, [FlagConstraint], Map.Map Int Int)
+apply_constraints :: [FlagConstraint] -> Map.Map Int Int -> QpState (Bool, [FlagConstraint], Map.Map Int Int)
 -----------------------------------------------------------------------------------------------------------
 apply_constraints [] v = do
   return (False, [], v)
@@ -672,7 +672,7 @@ apply_constraints (c:cc) v = do
         _ -> do
             apply_constraints cc v
 
-solve_constraints :: [FlagConstraint] -> Map.Map Int Int -> State ([FlagConstraint], Map.Map Int Int)
+solve_constraints :: [FlagConstraint] -> Map.Map Int Int -> QpState ([FlagConstraint], Map.Map Int Int)
 -----------------------------------------------------------------------------------------------------
 solve_constraints fc v = do
   (b, fc', v') <- apply_constraints fc v
@@ -682,7 +682,7 @@ solve_constraints fc v = do
     return (fc', v')
 
 -- Solve the constraint set
-solve_annotation :: [FlagConstraint] -> State (Map.Map Int Int)
+solve_annotation :: [FlagConstraint] -> QpState (Map.Map Int Int)
 ----------------------------------------------------------------
 solve_annotation fc = do
   -- Empty valuation

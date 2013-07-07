@@ -42,31 +42,31 @@ import qualified Data.Map as Map
 
 type Cluster = Int
 
-cluster_of :: Variable -> State Cluster
-new_cluster :: Variable -> State ()
-cluster_content :: Cluster -> State [Variable]
-merge_clusters :: Cluster -> Cluster -> State ()
-new_relation :: Cluster -> Cluster -> State ()
-add_variable :: Cluster -> State ()
-null_cluster :: State Bool
-cluster_relations :: State [(Cluster, Cluster)]
+cluster_of :: Variable -> QpState Cluster
+new_cluster :: Variable -> QpState ()
+cluster_content :: Cluster -> QpState [Variable]
+merge_clusters :: Cluster -> Cluster -> QpState ()
+new_relation :: Cluster -> Cluster -> QpState ()
+add_variable :: Cluster -> QpState ()
+null_cluster :: QpState Bool
+cluster_relations :: QpState [(Cluster, Cluster)]
 ----------------------------------------
 cluster_of x =
-  State (\ctx -> case Map.lookup x $ ages ctx of
+  QpState (\ctx -> case Map.lookup x $ ages ctx of
                    Just c -> return (ctx, c)
                    Nothing -> fail ("Unassigned variable " ++ show x))
 
 cluster_content x =
-  State (\ctx -> case Map.lookup x $ clusters ctx of
+  QpState (\ctx -> case Map.lookup x $ clusters ctx of
                    Just c -> return (ctx, c)
                    Nothing -> fail "Cluster lacks an accompying definition")
 
 new_cluster x =
-  State (\ctx -> return (ctx { clusters = Map.insert x [x] $ clusters ctx,
+  QpState (\ctx -> return (ctx { clusters = Map.insert x [x] $ clusters ctx,
                                ages = Map.insert x x $ ages ctx }, ()))
 
 merge_clusters x y =
-  State (\ctx -> if x == y then
+  QpState (\ctx -> if x == y then
                    return (ctx, ())
                  else
                    case (Map.lookup x $ clusters ctx, Map.lookup y $ clusters ctx) of
@@ -79,18 +79,18 @@ merge_clusters x y =
                          fail ("Cluster #" ++ show x ++ "lacks a defintion"))
 
 new_relation x y =
-  State (\ctx -> return (ctx { relations = (x, y):(relations ctx) }, ()))
+  QpState (\ctx -> return (ctx { relations = (x, y):(relations ctx) }, ()))
 
 add_variable x =
-  State (\ctx -> return (ctx { variables = x:(variables ctx),
+  QpState (\ctx -> return (ctx { variables = x:(variables ctx),
                                clusters = Map.insert x [x] $ clusters ctx,
                                ages = Map.insert x x $ ages ctx }, ())) 
 
 null_cluster =
-  State (\ctx -> return (ctx, Map.null $ clusters ctx))
+  QpState (\ctx -> return (ctx, Map.null $ clusters ctx))
 
 cluster_relations =
-  State (\ctx -> return (ctx, relations ctx))
+  QpState (\ctx -> return (ctx, relations ctx))
 
 
 {-
@@ -103,12 +103,12 @@ cluster_relations =
      - if the constraint is a <: T or T <: a, for every b free variable of T, add the relation cluster a < cluster b
 -}
 
-init_ordering :: State ()
-register_constraint :: TypeConstraint -> State ()
-register_constraints :: [TypeConstraint] -> State ()
+init_ordering :: QpState ()
+register_constraint :: TypeConstraint -> QpState ()
+register_constraints :: [TypeConstraint] -> QpState ()
 ----------------------------------------------------
 init_ordering =
-  State (\ctx -> let n = type_id ctx in
+  QpState (\ctx -> let n = type_id ctx in
            return (ctx { variables = [0 .. type_id ctx - 1],
                          relations = [],
                          clusters = Map.fromList $ List.map (\x -> (x, [x])) [0 .. type_id ctx - 1],
@@ -160,15 +160,15 @@ register_constraints (c:cc) = do
   - younngest_variables : same as youngest_cluster, only it returns the contents of the youngest cluster
 
 -}
-some_cluster :: State Cluster
-try_cluster :: Cluster -> [Cluster] -> State (Cluster, [Cluster])
-find_youngest_cluster :: Cluster -> [Cluster] -> State Cluster
-youngest_cluster :: State Cluster
-remove_cluster :: Cluster -> State ()
-youngest_variables :: State [Variable]
+some_cluster :: QpState Cluster
+try_cluster :: Cluster -> [Cluster] -> QpState (Cluster, [Cluster])
+find_youngest_cluster :: Cluster -> [Cluster] -> QpState Cluster
+youngest_cluster :: QpState Cluster
+remove_cluster :: Cluster -> QpState ()
+youngest_variables :: QpState [Variable]
 --------------------------------------
 some_cluster =
-  State (\ctx -> case Map.keys $ clusters ctx of
+  QpState (\ctx -> case Map.keys $ clusters ctx of
                    [] -> fail "Empty cluster list"
                    (c:_) -> return (ctx, c))
 
@@ -204,7 +204,7 @@ youngest_cluster = do
   return yg
 
 remove_cluster x =
-  State (\ctx -> case Map.lookup x $ clusters ctx of 
+  QpState (\ctx -> case Map.lookup x $ clusters ctx of 
                    Just xc ->
                        return (ctx { variables = (variables ctx) \\ xc,
                                      clusters = Map.delete x $ clusters ctx,

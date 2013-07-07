@@ -34,18 +34,18 @@ import qualified Data.List as List
   - find_tyep : same as find_name, but never fails, if the name isn't found, a new id is generated
 -}
 
-dummy_label :: State Int
-label :: String -> State Int
-label_type :: String -> State Int
-find_name :: String -> State Int
-find_type :: String -> State Int
+dummy_label :: QpState Int
+label :: String -> QpState Int
+label_type :: String -> QpState Int
+find_name :: String -> QpState Int
+find_type :: String -> QpState Int
 
-new_layer :: State ()
-drop_layer :: State ()
+new_layer :: QpState ()
+drop_layer :: QpState ()
 ----------------------
-dummy_label = State (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
+dummy_label = QpState (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
 
-label s = State (\ctx -> case name_to_var ctx of
+label s = QpState (\ctx -> case name_to_var ctx of
                            [] ->
                                return (ctx { var_id = (+1) $ var_id ctx,
                                              name_to_var = [ Map.singleton s (var_id ctx) ],
@@ -55,7 +55,7 @@ label s = State (\ctx -> case name_to_var ctx of
                                              name_to_var = (Map.insert s (var_id ctx) toplayer):rest,
                                              var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, var_id ctx))
 
-label_type s = State (\ctx -> case name_to_var ctx of
+label_type s = QpState (\ctx -> case name_to_var ctx of
                            [] ->
                                return (ctx { type_id = (+1) $ type_id ctx,
                                              name_to_var = [ Map.singleton s (type_id ctx) ] }, type_id ctx)
@@ -71,23 +71,23 @@ find_rec s (top:rest) =
     Just x -> Just x
     Nothing -> find_rec s rest
 
-find_name s = State (\ctx ->
+find_name s = QpState (\ctx ->
                       case find_rec s $ name_to_var ctx of
                         Just x -> return (ctx, x)
                         Nothing -> throw $ UnboundVariable s extent_unknown)
 
-find_type s = State (\ctx ->
+find_type s = QpState (\ctx ->
                       case find_rec s $ name_to_var ctx of
                         Just x -> return (ctx, x)
-                        Nothing -> let State run = label_type s in
+                        Nothing -> let QpState run = label_type s in
                                    run ctx)
 
 
 new_layer =
-  State (\ctx -> return (ctx { name_to_var = Map.empty:(name_to_var ctx) }, ()))
+  QpState (\ctx -> return (ctx { name_to_var = Map.empty:(name_to_var ctx) }, ()))
 
 drop_layer =
-  State (\ctx -> return (ctx { name_to_var = case name_to_var ctx of
+  QpState (\ctx -> return (ctx { name_to_var = case name_to_var ctx of
                                                [] -> []
                                                _:rest -> rest }, ()))
 
@@ -103,9 +103,9 @@ drop_layer =
   which do as their name indicates
 -}
 
-translate_type :: S.Type -> State Type
-translate_pattern :: S.Pattern -> State Pattern
-translate_expression :: S.Expr -> State Expr
+translate_type :: S.Type -> QpState Type
+translate_pattern :: S.Pattern -> QpState Pattern
+translate_expression :: S.Expr -> QpState Expr
 -------------------------------------------
 translate_type S.TUnit = do
   return $ TExp (-1) TUnit
