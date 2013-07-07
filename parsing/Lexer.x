@@ -44,8 +44,8 @@ tokens :-
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
   in                                  { locate_token TkIn }
-  injl                                { locate_token TkInjL }
-  injr                                { locate_token TkInjR }
+  left                                { locate_token TkInjL }
+  right                               { locate_token TkInjR }
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
   qbit                                { locate_token TkQBit }
@@ -55,50 +55,60 @@ tokens :-
   unbox                               { locate_token TkUnbox }
   with                                { locate_token TkWith }
 
-  $alpha [$alpha $digit]*             { \p s -> TkVar (from_posn p s, s) }
-  
-{
----------------------------
--- Localization in files --
+  $alpha [$alpha $digit]*             { locate_named_token TkVar }
 
-from_posn :: AlexPosn -> String -> Extent
-from_posn (AlexPn p l c) s =
+{
+
+-- | Converts alex's positions to extents
+posn_to_extent :: AlexPosn -> String -> Extent
+posn_to_extent (AlexPn p l c) s =
   Ext { lbegin = Loc { line = l, column = c },
         lend = Loc { line = l, column = c+length s-1 }}
 
----------------------------
+-- | List of the tokens
+-- All the tokens are annotated by an extent, which is the location of the token
+-- in the original file. This will later serve to locate the expressions parsed
 
 data Token =
+  -- Name tokens, for now only variables, later data constructors will be added
     TkVar (Extent, String)
-  | TkBool Extent     | TkQBit Extent
-  | TkBox Extent      | TkUnbox Extent
-  | TkCirc Extent
-  | TkBar Extent
-  | TkIf Extent       | TkThen Extent   | TkElse Extent
-  | TkMatch Extent    | TkWith Extent
-  | TkInjL Extent     | TkInjR Extent
-  | TkTrue Extent     | TkFalse Extent
-  | TkFun Extent      | TkDo Extent
-  | TkLet Extent      | TkIn Extent
+
+  -- Reserved notations : list of reserved names
+  | TkBool Extent          | TkQBit Extent
+  | TkBox Extent           | TkUnbox Extent
+  | TkCirc Extent          | TkIf Extent
+  | TkThen Extent          | TkElse Extent
+  | TkMatch Extent         | TkWith Extent
+  | TkInjL Extent          | TkInjR Extent
+  | TkTrue Extent          | TkFalse Extent
+  | TkFun Extent           | TkDo Extent
+  | TkLet Extent           | TkIn Extent
   | TkRev Extent
-  | TkStar Extent
-  | TkComma Extent
-  | TkColon Extent  | TkSemiColon Extent
-  | TkEq Extent
-  | TkBang Extent
-  | TkArrow Extent  | TkBackArrow Extent
-  | TkSubType Extent
+
+  -- Punctuation marks, and other symbols
+  | TkStar Extent          | TkBar Extent
+  | TkComma Extent         | TkColon Extent
+  | TkSemiColon Extent     | TkEq Extent
+  | TkBang Extent          | TkArrow Extent
+  | TkBackArrow Extent     | TkSubType Extent
+
+  -- Delimiters
   | TkLParen Extent        | TkRParen Extent
   | TkLChevron Extent      | TkRChevron Extent
   | TkLBracket Extent      | TkRBracket Extent
   | TkLCurlyBracket Extent | TkRCurlyBracket Extent
-
     deriving Show
 
+-- | Locate a token. The type signatures matches the one expected of lexing actions
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
-locate_token k p s = k (from_posn p s)
+locate_token tk p s = tk (posn_to_extent p s)
 
-mylex :: String -> String -> [Token]
+-- | Same as locate_token, except that the string of the token is also included in the object
+locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> String -> Token
+locate_named_token tk p s = tk (posn_to_extent p s, s)
+
+-- | Lexing function
+mylex :: String -> String -> IO [Token]
 mylex filename contents =
-  alexScanTokens contents
+  return $ alexScanTokens contents
 }

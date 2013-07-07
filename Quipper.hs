@@ -95,7 +95,8 @@ main = do
     case runUnify opts of
       Just set -> do
           putStrLn  $ "\x1b[1;33m" ++ ">> unification test" ++ "\x1b[0m"
-          constraints <- return $ parse_constraints $ mylex "" $ set
+          tokens <- mylex "" set
+          constraints <- return $ parse_constraints tokens
           putStrLn $ test_unification constraints
 
       Nothing ->
@@ -110,7 +111,8 @@ main = do
       -- Read and parse the file
       file <- return $ List.head files
       contents <- readFile file
-      prog <- return (parse $ mylex file contents)
+      tokens <- mylex file contents
+      prog <- return (parse tokens)
 
       -- Actions
       if runInterpret opts then do
