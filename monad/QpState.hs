@@ -4,6 +4,9 @@ import Localizing
 import Classes
 import Utils
 
+import Namespace (Namespace)
+import qualified Namespace as N
+
 import CoreSyntax
 import Subtyping
 
@@ -33,29 +36,20 @@ write_log logfile lvl s = do
   else
     hPutStrLn (channel logfile) s
 
-{-
-  Definition of the context
-  A same context is used for all the steps of the type inference algorithm (to avoid having to convey in information
-  from one to another).
-
-  The specification of the context is
-
-  - logs : a small logging system is added to have in place printing (for debugging purposes)
-    This include a logfile (each log takes a line), and a boolean flag to enable/disable logging
-    (in which case the logs are not saved)
-
-  - translation of programs : the programs have to be translated to the core syntax (few differences)
-    Variables are labelled with a unique id at this moment, and type variables the same
-
-  - 
--}
+-- | Definition of the context in which all quipper functions are evluated. This means this context is used
+-- from parsing to interpretation and type inference. Using a single context has been preferred over using
+-- several specific to each module to avoid having to convey information between states. 
+-- This also means all the data structures necessary to each module have to be included in the context, which now
+-- contains :
+--   A logfile, used for regular and debug printing
+--   Information relevant to the original expression (location in file, sample of the current expression)
+--   A namespace to record the variables of the original expression
 
 data Context = Ctx {
   
   logfile :: Logfile,
+  namespace :: Namespace,
 
-
-  -- | 
     current_location :: Extent,
     current_expr :: Expr,
 
@@ -117,6 +111,8 @@ empty_context :: Context
 empty_context =
   Ctx {
     logfile = Logfile { channel = stdin, verbose = 0 },
+    namespace = N.new_namespace,
+
     current_location = extent_unknown,
     current_expr = EUnit,
 
