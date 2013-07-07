@@ -119,52 +119,80 @@ empty_context =
     mappings = Map.empty
   }
 
-{- 
-  Log file and logging. The function provided are :
- 
-  - enable/disable_logs : do as the name indicates
-  - new_log : enter a new log in the log file
-  - print_logs : returns the logs contained in the file, and empty the log file
 
-  - set_location / get_location : do as their name indicates
--}
-  
+-- | Returns the state context
+get_context :: QpState Context
+get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
+
+
+-- | Set the state context
+set_context :: Context -> QpState ()
+set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
+
+
+-- | Enable the use of the log file
 enable_logs :: QpState ()
+enable_logs = do
+  cxt <- get_context
+  set_context $ cxt { log_enabled = True }
+
+
+-- | Disable the use of the log file. While the log file is diabled,
+-- no log can be entered, and any call to the function 'new_log' wiil
+-- be ignored
 disable_logs :: QpState ()
+disable_logs = do
+  ctx <- get_context
+  set_context $ ctx { log_enabled = False }
+
+
+-- | Enter a new log entry
 new_log :: String -> QpState ()
+new_log entry = do
+  ctx <- get_context
+  if log_enabled ctx then
+    set_context $ ctx { logfile = entry:(logfile ctx) }
+  else
+    return ()
+
+
+-- | Flush the log file, and the concatenation of the logs previously in
+-- the log file
 print_logs :: QpState String
+print_logs = do
+  ctx <- get_context
+  cat <- List.foldl (\rec e -> do
+                       s <- rec
+                       return $ e ++ "\n" ++ s) (return $ "\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") (logfile ctx)
+  set_context $ ctx { logfile = [] }
+  return cat
 
+
+-- | The set location marker
 set_location :: Extent -> QpState ()
+set_location ex = do
+  ctx <- get_context
+  set_context $ ctx { current_location = ex }
+
+
+-- | Return the current location marker
 get_location :: QpState Extent
-set_expr :: Expr -> QpState ()
-get_expr :: QpState Expr
-----------------------------
-enable_logs =
-  QpState (\ctx -> return (ctx { log_enabled = True }, ()))
-
-disable_logs =
-  QpState (\ctx -> return (ctx { log_enabled = False }, ()))
-
-new_log p =
-  QpState (\ctx -> if log_enabled ctx then
-                   return (ctx { logfile = p:(logfile ctx) }, ())
-                 else
-                   return (ctx, ()))
-
-print_logs =
-  QpState (\ctx -> return (ctx { logfile = [] }, List.foldl (\s lg -> lg ++ "\n" ++ s) ("\x1b[1m" ++ ">> Log end <<" ++ "\x1b[0m") $ logfile ctx))
-
-set_location ex =
-  QpState (\ctx -> return (ctx { current_location = ex }, ()))
-
 get_location =
-  QpState (\ctx -> return (ctx, current_location ctx))
+  get_context >>= return . current_location
 
-set_expr e =
-  QpState (\ctx -> return (ctx { current_expr = e }, ()))
 
+-- | Set the currently observed expression
+set_expr :: Expr -> QpState ()
+set_expr e = do
+  ctx <- get_context
+  set_context $ ctx { current_expr = e }
+
+
+-- | Return the currenlty observed expression
+get_expr :: QpState Expr
 get_expr =
-  QpState (\ctx -> return (ctx, current_expr ctx))
+  get_context >>= return . current_expr
+
 
 {-
   Id generation
