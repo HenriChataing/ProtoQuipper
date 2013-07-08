@@ -56,7 +56,7 @@ full_inference e =
       maps <- mapping_list
       pmaps <- List.foldl (\rec (x, t) -> do
                              s <- rec
-                             return $ (subscript $ "X" ++ show x) ++ " |-> " ++ pprint t ++ "\n" ++ s) (return "") maps
+                             return $ subvar 'X' x ++ " |-> " ++ pprint t ++ "\n" ++ s) (return "") maps
 
       return $ pprint constraints ++ "\n\n" ++
                pprint red_constraints ++ "\n\n" ++
@@ -106,4 +106,4 @@ test_unification set =
 pprint_val :: Map Int Int -> String
 ------------------------------------
 pprint_val val =
-  Map.foldWithKey (\f n s -> s ++ " | " ++ subscript ("f" ++ show f) ++ "=" ++ show n) "" val
+  Map.foldWithKey (\f n s -> s ++ " | " ++ subvar 'f' f ++ "=" ++ show n) "" val

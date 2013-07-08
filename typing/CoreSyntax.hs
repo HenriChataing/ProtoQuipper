@@ -211,7 +211,7 @@ instance Eq LinType where
 
 instance PPrint LinType where
   -- Print unto Lvl = n
-  sprintn _ (TVar x) = subscript ("X" ++ show x)
+  sprintn _ (TVar x) = subvar 'X' x
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
   sprintn _ TQbit = "qbit"
@@ -292,7 +292,7 @@ instance Param Pattern where
 
 instance PPrint Pattern where
    -- Print unto Lvl = n
-  sprintn _ (PVar x) = subscript ("x" ++ show x)
+  sprintn _ (PVar x) = subvar 'x' x
   sprintn _ PUnit = "<>"
   sprintn (Nth 0) _ = "..."
 
@@ -347,7 +347,7 @@ instance Param Expr where
 
   subs_var _ _ e = e
 
-print_var x = subscript ("x" ++ show x)
+print_var x = subvar 'x' x
 
 -- Second argument is indentation level
 indent_sprintn :: Lvl -> String -> Expr -> String

@@ -45,7 +45,7 @@ instance PPrint Value where
   pprint VUnit = "<>"
   pprint VRev = "rev"
   pprint VUnbox = "unbox"
-  pprint (VQbit q) = subscript ("q" ++ show q)
+  pprint (VQbit q) = subvar 'q' q
   pprint (VBool b) = if b then "true" else "false"
   pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
   pprint (VCirc _ c _) = pprint c

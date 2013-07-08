@@ -225,11 +225,11 @@ instance PPrint FlagConstraint where
     (if m < 2 then
        show m
      else
-       "f" ++ (subscript $ show m)) ++ " <= " ++
+       subvar 'f' m) ++ " <= " ++
     (if n < 2 then
        show n
      else
-       "f" ++ (subscript $ show n))
+       subvar 'f' n)
 
   sprintn _ c = pprint c
   sprint c = pprint c
