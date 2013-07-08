@@ -54,14 +54,14 @@ data Context = Ctx {
   location :: Extent,
   namespace :: Namespace,
    
-  circuit :: Circuit,
-  qbit_id :: Int,
+  circuits :: [Circuit],
 
     {- Id generation -}
 
     type_id :: Int, 
     flag_id :: Int,
     var_id :: Int,
+    qbit_id :: Int,
 
     {-
        Translation to core syntax :
@@ -118,8 +118,7 @@ empty_context =
     namespace = N.new_namespace,
     location = extent_unknown,
 
-    circuit = Circ { qIn = [], qOut = [], gates = [] },
-    qbit_id = 0,
+    circuits = [],
 
     name_to_var = [Map.empty],
     var_to_name = Map.empty,
@@ -132,6 +131,7 @@ empty_context =
     flag_id = 2,   -- Flag ids 0 and 1 are reserved
     type_id = 0,
     var_id = 0,
+    qbit_id = 0,
       
     mappings = Map.empty
   }

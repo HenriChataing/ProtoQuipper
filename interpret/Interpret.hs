@@ -4,14 +4,19 @@ module Interpret (-- Only the main function is accessible
 
 import Classes
 import Localizing
+import QuipperError
 import qualified Utils
 
 import QpState
 import CoreSyntax
 import Printer
 
+import Circuits (Circuit (..), Binding)
+import qualified Circuits as C
 import Values
 import Gates
+
+import Control.Exception
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -19,9 +24,98 @@ import qualified Data.List as List
 
 type Environment = IntMap Value
 
--- Extract the bindings from a [let .. = .. in ..] construction, and adds them to the environment
+
+-- | Return fresh quantum address
+fresh_qbit :: QpState Int
+fresh_qbit = do
+  ctx <- get_context
+  q <- return $ qbit_id ctx
+  set_context $ ctx { qbit_id = q + 1 }
+  return q
+
+
+-- | Reset the counter of qbit values
+reset_qbits :: QpState ()
+reset_qbits = do
+  ctx <- get_context
+  set_context $ ctx { qbit_id = 0 }
+
+
+-- | Create a specimen of a given type / linear type. The quantum addresses of
+-- the specimen range from 0 .. to n, n being the number of qbits in the type
+-- The axiliary function keeps track of the counter
+linspec :: LinType -> QpState Value
+linspec (TLocated t ex) = do
+  set_location ex
+  linspec t
+
+linspec TQbit = do
+  q <- fresh_qbit
+  return (VQbit q)
+
+linspec (TTensor t1 t2) = do
+  q1 <- spec t1
+  q2 <- spec t2
+  return (VPair q1 q2)
+
+linspec TUnit = do
+  return VUnit
+
+
+spec :: Type -> QpState Value
+spec (TExp _ t) = linspec t
+
+
+-- | Modifiers of qpState specififc to circuit construction
+-- It only relays the functions unencap, open and close box of the circuit
+-- class
+
+-- | Stack on a new circuit, initialized with the list a qbits as wires
+open_box :: [Int] -> QpState ()
+open_box ql = do
+  ctx <- get_context
+  newc <- return $ Circ { qIn = ql, gates = [], qOut = ql }
+  set_context $ ctx { circuits = newc:(circuits ctx) }
+
+
+-- | Unstack and returns the top circuit
+-- The list must be non empty. An empty circuit list correspond to a program error (as close_box is called only after
+-- an open_box)
+close_box :: QpState Circuit
+close_box = do
+  ctx <- get_context
+  case circuits ctx of
+    [] ->
+        throw $ ProgramError "Unsound close box operation"
+
+    (top:rest) -> do
+        set_context $ ctx { circuits = rest }
+        return top
+
+
+-- | Append a circuit, the welding specified by the argument binding
+-- The action is done on the top circuit. If the circuit list is empty, it corresponds to
+-- a runtime error. The output of unencap is a binding corresponding to the renaming of the
+-- addresses done by the circuit constructor.
+unencap :: Circuit -> Binding -> QpState Binding
+unencap c b = do
+  ctx <- get_context
+  case circuits ctx of
+    [] -> do
+        ex <- get_location
+        throw $ NoBoxError ex
+
+    (top:rest) -> do
+        (c', b') <- return $ C.unencap top c b
+        set_context $ ctx { circuits = (c':rest) }
+        return b'
+
+
+-- | Extract the list of bindings x |-> v from a matching between a pattern and a value (supposedly of
+-- the same type, and insert all of them in the given environment. This function can be called in three
+-- diffrent contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
+-- of from a pattern matching
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
-----------------------------------------------------------------------
 bind_pattern (PVar x) v env = do
   return $ IMap.insert x v env
 
@@ -36,14 +130,13 @@ bind_pattern (PLocated p ex) v env = do
   set_location ex
   bind_pattern p v env
 
-bind_pattern p q env = do
-  fail ("Unmatching patterns : " ++ sprint p ++ " and " ++ sprint q)
+bind_pattern p q _ = do
+  throw $ MatchingError (sprint p) (sprint q)
 
 
-
--- Extract the bindings from a circuit application
+-- | Extract the list of associations qbit <-> qbit introduced by the matching
+-- of the two argument values
 bind :: Value -> Value -> QpState [(Int, Int)]
---------------------------------------
 bind (VQbit q1) (VQbit q2) = do
   return [(q1, q2)]
 
@@ -56,55 +149,33 @@ bind VUnit VUnit = do
   return []
 
 bind v1 v2 = do
-  fail ("Unmatching values : " ++ pprint v1 ++ " and " ++ pprint v2)
+  throw $ MatchingError (sprint v1) (sprint v2)
 
 
+-- | Readdress a quantum value following a binding function
+-- If a qbit is not mapped by the binding, its value is left unchanged
+readdress :: Value -> [(Int, Int)] -> QpState Value
+readdress (VQbit q) b = do
+  case List.lookup q b of
+    Just q' ->
+        return (VQbit q')
+    Nothing ->
+        return (VQbit q)
 
--- Apply a bind function to a value
-apply_binding :: [(Int, Int)] -> Value -> QpState Value
------------------------------------------
-apply_binding b (VQbit q) = do 
-  return (VQbit $ Utils.apply_binding b q)
-
-apply_binding b (VPair v1 v2) = do
-  v1' <- apply_binding b v1
-  v2' <- apply_binding b v2
+readdress (VPair v1 v2) b = do
+  v1' <- readdress v1 b
+  v2' <- readdress v2 b
   return (VPair v1' v2')
 
-apply_binding _ VUnit = do
+readdress VUnit _ = do
   return VUnit
 
-apply_binding _ v = do
-  fail ("Expected a quantum data value - Actual value : " ++ pprint v)
+readdress v _ = do
+  throw $ ProgramError $ "unsound readdress function application:" ++ pprint v ++ " is not a quantum data value"
 
--- Create a specification (with fresh variables) for a given type
-linspec :: LinType -> QpState Value
-spec :: Type -> QpState Value
--------------------------------------------
-linspec (TLocated t ex) = do
-  set_location ex
-  linspec t
 
-linspec TQbit = do
-  q <- new_id
-  return (VQbit q)
-
-linspec (TTensor t1 t2) = do
-  q1 <- spec t1
-  q2 <- spec t2
-  return (VPair q1 q2)
-
-linspec TUnit = do
-  return VUnit
-
-linspec t = do
-  fail ("Expected a quantum data type - Actual type : " ++ pprint t)
-
-spec (TExp _ t) = linspec t
-
--- Extract the quantum addresses used in a value
+-- | Extract the quantum addresses of a value
 extract :: Value -> QpState [Int]
--------------------------
 extract (VQbit q) = do
   return [q]
 
@@ -117,21 +188,24 @@ extract VUnit = do
   return []
 
 extract v = do
-  fail ("Expected a quantum data value - Actual value : " ++ pprint v)
+   throw $ ProgramError $ "unsound extract function application:" ++ pprint v ++ " is not a quantum data value"
 
--------------------------
------ Interpreter -------
 
--- Evaluate expressions
-interpret :: Environment -> Expr -> QpState Value
+
+-- | Implementation of the evaluation of an expression. The main function, interpret, has type Environment -> Expr -> QpState Value
+-- Knowing that the monad QpState encloses a circuit stack, the prototype is close to the theoretical semantics describing the
+-- reduction of the closure [C, t]. The main difference is that the substitutions done during the beta reduction are delayed via
+-- the passing of the environment : only when the function must evaluate a variable is the associated value retrieved.
+-- An auxiliary function, do_application, reduces the application of a function value to an argument value.
 
 do_application :: Environment -> Value -> Value -> QpState Value
-
 do_application env f x =
   case (f, x) of
     -- Classical beta reduction
     (VFun closure argp body, _) -> do
+        -- The argument pattern and value are bound together, and the resulting bindings added to the environment
         ev <- bind_pattern argp x closure
+        -- Evaluation of the body of the function
         interpret ev body
 
     -- Circuit unboxing
@@ -144,27 +218,35 @@ do_application env f x =
 
     -- Unboxed circuit application
     (VUnboxed (VCirc u c u'), t) -> do
+        -- The argument is bound to the input of the circuit
         b <- bind u t
+        -- Append the circuit to the edited one
         b' <- unencap c b
-        apply_binding b' u'
+        -- Produces the return value by readdressing the output of the circuit
+        readdress u' b'
 
     -- Circuit boxing
     (VBox typ, _) -> do
-        -- Creation of a new specification
+        -- Creation of a new specimen of type type, with qbits ranging from 0, 1 .. to n,
+        -- n the number of qbits in the type typ
+        reset_qbits
         s <- spec typ
-        -- Open a new circuit
+        -- Open a new circuit, initialized with the quantum addresses of the specimen
         ql <- extract s
-        c <- open_box ql
-        -- Execute the argument, applied to the specification, in the new context
+        open_box ql
+        -- Build the circuit by applying the function argument to the specimen
         s' <- do_application env x s
-        -- Close the new circuit and reset the old one
-        c' <- close_box c
-        return (VCirc s c' s')
+        -- Close the box, and return the corresponding circuit
+        c <- close_box
+        return (VCirc s c s')
 
     _ -> do
-        fail ("Expected value of type function - Actual expression : ")
+        ex <- get_location
+        throw $ NotFunctionError (sprint f) ex
 
 
+
+interpret :: Environment -> Expr -> QpState Value
 -- Location handling
 interpret env (ELocated e ex) = do
   set_location ex
@@ -191,22 +273,24 @@ interpret _ (EBox typ) = do
 -- Variables
 interpret env (EVar x) = do
   case IMap.lookup x env of
-    Just v -> return v
-    Nothing -> fail $ "Unbound variable " ++ show x 
+    Just v ->
+        return v
+    Nothing -> do
+        -- This kind of errors should have been eliminated during the translation to the internal syntax
+        ex <- get_location
+        throw $ UnboundVariable (show x) ex
 
--- Functions
-  -- The current context is enclosed in the function value
+-- Functions : The current context is enclosed in the function value
 interpret env (EFun p e) = do
   return (VFun env p e)
 
 -- Let .. in ..
-  -- first evaluate the expr e1
-  -- match it with the pattern
-  -- evaluate e2 in the resulting context
-    -- The state at the end must contains only the bindings from the state at the beginning
 interpret env (ELet p e1 e2) = do
+  -- Reduce the argument e1
   v1 <- interpret env e1
+  -- Bind it to the pattern p in the current context
   ev <- bind_pattern p v1 env
+  -- Interpret the body e2 in this context
   interpret ev e2
 
 -- Function application
@@ -215,7 +299,6 @@ interpret env (EApp ef arg) = do
   x <- interpret env arg
 
   do_application env f x
-
 
 -- Patterns and pattern matching
 interpret env (EInjL e) = do
@@ -237,9 +320,8 @@ interpret env (EMatch e (p, f) (q, g)) = do
         ev <- bind_pattern q w env
         interpret ev g
 
-    _ -> fail "Typing error" 
-
-
+    _ -> do
+        throw $ NotUnionError (sprint v)
 
 -- Pairs
 interpret env (EPair e1 e2) = do
@@ -253,17 +335,20 @@ interpret env (EIf e1 e2 e3) = do
   case v1 of
     VBool True -> do
         interpret env e2
+
     VBool False -> do
         interpret env e3
+
     _ -> do
-        fail ("Expected value of type bool - Actual expression : " ++ sprint e1)
+        ex <- get_location
+        throw $ NotBoolError (sprint v1) ex
 
 
--------------------
--- Main function --
 
+-- | Main function, the only one to be called outside of the module
+-- The interpret function is launched with a basic environment containing only
+-- the gate values
 run :: Expr -> QpState Value
-----------------------------
 run e = do
   gv <- gate_values
   basic_environment <- return $ IMap.fromList gv

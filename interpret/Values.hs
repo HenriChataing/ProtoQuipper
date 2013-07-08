@@ -1,82 +1,90 @@
-{- This module defines the data type of values, which will be used
-   by the interpreter
--}
+-- | This module gives the definition of the type of values, used by the interpreter to represent
+-- values (...). The definition follows from the definition of expression, but for a few differences
+-- which are :
+--    The application, if then else, match with, have all been eliminated, with the exception of unboxed circuits
+--    The function values include a closure in their definition, corresponding to the evaluation context at the time
+--      of the evaluation of the function
+--    The qbits, which weren't included in the input syntax, are added, same for circuits
 
 module Values where
 
-import Localizing
+import Classes
 import Utils
-import QuipperError
-
-import CoreSyntax
-import Printer
 import QpState
 
-import Classes
-import Circuits
-import Gates
+import CoreSyntax
 import TransSyntax
 
-import Control.Exception
+import Circuits
+import Gates
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.List as List
 
--- Type declaration of values
+
+-- | Type declaration of values
 data Value =
-    VFun (IntMap Value) Pattern Expr
-  | VPair Value Value
-  | VCirc Value Circuit Value
-  | VBool Bool
-  | VBox Type
-  | VUnbox
-  | VUnboxed Value -- application of unbox to a circuit
-  | VUnit
-  | VInjL Value
-  | VInjR Value
-  | VRev
-  | VQbit Int     -- Quantum addresses
+    VFun (IntMap Value) Pattern Expr     -- fun p -> e (in the context env)
+  | VPair Value Value                    -- <e, f>
+  | VCirc Value Circuit Value            -- (t, c, u)
+  | VBool Bool                           -- true / false
+  | VBox Type                            -- box [T]
+  | VUnbox                               -- unbox
+  | VUnboxed Value                       -- unbox (t, c, u)
+  | VUnit                                -- <>
+  | VInjL Value                          -- injl e
+  | VInjR Value                          -- injr e
+  | VRev                                 -- rev
+  | VQbit Int                            -- Quantum addresses
   deriving Show
 
+
+-- | Values are declared instances of PPrint
 instance PPrint Value where
+  pprint VUnit = "<>"
+  pprint VRev = "rev"
+  pprint VUnbox = "unbox"
   pprint (VQbit q) = subscript ("q" ++ show q)
+  pprint (VBool b) = if b then "true" else "false"
   pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
   pprint (VCirc _ c _) = pprint c
   pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
   pprint (VInjL e) = "injl(" ++ pprint e ++ ")"
   pprint (VInjR e) = "injr(" ++ pprint e ++ ")"
-  pprint (VBool b) = if b then "true" else "false"
-  pprint VUnit = "<>"
-  pprint VRev = "rev"
-  pprint VUnbox = "unbox"
   pprint (VUnboxed c) = "unbox (" ++ pprint c ++ ")"
 
   sprint v = pprint v
   sprintn _ v = pprint v
 
--- Associate values to gates
+
+-- | Creation of the gates
+-- The gates are only listed by name in the Gates module, so a value need to be created for
+-- each one. Note that the gates should already have been labeled (given a unique id) during
+-- the syntax translation. The assiocations will be made with those ids, rather than the gates string names
+
 gate_values :: QpState [(Int, Value)]
--------------------------------------
 gate_values = do
+  -- Creation of the init gates
   linit0 <- find_name "INIT0"
   linit1 <- find_name "INIT1"
   init_values <- return [(linit0, VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQbit 0)),
                          (linit1, VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQbit 0)) ]
 
+  -- Creation of the term gates
   lterm0 <- find_name "TERM0"
   lterm1 <- find_name "TERM1"
   term_values <- return [(lterm0, VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit),
                          (lterm1, VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit) ]
 
+  -- Creation of the unary gates
   unary_values <- List.foldl (\rec s -> do
                                 r <- rec
                                 lbl <- find_name s
                                 g <- return (lbl, VCirc (VQbit 0) (Circ { qIn = [0], gates = [ Unary s 0 ], qOut = [0] }) (VQbit 0))
                                 return (g:r)) (return []) unary_gates
 
+  -- Creation of the binary gates
   binary_values <- List.foldl (\rec s -> do
                                  r <- rec
                                  lbl <- find_name s
@@ -85,23 +93,6 @@ gate_values = do
                                                          (VPair (VQbit 0) (VQbit 1)))
                                  return (g:r)) (return []) binary_gates
 
+  -- Return the whole
   return $ init_values ++ term_values ++ unary_values ++ binary_values
-
-
--- Context manipulation --
-
--- Circuit construction
-unencap :: Circuit -> Binding -> QpState Binding
-open_box :: [Int] -> QpState Circuit     -- Note : from a list of addresses, open a new circuit, while the old one is returned
-close_box :: Circuit -> QpState Circuit  -- Note : put the old circuit back in place and return the new one
-
--- Fresh id generation
-new_id :: QpState Int
--------------------------
-unencap c b = QpState (\ctx -> let (c', b') = Circuits.unencap (circuit ctx) c b in
-                             return (ctx { circuit = c' }, b'))
-open_box ql = QpState (\ctx -> return (ctx { circuit = Circ { qIn = ql, gates = [], qOut = ql } }, circuit ctx))
-close_box c = QpState (\ctx -> return (ctx { circuit = c }, circuit ctx))
-
-new_id = QpState (\ctx -> return (ctx { qbit_id = (+1) $ qbit_id ctx }, qbit_id ctx))
 
