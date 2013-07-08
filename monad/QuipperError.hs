@@ -22,7 +22,8 @@ data QError =
        Parsing errors, thrown during the parsing. Parsing errors generally correspond to an unknwon
        sequence of tokens. As of now, only one parsing error is provided to represent them all. Others
        will be added later to differenciate between missing parenthesis, ... -}
-  | ParsingError
+  | ParsingError String
+  | BoxTypeError Extent
 
     {-
        Type inference errors.
@@ -41,7 +42,8 @@ data QError =
 
 instance Show QError where
   show (LexicalError ex) = "Lexical error: at extent " ++ show ex
-  show ParsingError = "Parsing error"
+  show (ParsingError tk) = "Parsing error: on token " ++ tk
+  show (BoxTypeError ex) = "Parsing error: constructor box expect a quantum data type as argument: at extent " ++ show ex
   show (UnboundVariable x ex) = "Error: unbound variable " ++ x ++ ": at extent " ++ show ex
   show (MiscError msg) = "Error: " ++ msg
 

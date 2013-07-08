@@ -3,6 +3,10 @@
 
 module LayeredMap where
 
+import qualified Prelude as P
+
+import Data.Maybe
+
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -28,16 +32,16 @@ end_scope (_:layers) = layers
 
 -- | Inserts a new element. The element is automatically inserted in the top
 -- layer. If the list is empty, an error is generated
-insert :: k -> v -> LayeredMap k v -> LayeredMap k v
-insert k v [] = error "LayeredMap: empty layer stack"
+insert :: (P.Ord k) => k -> v -> LayeredMap k v -> LayeredMap k v
+insert k v [] = P.error "LayeredMap: empty layer stack"
 insert k v (top:rest) = (Map.insert k v top:rest)
 
 
 -- | Lookup an element. The function searches in every layer, starting from the top, untils it finds
 -- one containing the element
-lookup :: k -> LayeredMap k v -> Maybe v
-lookup _ [] = None
+lookup :: (P.Ord k) => k -> LayeredMap k v -> Maybe v
+lookup _ [] = Nothing
 lookup k (top:rest) =
   case Map.lookup k top of
-    Just v -> v
+    Just v -> Just v
     Nothing -> lookup k rest

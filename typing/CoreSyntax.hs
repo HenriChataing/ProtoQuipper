@@ -40,7 +40,7 @@ type Flag = Int
 data Detail =
     TypeOfE Expr
   | TypeOfP Pattern
-
+  deriving Show
 
 data LinType =
     TVar Variable              -- a
@@ -51,11 +51,13 @@ data LinType =
   | TSum Type Type             -- a + b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
-  | TDetailed LinType Detail      -- Type with detailed information, as the term of which it is type
+  | TLocated LinType Extent    -- t @ ex
+  | TDetailed LinType Detail   -- Type with detailed information, as the term of which it is type
+  deriving Show
 
 data Type =
     TExp Flag LinType          -- !n a
-
+  deriving Show
 
 {-
   The pattern structure has been left in the core syntax, although it is a syntactic sugar.
@@ -76,6 +78,7 @@ data Pattern =
     PUnit                      -- <>
   | PVar Variable              -- x
   | PPair Pattern Pattern      -- <p, q>
+  | PLocated Pattern Extent    -- p @ ex
   deriving Show 
 
 {-
@@ -96,10 +99,10 @@ data Expr =
   | EMatch Expr (Pattern, Expr) (Pattern, Expr)
                                         -- match e with (x -> f | y -> g)
   | EBox Type                           -- box[T]
-  | EUnbox Expr                         -- unbox t
+  | EUnbox                              -- unbox t
   | ERev                                -- rev
   | ELocated Expr Extent                -- e @ ex
-
+  deriving Show
 {-
    Remove the addtional information of a linear type
 -}
@@ -338,9 +341,6 @@ instance Param Expr where
         fvp = free_var p
         fvq = free_var q in
     List.union fve (List.union (fvf \\ fvp) (fvg \\ fvq))
-
-  free_var (EUnbox t) =
-    free_var t
   
   free_var _ =
     []
@@ -391,8 +391,8 @@ indent_sprintn lv ind (EIf e f g) =
 indent_sprintn _ _ (EBox t) =
   "box[" ++ pprint t ++ "]"
 
-indent_sprintn lv ind (EUnbox t) =
-  "unbox (" ++ indent_sprintn (decr lv) ind t ++ ")"
+indent_sprintn _ _ EUnbox =
+  "unbox"
 
 indent_sprintn _ _ ERev =
   "rev"

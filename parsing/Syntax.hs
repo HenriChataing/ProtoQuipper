@@ -52,7 +52,7 @@ data Expr =
   | EMatch Expr [(Pattern, Expr)]
                               -- match e with (x1 -> f1) (x2 -> f2) ...(xn -> fn)
   | EBox Type                 -- box[A]
-  | EUnbox Expr               -- unbox e
+  | EUnbox                    -- unbox
   | EIf Expr Expr Expr        -- if e then f else g
   | ERev                      -- rev
   | ELocated Expr Extent      -- e @ ex
@@ -215,7 +215,8 @@ isValue :: Expr -> Bool
 -----------------------
 isValue (ELocated e _) = isValue e
 isValue (EConstraint e _) = isValue e
-isValue (EUnbox _) = False
+isValue EUnbox = True
+isValue ERev = True
 isValue (EPair e1 e2) = isValue e1 && isValue e2
 isValue (EIf _ _ _) = False
 isValue (EApp _ _) = False
@@ -242,7 +243,6 @@ instance Located Expr where
   clear_location (EApp e f) = EApp (clear_location e) (clear_location f)
   clear_location (EPair e f) = EPair (clear_location e) (clear_location f)
   clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
-  clear_location (EUnbox e) = EUnbox (clear_location e)
   clear_location (EBox t) = EBox (clear_location t)
   clear_location (EInjL e) = EInjL (clear_location e)
   clear_location (EInjR e) = EInjR (clear_location e)
@@ -257,7 +257,6 @@ instance Constraint Expr where
   drop_constraints (EApp e1 e2) = EApp (drop_constraints e1) (drop_constraints e2)
   drop_constraints (EPair e1 e2) = EPair (drop_constraints e1) (drop_constraints e2)
   drop_constraints (EIf e1 e2 e3) = EIf (drop_constraints e1) (drop_constraints e2) (drop_constraints e3)
-  drop_constraints (EUnbox e) = EUnbox (drop_constraints e)
   drop_constraints (EInjL e) = EInjL (drop_constraints e)
   drop_constraints (EInjR e) = EInjR (drop_constraints e)
   drop_constraints (EMatch e plist) = EMatch (drop_constraints e) $ List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) plist

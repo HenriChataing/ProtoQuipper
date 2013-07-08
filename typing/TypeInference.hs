@@ -316,19 +316,19 @@ constraint_typing typctx (EIf e f g) typ = do
 
 -- Unbox typing rule
 {-
-     G |- t : Circ (T, U)  [L]
-   ----------------------------------
-     G |- unbox t : !n (T -> U)  [L]
+    
+   -----------------------------------------
+     G |- unbox : !n (T -> U) -> circ(T, U)  [L]
 -}
 
-constraint_typing typctx (EUnbox t) typ = do
+constraint_typing typctx EUnbox typ = do
   a <- new_type
   b <- new_type
   n <- fresh_flag
-  -- Type t
-  (lcons, fcons) <- constraint_typing typctx t (TExp 1 (TCirc a b))
+  arw <- return $ TExp n $ TArrow a b
+  cir <- return $ TExp (-1) $ TCirc a b
   -- Return
-  return ((NonLinear (TExp n (TArrow a b)) typ):lcons, fcons)
+  return ([NonLinear (TExp (-1) $ TArrow arw cir) typ], [])
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -344,19 +344,19 @@ break_composite ([], lc) = return ([], lc)
 
 -- Detailed constraints
 break_composite ((Linear (TDetailed t det) u):lc, fc) = do
-  case det of
+  {-case det of
     TypeOfE e -> do
         set_expr e
     _ -> do
-        return ()
+        return () -}
   break_composite ((Linear t u):lc, fc)
 
 break_composite ((Linear t (TDetailed u det)):lc, fc) = do
-  case det of
+  {-case det of
     TypeOfE e -> do
         set_expr e
     _ -> do
-        return ()  
+        return () -}
   break_composite ((Linear t u):lc, fc)
 
 break_composite ((Linear TUnit TUnit):lc, fc) = do
@@ -422,7 +422,8 @@ break_composite (c@(Linear _ (TVar _)):lc, fc) = do
 
 -- Other non composite / non-semi composite constraints
 break_composite ((Linear t u):lc, fc) = do
-  e <- get_expr
+  --e <- get_expr
+  e <- return EUnit
   fail $ "Type mismatch in the type of " ++ pprint e
   --failwith $ TypeMismatch (pprint t) (pprint u)
 

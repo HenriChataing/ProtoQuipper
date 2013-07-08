@@ -1,5 +1,5 @@
 module TransSyntax (translate_type, translate_pattern, translate_expression,
-                    label) where
+                    label, label_gates, find_name) where
 
 import Utils
 import Localizing
@@ -9,6 +9,8 @@ import CoreSyntax
 import qualified Syntax as S
 
 import QpState
+
+import Gates
 
 import Control.Exception
 
@@ -160,6 +162,10 @@ translate_pattern (S.PPair p q) =  do
   q' <- translate_pattern q
   return (PPair p' q')
 
+translate_pattern (S.PLocated p ex) = do
+  p' <- translate_pattern p
+  return (PLocated p' ex)
+
 ---------------------------------
 -- Secifically translate a pattern matching
 translate_match x ((p, f):plist) = do
@@ -250,9 +256,8 @@ translate_expression (S.EBox t) = do
   t' <- translate_type t
   return $ EBox t'
 
-translate_expression (S.EUnbox t) = do
-  t' <- translate_expression t
-  return $ EUnbox t'
+translate_expression S.EUnbox = do
+  return $ EUnbox
 
 translate_expression S.ERev = do
   return ERev
@@ -260,3 +265,24 @@ translate_expression S.ERev = do
 translate_expression (S.ELocated e ex) = do
   e' <- translate_expression e
   return $ ELocated e' ex
+
+
+-- Label the gates
+label_gates :: QpState ()
+label_gates = do
+  _ <- label "INIT0"
+  _ <- label "INIT1"
+  _ <- label "TERM0"
+  _ <- label "TERM1"
+
+  List.foldl (\rec g -> do
+                rec
+                _ <- label g
+                return ()) (return ()) unary_gates
+  
+  List.foldl (\rec g -> do
+                rec
+                _ <- label g
+                return ()) (return ()) binary_gates
+
+

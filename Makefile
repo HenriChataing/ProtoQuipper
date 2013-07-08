@@ -3,7 +3,7 @@ INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -imonad
 BUILD_DIR = _build
 
 GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE) -XTypeSynonymInstances -XFlexibleInstances -XDeriveDataTypeable -XScopedTypeVariables
-HAPPY = happy --ghc
+HAPPY = happy --ghc --info
 ALEX = alex
 
 MAIN = Quipper

@@ -4,6 +4,7 @@ import Parser
 import ConstraintParser
 import Lexer
 import QuipperError
+import qualified QpState as Q
 
 import Classes
 import Utils
@@ -118,12 +119,13 @@ main = do
       contents <- readFile file
       tokens <- mylex file contents
       prog <- return (parse tokens)
+      coreprog <- return $ label_gates >>= (\_ -> translate_expression prog)
 
       -- Actions
       if runInterpret opts then do
         putStrLn $ "\x1b[1;33m" ++ ">> Interpret" ++ "\x1b[0m" 
         (do
-           v <- Interpret.run $ drop_constraints prog
+           (_, v) <- Q.runS (coreprog >>= Interpret.run) Q.empty_context
            putStrLn $ pprint v) `E.catch` (\(e :: QError) -> do
                                              putStrLn $ "\x1b[1m" ++ "xx Interpretation failed xx" ++ "\x1b[0m"
                                              putStrLn $ show e)

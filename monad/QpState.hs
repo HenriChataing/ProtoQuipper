@@ -1,17 +1,19 @@
 module QpState where
 
 import Localizing
-import Classes
 import Utils
 
 import Namespace (Namespace)
 import qualified Namespace as N
 
 import CoreSyntax
+import Circuits
 import Subtyping
 
 import System.IO
 
+import LayeredMap (LayeredMap)
+import qualified LayeredMap as LMap
 import qualified Data.Map as Map
 import Data.List as List
 import Data.Array as Array
@@ -44,14 +46,16 @@ write_log logfile lvl s = do
 --   A logfile, used for regular and debug printing
 --   Information relevant to the original expression (location in file, sample of the current expression)
 --   A namespace to record the variables of the original expression
+--   For the interpretation : an evaluation context including the current circuit and mappings
 
 data Context = Ctx {
   
   logfile :: Logfile,
+  location :: Extent,
   namespace :: Namespace,
-
-    current_location :: Extent,
-    current_expr :: Expr,
+   
+  circuit :: Circuit,
+  qbit_id :: Int,
 
     {- Id generation -}
 
@@ -112,9 +116,10 @@ empty_context =
   Ctx {
     logfile = Logfile { channel = stdin, verbose = 0 },
     namespace = N.new_namespace,
+    location = extent_unknown,
 
-    current_location = extent_unknown,
-    current_expr = EUnit,
+    circuit = Circ { qIn = [], qOut = [], gates = [] },
+    qbit_id = 0,
 
     name_to_var = [Map.empty],
     var_to_name = Map.empty,
@@ -168,26 +173,13 @@ flush_logs = do
 set_location :: Extent -> QpState ()
 set_location ex = do
   ctx <- get_context
-  set_context $ ctx { current_location = ex }
+  set_context $ ctx { location = ex }
 
 
 -- | Return the current location marker
 get_location :: QpState Extent
 get_location =
-  get_context >>= return . current_location
-
-
--- | Set the currently observed expression
-set_expr :: Expr -> QpState ()
-set_expr e = do
-  ctx <- get_context
-  set_context $ ctx { current_expr = e }
-
-
--- | Return the currenlty observed expression
-get_expr :: QpState Expr
-get_expr =
-  get_context >>= return . current_expr
+  get_context >>= return . location
 
 
 {-

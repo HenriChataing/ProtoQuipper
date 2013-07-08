@@ -88,6 +88,7 @@ indent_sprintn :: Lvl -> String -> Expr -> String
 indent_sprintn _ _ EUnit = "<>"
 indent_sprintn _ _ (EVar x) = x
 indent_sprintn _ _ ERev = "rev"
+indent_sprintn _ _ EUnbox = "unbox"
 indent_sprintn _ _ (EBox a) = "box[" ++ pprint a ++ "]"
 indent_sprintn _ _ (EBool b) = if b then "true" else "false"
 
@@ -118,17 +119,7 @@ indent_sprintn lv ind (EApp e f) =
      EIf _ _ _ ->  "(" ++ indent_sprintn dlv ind f ++ ")"
      EFun _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
      EApp _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
-     EUnbox _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
      _ -> indent_sprintn dlv ind f)
-
-indent_sprintn lv ind (EUnbox e) =
-  let dlv = decr lv in
-  "unbox" ++ (case e of
-                EIf _ _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-                EApp _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-                EFun _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-                EUnbox _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-                _ -> indent_sprintn dlv ind e)
 
 indent_sprintn lv ind (EFun p e) =
   let dlv = decr lv in
