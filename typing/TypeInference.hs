@@ -21,16 +21,20 @@ import qualified Data.Set as Set
 -- Build all the deriving constraints
 constraint_typing :: TypingContext -> Expr -> Type -> QpState ConstraintSet
 
--- Located things
+
+-- | Located things
+-- Change the location and resume
+
 constraint_typing typctx (ELocated e ex) t = do
   set_location ex
   constraint_typing typctx e t
 
--- Unit typing rule
-{-
-    -----------------------------------
-      !I G  |- * : !n T    [{1 <= I}]
--} 
+
+-- | Unit typing rule
+--
+-- -------------------
+--  !I G  |- * : !n T  [{1 <= I}]
+--
 
 constraint_typing typctx EUnit t = do
   flags <- context_annotation typctx
@@ -38,11 +42,12 @@ constraint_typing typctx EUnit t = do
 
   return ([NonLinear t (TExp 1 TUnit)], flags_cons)
 
--- True / False typing rule
-{-
-   -------------------------------------------
-     !I G |- True / False : !n T   [{1 <= I}]
--} 
+
+-- | True / False typing rule
+--
+-- --------------------------------
+--  !I G |- True / False : !n bool  [{1 <= I}]
+-- 
 
 constraint_typing typctx (EBool _) t = do
   flags <- context_annotation typctx
@@ -50,11 +55,12 @@ constraint_typing typctx (EBool _) t = do
 
   return ([NonLinear t (TExp 1 TBool)], flags_cons)
 
--- Var typing rule
-{-
-   ---------------------------------------------
-     !IG, t : T |- t : U    [{T <: U, 1 <= I}]
--}
+
+-- | Axiom typing rule
+--
+-- ---------------------
+--  !IG, t : T |- t : U  [{T <: U, 1 <= I}]
+--
 
 constraint_typing typctx (EVar x) u = do
   t <- type_of x typctx
@@ -64,40 +70,51 @@ constraint_typing typctx (EVar x) u = do
 
   return ([NonLinear t u], flags_cons)
 
--- Box typing rule
-{-
-     G |- t : !1 (T -> U)  [L]
-   -----------------------------------------------  (box 1)
-     G |- box[T] t : T'  [L u {T' <: circ (T, U)]
--}
-constraint_typing typctx (EApp (EBox a) t) typ = do
-  b <- new_type
-  -- Type the term t
-  (lcons, fcons) <- constraint_typing typctx t (TExp 0 (TArrow a b))
-  
-  return ((NonLinear (TExp (-1) (TCirc a b)) typ):lcons, fcons)
 
--- rev typing rule
-{-
-         G |- t : Circ (T, U)  [L]
-       --------------------------------
-         G |- rev t : Circ (U, T)  [L]
--}
-constraint_typing typctx (EApp ERev t) typ = do
+-- | Box typing rule
+--
+-- ---------------------------------------------------
+--   G |- box[T] : !1 (!1 (T -> U) -> !1 Circ (T, U))  [L u {T' <: circ (T, U)]
+--
+
+constraint_typing typctx (EBox a) typ = do
+  b <- new_type
+
+  flags <- context_annotation typctx
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+
+  arw <- return $ TExp 1 (TArrow a b)
+  cir <- return $ TExp 1 (TCirc a b)
+
+  return ([NonLinear (TExp 1 (TArrow arw cir)) typ], flags_cons)
+  
+
+-- | Rev typing rule
+--
+-- --------------------------------------------
+--  G |- rev : !1 (Circ (T, U) -> Circ (U, T))  [L]
+--
+
+constraint_typing typctx ERev typ = do
   a <- new_type
   b <- new_type
-  -- Type t
-  (lcons, fcons) <- constraint_typing typctx t (TExp (-1) (TCirc a b))
 
-  return ((NonLinear (TExp (-1) (TCirc b a)) typ):lcons, fcons)
+  flags <- context_annotation typctx
+  flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
+
+  cirab <- return $ TExp 1 (TCirc a b)
+  cirba <- return $ TExp 1 (TCirc b a) 
+
+  return ([NonLinear (TExp 1 (TArrow cirab cirba)) typ], flags_cons)
 
 
 -- App typing rule
-{-
-     G1, !ID |- t : a -> T  [L]      G2, !ID |- u : a  [L']
-   -----------------------------------------------------------
-         G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
--}
+--
+--  G1, !ID |- t : a -> T   [L] 
+--     G2, !ID |- u : a     [L']
+-- ------------------------
+--  G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
+--
 
 constraint_typing typctx (EApp t u) b = do
   a <- new_type
@@ -121,12 +138,13 @@ constraint_typing typctx (EApp t u) b = do
   
   return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons)
 
+
 -- Lambda typing rule
-{-
-     !IG, x : a |- t : b  [L]
-   ---------------------------------------------
-     !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
--}
+--
+--    !IG, x : a |- t : b     [L]
+-- --------------------------
+--  !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
+--
 
 constraint_typing typctx (EFun p e) t = do
   b <- new_type
@@ -147,12 +165,14 @@ constraint_typing typctx (EFun p e) t = do
 
   return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ flags_cons ++ fca)
 
+
 -- Tensor intro typing rule
-{-
-     G1, !ID |- t : !n a  [L]           G2, !ID |- u : !n b  [L']
-   ----------------------------------------------------------
-     G1, G2, !ID |- <t, u> : T   [L u L' u {1 <= I} u {!n (a * b) <: T}]
--}
+--
+--    G1, !ID |- t : !n a      [L]
+--    G2, !ID |- u : !n b      [L']
+-- ---------------------------
+--  G1, G2, !ID |- <t, u> : T  [L u L' u {1 <= I} u {!n (a * b) <: T}]
+--
 
 constraint_typing typctx (EPair t u) typ = do
   ta@(TExp n a) <- new_type
@@ -180,11 +200,11 @@ constraint_typing typctx (EPair t u) typ = do
 
 
 -- Tensor elim typing rule
-{-
-     G1, !ID |- t : !n<a, b>  [L]    G2, !ID, x : !na, y : !nb |- u : T  [L']
-   -----------------------------------------------------------------------------
-     G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
--}
+--
+--     G1, !ID |- t : !n<a, b>  [L]    G2, !ID, x : !na, y : !nb |- u : T  [L']
+--   -----------------------------------------------------------------------------
+--     G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
+--
 
 constraint_typing typctx (ELet p t u) typ = do
   (a, fca) <- create_pattern_type p
@@ -213,11 +233,11 @@ constraint_typing typctx (ELet p t u) typ = do
   return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons ++ fca)
 
 -- Injl typing rule
-{-
-    G |- t : !n A   [L]
-   -------------------------------
-    G |- injl t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
--}
+--
+--        G |- t : !n A            [L]
+-- -------------------------------
+--  G |- injl t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
+--
 
 constraint_typing typctx (EInjL t) typ = do
   ta@(TExp n a) <- new_type
@@ -228,12 +248,12 @@ constraint_typing typctx (EInjL t) typ = do
   
   return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
 
--- Injl typing rule
-{-
-    G |- t : !m B   [L]
-   -------------------------------
-    G |- inju t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
--}
+-- Injr typing rule
+--
+--        G |- t : !m B            [L]
+-- -------------------------------
+--  G |- injr t : !p(!n A + !m B)  [L u {p <= n, p <= m}]
+--
 
 constraint_typing typctx (EInjR t) typ = do
   ta@(TExp n a) <- new_type
@@ -245,13 +265,13 @@ constraint_typing typctx (EInjR t) typ = do
   return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
 
 -- Match typing rule
-{-
-    G1, !ID |- t : !p(!nA + !m B)   [L1]
-    G2, !ID, x : !nA |- u : V       [L2]
-    G2, !ID, y : !mB |- v : V       [L3]
-   ---------------------------------------------------
-    G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I}]
--}
+--
+--          G1, !ID |- t : !p(!nA + !m B)              [L1]
+--            G2, !ID, x : !nA |- u : V                [L2]
+--            G2, !ID, y : !mB |- v : V                [L3]
+-- ---------------------------------------------------
+--  G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I, p <= n, p <= m}]
+--
 
 constraint_typing typctx (EMatch t (p, u) (q, v)) typ = do
    -- Extract the free variables of e, f and g
@@ -284,12 +304,13 @@ constraint_typing typctx (EMatch t (p, u) (q, v)) typ = do
   return (lconst ++ lconsu ++ lconsv, [(r, n), (r, m)] ++ fconst ++ fconsu ++ fconsv ++ flags_cons) 
 
 -- Typing rule (if)
-{-
-     G1, !ID |- e : bool [L]
-     G2, !ID |- f : T    [L']              G2, !ID |- g : T  [L'']
-   --------------------------------------------------------------------------------------------
-     G1, G2, !ID |- if e then f else g : T   [L u L' u L'' u {1 <= I}]
--}
+--
+--     G1, !ID |- e : bool                 [L]
+--       G2, !ID |- f : T                  [L']
+--       G2, !ID |- g : T                  [L'']
+-- ---------------------------------------
+--  G1, G2, !ID |- if e then f else g : T  [L u L' u L'' u {1 <= I}]
+--
 
 constraint_typing typctx (EIf e f g) typ = do
   -- Extract the free variables of e, f and g
@@ -315,11 +336,10 @@ constraint_typing typctx (EIf e f g) typ = do
   return (lconsf ++ lconsg ++ lcons, fconsf ++ fconsg ++ fcons ++ flags_cons)
 
 -- Unbox typing rule
-{-
-    
-   -----------------------------------------
-     G |- unbox : !n (T -> U) -> circ(T, U)  [L]
--}
+--    
+-- ------------------------------------------------
+--  G |- unbox : !1 (!1 circ(T, U) -> !1 (T -> U))  [L]
+--
 
 constraint_typing typctx EUnbox typ = do
   a <- new_type
@@ -328,7 +348,7 @@ constraint_typing typctx EUnbox typ = do
   arw <- return $ TExp n $ TArrow a b
   cir <- return $ TExp (-1) $ TCirc a b
   -- Return
-  return ([NonLinear (TExp (-1) $ TArrow arw cir) typ], [])
+  return ([NonLinear (TExp (-1) $ TArrow cir arw) typ], [])
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -357,6 +377,12 @@ break_composite ((Linear t (TDetailed u det)):lc, fc) = do
         set_expr e
     _ -> do
         return () -}
+  break_composite ((Linear t u):lc, fc)
+
+break_composite ((Linear (TLocated t _) u):lc, fc) = do
+  break_composite ((Linear t u):lc, fc)
+
+break_composite ((Linear t (TLocated u _)):lc, fc) = do
   break_composite ((Linear t u):lc, fc)
 
 break_composite ((Linear TUnit TUnit):lc, fc) = do
@@ -424,7 +450,7 @@ break_composite (c@(Linear _ (TVar _)):lc, fc) = do
 break_composite ((Linear t u):lc, fc) = do
   --e <- get_expr
   e <- return EUnit
-  fail $ "Type mismatch in the type of " ++ pprint e
+  fail $ "Type mismatch: " ++ pprint t ++ " <> " ++ pprint u
   --failwith $ TypeMismatch (pprint t) (pprint u)
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
