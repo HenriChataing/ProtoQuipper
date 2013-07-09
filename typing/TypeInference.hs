@@ -232,6 +232,7 @@ constraint_typing typctx (ELet p t u) typ = do
   
   return (lcons' ++ lcons, fcons' ++ fcons ++ flags_cons ++ fca)
 
+
 -- Injl typing rule
 --
 --        G |- t : !n A            [L]
@@ -248,6 +249,7 @@ constraint_typing typctx (EInjL t) typ = do
   
   return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
 
+
 -- Injr typing rule
 --
 --        G |- t : !m B            [L]
@@ -263,6 +265,7 @@ constraint_typing typctx (EInjR t) typ = do
   (lcons, fcons) <- constraint_typing typctx t tb
   
   return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
+
 
 -- Match typing rule
 --
@@ -303,6 +306,7 @@ constraint_typing typctx (EMatch t (p, u) (q, v)) typ = do
   
   return (lconst ++ lconsu ++ lconsv, [(r, n), (r, m)] ++ fconst ++ fconsu ++ fconsv ++ flags_cons) 
 
+
 -- Typing rule (if)
 --
 --     G1, !ID |- e : bool                 [L]
@@ -334,6 +338,7 @@ constraint_typing typctx (EIf e f g) typ = do
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
   return (lconsf ++ lconsg ++ lcons, fconsf ++ fconsg ++ fcons ++ flags_cons)
+
 
 -- Unbox typing rule
 --    
