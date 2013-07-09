@@ -29,16 +29,6 @@ class PPrint a where
   -- Pretty printing : Lvl = +oo
   pprint :: a -> String
 
----------------------------------
--- Class of objects that can   --
--- be assorted with a location --
-
-class Located a where
-  locate :: a -> Extent -> a
-  locate_opt :: a -> Maybe Extent -> a
-  clear_location :: a -> a
-  location :: a -> Maybe Extent
-
 --------------------------------
 -- Class of objects with type --
 -- annotations                --

@@ -1,5 +1,6 @@
 module TypingMain where
 
+import Localizing (clear_location)
 import Classes
 import Utils
 

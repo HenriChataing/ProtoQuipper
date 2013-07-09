@@ -1,6 +1,6 @@
 module QpState where
 
-import Localizing
+import Localizing (Extent, extent_unknown)
 import Utils
 
 import Namespace (Namespace)
