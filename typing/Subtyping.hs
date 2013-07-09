@@ -34,10 +34,6 @@ type FlagConstraint =
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
-remove_details :: TypeConstraint -> TypeConstraint
---------------------------------------------------
-remove_details (Linear t u) = Linear (undetailed t) (undetailed u)
-remove_details c = c
 
 {-
   Constraint properties
@@ -59,23 +55,20 @@ is_atomic :: TypeConstraint -> Bool
 is_composite :: TypeConstraint -> Bool
 is_semi_composite :: TypeConstraint -> Bool
 -------------------------------------------
-is_trivial (Linear a b) = a == b
+is_trivial (Linear (a, _) (b, _)) = a == b
 is_trivial (NonLinear t u) = t == u
 
-is_atomic (Linear t u) =
-  case (undetailed t, undetailed u) of
-    (TVar _, TVar _) -> True
-    _ -> False
+is_atomic (Linear (TVar _, _) (TVar _, _)) = True
 is_atomic _ = False
 
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
 is_semi_composite (NonLinear _ _) = False
 is_semi_composite (Linear t u) =
-  case (undetailed t, undetailed u) of
-    (TVar _, TVar _) -> False
-    (TVar _, _) -> True
-    (_, TVar _) -> True
+  case (t, u) of
+    ((TVar _, _), (TVar _, _)) -> False
+    ((TVar _, _), _) -> True
+    (_, (TVar _, _)) -> True
     _ -> False
 
 {-
@@ -94,24 +87,20 @@ is_right_sided :: [TypeConstraint] -> Bool
 ---------------------------------------
 is_one_sided [] = True
 is_one_sided ((Linear t u):cset) =
-  case (undetailed t, undetailed u) of
-    (TVar _, _) -> is_left_sided cset
-    (_, TVar _) -> is_right_sided cset
+  case (t, u) of
+    ((TVar _, _), _) -> is_left_sided cset
+    (_, (TVar _, _)) -> is_right_sided cset
     _ -> False
 is_one_sided _ = False
 
 is_left_sided [] = True
-is_left_sided ((Linear t u):cset) =
-  case (undetailed t, undetailed u) of
-    (TVar _, _) -> is_left_sided cset
-    _ -> False
+is_left_sided ((Linear (TVar _, _) _):cset) =
+  is_left_sided cset
 is_left_sided _ = False
 
 is_right_sided [] = True
-is_right_sided ((Linear t u):cset) =
-  case (undetailed t, undetailed u) of
-    (_, TVar _) -> is_right_sided cset
-    _ -> False
+is_right_sided ((Linear _ (TVar _, _)):cset) =
+  is_right_sided cset
 is_right_sided _ = False
 
 {-
@@ -127,9 +116,9 @@ is_right_sided _ = False
 constraint_unifier :: [TypeConstraint] -> LinType
 -------------------------------------------------
 constraint_unifier constraints =
-  let comptypes = List.map (\c -> case remove_details c of
-                                    Linear (TVar _) t -> t
-                                    Linear t (TVar _) -> t) constraints
+  let comptypes = List.map (\c -> case c of
+                                    Linear (TVar _, _) t -> t
+                                    Linear t (TVar _, _) -> t) constraints
   in
   list_unifier comptypes
 
@@ -147,11 +136,11 @@ chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 ----------------------------------------------------------------------------------------------
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
-  case List.find (\c -> case remove_details c of
-                          Linear (TVar y) _ -> y == endvar
+  case List.find (\c -> case c of
+                          Linear (TVar y, _) _ -> y == endvar
                           _ -> False) l of
-    Just c -> case remove_details c of
-                Linear (TVar _) (TVar y) -> chain_left_to_right (c:chain) y (List.delete c l)
+    Just c -> case c of
+                Linear (TVar _, _) (TVar y, _) -> chain_left_to_right (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, List.reverse (c:chain))
                      else
@@ -160,11 +149,11 @@ chain_left_to_right chain endvar l =
 
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
-  case List.find (\c -> case remove_details c of
-                          Linear _ (TVar y) -> y == endvar
+  case List.find (\c -> case c of
+                          Linear _ (TVar y, _) -> y == endvar
                           _ -> False) l of
-    Just c -> case remove_details c of
-                Linear (TVar y) (TVar _) -> chain_right_to_left (c:chain) y (List.delete c l)
+    Just c -> case c of
+                Linear (TVar y, _) (TVar _, _) -> chain_right_to_left (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, c:chain)
                      else
@@ -172,18 +161,18 @@ chain_right_to_left chain endvar l =
     Nothing -> (False, [])
 
 chain_constraints l =
-  case List.find (\c -> case remove_details c of
-                          Linear (TVar _) _ -> False
+  case List.find (\c -> case c of
+                          Linear (TVar _, _) _ -> False
                           _ -> True) l of
-    Just c -> case remove_details c of
-                Linear _ (TVar y) -> chain_left_to_right [c] y (List.delete c l)
+    Just c -> case c of
+                Linear _ (TVar y, _) -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
   
-    Nothing -> case List.find (\c -> case remove_details c of
-                                       Linear _ (TVar _) -> False
+    Nothing -> case List.find (\c -> case c of
+                                       Linear _ (TVar _, _) -> False
                                        _ -> True) l of
-                 Just c -> case remove_details c of
-                             Linear (TVar y) _ -> chain_right_to_left [c] y (List.delete c l)
+                 Just c -> case c of
+                             Linear (TVar y, _) _ -> chain_right_to_left [c] y (List.delete c l)
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
@@ -216,7 +205,7 @@ instance PPrint TypeConstraint where
   sprint c = pprint c
 
 instance Eq TypeConstraint where
-  (==) (Linear t u) (Linear t' u') = t == t' && u == u'
+  (==) (Linear (t, _) (u, _)) (Linear (t', _) (u', _)) = t == t' && u == u'
   (==) (NonLinear t u) (NonLinear t' u') = t == t' && u == u'
   (==) _ _ = False
 

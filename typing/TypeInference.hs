@@ -47,7 +47,7 @@ constraint_typing typctx EUnit t = do
   ex <- get_location
   detail <- return $ ActualOfE EUnit ex
 
-  return ([NonLinear t (TExp 1 (TDetailed TUnit detail))], flags_cons)
+  return ([NonLinear t (TExp 1 (TUnit, detail))], flags_cons)
 
 
 -- | True / False typing rule
@@ -64,7 +64,7 @@ constraint_typing typctx (EBool b) t = do
   ex <- get_location
   detail <- return $ ActualOfE (EBool b) ex
 
-  return ([NonLinear t (TExp 1 (TDetailed TBool detail))], flags_cons)
+  return ([NonLinear t (TExp 1 (TBool, detail))], flags_cons)
 
 
 -- | Axiom typing rule
@@ -96,12 +96,12 @@ constraint_typing typctx (EBox a) typ = do
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
-  arw <- return $ TExp 1 (TArrow a b)
-  cir <- return $ TExp 1 (TCirc a b)
+  arw <- return $ TExp 1 (TArrow a b, NoInfo)
+  cir <- return $ TExp 1 (TCirc a b, NoInfo)
 
   detail <- return $ ActualOfE (EBox a) ex
 
-  return ([NonLinear (TExp 1 $ TDetailed (TArrow arw cir) detail) typ], flags_cons)
+  return ([NonLinear (TExp 1 (TArrow arw cir, detail)) typ], flags_cons)
   
 
 -- | Rev typing rule
@@ -119,12 +119,12 @@ constraint_typing typctx ERev typ = do
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
-  cirab <- return $ TExp 1 (TCirc a b)
-  cirba <- return $ TExp 1 (TCirc b a) 
+  cirab <- return $ TExp 1 (TCirc a b, NoInfo)
+  cirba <- return $ TExp 1 (TCirc b a, NoInfo) 
 
   detail <- return $ ActualOfE ERev ex
 
-  return ([NonLinear (TExp 1 $ TDetailed (TArrow cirab cirba) detail) typ], flags_cons)
+  return ([NonLinear (TExp 1 (TArrow cirab cirba, detail)) typ], flags_cons)
 
 
 -- App typing rule
@@ -144,7 +144,7 @@ constraint_typing typctx (EApp t u) b = do
 
   -- Filter on the free variables of t and type t
   (typctx_fvt, _) <- sub_context fvt typctx
-  (lcons, fcons) <- constraint_typing typctx_fvt t (TExp 0 $ TArrow a b)
+  (lcons, fcons) <- constraint_typing typctx_fvt t (TExp 0 (TArrow a b, NoInfo))
 
   -- Filter on the free variables of u and type u
   (typctx_fvu, _) <- sub_context fvu typctx
@@ -186,7 +186,7 @@ constraint_typing typctx (EFun p e) t = do
 
   detail <- return $ ActualOfE (EFun p e) ex
 
-  return ((NonLinear (TExp n $ TDetailed (TArrow a b) detail) t):lcons, fcons ++ flags_cons ++ fca)
+  return ((NonLinear (TExp n (TArrow a b, detail)) t):lcons, fcons ++ flags_cons ++ fca)
 
 
 -- Tensor intro typing rule
@@ -223,7 +223,7 @@ constraint_typing typctx (EPair t u) typ = do
   
   detail <- return $ ActualOfE (EPair t u) ex
 
-  return (lcons' ++ lcons ++ [NonLinear (TExp p $ TDetailed (TTensor ta tb) detail) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
+  return (lcons' ++ lcons ++ [NonLinear (TExp p (TTensor ta tb, detail)) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
 
 
 -- Tensor elim typing rule
@@ -271,10 +271,14 @@ constraint_typing typctx (EInjL t) typ = do
   ta@(TExp n a) <- new_type
   tb@(TExp m b) <- new_type
   p <- fresh_flag
+ 
+  ex <- get_location
 
   (lcons, fcons) <- constraint_typing typctx t ta
   
-  return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
+  detail <- return $ ActualOfE (EInjL t) ex
+
+  return ((NonLinear (TExp p (TSum ta tb, detail)) typ):lcons, (p, n):(p, m):fcons)
 
 
 -- Injr typing rule
@@ -289,9 +293,13 @@ constraint_typing typctx (EInjR t) typ = do
   tb@(TExp m b) <- new_type
   p <- fresh_flag
 
+  ex <- get_location
+
   (lcons, fcons) <- constraint_typing typctx t tb
   
-  return ((NonLinear (TExp p $ TSum ta tb) typ):lcons, (p, n):(p, m):fcons)
+  detail <- return $ ActualOfE (EInjR t) ex
+
+  return ((NonLinear (TExp p (TSum ta tb, detail)) typ):lcons, (p, n):(p, m):fcons)
 
 
 -- Match typing rule
@@ -315,7 +323,7 @@ constraint_typing typctx (EMatch t (p, u) (q, v)) typ = do
 
   -- Type e
   (typctx_fvt, _) <- sub_context fvt typctx
-  (lconst, fconst) <- constraint_typing typctx_fvt t (TExp r (TSum ta tb))
+  (lconst, fconst) <- constraint_typing typctx_fvt t (TExp r (TSum ta tb, NoInfo))
 
   -- Filter on the free variables of f an g
   (typctx_fvuv, _) <- sub_context fvuv typctx
@@ -350,7 +358,7 @@ constraint_typing typctx (EIf e f g) typ = do
   
   -- Filter on the free variables of e and type e
   (typctx_fve, _) <- sub_context fve typctx
-  (lcons, fcons) <- constraint_typing typctx_fve e (TExp 0 TBool)
+  (lcons, fcons) <- constraint_typing typctx_fve e (TExp 0 (TBool, NoInfo))
 
   -- Filter on the free variables of f an g
   (typctx_fvfg, _) <- sub_context fvfg typctx
@@ -377,10 +385,14 @@ constraint_typing typctx EUnbox typ = do
   a <- new_type
   b <- new_type
   n <- fresh_flag
-  arw <- return $ TExp n $ TArrow a b
-  cir <- return $ TExp (-1) $ TCirc a b
+  arw <- return $ TExp n (TArrow a b, NoInfo)
+  cir <- return $ TExp (-1) (TCirc a b, NoInfo)
+
+  ex <- get_location
+  detail <- return $ ActualOfE EUnbox ex
+
   -- Return
-  return ([NonLinear (TExp (-1) $ TArrow cir arw) typ], [])
+  return ([NonLinear (TExp (-1) (TArrow cir arw, detail)) typ], [])
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -394,99 +406,97 @@ break_composite :: ConstraintSet -> QpState ConstraintSet
 -- Nothing to do
 break_composite ([], lc) = return ([], lc)
 
--- Detailed constraints
-break_composite ((Linear (TDetailed t det) u):lc, fc) =
-  break_composite ((Linear t u):lc, fc) `catchQ` (\(e :: QError) -> case e of
-                                                                      TypingError ta tb ->
-                                                                          case det of
-                                                                            ActualOfE e ex ->
-                                                                                throwQ $ DetailedTypingError ta tb (show e) ex
-                                                                            ActualOfP p ex ->
-                                                                                throwQ $ DetailedTypingError ta tb (show p) ex
-                                                                      _ ->
-                                                                          throwQ e)
-
-break_composite ((Linear t (TDetailed u det)):lc, fc) = do
-  break_composite ((Linear t u):lc, fc) `catchQ` (\(e :: QError) -> case e of
-                                                                      TypingError ta tb ->
-                                                                          case det of
-                                                                            ActualOfE e ex ->
-                                                                                throwQ $ DetailedTypingError tb ta (show e) ex
-                                                                            ActualOfP p ex ->
-                                                                                throwQ $ DetailedTypingError tb ta (show p) ex
-                                                                      _ ->
-                                                                          throwQ e)
-
-break_composite ((Linear (TLocated t _) u):lc, fc) = do
+break_composite ((Linear (TLocated t _, _) u):lc, fc) = do
   break_composite ((Linear t u):lc, fc)
 
-break_composite ((Linear t (TLocated u _)):lc, fc) = do
+break_composite ((Linear t (TLocated u _, _)):lc, fc) = do
   break_composite ((Linear t u):lc, fc)
 
-break_composite ((Linear TUnit TUnit):lc, fc) = do
+break_composite ((Linear (TUnit, _) (TUnit, _)):lc, fc) = do
   break_composite (lc, fc)
 
-break_composite ((Linear TBool TBool):lc, fc) = do
+break_composite ((Linear (TBool, _) (TBool, _)):lc, fc) = do
   break_composite (lc, fc)
 
-break_composite ((Linear TQbit TQbit):lc, fc) = do
+break_composite ((Linear (TQbit, _) (TQbit, _)):lc, fc) = do
   break_composite (lc, fc)
 
 -- Break constraints
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite ((Linear (TArrow t u) (TArrow t' u')):lc, fc) = do
-  break_composite ((NonLinear t' t):(NonLinear u u'):lc, fc)
+break_composite ((Linear (TArrow t u, d) (TArrow t' u', d')):lc, fc) = do
+  dt <- return $ add_detail d t
+  du <- return $ add_detail d u
+  dt' <- return $ add_detail d' t'
+  du' <- return $ add_detail d' u'
+  break_composite ((NonLinear dt' dt):(NonLinear du du'):lc, fc)
 
 -- Break constraints
   -- T * U <: T' * U'
 -- Into
   -- T <: T' && U <: U'
 
-break_composite ((Linear (TTensor t u) (TTensor t' u')):lc, fc) = do
-  break_composite ((NonLinear t t'):(NonLinear u u'):lc, fc)
+break_composite ((Linear (TTensor t u, d) (TTensor t' u', d')):lc, fc) = do
+  dt <- return $ add_detail d t
+  du <- return $ add_detail d u
+  dt' <- return $ add_detail d' t'
+  du' <- return $ add_detail d' u'
+  break_composite ((NonLinear dt dt'):(NonLinear du du'):lc, fc)
 
 -- Break constraints
   -- T + U <: T' + U'
 -- Into
   -- T <: T' && U <: U'
 
-break_composite ((Linear (TSum t u) (TSum t' u')):lc, fc) = do
-  break_composite ((NonLinear t t'):(NonLinear u u'):lc, fc)
+break_composite ((Linear (TSum t u, d) (TSum t' u', d')):lc, fc) = do
+  dt <- return $ add_detail d t
+  du <- return $ add_detail d u
+  dt' <- return $ add_detail d' t'
+  du' <- return $ add_detail d' u'
+  break_composite ((NonLinear dt dt'):(NonLinear du du'):lc, fc)
 
 -- Break constraints
   -- circ (T, U) <: circ (T', U')
 -- Into
   -- T' <: T && U <: U'
-break_composite ((Linear (TCirc t u) (TCirc t' u')):lc, fc) = do
-  break_composite ((NonLinear t' t):(NonLinear u u'):lc, fc)
+break_composite ((Linear (TCirc t u, d) (TCirc t' u', d')):lc, fc) = do
+  dt <- return $ add_detail d t
+  du <- return $ add_detail d u
+  dt' <- return $ add_detail d' t'
+  du' <- return $ add_detail d' u'
+  break_composite ((NonLinear dt' dt):(NonLinear du du'):lc, fc)
 
 -- Break constraints
   -- !n T <: !m U
 -- Into
   -- T <: U && m <= n
-break_composite ((NonLinear (TExp n TQbit) (TExp m u)):lc, fc) = do
-  break_composite ((Linear TQbit u):lc, (m, 0):fc)
+break_composite ((NonLinear (TExp n (TQbit, d)) (TExp m u)):lc, fc) = do
+  break_composite ((Linear (TQbit, d) u):lc, (m, 0):fc)
 
-break_composite ((NonLinear (TExp n t) (TExp m TQbit)):lc, fc) = do
-  break_composite ((Linear t TQbit):lc, (n, 0):fc)
+break_composite ((NonLinear (TExp n t) (TExp m (TQbit, d))):lc, fc) = do
+  break_composite ((Linear t (TQbit, d)):lc, (n, 0):fc)
 
 break_composite ((NonLinear (TExp n t) (TExp m u)):lc, fc) = do
   break_composite ((Linear t u):lc, (m, n):fc)
 
 -- Semi composite (unbreakable) constraints
-break_composite (c@(Linear (TVar _) _):lc, fc) = do
+break_composite (c@(Linear (TVar _, _) _):lc, fc) = do
   (lc', fc') <- break_composite (lc, fc)
   return (c:lc', fc')
 
-break_composite (c@(Linear _ (TVar _)):lc, fc) = do
+break_composite (c@(Linear _ (TVar _, _)):lc, fc) = do
   (lc', fc') <- break_composite (lc, fc)
   return (c:lc', fc')
 
 -- Other non composite / non-semi composite constraints
-break_composite ((Linear t u):lc, fc) = do
-  throwQ $ TypingError (pprint t) (pprint u)
+break_composite ((Linear t@(_, d) u@(_, d')):lc, fc) = do
+  case (d, d') of
+    (ActualOfE e ex, _) -> throwQ $ DetailedTypingError (pprint t) (pprint u) (sprint e) ex
+    (_, ActualOfE e ex) -> throwQ $ DetailedTypingError (pprint u) (pprint t) (sprint e) ex
+    (ActualOfP p ex, _) -> throwQ $ DetailedTypingError (pprint t) (pprint u) (sprint p) ex
+    (_, ActualOfP p ex) -> throwQ $ DetailedTypingError (pprint u) (pprint t) (sprint p) ex
+    _ -> throwQ $ TypingError (pprint t) (pprint u) 
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
 
@@ -496,43 +506,40 @@ model_of_lin :: LinType -> QpState LinType
 model_of :: Type -> QpState Type
 map_to_model :: Variable -> LinType -> QpState LinType
 -------------------------------------------------------------------------
-model_of_lin TUnit = do
-  return TUnit
+model_of_lin (TUnit, _) = do
+  return (TUnit, NoInfo)
 
-model_of_lin TBool = do
-  return TBool
+model_of_lin (TBool, _) = do
+  return (TBool, NoInfo)
 
-model_of_lin TQbit = do
-  return TQbit
+model_of_lin (TQbit, _) = do
+  return (TQbit, NoInfo)
 
-model_of_lin (TArrow t u) = do
+model_of_lin (TArrow t u, _) = do
   t' <- model_of t
   u' <- model_of u
-  return $ TArrow t' u'
+  return (TArrow t' u', NoInfo)
 
-model_of_lin (TTensor t u) = do
+model_of_lin (TTensor t u, _) = do
   t' <- model_of t
   u' <- model_of u
-  return $ TTensor t' u'
+  return (TTensor t' u', NoInfo)
 
-model_of_lin (TSum t u) = do
+model_of_lin (TSum t u, _) = do
   t' <- model_of t
   u' <- model_of u
-  return $ TSum t' u'
+  return (TSum t' u', NoInfo)
 
-model_of_lin (TVar _) = do
+model_of_lin (TVar _, _) = do
   x <- fresh_type
   -- Add the variable to the list managed by the ordering process
   add_variable x
-  return $ TVar x
+  return (TVar x, NoInfo)
 
-model_of_lin (TCirc t u) = do
+model_of_lin (TCirc t u, _) = do
   t' <- model_of t
   u' <- model_of u
-  return $ TCirc t' u'
-
-model_of_lin (TDetailed t _) = do
-  model_of_lin t
+  return (TCirc t' u', NoInfo)
 
 model_of (TExp _ t) = do
   n <- fresh_flag
@@ -565,8 +572,8 @@ unify (lc, fc) = do
 
       -- Filter the constraint which have an element of cx as right or left hand side
       (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
-                                                          Linear (TVar x) _ -> List.elem x cx
-                                                          Linear _ (TVar y) -> List.elem y cx) lc
+                                                          Linear (TVar x, _) _ -> List.elem x cx
+                                                          Linear _ (TVar y, _) -> List.elem y cx) lc
         
       -- Log
       logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -601,14 +608,14 @@ unify (lc, fc) = do
 
               -- Map x1 .. xn to T or U
               case (leftend, rightend) of
-                (TVar x, _) -> do
+                ((TVar x, _), _) -> do
                     List.foldl (\rec x -> do
                                   rec
                                   mapsto x rightend) (return ()) cx
                     -- Unify the rest
                     unify (non_lcx, fc)
                     
-                (_, TVar x) -> do
+                (_, (TVar x, _)) -> do
                     List.foldl (\rec x -> do
                                   rec
                                   mapsto x leftend) (return ()) cx
@@ -635,10 +642,10 @@ unify (lc, fc) = do
                       cxh <- return $ List.head cx
                       List.foldl (\rec x -> do
                                       rec
-                                      mapsto x $ TVar cxh) (return ()) $ List.tail cx
+                                      mapsto x (TVar cxh, NoInfo)) (return ()) $ List.tail cx
                       return $ List.map (\c -> case c of
-                                                 Linear (TVar _) t -> Linear (TVar cxh) t
-                                                 Linear t (TVar _) -> Linear t (TVar cxh)) cset
+                                                 Linear (TVar _, _) t -> Linear (TVar cxh, NoInfo) t
+                                                 Linear t (TVar _, _) -> Linear t (TVar cxh, NoInfo)) cset
                     else do
                       return cset
 
@@ -654,7 +661,7 @@ unify (lc, fc) = do
                              return ()) (return ()) cx
             
               -- Rewrite and reduce the atomic constraints
-              atomx' <- List.foldl (\rec (Linear (TVar x) (TVar y)) -> do
+              atomx' <- List.foldl (\rec (Linear (TVar x, _) (TVar y, _)) -> do
                                       (lr, fr) <- rec
                                       xt <- appmap x
                                       yt <- appmap y
@@ -665,10 +672,10 @@ unify (lc, fc) = do
               (cset', fc'') <- List.foldl (\rec c -> do
                                      (lr, fr) <- rec
                                      c' <- case c of
-                                             Linear (TVar x) t -> do
+                                             Linear (TVar x, _) t -> do
                                                  xt <- appmap x
                                                  return $ Linear xt t
-                                             Linear t (TVar x) -> do
+                                             Linear t (TVar x, _) -> do
                                                  xt <- appmap x
                                                  return $ Linear t xt
                                      (lr', fr') <- break_composite ([c'], fr)

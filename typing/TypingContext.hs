@@ -39,16 +39,13 @@ sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingCont
 bind_var x t ctx = do
   return $ Map.insert x t ctx
 
-bind_pattern p (TExp f (TDetailed t _)) ctx = do
-  bind_pattern p (TExp f t) ctx
-
-bind_pattern PUnit (TExp _ TUnit) ctx = do
+bind_pattern PUnit (TExp _ (TUnit, _)) ctx = do
   return ctx
 
 bind_pattern (PVar x) t ctx = do
   bind_var x t ctx
 
-bind_pattern (PPair p q) (TExp _ (TTensor t u)) ctx = do
+bind_pattern (PPair p q) (TExp _ (TTensor t u, _)) ctx = do
   ctx' <- bind_pattern p t ctx
   bind_pattern q u ctx'
 
@@ -70,3 +67,4 @@ split_context f ctx = do
 
 sub_context set ctx =
   split_context (\x -> List.elem x set) ctx
+

@@ -217,7 +217,7 @@ fresh_var = QpState (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id 
 new_type = do
   x <- fresh_type
   f <- fresh_flag
-  return (TExp f $ TVar x)
+  return (TExp f (TVar x, NoInfo))
 
 create_pattern_type (PLocated p ex) = do
   set_location ex
@@ -226,7 +226,7 @@ create_pattern_type (PLocated p ex) = do
 create_pattern_type PUnit = do
   ex <- get_location
   detail <- return $ ActualOfP PUnit ex
-  return (TExp (-1) $ TDetailed TUnit detail, [])
+  return (TExp (-1) (TUnit, detail), [])
 
 create_pattern_type (PVar x) = do
   t <- fresh_type
@@ -234,7 +234,7 @@ create_pattern_type (PVar x) = do
   
   ex <- get_location
   detail <- return $ ActualOfP (PVar x) ex
-  return (TExp n $ TDetailed (TVar t) detail, [])
+  return (TExp n (TVar t, detail), [])
 
 create_pattern_type (PPair p q) = do
   ex <- get_location
@@ -244,7 +244,7 @@ create_pattern_type (PPair p q) = do
   n <- fresh_flag
   
   detail <- return $ ActualOfP (PPair p q) ex
-  return (TExp n $ TDetailed (TTensor t u) detail, (n, f):(n, g):(fct ++ fcu))
+  return (TExp n (TTensor t u, detail), (n, f):(n, g):(fct ++ fcu))
 
 
 -- =============================== --
@@ -269,47 +269,46 @@ mapsto x t = QpState (\ctx -> return (ctx { mappings = Map.insert x t $ mappings
 
 appmap x = QpState (\ctx -> return (ctx, case Map.lookup x $ mappings ctx of
                                          Just t -> t
-                                         _ -> TVar x))
+                                         _ -> (TVar x, NoInfo)))
 
 mapping_list =
   QpState (\ctx -> return (ctx, Map.assocs $ mappings ctx))
 
-map_lintype_step TUnit = do
-  return TUnit
+map_lintype_step (TUnit, d) = do
+  return (TUnit, d)
 
-map_lintype_step TBool = do
-  return TBool
+map_lintype_step (TBool, d) = do
+  return (TBool, d)
 
-map_lintype_step TQbit = do
-  return TQbit
+map_lintype_step (TQbit, d) = do
+  return (TQbit, d)
 
-map_lintype_step (TVar x) = do
+map_lintype_step (TVar x, d) = do
   t <- appmap x
-  return t
+  case t of
+    (TVar y, _) | y == x -> return (TVar x, d)
+                | otherwise -> return t
+    _ -> return t
 
-map_lintype_step (TArrow t u) = do
+map_lintype_step (TArrow t u, d) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return $ TArrow t' u'
+  return (TArrow t' u', d)
 
-map_lintype_step (TTensor t u) = do
+map_lintype_step (TTensor t u, d) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return $ TTensor t' u'
+  return (TTensor t' u', d)
 
-map_lintype_step (TSum t u) = do
+map_lintype_step (TSum t u, d) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return $ TSum t' u'
+  return (TSum t' u', d)
 
-map_lintype_step (TCirc t u) = do
+map_lintype_step (TCirc t u, d) = do
   t' <- map_type_step t
   u' <- map_type_step u
-  return $ TCirc t' u'
-
-map_lintype_step (TDetailed t det) = do
-  t' <- map_lintype_step t
-  return $ TDetailed t' det
+  return (TCirc t' u', d)
 
 map_type_step (TExp f t) = do
   t' <- map_lintype_step t
@@ -333,41 +332,37 @@ app_val_to_flag n map = do
       Nothing -> do
           return n
 
-app_val_to_lintype TUnit _ = do
-  return TUnit
+app_val_to_lintype (TUnit, d) _ = do
+  return (TUnit, d)
 
-app_val_to_lintype TBool _ = do
-  return TBool
+app_val_to_lintype (TBool, d) _ = do
+  return (TBool, d)
 
-app_val_to_lintype TQbit _ = do
-  return TQbit
+app_val_to_lintype (TQbit, d) _ = do
+  return (TQbit, d)
 
-app_val_to_lintype (TVar x) _ = do
-  return $ TVar x
+app_val_to_lintype (TVar x, d) _ = do
+  return (TVar x, d)
 
-app_val_to_lintype (TArrow t u) map = do
+app_val_to_lintype (TArrow t u, d) map = do
   t' <- app_val_to_type t map
   u' <- app_val_to_type u map
-  return $ TArrow t' u'
+  return (TArrow t' u', d)
 
-app_val_to_lintype (TTensor t u) map = do
+app_val_to_lintype (TTensor t u, d) map = do
   t' <- app_val_to_type t map
   u' <- app_val_to_type u map
-  return $ TTensor t' u'
+  return (TTensor t' u', d)
 
-app_val_to_lintype (TSum t u) map = do
+app_val_to_lintype (TSum t u, d) map = do
   t' <- app_val_to_type t map
   u' <- app_val_to_type u map
-  return $ TSum t' u'
+  return (TSum t' u', d)
 
-app_val_to_lintype (TCirc t u) map = do
+app_val_to_lintype (TCirc t u, d) map = do
   t' <- app_val_to_type t map
   u' <- app_val_to_type u map
-  return $ TCirc t' u'
-
-app_val_to_lintype (TDetailed t det) map = do
-  t' <- app_val_to_lintype t map
-  return $ TDetailed t' det
+  return (TCirc t' u', d)
 
 app_val_to_type (TExp f t) map = do
   fv <- app_val_to_flag f map

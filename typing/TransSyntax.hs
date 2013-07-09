@@ -110,32 +110,32 @@ translate_pattern :: S.Pattern -> QpState Pattern
 translate_expression :: S.Expr -> QpState Expr
 -------------------------------------------
 translate_type S.TUnit = do
-  return $ TExp (-1) TUnit
+  return $ TExp (-1) (TUnit, NoInfo)
 
 translate_type S.TBool = do
-  return $ TExp (-1) TBool
+  return $ TExp (-1) (TBool, NoInfo)
 
 translate_type S.TQBit = do
-  return $ TExp 0 TQbit
+  return $ TExp 0 (TQbit, NoInfo)
 
 translate_type (S.TVar x) = do
   n <- find_type x
-  return $ TExp 0 $ TVar n
+  return $ TExp 0 (TVar n, NoInfo)
 
 translate_type (S.TArrow t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TExp 0 $ TArrow t' u'
+  return $ TExp 0 (TArrow t' u', NoInfo)
 
 translate_type (S.TTensor t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TExp 0 $ TTensor t' u'
+  return $ TExp 0 (TTensor t' u', NoInfo)
 
 translate_type (S.TSum t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TExp 0 $ TSum t' u'
+  return $ TExp 0 (TSum t' u', NoInfo)
 
 translate_type (S.TExp t) = do
   TExp _ t' <- translate_type t
@@ -144,7 +144,7 @@ translate_type (S.TExp t) = do
 translate_type (S.TCirc t u) = do
   t' <- translate_type t
   u' <- translate_type u
-  return $ TExp (-1) (TCirc t' u')
+  return $ TExp (-1) (TCirc t' u', NoInfo)
 
 translate_type (S.TLocated t _) = do
   translate_type t

@@ -40,9 +40,16 @@ type Flag = Int
 data Detail =
     ActualOfE Expr Extent      -- Meaning T is the actual type of the expression e at the extent ex
   | ActualOfP Pattern Extent   -- Meaning T is the actual type of the pattern p at the extent ex
+  | NoInfo
   deriving Show
 
-data LinType =
+-- Select the more detailed information, with a preference for the one on the right 
+more_detailed :: Detail -> Detail -> Detail
+more_detailed d NoInfo = d
+more_detailed _ d = d
+
+-- Simple type
+data LinSType =
     TVar Variable              -- a
   | TBool                      -- bool
   | TUnit                      -- 1
@@ -52,12 +59,18 @@ data LinType =
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
   | TLocated LinType Extent    -- t @ ex
-  | TDetailed LinType Detail   -- Type with detailed information, as the term of which it is type
   deriving Show
+
+-- Detailed type
+type LinType = (LinSType, Detail)
 
 data Type =
     TExp Flag LinType          -- !n a
   deriving Show
+
+
+add_detail :: Detail -> Type -> Type
+add_detail d' (TExp n (t, d)) = TExp n (t, more_detailed d' d)
 
 {-
   The pattern structure has been left in the core syntax, although it is a syntactic sugar.
@@ -103,13 +116,6 @@ data Expr =
   | ERev                                -- rev
   | ELocated Expr Extent                -- e @ ex
   deriving Show
-{-
-   Remove the addtional information of a linear type
--}
-undetailed :: LinType -> LinType
---------------------------------
-undetailed (TDetailed t _) = t
-undetailed t = t
 
 {-
   Construction of the unfier of two / a list of types
@@ -123,20 +129,18 @@ lintype_unifier :: LinType -> LinType -> LinType
 type_unifier :: Type -> Type -> Type
 list_unifier :: [LinType] -> LinType
 ------------------------------------
-lintype_unifier TUnit _ = TUnit
-lintype_unifier _ TUnit = TUnit
-lintype_unifier TBool _ = TBool
-lintype_unifier _ TBool = TBool
-lintype_unifier TQbit _ = TQbit
-lintype_unifier _ TQbit = TQbit
-lintype_unifier (TVar _) t = t
-lintype_unifier t (TVar _) = t
-lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
-lintype_unifier (TTensor t u) (TTensor t' u') = TTensor (type_unifier t t') (type_unifier u u')
-lintype_unifier (TSum t u) (TSum t' u') = TSum (type_unifier t t') (type_unifier u u')
-lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
-lintype_unifier (TDetailed t _) t' = lintype_unifier t t'
-lintype_unifier t (TDetailed t' _) = lintype_unifier t t'
+lintype_unifier (TUnit, _) _ = (TUnit, NoInfo)
+lintype_unifier _ (TUnit, _) = (TUnit, NoInfo)
+lintype_unifier (TBool, _) _ = (TBool, NoInfo)
+lintype_unifier _ (TBool, _) = (TBool, NoInfo)
+lintype_unifier (TQbit, _) _ = (TQbit, NoInfo)
+lintype_unifier _ (TQbit, _) = (TQbit, NoInfo)
+lintype_unifier (TVar _, _) t = t
+lintype_unifier t (TVar _, _) = t
+lintype_unifier (TArrow t u, _) (TArrow t' u', _) = (TArrow (type_unifier t t') (type_unifier u u'), NoInfo)
+lintype_unifier (TTensor t u, _) (TTensor t' u', _) = (TTensor (type_unifier t t') (type_unifier u u'), NoInfo)
+lintype_unifier (TSum t u, _) (TSum t' u', _) = (TSum (type_unifier t t') (type_unifier u u'), NoInfo)
+lintype_unifier (TCirc t u, _) (TCirc t' u', _) = (TCirc (type_unifier t t') (type_unifier u u'), NoInfo)
 
 type_unifier (TExp m t) (TExp _ u) = TExp m $ lintype_unifier t u
 
@@ -178,25 +182,23 @@ instance PPrint Flag where
 
 
 instance Param LinType where
-  free_var (TVar x) = [x]
-  free_var (TTensor t u) = List.union (free_var t) (free_var u)
-  free_var (TArrow t u) = List.union (free_var t) (free_var u)
-  free_var (TSum t u) = List.union (free_var t) (free_var u)
-  free_var (TCirc t u) = List.union (free_var t) (free_var u)
-  free_var (TDetailed t _) = free_var t
+  free_var (TVar x, _) = [x]
+  free_var (TTensor t u, _) = List.union (free_var t) (free_var u)
+  free_var (TArrow t u, _) = List.union (free_var t) (free_var u)
+  free_var (TSum t u, _) = List.union (free_var t) (free_var u)
+  free_var (TCirc t u, _) = List.union (free_var t) (free_var u)
   free_var _ = []
 
-  subs_var a b (TVar x) | x == a = TVar b
-                        | otherwise = TVar x
-  subs_var _ _ TUnit = TUnit
-  subs_var _ _ TBool = TBool
-  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
-  subs_var a b (TSum t u) = TSum (subs_var a b t) (subs_var a b u) 
-  subs_var a b (TTensor t u) = TTensor (subs_var a b t) (subs_var a b u)
-  subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
-  subs_var a b (TDetailed t d) = TDetailed (subs_var a b t) d
+  subs_var a b (TVar x, d) | x == a = (TVar b, d)
+                        | otherwise = (TVar x, d)
+  subs_var _ _ (TUnit, d) = (TUnit, d)
+  subs_var _ _ (TBool, d) = (TBool, d)
+  subs_var a b (TArrow t u, d) = (TArrow (subs_var a b t) (subs_var a b u), d)
+  subs_var a b (TSum t u, d) = (TSum (subs_var a b t) (subs_var a b u), d)
+  subs_var a b (TTensor t u, d) = (TTensor (subs_var a b t) (subs_var a b u), d)
+  subs_var a b (TCirc t u, d) = (TCirc (subs_var a b t) (subs_var a b u), d)
 
-instance Eq LinType where
+instance Eq LinSType where
   (==) (TVar x) (TVar y) = x == y
   (==) TUnit TUnit = True
   (==) TBool TBool = True
@@ -205,49 +207,44 @@ instance Eq LinType where
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
   (==) (TSum t u) (TSum t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
-  (==) (TDetailed t _) t' = t == t'
-  (==) t (TDetailed t' _) = t == t'
   (==) _ _ = False
 
 instance PPrint LinType where
   -- Print unto Lvl = n
-  sprintn _ (TVar x) = subvar 'X' x
-  sprintn _ TUnit = "T"
-  sprintn _ TBool = "bool"
-  sprintn _ TQbit = "qbit"
+  sprintn _ (TVar x, _) = subvar 'X' x
+  sprintn _ (TUnit, _) = "T"
+  sprintn _ (TBool, _) = "bool"
+  sprintn _ (TQbit, _) = "qbit"
   sprintn (Nth 0) _ = "..."
 
-  sprintn lv (TTensor a b) =
+  sprintn lv (TTensor a b, _) =
     let dlv = decr lv in
     (case a of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
-       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv a ++ ")"
+       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
+       TExp _ (TTensor _ _, _) -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " * " ++
     (case b of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv b ++ ")"
-       TExp _ (TTensor _ _) -> "(" ++ sprintn dlv b ++ ")"
+       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv b ++ ")"
+       TExp _ (TTensor _ _, _) -> "(" ++ sprintn dlv b ++ ")"
        _ -> sprintn dlv b)
 
-  sprintn lv (TArrow a b) =
+  sprintn lv (TArrow a b, _) =
     let dlv = decr lv in
     (case a of
-       TExp _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
+       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " -> " ++
     sprintn dlv b
 
-  sprintn lv (TSum a b) =
+  sprintn lv (TSum a b, _) =
     let dlv = decr lv in
     (case a of
-       TExp _ (TSum _ _) -> "(" ++ sprintn dlv a ++ ")"
+       TExp _ (TSum _ _, _) -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " + " ++
     sprintn dlv b
 
-  sprintn lv (TCirc a b) =
+  sprintn lv (TCirc a b, _) =
     let dlv = decr lv in
     "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
-
-  sprintn lv (TDetailed t _) =
-    sprintn lv t
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -262,7 +259,7 @@ instance Param Type where
   subs_var a b (TExp n t) = TExp n (subs_var a b t)
 
 instance Eq Type where
-  (==) (TExp m t) (TExp n t') = m == n && t == t'
+  (==) (TExp m (t, _)) (TExp n (t', _)) = m == n && t == t'
 
 instance PPrint Type where
   sprintn lv (TExp f a) =
@@ -271,8 +268,8 @@ instance PPrint Type where
       pf ++ sprintn lv a
     else
       pf ++ (case a of
-               TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
-               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
+               (TTensor _ _, _) -> "(" ++ sprintn lv a ++ ")"
+               (TArrow _ _, _) -> "(" ++ sprintn lv a ++ ")"
                _ -> sprintn lv a)
  
   -- Print unto Lvl = +oo
