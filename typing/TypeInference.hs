@@ -3,6 +3,7 @@ module TypeInference where
 import Classes
 import Utils
 import Localizing
+import QuipperError
 
 import CoreSyntax
 
@@ -11,6 +12,8 @@ import TypingContext
 
 import Subtyping
 import Ordering
+
+import Control.Exception as E
 
 import Data.List as List
 import Data.Sequence as Seq
@@ -40,7 +43,11 @@ constraint_typing typctx EUnit t = do
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
-  return ([NonLinear t (TExp 1 TUnit)], flags_cons)
+  -- Detailed information
+  ex <- get_location
+  detail <- return $ ActualOfE EUnit ex
+
+  return ([NonLinear t (TExp 1 (TDetailed TUnit detail))], flags_cons)
 
 
 -- | True / False typing rule
@@ -49,11 +56,15 @@ constraint_typing typctx EUnit t = do
 --  !I G |- True / False : !n bool  [{1 <= I}]
 -- 
 
-constraint_typing typctx (EBool _) t = do
+constraint_typing typctx (EBool b) t = do
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
-  return ([NonLinear t (TExp 1 TBool)], flags_cons)
+  -- Detailed information
+  ex <- get_location
+  detail <- return $ ActualOfE (EBool b) ex
+
+  return ([NonLinear t (TExp 1 (TDetailed TBool detail))], flags_cons)
 
 
 -- | Axiom typing rule
@@ -80,13 +91,17 @@ constraint_typing typctx (EVar x) u = do
 constraint_typing typctx (EBox a) typ = do
   b <- new_type
 
+  ex <- get_location
+ 
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
   arw <- return $ TExp 1 (TArrow a b)
   cir <- return $ TExp 1 (TCirc a b)
 
-  return ([NonLinear (TExp 1 (TArrow arw cir)) typ], flags_cons)
+  detail <- return $ ActualOfE (EBox a) ex
+
+  return ([NonLinear (TExp 1 $ TDetailed (TArrow arw cir) detail) typ], flags_cons)
   
 
 -- | Rev typing rule
@@ -99,13 +114,17 @@ constraint_typing typctx ERev typ = do
   a <- new_type
   b <- new_type
 
+  ex <- get_location
+
   flags <- context_annotation typctx
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
 
   cirab <- return $ TExp 1 (TCirc a b)
   cirba <- return $ TExp 1 (TCirc b a) 
 
-  return ([NonLinear (TExp 1 (TArrow cirab cirba)) typ], flags_cons)
+  detail <- return $ ActualOfE ERev ex
+
+  return ([NonLinear (TExp 1 $ TDetailed (TArrow cirab cirba) detail) typ], flags_cons)
 
 
 -- App typing rule
@@ -125,7 +144,7 @@ constraint_typing typctx (EApp t u) b = do
 
   -- Filter on the free variables of t and type t
   (typctx_fvt, _) <- sub_context fvt typctx
-  (lcons, fcons) <- constraint_typing typctx_fvt t (TExp 0 (TArrow a b))
+  (lcons, fcons) <- constraint_typing typctx_fvt t (TExp 0 $ TArrow a b)
 
   -- Filter on the free variables of u and type u
   (typctx_fvu, _) <- sub_context fvu typctx
@@ -149,6 +168,8 @@ constraint_typing typctx (EApp t u) b = do
 constraint_typing typctx (EFun p e) t = do
   b <- new_type
   n <- fresh_flag
+ 
+  ex <- get_location
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation typctx
@@ -163,7 +184,9 @@ constraint_typing typctx (EFun p e) t = do
   -- Build the context constraints : n <= I
   flags_cons <- return $ List.map (\(_, f) -> (n, f)) flags
 
-  return ((NonLinear (TExp n $ TArrow a b) t):lcons, fcons ++ flags_cons ++ fca)
+  detail <- return $ ActualOfE (EFun p e) ex
+
+  return ((NonLinear (TExp n $ TDetailed (TArrow a b) detail) t):lcons, fcons ++ flags_cons ++ fca)
 
 
 -- Tensor intro typing rule
@@ -178,6 +201,8 @@ constraint_typing typctx (EPair t u) typ = do
   ta@(TExp n a) <- new_type
   tb@(TExp m b) <- new_type
   p <- fresh_flag
+
+  ex <- get_location
 
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
@@ -196,7 +221,9 @@ constraint_typing typctx (EPair t u) typ = do
   flags <- context_annotation typctx_delta
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  return (lcons' ++ lcons ++ [NonLinear (TExp p $ TTensor ta tb) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
+  detail <- return $ ActualOfE (EPair t u) ex
+
+  return (lcons' ++ lcons ++ [NonLinear (TExp p $ TDetailed (TTensor ta tb) detail) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
 
 
 -- Tensor elim typing rule
@@ -368,21 +395,27 @@ break_composite :: ConstraintSet -> QpState ConstraintSet
 break_composite ([], lc) = return ([], lc)
 
 -- Detailed constraints
-break_composite ((Linear (TDetailed t det) u):lc, fc) = do
-  {-case det of
-    TypeOfE e -> do
-        set_expr e
-    _ -> do
-        return () -}
-  break_composite ((Linear t u):lc, fc)
+break_composite ((Linear (TDetailed t det) u):lc, fc) =
+  break_composite ((Linear t u):lc, fc) `catchQ` (\(e :: QError) -> case e of
+                                                                      TypingError ta tb ->
+                                                                          case det of
+                                                                            ActualOfE e ex ->
+                                                                                throwQ $ DetailedTypingError ta tb (show e) ex
+                                                                            ActualOfP p ex ->
+                                                                                throwQ $ DetailedTypingError ta tb (show p) ex
+                                                                      _ ->
+                                                                          throwQ e)
 
 break_composite ((Linear t (TDetailed u det)):lc, fc) = do
-  {-case det of
-    TypeOfE e -> do
-        set_expr e
-    _ -> do
-        return () -}
-  break_composite ((Linear t u):lc, fc)
+  break_composite ((Linear t u):lc, fc) `catchQ` (\(e :: QError) -> case e of
+                                                                      TypingError ta tb ->
+                                                                          case det of
+                                                                            ActualOfE e ex ->
+                                                                                throwQ $ DetailedTypingError tb ta (show e) ex
+                                                                            ActualOfP p ex ->
+                                                                                throwQ $ DetailedTypingError tb ta (show p) ex
+                                                                      _ ->
+                                                                          throwQ e)
 
 break_composite ((Linear (TLocated t _) u):lc, fc) = do
   break_composite ((Linear t u):lc, fc)
@@ -453,10 +486,7 @@ break_composite (c@(Linear _ (TVar _)):lc, fc) = do
 
 -- Other non composite / non-semi composite constraints
 break_composite ((Linear t u):lc, fc) = do
-  --e <- get_expr
-  e <- return EUnit
-  fail $ "Type mismatch: " ++ pprint t ++ " <> " ++ pprint u
-  --failwith $ TypeMismatch (pprint t) (pprint u)
+  throwQ $ TypingError (pprint t) (pprint u)
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
 

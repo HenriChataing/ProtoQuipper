@@ -36,6 +36,8 @@ data QError =
   | NotUnionError String
   | NotBoolError String Extent
   
+  | TypingError String String                             -- Typing error
+  | DetailedTypingError String String String Extent       -- Typing error : actual vs expected in type of expr at extent ex
 
     {-
        Everything else
@@ -61,6 +63,15 @@ instance Show QError where
   show (NotFunctionError v ex) = "Error: " ++ v ++ " is not a function: at extent " ++ show ex
   show (NotUnionError v) = "Error: " ++ v ++ " doesn't have a union type"
   show (NotBoolError v ex) = "Error: " ++ v ++ " is not of type bool: at extent " ++ show ex
+
+  show (TypingError ta tb) = "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
+  show (DetailedTypingError ta tb e ex) = "Typing error: can not match the actual type\n" ++
+                                          "    " ++ ta ++ "\n" ++
+                                          "with the expected type\n" ++
+                                          "    " ++ tb ++ "\n" ++
+                                          "in the type of\n" ++
+                                          "    " ++ e ++ "\n" ++
+                                          "at the extent " ++ show ex
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg

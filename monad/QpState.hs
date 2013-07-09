@@ -2,6 +2,7 @@ module QpState where
 
 import Localizing (Extent, extent_unknown)
 import Utils
+import QuipperError
 
 import Namespace (Namespace)
 import qualified Namespace as N
@@ -11,6 +12,8 @@ import Circuits
 import Subtyping
 
 import System.IO
+
+import Control.Exception as E
 
 import LayeredMap (LayeredMap)
 import qualified LayeredMap as LMap
@@ -109,6 +112,16 @@ instance Monad QpState where
                                     st' <- return $ action a
                                     runS st' ctx') }
 
+throwQ :: QError -> QpState a
+throwQ e =
+  QpState { runS = (\ctx -> E.throw e) }
+
+catchQ :: QpState a -> (QError -> QpState a) -> QpState a
+catchQ st c =
+  QpState { runS = (\ctx ->
+                      (runS st ctx) `E.catch` (\e -> do
+                                                 runS (c e) ctx)) }
+
 -- Create an empty context (without the basic gates)
 empty_context :: Context
 ------------------------
@@ -206,20 +219,32 @@ new_type = do
   f <- fresh_flag
   return (TExp f $ TVar x)
 
+create_pattern_type (PLocated p ex) = do
+  set_location ex
+  create_pattern_type p
+
 create_pattern_type PUnit = do
-  return (TExp (-1) TUnit, [])
+  ex <- get_location
+  detail <- return $ ActualOfP PUnit ex
+  return (TExp (-1) $ TDetailed TUnit detail, [])
 
 create_pattern_type (PVar x) = do
   t <- fresh_type
   n <- fresh_flag
-  dett <- return $ TExp n $ TDetailed (TVar t) (TypeOfP $ PVar x)
-  return (dett, [])
+  
+  ex <- get_location
+  detail <- return $ ActualOfP (PVar x) ex
+  return (TExp n $ TDetailed (TVar t) detail, [])
 
 create_pattern_type (PPair p q) = do
+  ex <- get_location
+
   (t@(TExp f _), fct) <- create_pattern_type p
   (u@(TExp g _), fcu) <- create_pattern_type q
   n <- fresh_flag
-  return (TExp n $ TDetailed (TTensor t u) (TypeOfP $ PPair p q), (n, f):(n, g):(fct ++ fcu))
+  
+  detail <- return $ ActualOfP (PPair p q) ex
+  return (TExp n $ TDetailed (TTensor t u) detail, (n, f):(n, g):(fct ++ fcu))
 
 
 -- =============================== --

@@ -38,8 +38,8 @@ type Flag = Int
 -}
 
 data Detail =
-    TypeOfE Expr
-  | TypeOfP Pattern
+    ActualOfE Expr Extent      -- Meaning T is the actual type of the expression e at the extent ex
+  | ActualOfP Pattern Extent   -- Meaning T is the actual type of the pattern p at the extent ex
   deriving Show
 
 data LinType =
