@@ -64,7 +64,7 @@ binary_sym =
 -- General type for binary gates
 binary_type :: Type
 ------------------
-binary_type = TCirc (TTensor TQBit TQBit) (TTensor TQBit TQBit)
+binary_type = TCirc (TTensor [TQBit, TQBit]) (TTensor [TQBit, TQBit])
 
 ----------------------------------------------
 ------------- Typing environment -------------

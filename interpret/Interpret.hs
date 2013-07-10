@@ -54,10 +54,12 @@ linspec (TQbit, _) = do
   q <- fresh_qbit
   return (VQbit q)
 
-linspec (TTensor t1 t2, _) = do
-  q1 <- spec t1
-  q2 <- spec t2
-  return (VPair q1 q2)
+linspec (TTensor tlist, _) = do
+  qlist <- List.foldr (\t rec -> do
+                         r <- rec
+                         q <- spec t
+                         return (q:r)) (return []) tlist
+  return (VTuple qlist)
 
 linspec (TUnit, _) = do
   return VUnit
@@ -120,9 +122,17 @@ bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
 bind_pattern (PVar x) v env = do
   return $ IMap.insert x v env
 
-bind_pattern (PPair p1 p2) (VPair v1 v2) env = do
-  ev <- bind_pattern p1 v1 env
-  bind_pattern p2 v2 ev
+bind_pattern (PTuple plist) (VTuple vlist) env = do
+  case (plist, vlist) of
+    ([], []) ->
+        return env
+
+    (p:prest, v:vrest) -> do
+        ev <- bind_pattern p v env
+        bind_pattern (PTuple prest) (VTuple vrest) ev
+
+    _ ->
+        throw $ MatchingError (sprint $ PTuple plist) (sprint $ VTuple vlist)
 
 bind_pattern PUnit VUnit env = do
   return env
@@ -141,10 +151,18 @@ bind :: Value -> Value -> QpState [(Int, Int)]
 bind (VQbit q1) (VQbit q2) = do
   return [(q1, q2)]
 
-bind (VPair v1 v2) (VPair v1' v2') = do
-  b1 <- bind v1 v1'
-  b2 <- bind v2 v2'
-  return (b1 ++ b2)
+bind (VTuple vlist) (VTuple vlist') = do
+  case (vlist, vlist') of
+    ([], []) ->
+        return []
+ 
+    (v:rest, v':rest') -> do
+        b <- bind v v'
+        brest <- bind (VTuple rest) (VTuple rest')
+        return (b ++ brest)
+
+    _ ->
+        throw $ MatchingError (sprint $ VTuple vlist) (sprint $ VTuple vlist')
 
 bind VUnit VUnit = do
   return []
@@ -163,10 +181,12 @@ readdress (VQbit q) b = do
     Nothing ->
         return (VQbit q)
 
-readdress (VPair v1 v2) b = do
-  v1' <- readdress v1 b
-  v2' <- readdress v2 b
-  return (VPair v1' v2')
+readdress (VTuple vlist) b = do
+  vlist' <- List.foldr (\v rec -> do
+                          r <- rec
+                          v' <- readdress v b
+                          return (v':r)) (return []) vlist
+  return (VTuple vlist')
 
 readdress VUnit _ = do
   return VUnit
@@ -180,10 +200,11 @@ extract :: Value -> QpState [Int]
 extract (VQbit q) = do
   return [q]
 
-extract (VPair v1 v2) = do
-  q1 <- extract v1
-  q2 <- extract v2
-  return (q1 ++ q2)
+extract (VTuple vlist) = do
+  List.foldl (\rec v -> do
+                r <- rec
+                qv <- extract v
+                return $ qv ++ r) (return []) vlist
 
 extract VUnit = do
   return []
@@ -325,10 +346,12 @@ interpret env (EMatch e (p, f) (q, g)) = do
         throw $ NotUnionError (sprint v)
 
 -- Pairs
-interpret env (EPair e1 e2) = do
-  v1 <- interpret env e1
-  v2 <- interpret env e2
-  return (VPair v1 v2)
+interpret env (ETuple elist) = do
+  vlist <- List.foldr (\e rec -> do
+                         r <- rec
+                         v <- interpret env e
+                         return (v:r)) (return []) elist
+  return (VTuple vlist)
 
 -- If .. then .. else ..
 interpret env (EIf e1 e2 e3) = do

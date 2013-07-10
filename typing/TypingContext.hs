@@ -45,10 +45,17 @@ bind_pattern PUnit (TExp _ (TUnit, _)) ctx = do
 bind_pattern (PVar x) t ctx = do
   bind_var x t ctx
 
-bind_pattern (PPair p q) (TExp _ (TTensor t u, _)) ctx = do
-  ctx' <- bind_pattern p t ctx
-  bind_pattern q u ctx'
+bind_pattern (PTuple plist) (TExp n (TTensor tlist, d)) ctx = do
+  case (plist, tlist) of
+    ([], []) ->
+        return ctx
 
+    (p:prest, t:trest) -> do
+        ctx' <- bind_pattern p t ctx
+        bind_pattern (PTuple prest) (TExp n (TTensor trest, d)) ctx'
+
+    _ ->
+        fail "Unequal pattern and type"
 
 type_of x ctx = do
   case Map.lookup x ctx of

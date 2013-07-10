@@ -197,33 +197,48 @@ constraint_typing typctx (EFun p e) t = do
 --  G1, G2, !ID |- <t, u> : T  [L u L' u {1 <= I} u {!n (a * b) <: T}]
 --
 
-constraint_typing typctx (EPair t u) typ = do
-  ta@(TExp n a) <- new_type
-  tb@(TExp m b) <- new_type
+constraint_typing typctx (ETuple elist) typ = do
+  -- Create n new types
+  tlist <- List.foldr (\_ rec -> do
+                         r <- rec
+                         t <- new_type
+                         return (t:r)) (return []) elist
+
+  -- And the flag of the tensor
   p <- fresh_flag
 
+  -- Get the extent of the tuple before starting moving into the inner expressions
   ex <- get_location
 
-  -- Extract the free variables of t and u
-  fvt <- return $ free_var t
-  fvu <- return $ free_var u
+  -- Extract the free variables of all the inner expressions
+  fvlist <- List.foldr (\e rec -> do
+                          r <- rec
+                          fv <- return $ free_var e
+                          return (fv:r)) (return []) elist
 
-  -- Filter on the free variables of t and type t
-  (typctx_fvt, _) <- sub_context fvt typctx
-  (lcons, fcons) <- constraint_typing typctx_fvt t ta
+  -- Type the inner expressions, and extract the constraints
+  (lincons, fcons) <- List.foldr (\(e, t, fv) rec -> do
+                                    (fc, lc) <- rec
+                                    (typctx_fv, _) <- sub_context fv typctx
+                                    (fc', lc') <- constraint_typing typctx_fv e t
+                                    return (fc' ++ fc, lc' ++ lc)) (return ([], [])) (List.zip3 elist tlist fvlist)
 
-  -- Filter on the free variables of u and type u
-  (typctx_fvu, _) <- sub_context fvu typctx
-  (lcons', fcons') <- constraint_typing typctx_fvu u tb
+  -- Construction of all the constraints p <= f1 ... p <= fn
+  pcons <- return $ List.map (\(TExp n _) -> (p, n)) tlist
+
+  -- Disjoint union of all the free variables
+  disunion <- List.foldl (\rec fv -> do
+                            r <- rec
+                            return $ (r \\ fv) ++ (fv \\ r)) (return []) fvlist
 
   -- Construction of the constraints of delta, the intersection
-  (_, typctx_delta) <- sub_context ((fvt \\ fvu) ++ (fvu \\ fvt)) typctx
+  (_, typctx_delta) <- sub_context disunion typctx
   flags <- context_annotation typctx_delta
   flags_cons <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  detail <- return $ ActualOfE (EPair t u) ex
+  detail <- return $ ActualOfE (ETuple elist) ex
 
-  return (lcons' ++ lcons ++ [NonLinear (TExp p (TTensor ta tb, detail)) typ], (p, n):(p, m):(fcons' ++ fcons ++ flags_cons))
+  return (lincons ++ [NonLinear (TExp p (TTensor tlist, detail)) typ], pcons ++ fcons ++ flags_cons)
 
 
 -- Tensor elim typing rule
@@ -437,12 +452,18 @@ break_composite ((Linear (TArrow t u, d) (TArrow t' u', d')):lc, fc) = do
 -- Into
   -- T <: T' && U <: U'
 
-break_composite ((Linear (TTensor t u, d) (TTensor t' u', d')):lc, fc) = do
-  dt <- return $ add_detail d t
-  du <- return $ add_detail d u
-  dt' <- return $ add_detail d' t'
-  du' <- return $ add_detail d' u'
-  break_composite ((NonLinear dt dt'):(NonLinear du du'):lc, fc)
+break_composite ((Linear (TTensor tlist, d) (TTensor tlist', d')):lc, fc) = do
+  case (tlist, tlist') of
+    ([], []) ->
+        break_composite (lc, fc)
+
+    (t:rest, t':rest') -> do
+        dt <- return $ add_detail d t
+        dt' <- return $ add_detail d' t'
+        break_composite ((Linear (TTensor rest, d) (TTensor rest', d')):(NonLinear dt dt'):lc, fc)
+
+    _ ->
+        throw $ TypingError (pprint (TTensor tlist, d)) (pprint (TTensor tlist', d'))
 
 -- Break constraints
   -- T + U <: T' + U'
@@ -520,10 +541,12 @@ model_of_lin (TArrow t u, _) = do
   u' <- model_of u
   return (TArrow t' u', NoInfo)
 
-model_of_lin (TTensor t u, _) = do
-  t' <- model_of t
-  u' <- model_of u
-  return (TTensor t' u', NoInfo)
+model_of_lin (TTensor tlist, _) = do
+  tlist' <- List.foldr (\t rec -> do
+                          r <- rec
+                          t' <- model_of t
+                          return (t':r)) (return []) tlist
+  return (TTensor tlist', NoInfo)
 
 model_of_lin (TSum t u, _) = do
   t' <- model_of t

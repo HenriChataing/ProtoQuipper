@@ -26,7 +26,7 @@ import qualified Data.List as List
 -- | Type declaration of values
 data Value =
     VFun (IntMap Value) Pattern Expr     -- fun p -> e (in the context env)
-  | VPair Value Value                    -- <e, f>
+  | VTuple [Value]                       -- <v1, .. , vn>
   | VCirc Value Circuit Value            -- (t, c, u)
   | VBool Bool                           -- true / false
   | VBox Type                            -- box [T]
@@ -47,7 +47,7 @@ instance PPrint Value where
   pprint VUnbox = "unbox"
   pprint (VQbit q) = subvar 'q' q
   pprint (VBool b) = if b then "true" else "false"
-  pprint (VPair u v) = "<" ++ pprint u ++ ", " ++ pprint v ++ ">"
+  pprint (VTuple (v:rest)) = "<" ++ pprint v ++ List.foldl (\s w -> s ++ ", " ++ pprint w) "" rest ++ ">"
   pprint (VCirc _ c _) = pprint c
   pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
   pprint (VInjL e) = "injl(" ++ pprint e ++ ")"
@@ -88,9 +88,9 @@ gate_values = do
   binary_values <- List.foldl (\rec s -> do
                                  r <- rec
                                  lbl <- find_name s
-                                 g <- return (lbl, VCirc (VPair (VQbit 0) (VQbit 1))
+                                 g <- return (lbl, VCirc (VTuple [VQbit 0, VQbit 1])
                                                          (Circ { qIn = [0, 1], gates = [ Binary s 0 1 ], qOut = [0, 1] })
-                                                         (VPair (VQbit 0) (VQbit 1)))
+                                                         (VTuple [VQbit 0, VQbit 1]))
                                  return (g:r)) (return []) binary_gates
 
   -- Return the whole

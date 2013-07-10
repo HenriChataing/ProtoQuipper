@@ -18,28 +18,30 @@ instance PPrint Type where
   sprintn lv (TCirc a b) =
     "circ (" ++ sprintn (decr lv) a ++ ", " ++ sprintn (decr lv) b ++ ")"
 
-  sprintn lv (TTensor a b) =
+  sprintn lv (TTensor (a:rest)) =
     let dlv = decr lv in
     (case a of
        TArrow _ _ -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " * " ++
-    (case b of
-       TArrow _ _ -> "(" ++ sprintn dlv a ++ ")"
-       TTensor _ _ -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a)
+       TTensor _ -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++
+    List.foldl (\s b -> s ++ " * " ++
+                  (case b of
+                     TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
+                     TTensor _ -> "(" ++ sprintn dlv b ++ ")"
+                     _ -> sprintn dlv a)) "" rest
 
   sprintn lv (TArrow a b) =
     let dlv = decr lv in
     sprintn dlv a ++ " -> " ++
     (case b of
-       TTensor _ _ -> "(" ++ sprintn dlv b ++ ")"
+       TTensor _ -> "(" ++ sprintn dlv b ++ ")"
        TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
        _ -> sprintn dlv b)
 
   sprintn lv (TExp a) =
     "!" ++ (case a of
               TExp a -> sprintn lv a
-              TTensor _ _ -> "(" ++ sprintn lv a ++ ")"
+              TTensor _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
 
@@ -68,7 +70,13 @@ instance PPrint Pattern where
   sprintn _ (PVar x) = x
   sprintn (Nth 0) _ = "..."
 
-  sprintn lv (PPair p q) = "<" ++ sprintn (decr lv) p ++ ", " ++ sprintn (decr lv) q ++ ">"
+  sprintn lv (PTuple plist) =
+    let dlv = decr lv in
+    case plist of
+      [] -> "<>"
+      [p] -> "<" ++ sprintn dlv p ++ ">"
+      p:rest -> "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
+
   sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " : " ++ pprint t ++ ")"
   sprintn lv (PLocated p _) = sprintn lv p
 
@@ -99,8 +107,12 @@ indent_sprintn lv ind (ELet p e f) =
   "let " ++ sprintn dlv p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
   ind ++ indent_sprintn dlv ind f
 
-indent_sprintn lv ind (EPair e f) =
-  "<" ++ indent_sprintn (decr lv) ind e ++ ", " ++ indent_sprintn (decr lv) ind f ++ ">"
+indent_sprintn lv ind (ETuple elist) =
+  let dlv = decr lv in
+  case elist of
+    [] -> "<>"
+    [e] -> "<" ++ indent_sprintn dlv ind e ++ ">"
+    e:rest -> "<" ++ indent_sprintn dlv ind e ++ List.foldl (\s f -> s ++ ", " ++ indent_sprintn dlv ind f) "" rest ++ ">"
 
 indent_sprintn lv ind (EIf e f g) =
   let dlv = decr lv in

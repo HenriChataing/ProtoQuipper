@@ -236,15 +236,22 @@ create_pattern_type (PVar x) = do
   detail <- return $ ActualOfP (PVar x) ex
   return (TExp n (TVar t, detail), [])
 
-create_pattern_type (PPair p q) = do
+create_pattern_type (PTuple plist) = do
   ex <- get_location
 
-  (t@(TExp f _), fct) <- create_pattern_type p
-  (u@(TExp g _), fcu) <- create_pattern_type q
+  newtypes <- List.foldr (\p rec -> do
+                            r <- rec
+                            p' <- create_pattern_type p
+                            return (p':r)) (return []) plist
+
+  (ptypes, pcons) <- return $ List.unzip newtypes
   n <- fresh_flag
-  
-  detail <- return $ ActualOfP (PPair p q) ex
-  return (TExp n (TTensor t u, detail), (n, f):(n, g):(fct ++ fcu))
+
+  pflags <- return $ List.foldl (\fgs (TExp f _) -> (n, f):fgs) [] ptypes
+  pcons <- return $ List.concat pcons
+
+  detail <- return $ ActualOfP (PTuple plist) ex
+  return (TExp n (TTensor ptypes, detail), pflags ++ pcons)
 
 
 -- =============================== --
@@ -295,10 +302,12 @@ map_lintype_step (TArrow t u, d) = do
   u' <- map_type_step u
   return (TArrow t' u', d)
 
-map_lintype_step (TTensor t u, d) = do
-  t' <- map_type_step t
-  u' <- map_type_step u
-  return (TTensor t' u', d)
+map_lintype_step (TTensor tlist, d) = do
+  tlist' <- List.foldr (\t rec -> do
+                          r <- rec
+                          t' <- map_type_step t
+                          return (t':r)) (return []) tlist
+  return (TTensor tlist', d)
 
 map_lintype_step (TSum t u, d) = do
   t' <- map_type_step t
@@ -349,10 +358,12 @@ app_val_to_lintype (TArrow t u, d) map = do
   u' <- app_val_to_type u map
   return (TArrow t' u', d)
 
-app_val_to_lintype (TTensor t u, d) map = do
-  t' <- app_val_to_type t map
-  u' <- app_val_to_type u map
-  return (TTensor t' u', d)
+app_val_to_lintype (TTensor tlist, d) map = do
+  tlist' <- List.foldr (\t rec -> do
+                          r <- rec
+                          t' <- app_val_to_type t map
+                          return (t':r)) (return []) tlist
+  return (TTensor tlist', d)
 
 app_val_to_lintype (TSum t u, d) map = do
   t' <- app_val_to_type t map

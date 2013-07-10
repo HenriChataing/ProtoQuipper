@@ -127,10 +127,12 @@ translate_type (S.TArrow t u) = do
   u' <- translate_type u
   return $ TExp 0 (TArrow t' u', NoInfo)
 
-translate_type (S.TTensor t u) = do
-  t' <- translate_type t
-  u' <- translate_type u
-  return $ TExp 0 (TTensor t' u', NoInfo)
+translate_type (S.TTensor tlist) = do
+  tlist' <- List.foldr (\t rec -> do
+                          r <- rec
+                          t' <- translate_type t
+                          return (t':r)) (return []) tlist
+  return $ TExp 0 (TTensor tlist', NoInfo)
 
 translate_type (S.TSum t u) = do
   t' <- translate_type t
@@ -157,10 +159,12 @@ translate_pattern (S.PVar v) = do
   x <- label v
   return (PVar x)
 
-translate_pattern (S.PPair p q) =  do
-  p' <- translate_pattern p
-  q' <- translate_pattern q
-  return (PPair p' q')
+translate_pattern (S.PTuple plist) =  do
+  plist' <- List.foldr (\p rec -> do
+                          r <- rec
+                          p' <- translate_pattern p
+                          return (p':r)) (return []) plist
+  return (PTuple plist')
 
 translate_pattern (S.PLocated p ex) = do
   p' <- translate_pattern p
@@ -241,10 +245,12 @@ translate_expression (S.EApp e f) = do
   f' <- translate_expression f
   return (EApp e' f')
 
-translate_expression (S.EPair e f) = do
-  e' <- translate_expression e
-  f' <- translate_expression f
-  return (EPair e' f')
+translate_expression (S.ETuple elist) = do
+  elist' <- List.foldr (\e rec -> do
+                          r <- rec
+                          e' <- translate_expression e
+                          return (e':r)) (return []) elist
+  return (ETuple elist')
 
 translate_expression (S.EIf e f g) = do
   e' <- translate_expression e

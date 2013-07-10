@@ -99,15 +99,20 @@ Atom_expr :
     | UNBOX                              { locate EUnbox $1 }
     | REV                                { locate ERev $1 }
     | '(' Expr ')'                       { $2 }
-    | '<' Expr ',' Expr '>'              { locate (EPair $2 $4) (fromto $1 $5) }
+    | '<' Expr_sep_list '>'              { locate (ETuple $2) (fromto $1 $3) }
     | '<' '>'                            { locate EUnit (fromto $1 $2) }
     | '(' Expr ':' Type ')'              { locate (EConstraint $2 $4) (fromto $1 $5) }
+
+
+Expr_sep_list :
+      Expr ',' Expr                      { [$1, $3] }
+    | Expr ',' Expr_sep_list             { $1:$3 }
 
 
 Pattern :
       VAR                                { locate (PVar (snd $1)) (fst $1) }
     | '(' Pattern ':' Type ')'           { locate (PConstraint $2 $4) (fromto $1 $5) }
-    | '<' Pattern ',' Pattern '>'        { locate (PPair $2 $4) (fromto $1 $5) }
+    | '<' Pattern_sep_list '>'           { locate (PTuple $2) (fromto $1 $3) }
     | '<' '>'                            { locate PUnit (fromto $1 $2) }
     | '*'                                { locate PUnit $1 }
 
@@ -115,6 +120,11 @@ Pattern :
 Pattern_list :
       Pattern                            { [$1] }
     | Pattern Pattern_list               { $1:$2 }
+
+
+Pattern_sep_list :
+      Pattern ',' Pattern                { [$1, $3] }
+    | Pattern ',' Pattern_sep_list       { $1:$3 }
 
 
 Matching :
@@ -132,17 +142,27 @@ Type :
     | QBIT                               { locate TQBit $1 }
     | '(' ')'                            { locate TUnit (fromto $1 $2) }
     | CIRC '(' Type ',' Type ')'         { locate (TCirc $3 $5) (fromto $1 $6) }
-    | Type '*' Type                      { locate_opt (TTensor $1 $3) (fromto_opt (location $1) (location $3)) }
+    | Tensor_list                        { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
     | Type "->" Type                     { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
     | '!' Type                           { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
     | '(' Type ')'                       { $2 }
 
 
+Tensor_list :
+      Type '*' Type                      { [$1, $3] }
+    | Type '*' Tensor_list               { $1:$3 }
+
+
 QDataType : 
       QBIT                               { locate TQBit $1 }
     | '(' ')'                            { locate TUnit (fromto $1 $2) }
-    | QDataType '*' QDataType            { locate_opt (TTensor $1 $3) (fromto_opt (location $1) (location $3)) }
+    | QData_tensor_list                  { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
     | '(' QDataType ')'                  { $2 }
+
+
+QData_tensor_list :
+      QDataType '*' QDataType            { [$1, $3] }
+    | QDataType '*' QData_tensor_list    { $1:$3 }
 
 {
 parseError :: [Token] -> a

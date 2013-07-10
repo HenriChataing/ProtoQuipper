@@ -54,7 +54,7 @@ data LinSType =
   | TBool                      -- bool
   | TUnit                      -- 1
   | TQbit                      -- qbit
-  | TTensor Type Type          -- a * b
+  | TTensor [Type]             -- a1 * .. * an
   | TSum Type Type             -- a + b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
@@ -90,7 +90,7 @@ add_detail d' (TExp n (t, d)) = TExp n (t, more_detailed d' d)
 data Pattern =
     PUnit                      -- <>
   | PVar Variable              -- x
-  | PPair Pattern Pattern      -- <p, q>
+  | PTuple [Pattern]           -- <p1, .. , pn>
   | PLocated Pattern Extent    -- p @ ex
   deriving Show 
 
@@ -105,7 +105,7 @@ data Expr =
   | EFun Pattern Expr                   -- fun p -> t
   | ELet Pattern Expr Expr              -- let p = e in f
   | EApp Expr Expr                      -- t u
-  | EPair Expr Expr                     -- <t, u>
+  | ETuple [Expr]                       -- <t1, .. , tn>
   | EIf Expr Expr Expr                  -- if e then f else g
   | EInjL Expr                          -- injl e
   | EInjR Expr                          -- injr e
@@ -138,7 +138,13 @@ lintype_unifier _ (TQbit, _) = (TQbit, NoInfo)
 lintype_unifier (TVar _, _) t = t
 lintype_unifier t (TVar _, _) = t
 lintype_unifier (TArrow t u, _) (TArrow t' u', _) = (TArrow (type_unifier t t') (type_unifier u u'), NoInfo)
-lintype_unifier (TTensor t u, _) (TTensor t' u', _) = (TTensor (type_unifier t t') (type_unifier u u'), NoInfo)
+lintype_unifier (TTensor tlist, _) (TTensor tlist', _) =
+  case (tlist, tlist') of
+    ([], []) -> (TTensor [], NoInfo)
+    (t:rest, t':rest') ->
+      let u = type_unifier t t'
+          (TTensor urest, _) = lintype_unifier (TTensor rest, NoInfo) (TTensor rest', NoInfo) in
+      (TTensor (u:urest), NoInfo)
 lintype_unifier (TSum t u, _) (TSum t' u', _) = (TSum (type_unifier t t') (type_unifier u u'), NoInfo)
 lintype_unifier (TCirc t u, _) (TCirc t' u', _) = (TCirc (type_unifier t t') (type_unifier u u'), NoInfo)
 
@@ -183,7 +189,7 @@ instance PPrint Flag where
 
 instance Param LinType where
   free_var (TVar x, _) = [x]
-  free_var (TTensor t u, _) = List.union (free_var t) (free_var u)
+  free_var (TTensor tlist, _) = List.foldl (\fv t -> List.union (free_var t) fv) [] tlist
   free_var (TArrow t u, _) = List.union (free_var t) (free_var u)
   free_var (TSum t u, _) = List.union (free_var t) (free_var u)
   free_var (TCirc t u, _) = List.union (free_var t) (free_var u)
@@ -195,7 +201,7 @@ instance Param LinType where
   subs_var _ _ (TBool, d) = (TBool, d)
   subs_var a b (TArrow t u, d) = (TArrow (subs_var a b t) (subs_var a b u), d)
   subs_var a b (TSum t u, d) = (TSum (subs_var a b t) (subs_var a b u), d)
-  subs_var a b (TTensor t u, d) = (TTensor (subs_var a b t) (subs_var a b u), d)
+  subs_var a b (TTensor tlist, d) = (TTensor $ List.map (subs_var a b) tlist, d)
   subs_var a b (TCirc t u, d) = (TCirc (subs_var a b t) (subs_var a b u), d)
 
 instance Eq LinSType where
@@ -203,7 +209,7 @@ instance Eq LinSType where
   (==) TUnit TUnit = True
   (==) TBool TBool = True
   (==) TQbit TQbit = True
-  (==) (TTensor t u) (TTensor t' u') = (t == t') && (u == u')
+  (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
   (==) (TSum t u) (TSum t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
@@ -217,16 +223,17 @@ instance PPrint LinType where
   sprintn _ (TQbit, _) = "qbit"
   sprintn (Nth 0) _ = "..."
 
-  sprintn lv (TTensor a b, _) =
+  sprintn lv (TTensor (a:rest), _) =
     let dlv = decr lv in
     (case a of
        TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
-       TExp _ (TTensor _ _, _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " * " ++
-    (case b of
-       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv b ++ ")"
-       TExp _ (TTensor _ _, _) -> "(" ++ sprintn dlv b ++ ")"
-       _ -> sprintn dlv b)
+       TExp _ (TTensor _, _) -> "(" ++ sprintn dlv a ++ ")"
+       _ -> sprintn dlv a) ++
+    List.foldl (\s b -> s ++ " * " ++
+                  (case b of
+                     TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv b ++ ")"
+                     TExp _ (TTensor _, _) -> "(" ++ sprintn dlv b ++ ")"
+                     _ -> sprintn dlv b)) "" rest
 
   sprintn lv (TArrow a b, _) =
     let dlv = decr lv in
@@ -268,7 +275,7 @@ instance PPrint Type where
       pf ++ sprintn lv a
     else
       pf ++ (case a of
-               (TTensor _ _, _) -> "(" ++ sprintn lv a ++ ")"
+               (TTensor _, _) -> "(" ++ sprintn lv a ++ ")"
                (TArrow _ _, _) -> "(" ++ sprintn lv a ++ ")"
                _ -> sprintn lv a)
  
@@ -283,7 +290,7 @@ instance PPrint Type where
 instance Param Pattern where
   free_var PUnit = []
   free_var (PVar x) = [x]
-  free_var (PPair p q) = List.union (free_var p) (free_var q)
+  free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
 
   subs_var _ _ p = p
 
@@ -293,9 +300,9 @@ instance PPrint Pattern where
   sprintn _ PUnit = "<>"
   sprintn (Nth 0) _ = "..."
 
-  sprintn lv (PPair a b) =
+  sprintn lv (PTuple (p:rest)) =
     let dlv = decr lv in
-    "<" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ">"
+    "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -322,8 +329,8 @@ instance Param Expr where
   free_var (EApp e f) =
     List.union (free_var e) (free_var f)
 
-  free_var (EPair e f) =
-    List.union (free_var e) (free_var f)
+  free_var (ETuple elist) =
+    List.foldl (\fv e -> List.union (free_var e) fv) [] elist
 
   free_var (EIf e f g) =
     List.union (List.union (free_var e) (free_var f)) (free_var g)
@@ -360,8 +367,9 @@ indent_sprintn lv ind (ELet p e f) =
   "let " ++ pprint p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
   ind ++ indent_sprintn dlv ind f
 
-indent_sprintn lv ind (EPair e f) =
-  "<" ++ indent_sprintn (decr lv) ind e ++ ", " ++ indent_sprintn (decr lv) ind f ++ ">"
+indent_sprintn lv ind (ETuple (e:rest)) =
+  let dlv = decr lv in
+  "<" ++ indent_sprintn dlv ind e ++ List.foldl (\s f -> ", " ++ indent_sprintn dlv ind f) "" rest ++ ">"
 
 indent_sprintn lv ind (EApp e f) =
   let dlv = decr lv in

@@ -51,7 +51,7 @@ Atom_type : VAR                          { locate (TVar $ snd $1) $ fst $1 }
           | '(' ')'                      { locate TUnit (fromto $1 $2) }
 
 Type : Atom_type                         { $1 }
-     | Type '*' Type                     { locate_opt (TTensor $1 $3) (fromto_opt (location $1) (location $3)) }
+     | Type '*' Type                     { locate_opt (TTensor [$1, $3]) (fromto_opt (location $1) (location $3)) }
      | Type ARROW Type                   { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
      | '!' Type                          { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
 
