@@ -120,6 +120,7 @@ Pattern :
     | '<' Pattern_sep_list '>'           { locate (PTuple $2) (fromto $1 $3) }
     | DATACON Pattern                    { locate_opt (PData (snd $1) $2) (fromto_opt (Just $ fst $1) (location $2)) }
     | '<' '>'                            { locate PUnit (fromto $1 $2) }
+    | '(' Pattern ')'                    { $2 }
 
 
 Pattern_list :
@@ -144,6 +145,7 @@ Matching_list :
 Type :
       BOOL                                      { locate TBool $1 }
     | QBIT                                      { locate TQBit $1 }
+    | VAR                                       { locate (TVar $ snd $1) (fst $1) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }
     | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
     | Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }

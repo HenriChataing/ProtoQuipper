@@ -39,15 +39,23 @@ import qualified Data.List as List
 
 -- | Import the type definitions in the current state
 -- The data constructors are labelled during this operation, and included in the field datacons of the state
+-- User types are added the same, with an id set to -1 to distinguish them from other type variables
 import_typedefs :: [S.Typedef] -> QpState (Map String Int)
 import_typedefs typedefs = do
+  -- Import the names of the types in the current labelling map
+  -- This operation permits the writing of inductive types
+  m <- List.foldl (\rec (S.Typedef typename _) -> do
+                     m <- rec
+                     return $ Map.insert typename (-1) m) (return Map.empty) typedefs
+
+  -- Transcribe the rest of the type definitions
   List.foldl (\rec (S.Typedef typename dlist) -> do
                 m <- rec
                 List.foldl (\rec (dcon, dtype) -> do
                               m <- rec
-                              dtype' <- translate_type dtype
+                              dtype' <- translate_type_with_label dtype m
                               id <- register_datacon dcon typename dtype'
-                              return $ Map.insert dcon id m) (return m) dlist) (return Map.empty) typedefs 
+                              return $ Map.insert dcon id m) (return m) dlist) (return m) typedefs 
 
 
 -- | Translate a type, given a labelling
@@ -63,12 +71,15 @@ translate_type_with_label S.TQBit _ = do
 
 translate_type_with_label (S.TVar x) label = do
   case Map.lookup x label of
+    Just (-1) ->
+        return $ TExp 0 (TUser x, NoInfo)
+
     Just id ->
         return $ TExp 0 (TVar id, NoInfo)
 
     Nothing ->
         -- This could be a user defined type : need to add a check
-        fail "Unbound type variable"
+        fail ("Unbound type variable: " ++ x)
 
 translate_type_with_label (S.TArrow t u) label = do
   t' <- translate_type_with_label t label
