@@ -51,11 +51,11 @@ more_detailed _ d = d
 -- Simple type
 data LinSType =
     TVar Variable              -- a
+  | TUser String               -- user defined type
   | TBool                      -- bool
   | TUnit                      -- 1
   | TQbit                      -- qbit
   | TTensor [Type]             -- a1 * .. * an
-  | TSum Type Type             -- a + b
   | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
   | TLocated LinType Extent    -- t @ ex
@@ -87,10 +87,13 @@ add_detail d' (TExp n (t, d)) = TExp n (t, more_detailed d' d)
                                                  e
 -}
 
+type Datacon = Int
+
 data Pattern =
     PUnit                      -- <>
   | PVar Variable              -- x
   | PTuple [Pattern]           -- <p1, .. , pn>
+  | PData Datacon Pattern      -- datacon p
   | PLocated Pattern Extent    -- p @ ex
   deriving Show 
 
@@ -99,22 +102,20 @@ data Pattern =
 -}
 
 data Expr =
-    EUnit                               -- *
-  | EBool Bool                          -- True / False
-  | EVar Variable                       -- x
-  | EFun Pattern Expr                   -- fun p -> t
-  | ELet Pattern Expr Expr              -- let p = e in f
-  | EApp Expr Expr                      -- t u
-  | ETuple [Expr]                       -- <t1, .. , tn>
-  | EIf Expr Expr Expr                  -- if e then f else g
-  | EInjL Expr                          -- injl e
-  | EInjR Expr                          -- injr e
-  | EMatch Expr (Pattern, Expr) (Pattern, Expr)
-                                        -- match e with (x -> f | y -> g)
-  | EBox Type                           -- box[T]
-  | EUnbox                              -- unbox t
-  | ERev                                -- rev
-  | ELocated Expr Extent                -- e @ ex
+    EUnit                                         -- <>
+  | EBool Bool                                    -- True / False
+  | EVar Variable                                 -- x
+  | EFun Pattern Expr                             -- fun p -> t
+  | ELet Pattern Expr Expr                        -- let p = e in f
+  | EApp Expr Expr                                -- t u
+  | ETuple [Expr]                                 -- <t1, .. , tn>
+  | EIf Expr Expr Expr                            -- if e then f else g
+  | EData Datacon Expr                            -- injl e
+  | EMatch Expr [(Pattern, Expr)]                 -- match e with (x -> f | y -> g)
+  | EBox Type                                     -- box[T]
+  | EUnbox                                        -- unbox t
+  | ERev                                          -- rev
+  | ELocated Expr Extent                          -- e @ ex
   deriving Show
 
 {-
@@ -135,6 +136,8 @@ lintype_unifier (TBool, _) _ = (TBool, NoInfo)
 lintype_unifier _ (TBool, _) = (TBool, NoInfo)
 lintype_unifier (TQbit, _) _ = (TQbit, NoInfo)
 lintype_unifier _ (TQbit, _) = (TQbit, NoInfo)
+lintype_unifier (TUser n, _) _ = (TUser n, NoInfo)
+lintype_unifier _ (TUser n, _) = (TUser n, NoInfo)
 lintype_unifier (TVar _, _) t = t
 lintype_unifier t (TVar _, _) = t
 lintype_unifier (TArrow t u, _) (TArrow t' u', _) = (TArrow (type_unifier t t') (type_unifier u u'), NoInfo)
@@ -145,7 +148,6 @@ lintype_unifier (TTensor tlist, _) (TTensor tlist', _) =
       let u = type_unifier t t'
           (TTensor urest, _) = lintype_unifier (TTensor rest, NoInfo) (TTensor rest', NoInfo) in
       (TTensor (u:urest), NoInfo)
-lintype_unifier (TSum t u, _) (TSum t' u', _) = (TSum (type_unifier t t') (type_unifier u u'), NoInfo)
 lintype_unifier (TCirc t u, _) (TCirc t' u', _) = (TCirc (type_unifier t t') (type_unifier u u'), NoInfo)
 
 type_unifier (TExp m t) (TExp _ u) = TExp m $ lintype_unifier t u
@@ -191,7 +193,6 @@ instance Param LinType where
   free_var (TVar x, _) = [x]
   free_var (TTensor tlist, _) = List.foldl (\fv t -> List.union (free_var t) fv) [] tlist
   free_var (TArrow t u, _) = List.union (free_var t) (free_var u)
-  free_var (TSum t u, _) = List.union (free_var t) (free_var u)
   free_var (TCirc t u, _) = List.union (free_var t) (free_var u)
   free_var _ = []
 
@@ -200,7 +201,6 @@ instance Param LinType where
   subs_var _ _ (TUnit, d) = (TUnit, d)
   subs_var _ _ (TBool, d) = (TBool, d)
   subs_var a b (TArrow t u, d) = (TArrow (subs_var a b t) (subs_var a b u), d)
-  subs_var a b (TSum t u, d) = (TSum (subs_var a b t) (subs_var a b u), d)
   subs_var a b (TTensor tlist, d) = (TTensor $ List.map (subs_var a b) tlist, d)
   subs_var a b (TCirc t u, d) = (TCirc (subs_var a b t) (subs_var a b u), d)
 
@@ -211,7 +211,6 @@ instance Eq LinSType where
   (==) TQbit TQbit = True
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
-  (==) (TSum t u) (TSum t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
   (==) _ _ = False
 
@@ -221,6 +220,7 @@ instance PPrint LinType where
   sprintn _ (TUnit, _) = "T"
   sprintn _ (TBool, _) = "bool"
   sprintn _ (TQbit, _) = "qbit"
+  sprintn _ (TUser n, _) = n
   sprintn (Nth 0) _ = "..."
 
   sprintn lv (TTensor (a:rest), _) =
@@ -240,13 +240,6 @@ instance PPrint LinType where
     (case a of
        TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
        _ -> sprintn dlv a) ++ " -> " ++
-    sprintn dlv b
-
-  sprintn lv (TSum a b, _) =
-    let dlv = decr lv in
-    (case a of
-       TExp _ (TSum _ _, _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " + " ++
     sprintn dlv b
 
   sprintn lv (TCirc a b, _) =
@@ -290,7 +283,9 @@ instance PPrint Type where
 instance Param Pattern where
   free_var PUnit = []
   free_var (PVar x) = [x]
+  free_var (PData _ p) = free_var p
   free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
+  free_var (PLocated p _) = free_var p
 
   subs_var _ _ p = p
 
@@ -303,6 +298,12 @@ instance PPrint Pattern where
   sprintn lv (PTuple (p:rest)) =
     let dlv = decr lv in
     "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
+
+  sprintn lv (PData dcon p) =
+    subvar 'D' dcon ++ "(" ++ sprintn (decr lv) p ++ ")"
+
+  sprintn lv (PLocated p _) =
+    sprintn lv p
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -335,17 +336,17 @@ instance Param Expr where
   free_var (EIf e f g) =
     List.union (List.union (free_var e) (free_var f)) (free_var g)
 
-  free_var (EInjL e) = free_var e
-  free_var (EInjR e) = free_var e
+  free_var (EData _ e) = free_var e
 
-  free_var (EMatch e (p, f) (q, g)) =
-    let fve = free_var e
-        fvf = free_var f
-        fvg = free_var g
-        fvp = free_var p
-        fvq = free_var q in
-    List.union fve (List.union (fvf \\ fvp) (fvg \\ fvq))
+  free_var (EMatch e blist) =
+    let fvlist = List.foldl (\fv (p, f) ->
+                               List.union (free_var f \\ free_var p) fv) [] blist
+        fve = free_var e in
+    List.union fve fvlist
   
+  free_var (ELocated e _) =
+    free_var e
+
   free_var _ =
     []
 
@@ -402,17 +403,17 @@ indent_sprintn _ _ EUnbox =
 indent_sprintn _ _ ERev =
   "rev"
 
-indent_sprintn lv ind (EInjL e) =
-  "injl(" ++ indent_sprintn (decr lv) ind e ++ ")"
+indent_sprintn lv ind (EData datacon e) =
+  subvar 'D' datacon ++ "(" ++ indent_sprintn (decr lv) ind e ++ ")"
 
-indent_sprintn lv  ind (EInjR e) =
-  "injr(" ++ indent_sprintn (decr lv) ind e ++ ")"
-
-indent_sprintn lv ind (EMatch e (p, f) (q, g)) =
+indent_sprintn lv ind (EMatch e  blist) =
   let dlv = decr lv in
   "match " ++ indent_sprintn dlv ind e ++ " with\n" ++
-  ind ++ "  | " ++ pprint p ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") f ++ "\n" ++
-  ind ++ "  | " ++ pprint q ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") g
+    List.foldl (\s (p, f) ->
+                  s ++ ind ++ "  " ++ sprintn dlv p ++  " -> " ++ indent_sprintn dlv (ind ++ "  ") f ++ "\n") "" blist
+
+indent_sprintn lv ind (ELocated e _) =
+  indent_sprintn lv ind e
 
 instance PPrint Expr where
   sprintn lv e = indent_sprintn lv "" e

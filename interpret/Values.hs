@@ -13,7 +13,6 @@ import Utils
 import QpState
 
 import CoreSyntax
-import TransSyntax
 
 import Circuits
 import Gates
@@ -33,8 +32,7 @@ data Value =
   | VUnbox                               -- unbox
   | VUnboxed Value                       -- unbox (t, c, u)
   | VUnit                                -- <>
-  | VInjL Value                          -- injl e
-  | VInjR Value                          -- injr e
+  | VData Datacon Value                  -- datacon e
   | VRev                                 -- rev
   | VQbit Int                            -- Quantum addresses
   deriving Show
@@ -50,8 +48,7 @@ instance PPrint Value where
   pprint (VTuple (v:rest)) = "<" ++ pprint v ++ List.foldl (\s w -> s ++ ", " ++ pprint w) "" rest ++ ">"
   pprint (VCirc _ c _) = pprint c
   pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
-  pprint (VInjL e) = "injl(" ++ pprint e ++ ")"
-  pprint (VInjR e) = "injr(" ++ pprint e ++ ")"
+  pprint (VData datacon e) = subvar 'D' datacon ++ "(" ++ pprint e ++ ")"
   pprint (VUnboxed c) = "unbox (" ++ pprint c ++ ")"
 
   sprint v = pprint v
@@ -66,28 +63,28 @@ instance PPrint Value where
 gate_values :: QpState [(Int, Value)]
 gate_values = do
   -- Creation of the init gates
-  linit0 <- find_name "INIT0"
-  linit1 <- find_name "INIT1"
+  linit0 <- gate_id "INIT0"
+  linit1 <- gate_id "INIT1"
   init_values <- return [(linit0, VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQbit 0)),
                          (linit1, VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQbit 0)) ]
 
   -- Creation of the term gates
-  lterm0 <- find_name "TERM0"
-  lterm1 <- find_name "TERM1"
+  lterm0 <- gate_id "TERM0"
+  lterm1 <- gate_id "TERM1"
   term_values <- return [(lterm0, VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit),
                          (lterm1, VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit) ]
 
   -- Creation of the unary gates
   unary_values <- List.foldl (\rec s -> do
                                 r <- rec
-                                lbl <- find_name s
+                                lbl <- gate_id s
                                 g <- return (lbl, VCirc (VQbit 0) (Circ { qIn = [0], gates = [ Unary s 0 ], qOut = [0] }) (VQbit 0))
                                 return (g:r)) (return []) unary_gates
 
   -- Creation of the binary gates
   binary_values <- List.foldl (\rec s -> do
                                  r <- rec
-                                 lbl <- find_name s
+                                 lbl <- gate_id s
                                  g <- return (lbl, VCirc (VTuple [VQbit 0, VQbit 1])
                                                          (Circ { qIn = [0, 1], gates = [ Binary s 0 1 ], qOut = [0, 1] })
                                                          (VTuple [VQbit 0, VQbit 1]))
@@ -95,4 +92,3 @@ gate_values = do
 
   -- Return the whole
   return $ init_values ++ term_values ++ unary_values ++ binary_values
-

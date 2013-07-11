@@ -137,13 +137,53 @@ bind_pattern (PTuple plist) (VTuple vlist) env = do
 bind_pattern PUnit VUnit env = do
   return env
 
+bind_pattern (PData dcon p) (VData dcon' v) env = do
+  if dcon == dcon' then
+    bind_pattern p v env
+  else
+    throw $ MatchingError (sprint $ PData dcon p) (sprint $ VData dcon' v)
+
 bind_pattern (PLocated p ex) v env = do
   set_location ex
   bind_pattern p v env
 
-bind_pattern p q _ = do
-  throw $ MatchingError (sprint p) (sprint q)
+bind_pattern p v _ = do
+  throw $ MatchingError (sprint p) (sprint v)
 
+
+-- | Try matching a pattern and a value. Return True if the value matches, else False
+match_value :: Pattern -> Value -> Bool
+match_value (PVar _) _  =
+  True
+
+match_value (PTuple plist) (VTuple vlist) = 
+  let match_list = (\plist vlist ->
+                      case (plist, vlist) of
+                        ([], []) ->
+                            True
+                        (p:prest, v:vrest) ->
+                            if match_value p v then
+                              match_list prest vrest
+                            else
+                              False
+                        _ ->
+                            False) in
+  match_list plist vlist
+
+match_value PUnit VUnit =
+  True
+
+match_value (PData dcon p) (VData dcon' v) =
+  if dcon == dcon' then
+    match_value p v
+  else
+    False
+
+match_value (PLocated p _) v =
+  match_value p v
+
+match_value _ _ =
+  False
 
 -- | Extract the list of associations qbit <-> qbit introduced by the matching
 -- of the two argument values
@@ -323,27 +363,24 @@ interpret env (EApp ef arg) = do
   do_application env f x
 
 -- Patterns and pattern matching
-interpret env (EInjL e) = do
+interpret env (EData datacon e) = do
   v <- interpret env e
-  return (VInjL v)
+  return (VData datacon v)
 
-interpret env (EInjR e) = do
-  v <- interpret env e
-  return (VInjR v)
-
-interpret env (EMatch e (p, f) (q, g)) = do
-  v <- interpret env e
-  case v of
-    VInjL w -> do
-        ev <- bind_pattern p w env
-        interpret ev f
-
-    VInjR w -> do
-        ev <- bind_pattern q w env
-        interpret ev g
-
-    _ -> do
-        throw $ NotUnionError (sprint v)
+interpret env (EMatch e blist) = do
+  let match = (\ex v blist ->
+                 case blist of
+                   [] ->
+                       throw $ NoMatchError (sprint v) ex
+                   ((p, f):rest) -> do
+                       if match_value p v then do
+                         ev <- bind_pattern p v env
+                         interpret ev f
+                       else
+                         match ex v rest) in do
+    ex <- get_location
+    v <- interpret env e
+    match ex v blist
 
 -- Pairs
 interpret env (ETuple elist) = do

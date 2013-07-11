@@ -6,24 +6,37 @@ module Namespace where
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
--- | The definition of the namespace includes a mapping from ids to strings recording
--- the original names, and a counter to generate new ids
+-- | The definition of the namespace includes two mappings from ids to strings recording the original names, one for
+-- term variables, one for data constructors
 data Namespace = NSpace {
-  consing :: IntMap String,
-  counter :: Int
+  varcons :: IntMap String,
+  datacons :: IntMap String,
+
+  vargen :: Int,
+  datagen :: Int
 }
 
 
 -- | Create a new namespace, with the counter initialized to zero, and the consing map empty
 new_namespace :: Namespace
 new_namespace = NSpace {
-  consing = IMap.empty,
-  counter = 0
+  varcons = IMap.empty,
+  datacons = IMap.empty,
+
+  vargen = 0,
+  datagen = 0
 }
 
 
 -- | Register a new variable
-register :: String -> Namespace -> (Int, Namespace)
-register s namespace =
-  let id = counter namespace in
-  (id, namespace { consing = IMap.insert id s $ consing namespace, counter = id+1 }) 
+register_var :: String -> Namespace -> (Int, Namespace)
+register_var s namespace =
+  let id = vargen namespace in
+  (id, namespace { varcons = IMap.insert id s $ varcons namespace, vargen = id+1 })
+
+
+-- | Register a new data constructor
+register_datacon :: String -> Namespace -> (Int, Namespace)
+register_datacon s namespace =
+  let id = datagen namespace in
+  (id, namespace { datacons = IMap.insert id s $ datacons namespace, datagen = id+1 })

@@ -7,10 +7,17 @@ import Data.Char
 import Data.Map
 import Data.List as List
 
----------------------------------
--- Representation of Quipper's --
--- types                       --
+-- | A data constructor is defined by its name
+type Datacon = String
 
+
+-- | Type declarations
+-- For now, types takes no type argument
+-- The definition is a list of pairs datacon * type
+data Typedef = Typedef String [(Datacon, Type)]
+
+
+-- | Definition of types
 data Type =
     TVar String               -- a
   | TUnit                     -- T
@@ -18,44 +25,44 @@ data Type =
   | TQBit                     -- qbit
   | TCirc Type Type           -- circ (A, B)
   | TTensor [Type]            -- A1 * .. * An
-  | TSum Type Type            -- A + B
   | TArrow Type Type          -- A -> B
   | TExp Type                 -- !A
+  | TApp Type Type            -- generic types specialization
   | TLocated Type Extent      -- A @ ex
   deriving Show
 
----------------------------------
--- Representation of patterns  --
 
+-- | Definition of patterns
+-- Note : - the tuples are required to have a size >= 2. This much is enforced by the parsing grammar,
+-- the program must be cautious not to change it
+--        - should PUnit be written as PTuple [] ?
 data Pattern =
-    PUnit                     -- *
+    PUnit                     -- <>
   | PVar String               -- x
   | PTuple [Pattern]          -- <x1, .., xn>
+  | PData Datacon Pattern     -- datacon (p)
   | PConstraint Pattern Type  -- (x : A)
   | PLocated Pattern Extent   -- x @ ex
   deriving Show
 
----------------------------------
--- Quipper's terms             --
 
+-- | Definition of terms
 data Expr =
-    EUnit                     -- *
-  | EConstraint Expr Type     -- (e : A)
-  | EVar String               -- x  
-  | EFun Pattern Expr         -- fun p -> e
-  | ELet Pattern Expr Expr    -- let p = e in f
-  | EApp Expr Expr            -- e f
-  | EBool Bool                -- true / false
-  | ETuple [Expr]             -- <e1, .., en>
-  | EInjL Expr                -- injl e
-  | EInjR Expr                -- injr e
-  | EMatch Expr [(Pattern, Expr)]
-                              -- match e with (x1 -> f1) (x2 -> f2) ...(xn -> fn)
-  | EBox Type                 -- box[A]
-  | EUnbox                    -- unbox
-  | EIf Expr Expr Expr        -- if e then f else g
-  | ERev                      -- rev
-  | ELocated Expr Extent      -- e @ ex
+    EUnit                          -- <>
+  | EVar String                    -- x  
+  | EFun Pattern Expr              -- fun p -> e
+  | ELet Pattern Expr Expr         -- let p = e in f
+  | EApp Expr Expr                 -- e f
+  | EBool Bool                     -- true / false
+  | ETuple [Expr]                  -- <e1, .., en>
+  | EData String Expr              -- datacon e
+  | EMatch Expr [(Pattern, Expr)]  -- match e with (x1 -> f1) (x2 -> f2) ...(xn -> fn)
+  | EBox Type                      -- box[A]
+  | EUnbox                         -- unbox
+  | EIf Expr Expr Expr             -- if e then f else g
+  | ERev                           -- rev
+  | EConstraint Expr Type          -- (e : A)
+  | ELocated Expr Extent           -- e @ ex
   deriving Show
 
 
@@ -69,52 +76,11 @@ data Expr =
      -- Eq
 
    Functions declared :
-     -- stripExp :: Type -> Type
-     -- stripExpRec :: Type -> Type
-     -- reduceExp :: Type -> Type
-     -- reduceExpRec :: Type -> Type
      -- extractVariables :: Type -> [String]
      -- subst :: String -> Type -> Type -> Type
      -- substAll :: Map String Type -> Type -> Type
      -- appSubst :: Map String Type -> Type -> Type
 -}
-
-
--- Remove all ! annotations from type (not recursive)
-stripExp :: Type -> Type
-------------------------
-stripExp (TExp t) = stripExp t
-stripExp (TLocated t ex) = TLocated (stripExp t) ex
-stripExp t = t
-
--- Recursively remove all ! annotations
-stripExpRec :: Type -> Type
----------------------------
-stripExpRec (TLocated a ex) = TLocated (stripExpRec a) ex
-stripExpRec (TExp a) = stripExpRec a
-stripExpRec (TTensor tlist) = TTensor $ List.map stripExpRec tlist
-stripExpRec (TCirc a b) = TCirc (stripExpRec a) (stripExpRec b)
-stripExpRec (TArrow a b) = TArrow (stripExpRec a) (stripExpRec b)
-stripExpRec (TSum a b) = TSum (stripExpRec a) (stripExpRec b)
-stripExpRec a = a
-
--- Reduce all ! annotations to one
-reduceExp :: Type -> Type
--------------------------
-reduceExp (TExp (TExp a)) = reduceExp (TExp a)
-reduceExp a = a
-
--- Recursively reduce all ! annotations
-reduceExpRec :: Type -> Type
-----------------------------
-reduceExpRec (TLocated t ex) = TLocated (reduceExpRec t) ex
-reduceExpRec (TExp (TExp a)) = reduceExpRec (TExp a)
-reduceExpRec (TExp a) = TExp (reduceExpRec a)
-reduceExpRec (TTensor tlist) = TTensor $ List.map reduceExpRec tlist
-reduceExpRec (TCirc a b) = TCirc (reduceExpRec a) (reduceExpRec b)
-reduceExpRec (TArrow a b) = TArrow (reduceExpRec a) (reduceExpRec b)
-reduceExpRec (TSum a b) = TSum (reduceExpRec a) (reduceExpRec b)
-reduceExpRec a = a
 
 -- Eq instance declaration of types
 -- The declaration takes into account the ismorphism : !! A = ! A
@@ -127,8 +93,7 @@ instance Eq Type where
   (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t1 t2) (TArrow t1' t2') = (t1 == t1') && (t2 == t2')
-  (==) (TSum t1 t2) (TSum t1' t2') = (t1 == t1') && (t2 == t2')
-  (==) (TExp t1) (TExp t2) = (stripExp t1 == stripExp t2)
+  (==) (TExp t1) (TExp t2) = (t1 == t2)
   (==) _ _ = False
 
 instance Located Type where
@@ -145,7 +110,6 @@ instance Located Type where
   clear_location (TCirc t u) = TCirc (clear_location t) (clear_location u)
   clear_location (TTensor tlist) = TTensor $ List.map clear_location tlist
   clear_location (TArrow t u) = TArrow (clear_location t) (clear_location u)
-  clear_location (TSum t u) = TSum (clear_location t) (clear_location u)
   clear_location (TExp t) = TExp (clear_location t)
   clear_location t = t
  
@@ -221,8 +185,7 @@ isValue (ETuple elist) = List.and $ List.map isValue elist
 isValue (EIf _ _ _) = False
 isValue (EApp _ _) = False
 isValue (ELet _ _ _) = False
-isValue (EInjL e) = isValue e
-isValue (EInjR e) = isValue e
+isValue (EData _ e) = isValue e
 isValue (EMatch _ _) = False
 isValue _ = True
 
@@ -244,8 +207,7 @@ instance Located Expr where
   clear_location (ETuple elist) = ETuple $ List.map clear_location elist
   clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
   clear_location (EBox t) = EBox (clear_location t)
-  clear_location (EInjL e) = EInjL (clear_location e)
-  clear_location (EInjR e) = EInjR (clear_location e)
+  clear_location (EData datacon e) = EData datacon (clear_location e)
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 
@@ -257,8 +219,7 @@ instance Constraint Expr where
   drop_constraints (EApp e1 e2) = EApp (drop_constraints e1) (drop_constraints e2)
   drop_constraints (ETuple elist) = ETuple $ List.map drop_constraints elist
   drop_constraints (EIf e1 e2 e3) = EIf (drop_constraints e1) (drop_constraints e2) (drop_constraints e3)
-  drop_constraints (EInjL e) = EInjL (drop_constraints e)
-  drop_constraints (EInjR e) = EInjR (drop_constraints e)
+  drop_constraints (EData datacon e) = EData datacon (drop_constraints e)
   drop_constraints (EMatch e plist) = EMatch (drop_constraints e) $ List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) plist
   drop_constraints e = e
 

@@ -44,18 +44,19 @@ tokens :-
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
   in                                  { locate_token TkIn }
-  left                                { locate_token TkInjL }
-  right                               { locate_token TkInjR }
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
+  of                                  { locate_token TkOf }
   qbit                                { locate_token TkQBit }
   rev                                 { locate_token TkRev }
   then                                { locate_token TkThen }
+  type                                { locate_token TkType }
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
   with                                { locate_token TkWith }
 
-  $alpha [$alpha $digit]*             { locate_named_token TkVar }
+  $low_alpha [$alpha $digit]*         { locate_named_token TkVar }
+  $up_alpha [$alpha $digit]*          { locate_named_token TkDatacon }
 
 {
 
@@ -70,8 +71,9 @@ posn_to_extent (AlexPn p l c) s =
 -- in the original file. This will later serve to locate the expressions parsed
 
 data Token =
-  -- Name tokens, for now only variables, later data constructors will be added
+  -- Name tokens : variables and data constructors
     TkVar (Extent, String)
+  | TkDatacon (Extent, String)
 
   -- Reserved notations : list of reserved names
   | TkBool Extent          | TkQBit Extent
@@ -79,11 +81,11 @@ data Token =
   | TkCirc Extent          | TkIf Extent
   | TkThen Extent          | TkElse Extent
   | TkMatch Extent         | TkWith Extent
-  | TkInjL Extent          | TkInjR Extent
   | TkTrue Extent          | TkFalse Extent
   | TkFun Extent           | TkDo Extent
   | TkLet Extent           | TkIn Extent
-  | TkRev Extent
+  | TkRev Extent           | TkType Extent
+  | TkOf Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent

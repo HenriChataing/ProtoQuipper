@@ -119,7 +119,11 @@ main = do
       contents <- readFile file
       tokens <- mylex file contents
       prog <- return (parse tokens)
-      coreprog <- return $ label_gates >>= (\_ -> translate_expression prog)
+      coreprog <- return $ translate_program prog
+
+      (_, pc) <- Q.runS (coreprog >>= (\c -> return $ pprint c)) Q.empty_context
+      putStrLn pc
+      hFlush stdout
 
       -- Actions
       if runInterpret opts then do

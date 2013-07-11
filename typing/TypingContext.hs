@@ -1,77 +1,174 @@
+-- | This module provides all the definitions and functions necessary to the manipulation of typing
+-- contexts. Typing context are represented as maps from term variables to types. Functions include
+-- union, partition, binding of var and patterns
+
 module TypingContext where
 
 import CoreSyntax
 
 import QpState
+import QuipperError
+import Utils
 
-import Data.Map as Map
+import Namespace
+
+import Subtyping
+
 import Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IMap
 
-{-
-   Haskell representation of a typing context, as a map of bindings variable <-> type
--}
+-- | Definition of a typing context as a map from term variables to types
+type TypingContext = IntMap Type
 
-type TypingContext = Map.Map Variable Type
 
-{-
-  Manipulation of the bindings (typing context) :
-  
-  - bind_var : add a new binding x <-> t in the context
-  - bind_pattern : add as many bindings as the free variables of the pattern in the current context
-
-  - type_of : returns the type assiociated with a variable (fails if the variable is not present in the context)
-
-  And more global functions, applying to the whole context :
-  - context_annotation : returns the vector of the flag annotations of the types in the context
-  - merge_contexts : merge two typing contexts, nothing is done to check duplicate variables
-  - split_context : split the context accordingly to a boolean function
--}
-
+-- | Add a binding to the context, from the variable x to the type t
 bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
-bind_pattern :: Pattern -> Type -> TypingContext -> QpState TypingContext
-type_of :: Variable -> TypingContext -> QpState Type
-
-context_annotation :: TypingContext -> QpState [(Variable, Flag)]
-merge_contexts :: TypingContext -> TypingContext -> QpState TypingContext
-split_context :: (Variable -> Bool) -> TypingContext -> QpState (TypingContext, TypingContext)
-sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingContext)
-----------------------------------------------------------------------------------
 bind_var x t ctx = do
-  return $ Map.insert x t ctx
+  return $ IMap.insert x t ctx
 
-bind_pattern PUnit (TExp _ (TUnit, _)) ctx = do
-  return ctx
 
-bind_pattern (PVar x) t ctx = do
-  bind_var x t ctx
-
-bind_pattern (PTuple plist) (TExp n (TTensor tlist, d)) ctx = do
-  case (plist, tlist) of
-    ([], []) ->
-        return ctx
-
-    (p:prest, t:trest) -> do
-        ctx' <- bind_pattern p t ctx
-        bind_pattern (PTuple prest) (TExp n (TTensor trest, d)) ctx'
-
-    _ ->
-        fail "Unequal pattern and type"
-
+-- | Retrieves a variable's type from the context
+-- This function is not suppose to fail, as the scope analysis should have
+-- been done during the translation to the interval syntax. If it does, it's
+-- a programming error
+type_of :: Variable -> TypingContext -> QpState Type
 type_of x ctx = do
-  case Map.lookup x ctx of
-    Just t -> return t
-    Nothing -> fail "Unbound variable"
+  case IMap.lookup x ctx of
+    Just t ->
+        return t
+    Nothing -> do
+        c <- get_context
+        ex <- get_location
+        case IMap.lookup x $ varcons $ namespace c of
+          Just name -> throwQ $ ProgramError $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
+          Nothing -> throwQ $ ProgramError $ "Unbound variable: " ++ subvar 'x' x ++ ": at extent " ++ show ex
 
 
+-- | Given a pattern, create a type matching the pattern, and binds the term variables of the pattern
+-- to new type variables, created as needed
+bind_pattern :: Pattern -> TypingContext -> QpState (Type, TypingContext, ConstraintSet)
+bind_pattern (PLocated p ex) ctx = do
+  set_location ex
+  bind_pattern p ctx
+
+bind_pattern PUnit ctx = do
+  ex <- get_location
+  detail <- return $ ActualOfP PUnit ex
+  return (TExp (-1) (TUnit, detail), ctx, ([], []))
+
+-- While binding variables, a new type is generated, and bound to x
+bind_pattern (PVar x) ctx = do
+  a <- fresh_type
+  n <- fresh_flag
+  ex <- get_location
+  detail <- return $ ActualOfP (PVar x) ex
+  ctx' <- bind_var x (TExp n (TVar a, detail)) ctx
+  return (TExp n (TVar a, detail), ctx', ([], []))
+
+bind_pattern (PTuple plist) ctx = do
+  ex <- get_location
+
+  (ptypes, ctx, (lc, fc)) <- List.foldr (\p rec -> do
+                                 (r, ctx, (lc, fc)) <- rec
+                                 (p', ctx, (lc', fc')) <- bind_pattern p ctx
+                                 return ((p':r), ctx, (lc++lc', fc++fc'))) (return ([], ctx, ([], []))) plist
+
+  n <- fresh_flag
+
+  pflags <- return $ List.foldl (\fgs (TExp f _) -> (n, f):fgs) [] ptypes
+
+  detail <- return $ ActualOfP (PTuple plist) ex
+  return (TExp n (TTensor ptypes, detail), ctx, (lc, pflags ++ fc))
+
+-- While binding datacons, a new type is generated for the inner one,
+-- with the condition that it is a subtype of the type required by the data constructor
+bind_pattern (PData dcon p) ctx = do
+  ex <- get_location
+  detail <- return $ ActualOfP (PData dcon p) ex
+  n <- fresh_flag
+  
+  (typename, dtype) <- datacon_def dcon
+  
+      -- Alternate version --
+  --(typep, ctx', (lc, fc)) <- bind_pattern p ctx
+  --return (TExp n (TUser typename, detail), ctx', ((NonLinear dtype typep):lc, fc))
+
+  (ctx', constraints) <- bind_pattern_to_type p dtype ctx
+  return (TExp n (TUser typename, detail), ctx', constraints)
+
+
+-- | This function does the same as bind_pattern, expect that it attempts to use the expected
+-- type to bind the pattern. This function is typically called while binding a data constructor :
+-- the data constructor except its own type, so rather than creating an entirely new one and saying
+-- that it must be a subtype of the required one, it is best to bind the pattern directly to this one
+bind_pattern_to_type :: Pattern -> Type -> TypingContext -> QpState (TypingContext, ConstraintSet)
+bind_pattern_to_type (PLocated p ex) t ctx = do
+  set_location ex
+  bind_pattern_to_type p t ctx
+
+bind_pattern_to_type (PVar x) t ctx = do
+  ctx' <- bind_var x t ctx
+  return (ctx', ([], []))
+
+bind_pattern_to_type PUnit t@(TExp _ (TUnit, _)) ctx = do
+  return (ctx, ([], []))
+
+bind_pattern_to_type (PTuple plist) (TExp n (TTensor tlist, d)) ctx =
+  let bind_list = (\plist tlist ctx ->
+                     case (plist, tlist) of 
+                       ([], []) ->
+                           return (ctx, ([], []))
+
+                       (p:prest, t:trest) -> do
+                           (ctx', (lc, fc)) <- bind_pattern_to_type p t ctx
+                           (ctx'', (lc', fc')) <- bind_list prest trest ctx'
+                           return (ctx'', (lc ++ lc', fc ++ fc'))
+
+                       -- In case the list are of unequal size
+                       _ ->
+                           fail "Unequal tuple / tensor")
+  in do
+    -- Apply the binding function to the list
+    (ctx', constraints) <- bind_list plist tlist ctx
+    return (ctx', constraints)
+
+bind_pattern_to_type (PData dcon p) (TExp _ (TUser tname, _)) ctx = do
+  (typename, dtype) <- datacon_def dcon
+  if typename == tname then
+    bind_pattern_to_type p dtype ctx
+  else
+    fail "Not same constructor type"
+
+bind_pattern_to_type _ _ _ = do
+  fail "Unmatching pattern / type"
+
+
+
+-- | Return the set of the annotation flags of the context
+context_annotation :: TypingContext -> QpState [(Variable, Flag)]
 context_annotation ctx = do
-  return $ Map.foldWithKey (\x (TExp f _) ann -> (x, f):ann) [] ctx
+  return $ IMap.foldWithKey (\x (TExp f _) ann -> (x, f):ann) [] ctx
 
+
+-- | Perform the union of two typing contexts
+merge_contexts :: TypingContext -> TypingContext -> QpState TypingContext
 merge_contexts ctx0 ctx1 = do
-  return $ Map.union ctx0 ctx1
+  return $ IMap.union ctx0 ctx1
 
+
+-- | Split the context according to a boolean function. The elements (keys) for which the function returns
+-- true are placed on the left, the others on the right
+split_context :: (Variable -> Bool) -> TypingContext -> QpState (TypingContext, TypingContext)
 split_context f ctx = do
-  return $ Map.partitionWithKey (\k _ -> f k) ctx
+  return $ IMap.partitionWithKey (\k _ -> f k) ctx
 
+
+-- | Similar to split_context, with the particular case of a function returning whether
+-- an element is or not in a set.
+sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingContext)
 sub_context set ctx =
   split_context (\x -> List.elem x set) ctx
 

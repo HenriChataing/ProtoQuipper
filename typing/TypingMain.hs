@@ -20,6 +20,7 @@ import TypeInference
 
 import Data.List as List
 import Data.Map as Map
+import Data.IntMap as IMap
 
 -- Import the gates into the current context
 gate_context :: [(String, S.Type)] -> QpState TypingContext
@@ -28,17 +29,17 @@ gate_context gates = do
   List.foldl (\rec (s, t) -> do
                 ctx <- rec
                 t' <- translate_type t
-                x <- label s
-                bind_var x t' ctx) (return Map.empty) gates
+                x <- gate_id s
+                bind_var x t' ctx) (return IMap.empty) gates
 
-full_inference :: S.Expr -> IO String
+full_inference :: ([S.Typedef], S.Expr) -> IO String
 ----------------------------------
-full_inference e =
+full_inference fprog =
 
   let run = do
+      prog <- translate_program fprog
       typctx <- gate_context typing_environment
-      prog <- translate_expression (drop_constraints $ clear_location e)
-
+  
       a <- new_type
       constraints <- constraint_typing typctx prog a
       non_composite <- break_composite constraints

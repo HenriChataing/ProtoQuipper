@@ -1,5 +1,4 @@
-module TransSyntax (translate_type, translate_pattern, translate_expression,
-                    label, label_gates, find_name) where
+module TransSyntax (translate_program, translate_type) where
 
 import Utils
 import Localizing
@@ -36,259 +35,220 @@ import qualified Data.List as List
   - find_tyep : same as find_name, but never fails, if the name isn't found, a new id is generated
 -}
 
-dummy_label :: QpState Int
-label :: String -> QpState Int
-label_type :: String -> QpState Int
-find_name :: String -> QpState Int
-find_type :: String -> QpState Int
-
-new_layer :: QpState ()
-drop_layer :: QpState ()
-----------------------
-dummy_label = QpState (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
-
-label s = QpState (\ctx -> case name_to_var ctx of
-                           [] ->
-                               return (ctx { var_id = (+1) $ var_id ctx,
-                                             name_to_var = [ Map.singleton s (var_id ctx) ],
-                                             var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, var_id ctx)
-                           toplayer:rest -> 
-                               return (ctx { var_id = (+1) $ var_id ctx,
-                                             name_to_var = (Map.insert s (var_id ctx) toplayer):rest,
-                                             var_to_name = Map.insert (var_id ctx) s $ var_to_name ctx }, var_id ctx))
-
-label_type s = QpState (\ctx -> case name_to_var ctx of
-                           [] ->
-                               return (ctx { type_id = (+1) $ type_id ctx,
-                                             name_to_var = [ Map.singleton s (type_id ctx) ] }, type_id ctx)
-                           toplayer:rest -> 
-                               return (ctx { var_id = (+1) $ var_id ctx,
-                                             name_to_var = (Map.insert s (var_id ctx) toplayer):rest }, type_id ctx))
-
--- Auxiliary function that looks for the variable in the successive layers
-find_rec :: String -> [Map.Map String Int] -> Maybe Int
-find_rec _ [] = Nothing
-find_rec s (top:rest) =
-  case Map.lookup s top of
-    Just x -> Just x
-    Nothing -> find_rec s rest
-
-find_name s = QpState (\ctx ->
-                      case find_rec s $ name_to_var ctx of
-                        Just x -> return (ctx, x)
-                        Nothing -> throw $ UnboundVariable s extent_unknown)
-
-find_type s = QpState (\ctx ->
-                      case find_rec s $ name_to_var ctx of
-                        Just x -> return (ctx, x)
-                        Nothing -> let QpState run = label_type s in
-                                   run ctx)
 
 
-new_layer =
-  QpState (\ctx -> return (ctx { name_to_var = Map.empty:(name_to_var ctx) }, ()))
+-- | Import the type definitions in the current state
+-- The data constructors are labelled during this operation, and included in the field datacons of the state
+import_typedefs :: [S.Typedef] -> QpState (Map String Int)
+import_typedefs typedefs = do
+  List.foldl (\rec (S.Typedef typename dlist) -> do
+                m <- rec
+                List.foldl (\rec (dcon, dtype) -> do
+                              m <- rec
+                              dtype' <- translate_type dtype
+                              id <- register_datacon dcon typename dtype'
+                              return $ Map.insert dcon id m) (return m) dlist) (return Map.empty) typedefs 
 
-drop_layer =
-  QpState (\ctx -> return (ctx { name_to_var = case name_to_var ctx of
-                                               [] -> []
-                                               _:rest -> rest }, ()))
 
-
-
-{-
-  Translation from surface syntax to core syntax, three functions provided :
- 
-  - translate_type
-  - translate_pattern
-  - translate_expression
-
-  which do as their name indicates
--}
-
-translate_type :: S.Type -> QpState Type
-translate_pattern :: S.Pattern -> QpState Pattern
-translate_expression :: S.Expr -> QpState Expr
--------------------------------------------
-translate_type S.TUnit = do
+-- | Translate a type, given a labelling
+translate_type_with_label :: S.Type -> Map String Int -> QpState Type
+translate_type_with_label S.TUnit _ = do
   return $ TExp (-1) (TUnit, NoInfo)
 
-translate_type S.TBool = do
+translate_type_with_label S.TBool _ = do
   return $ TExp (-1) (TBool, NoInfo)
 
-translate_type S.TQBit = do
+translate_type_with_label S.TQBit _ = do
   return $ TExp 0 (TQbit, NoInfo)
 
-translate_type (S.TVar x) = do
-  n <- find_type x
-  return $ TExp 0 (TVar n, NoInfo)
+translate_type_with_label (S.TVar x) label = do
+  case Map.lookup x label of
+    Just id ->
+        return $ TExp 0 (TVar id, NoInfo)
 
-translate_type (S.TArrow t u) = do
-  t' <- translate_type t
-  u' <- translate_type u
+    Nothing ->
+        -- This could be a user defined type : need to add a check
+        fail "Unbound type variable"
+
+translate_type_with_label (S.TArrow t u) label = do
+  t' <- translate_type_with_label t label
+  u' <- translate_type_with_label u label
   return $ TExp 0 (TArrow t' u', NoInfo)
 
-translate_type (S.TTensor tlist) = do
+translate_type_with_label (S.TTensor tlist) label = do
   tlist' <- List.foldr (\t rec -> do
                           r <- rec
-                          t' <- translate_type t
+                          t' <- translate_type_with_label t label
                           return (t':r)) (return []) tlist
   return $ TExp 0 (TTensor tlist', NoInfo)
 
-translate_type (S.TSum t u) = do
-  t' <- translate_type t
-  u' <- translate_type u
-  return $ TExp 0 (TSum t' u', NoInfo)
-
-translate_type (S.TExp t) = do
-  TExp _ t' <- translate_type t
+translate_type_with_label (S.TExp t) label = do
+  TExp _ t' <- translate_type_with_label t label
   return $ TExp 1 t'
 
-translate_type (S.TCirc t u) = do
-  t' <- translate_type t
-  u' <- translate_type u
+translate_type_with_label (S.TCirc t u) label = do
+  t' <- translate_type_with_label t label
+  u' <- translate_type_with_label u label
   return $ TExp (-1) (TCirc t' u', NoInfo)
 
-translate_type (S.TLocated t _) = do
-  translate_type t
+translate_type_with_label (S.TLocated t _) label = do
+  translate_type_with_label t label
 
-------------------------------
-translate_pattern S.PUnit = do
-  return PUnit
 
-translate_pattern (S.PVar v) = do
-  x <- label v
-  return (PVar x)
+-- | Same as the translate function above, but with an empty labelling map
+translate_type :: S.Type -> QpState Type
+translate_type t =
+  translate_type_with_label t Map.empty
 
-translate_pattern (S.PTuple plist) =  do
-  plist' <- List.foldr (\p rec -> do
-                          r <- rec
-                          p' <- translate_pattern p
-                          return (p':r)) (return []) plist
-  return (PTuple plist')
 
-translate_pattern (S.PLocated p ex) = do
-  p' <- translate_pattern p
-  return (PLocated p' ex)
+-- | Translate a pattern, given a labelling
+-- The map is updated, as the variables are bound in the pattern
+translate_pattern_with_label :: S.Pattern -> Map String Int -> QpState (Pattern, Map String Int)
+translate_pattern_with_label S.PUnit label = do
+  return (PUnit, label)
 
----------------------------------
--- Secifically translate a pattern matching
-translate_match x ((p, f):plist) = do
-  new_layer
-  p' <- translate_pattern p
-  f' <- translate_expression f
-  drop_layer
-  case plist of
-    [(q, g)] -> do
-        new_layer
-        q' <- translate_pattern q
-        g' <- translate_expression g
-        drop_layer
-        return (EMatch x (p', f') (q', g'))
-    _ -> do
-        y <- dummy_label
-        m <- translate_match (EVar y) plist
-        return (EMatch x (p', f') (PVar y, m))
+translate_pattern_with_label (S.PVar x) label = do
+  id <- register_var x
+  return (PVar id, Map.insert x id label)
 
-translate_expression S.EUnit = do
+translate_pattern_with_label (S.PTuple plist) label = do
+  (plist', lbl) <- List.foldr (\p rec -> do
+                                  (r, lbl) <- rec
+                                  (p', lbl') <- translate_pattern_with_label p lbl
+                                  return ((p':r), lbl')) (return ([], label)) plist
+  return (PTuple plist', lbl)
+
+translate_pattern_with_label (S.PData datacon p) label = do
+  case Map.lookup datacon label of
+    Just id -> do
+        (p', lbl) <- translate_pattern_with_label p label
+        return (PData id p', lbl)
+
+    Nothing -> do
+        ex <- get_location
+        throw $ UnboundDatacon datacon ex
+
+translate_pattern_with_label (S.PLocated p ex) label = do
+  set_location ex
+  (p', lbl) <- translate_pattern_with_label p label
+  return (PLocated p' ex, lbl)
+
+
+-- | Translate an expression, given a labelling map
+translate_expression_with_label :: S.Expr -> Map String Int -> QpState Expr
+translate_expression_with_label S.EUnit _ = do
   return EUnit
 
-translate_expression (S.EBool b) = do
-  return $ EBool b
+translate_expression_with_label (S.EBool b) _ = do
+  return (EBool b)
 
-translate_expression (S.EVar v) = do
-  x <- find_name v
-  return (EVar x)
+translate_expression_with_label (S.EVar x) label = do
+  case Map.lookup x label of
+    Just id ->
+        return (EVar id)
 
-translate_expression (S.EFun p e) = do
-  new_layer
-  p' <- translate_pattern p
-  e' <- translate_expression e
-  drop_layer
+    Nothing -> do
+        ex <- get_location
+        throw $ UnboundVariable x ex
+
+translate_expression_with_label (S.EFun p e) label = do
+  (p', lbl) <- translate_pattern_with_label p label
+  e' <- translate_expression_with_label e lbl
   return (EFun p' e')
 
-translate_expression (S.ELet p e f) = do
-  e' <- translate_expression e
-  new_layer
-  p' <- translate_pattern p
-  f' <- translate_expression f
-  drop_layer
+translate_expression_with_label (S.ELet p e f) label = do
+  e' <- translate_expression_with_label e label
+  (p', lbl) <- translate_pattern_with_label p label
+  f' <- translate_expression_with_label f lbl
   return (ELet p' e' f')
 
-translate_expression (S.EInjL e) = do
-  e' <- translate_expression e
-  return (EInjL e')
+translate_expression_with_label (S.EData datacon e) label = do
+  case Map.lookup datacon label of
+    Just id -> do
+        e' <- translate_expression_with_label e label
+        return (EData id e')
 
-translate_expression (S.EInjR e) = do
-  e' <- translate_expression e
-  return (EInjR e')
+    Nothing -> do
+        ex <- get_location
+        throw $ UnboundDatacon datacon ex
 
-translate_expression (S.EMatch e ((p, f):plist)) = do
-  e' <- translate_expression e
-  new_layer
-  p' <- translate_pattern p
-  f' <- translate_expression f
-  drop_layer
-  case plist of
-    [(q, g)] -> do
-        new_layer
-        q' <- translate_pattern q
-        g' <- translate_expression g
-        drop_layer
-        return (EMatch e' (p', f') (q', g'))
-    _ -> do
-        x <- dummy_label
-        m <- translate_match (EVar x) plist
-        return (EMatch e' (p', f') (PVar x, m))
+translate_expression_with_label (S.EMatch e blist) label = do
+  e' <- translate_expression_with_label e label
+  blist' <- List.foldr (\(p, f) rec -> do
+                          r <- rec
+                          (p', lbl) <- translate_pattern_with_label p label
+                          f' <- translate_expression_with_label f lbl
+                          return ((p', f'):r)) (return []) blist
+  return (EMatch e' blist')
 
-translate_expression (S.EApp e f) = do
-  e' <- translate_expression e
-  f' <- translate_expression f
+translate_expression_with_label (S.EApp e f) label = do
+  e' <- translate_expression_with_label e label
+  f' <- translate_expression_with_label f label
   return (EApp e' f')
 
-translate_expression (S.ETuple elist) = do
+translate_expression_with_label (S.ETuple elist) label = do
   elist' <- List.foldr (\e rec -> do
                           r <- rec
-                          e' <- translate_expression e
+                          e' <- translate_expression_with_label e label
                           return (e':r)) (return []) elist
   return (ETuple elist')
 
-translate_expression (S.EIf e f g) = do
-  e' <- translate_expression e
-  f' <- translate_expression f
-  g' <- translate_expression g
-  return $ EIf e' f' g'
+translate_expression_with_label (S.EIf e f g) label = do
+  e' <- translate_expression_with_label e label
+  f' <- translate_expression_with_label f label
+  g' <- translate_expression_with_label g label
+  return (EIf e' f' g')
 
-translate_expression (S.EBox t) = do
+translate_expression_with_label (S.EBox t) _ = do
   t' <- translate_type t
-  return $ EBox t'
+  return (EBox t')
 
-translate_expression S.EUnbox = do
-  return $ EUnbox
+translate_expression_with_label S.EUnbox _ = do
+  return EUnbox
 
-translate_expression S.ERev = do
+translate_expression_with_label S.ERev _ = do
   return ERev
 
-translate_expression (S.ELocated e ex) = do
-  e' <- translate_expression e
+translate_expression_with_label (S.ELocated e ex) label = do
+  set_location ex
+  e' <- translate_expression_with_label e label
   return $ ELocated e' ex
 
 
 -- Label the gates
-label_gates :: QpState ()
-label_gates = do
-  _ <- label "INIT0"
-  _ <- label "INIT1"
-  _ <- label "TERM0"
-  _ <- label "TERM1"
+import_gates :: QpState (Map String Int)
+import_gates = do
+  li0 <- register_var "INIT0"
+  li1 <- register_var "INIT1"
+  ti0 <- register_var "TERM0"
+  ti1 <- register_var "TERM1"
 
-  List.foldl (\rec g -> do
-                rec
-                _ <- label g
-                return ()) (return ()) unary_gates
+  m <- return $ Map.fromList [("INIT0", li0), ("INIT1", li1), ("TERM0", ti0), ("TERM1", ti1)]
+
+  m' <- List.foldl (\rec g -> do
+                      m <- rec
+                      id <- register_var g
+                      return $ Map.insert g id m) (return m) unary_gates
   
   List.foldl (\rec g -> do
-                rec
-                _ <- label g
-                return ()) (return ()) binary_gates
+                m <- rec
+                id <- register_var g
+                return $ Map.insert g id m) (return m') binary_gates
+
+
+-- | Translate a whole program
+-- Proceeds in three steps:
+--   Import the type definitions
+--   Import the gates
+--   Translate the expression body
+translate_program :: ([S.Typedef], S.Expr) -> QpState Expr
+translate_program (typedefs, body) = do
+  dcons <- import_typedefs typedefs
+
+  gates <- import_gates
+  ctx <- get_context
+  set_context $ ctx { gatesid = gates }
+
+  translate_expression_with_label body (Map.union dcons gates)
 
 

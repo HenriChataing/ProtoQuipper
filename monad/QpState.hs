@@ -15,9 +15,11 @@ import System.IO
 
 import Control.Exception as E
 
-import LayeredMap (LayeredMap)
-import qualified LayeredMap as LMap
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IMap
+import Data.Map (Map)
 import qualified Data.Map as Map
+
 import Data.List as List
 import Data.Array as Array
 import qualified Data.Set as Set
@@ -49,21 +51,24 @@ write_log logfile lvl s = do
 --   A logfile, used for regular and debug printing
 --   Information relevant to the original expression (location in file, sample of the current expression)
 --   A namespace to record the variables of the original expression
+--   The definition of the user types : recorded as a map from datacons to : the argument type, the data type it is part of
 --   For the interpretation : an evaluation context including the current circuit and mappings
 
 data Context = Ctx {
   
   logfile :: Logfile,
-  location :: Extent,
+  location :: Extent,  
   namespace :: Namespace,
-   
+
+  datacons :: IntMap (String, Type),
+  gatesid :: Map String Int,
+
   circuits :: [Circuit],
 
     {- Id generation -}
 
     type_id :: Int, 
     flag_id :: Int,
-    var_id :: Int,
     qbit_id :: Int,
 
     {-
@@ -80,7 +85,6 @@ data Context = Ctx {
     -}
      
     name_to_var :: [Map.Map String Variable],
-    var_to_name :: Map.Map Variable String,
     
     --
     -- VARIABLE DATING STUFF
@@ -130,11 +134,12 @@ empty_context =
     logfile = Logfile { channel = stdin, verbose = 0 },
     namespace = N.new_namespace,
     location = extent_unknown,
+    datacons = IMap.empty,
+    gatesid = Map.empty,
 
     circuits = [],
 
     name_to_var = [Map.empty],
-    var_to_name = Map.empty,
 
     variables = [],
     relations = [],
@@ -143,7 +148,6 @@ empty_context =
 
     flag_id = 2,   -- Flag ids 0 and 1 are reserved
     type_id = 0,
-    var_id = 0,
     qbit_id = 0,
       
     mappings = Map.empty
@@ -195,6 +199,48 @@ get_location =
   get_context >>= return . location
 
 
+-- | Access to the name space : variable registration
+register_var :: String -> QpState Int
+register_var x = do
+  ctx <- get_context
+  (id, nspace) <- return $ N.register_var x (namespace ctx)
+  set_context $ ctx { namespace = nspace }
+  return id
+
+
+-- | Access to the name space : variable registration
+-- The datacon registration also records the type of the datacon in the field datacons
+register_datacon :: String -> String -> Type -> QpState Int
+register_datacon dcon typename dtype= do
+  ctx <- get_context
+  (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
+  set_context $ ctx { namespace = nspace, datacons = IMap.insert id (typename, dtype) $ datacons ctx }
+  return id
+
+
+-- | Retrieves the id of a gate
+gate_id :: String -> QpState Int
+gate_id g = do
+  ctx <- get_context
+  case Map.lookup g $ gatesid ctx of
+    Just id ->
+        return id
+ 
+    Nothing ->
+        fail "Unregistered gate"
+
+
+-- | Retrieves the definition of a datacon
+datacon_def :: Int -> QpState (String, Type)
+datacon_def id = do
+  ctx <- get_context
+  case IMap.lookup id $ datacons ctx of
+    Just def ->
+        return def
+  
+    Nothing ->
+        fail "No definition of datacon"
+
 {-
   Id generation
     - fresh_var/type/flag return a fresh id of the corresponding kind
@@ -204,54 +250,16 @@ get_location =
 
 fresh_type :: QpState Variable
 fresh_flag :: QpState Flag
-fresh_var :: QpState Variable
 new_type :: QpState Type
-create_pattern_type :: Pattern -> QpState (Type, [FlagConstraint])
 ----------------------------------------------------------------
 fresh_type = QpState (\ctx -> return (ctx { type_id = (+1) $ type_id ctx }, type_id ctx))
 
 fresh_flag = QpState (\ctx -> return (ctx { flag_id = (+1) $ flag_id ctx }, flag_id ctx))
 
-fresh_var = QpState (\ctx -> return (ctx { var_id = (+1) $ var_id ctx }, var_id ctx))
-
 new_type = do
   x <- fresh_type
   f <- fresh_flag
   return (TExp f (TVar x, NoInfo))
-
-create_pattern_type (PLocated p ex) = do
-  set_location ex
-  create_pattern_type p
-
-create_pattern_type PUnit = do
-  ex <- get_location
-  detail <- return $ ActualOfP PUnit ex
-  return (TExp (-1) (TUnit, detail), [])
-
-create_pattern_type (PVar x) = do
-  t <- fresh_type
-  n <- fresh_flag
-  
-  ex <- get_location
-  detail <- return $ ActualOfP (PVar x) ex
-  return (TExp n (TVar t, detail), [])
-
-create_pattern_type (PTuple plist) = do
-  ex <- get_location
-
-  newtypes <- List.foldr (\p rec -> do
-                            r <- rec
-                            p' <- create_pattern_type p
-                            return (p':r)) (return []) plist
-
-  (ptypes, pcons) <- return $ List.unzip newtypes
-  n <- fresh_flag
-
-  pflags <- return $ List.foldl (\fgs (TExp f _) -> (n, f):fgs) [] ptypes
-  pcons <- return $ List.concat pcons
-
-  detail <- return $ ActualOfP (PTuple plist) ex
-  return (TExp n (TTensor ptypes, detail), pflags ++ pcons)
 
 
 -- =============================== --
@@ -309,11 +317,6 @@ map_lintype_step (TTensor tlist, d) = do
                           return (t':r)) (return []) tlist
   return (TTensor tlist', d)
 
-map_lintype_step (TSum t u, d) = do
-  t' <- map_type_step t
-  u' <- map_type_step u
-  return (TSum t' u', d)
-
 map_lintype_step (TCirc t u, d) = do
   t' <- map_type_step t
   u' <- map_type_step u
@@ -364,11 +367,6 @@ app_val_to_lintype (TTensor tlist, d) map = do
                           t' <- app_val_to_type t map
                           return (t':r)) (return []) tlist
   return (TTensor tlist', d)
-
-app_val_to_lintype (TSum t u, d) map = do
-  t' <- app_val_to_type t map
-  u' <- app_val_to_type u map
-  return (TSum t' u', d)
 
 app_val_to_lintype (TCirc t u, d) map = do
   t' <- app_val_to_type t map

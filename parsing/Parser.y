@@ -39,7 +39,6 @@ import Data.List as List
   FUN { TkFun $$ }
   "->" { TkArrow $$ }
   "<-" { TkBackArrow $$ }
-  VAR { TkVar $$ }
   LET { TkLet $$ }
   IN { TkIn $$ }
   DO { TkDo $$ }
@@ -55,19 +54,27 @@ import Data.List as List
 
   MATCH { TkMatch $$ }
   WITH { TkWith $$ }
-  INJL { TkInjL $$ }
-  INJR { TkInjR $$ }
  
   TRUE { TkTrue $$ }
   FALSE { TkFalse $$ }
   BOOL { TkBool $$ }
   QBIT { TkQBit $$ }
 
+  TYPE { TkType $$ }
+  OF { TkOf $$ }
+
+  VAR { TkVar $$ }
+  DATACON { TkDatacon $$ }
+
+
 %left "->"
-%left '*'
+%nonassoc '*'
 %nonassoc '!'
 
 %%
+
+Program :
+      Typedef_list Expr                      { ($1, $2) }
 
 Expr :
       FUN Pattern_list "->" Expr             { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
@@ -85,13 +92,11 @@ Do_expr :
 
 Apply_expr :
       Apply_expr Atom_expr               { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | INJL Atom_expr                     { locate_opt (EInjL $2) (fromto_opt (Just $1) (location $2)) }
-    | INJR Atom_expr                     { locate_opt (EInjR $2) (fromto_opt (Just $1) (location $2)) }
+    | DATACON Atom_expr                  { locate_opt (EData (snd $1) $2) (fromto_opt (Just $ fst $1) (location $2)) }
     | Atom_expr                          { $1 }
 
 Atom_expr :
-      '*'                                { locate EUnit $1 }
-    | TRUE                               { locate (EBool True) $1 }
+      TRUE                               { locate (EBool True) $1 }
     | FALSE                              { locate (EBool False) $1 }
     | VAR                                { locate (EVar (snd $1)) (fst $1) }
     | BOX '[' ']'                        { locate (EBox TUnit) (fromto $1 $3) }
@@ -106,15 +111,15 @@ Atom_expr :
 
 Expr_sep_list :
       Expr ',' Expr                      { [$1, $3] }
-    | Expr ',' Expr_sep_list             { $1:$3 }
+    | Expr_sep_list ',' Expr             { $1 ++ [$3] }
 
 
 Pattern :
       VAR                                { locate (PVar (snd $1)) (fst $1) }
     | '(' Pattern ':' Type ')'           { locate (PConstraint $2 $4) (fromto $1 $5) }
     | '<' Pattern_sep_list '>'           { locate (PTuple $2) (fromto $1 $3) }
+    | DATACON Pattern                    { locate_opt (PData (snd $1) $2) (fromto_opt (Just $ fst $1) (location $2)) }
     | '<' '>'                            { locate PUnit (fromto $1 $2) }
-    | '*'                                { locate PUnit $1 }
 
 
 Pattern_list :
@@ -124,7 +129,7 @@ Pattern_list :
 
 Pattern_sep_list :
       Pattern ',' Pattern                { [$1, $3] }
-    | Pattern ',' Pattern_sep_list       { $1:$3 }
+    | Pattern_sep_list ',' Pattern       { $1 ++ [$3] }
 
 
 Matching :
@@ -132,37 +137,51 @@ Matching :
 
 
 Matching_list :
-      Matching_list '|' Matching         { $1 ++ [$3] }
-    | Matching '|' Matching              { [$1, $3] }
-    | '|' Matching '|' Matching          { [$2, $4] }
+      Matching '|' Matching              { [$1, $3] }
+    | Matching_list '|' Matching         { $1 ++ [$3] }
 
 
 Type :
-      BOOL                               { locate TBool $1 }
-    | QBIT                               { locate TQBit $1 }
-    | '(' ')'                            { locate TUnit (fromto $1 $2) }
-    | CIRC '(' Type ',' Type ')'         { locate (TCirc $3 $5) (fromto $1 $6) }
-    | Tensor_list                        { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
-    | Type "->" Type                     { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
-    | '!' Type                           { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
-    | '(' Type ')'                       { $2 }
+      BOOL                                      { locate TBool $1 }
+    | QBIT                                      { locate TQBit $1 }
+    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
+    | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
+    | Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
+    | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
+    | '!' Type                                  { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
+    | '(' Type ')'                              { $2 }
 
 
 Tensor_list :
-      Type '*' Type                      { [$1, $3] }
-    | Type '*' Tensor_list               { $1:$3 }
+      Type '*' Type                             { [$1, $3] }
+    | Tensor_list '*' Type                      { $1 ++ [$3] }
 
 
 QDataType : 
-      QBIT                               { locate TQBit $1 }
-    | '(' ')'                            { locate TUnit (fromto $1 $2) }
-    | QData_tensor_list                  { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
-    | '(' QDataType ')'                  { $2 }
+      QBIT                                      { locate TQBit $1 }
+    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
+    | QData_tensor_list                         { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
+    | '(' QDataType ')'                         { $2 }
 
 
 QData_tensor_list :
-      QDataType '*' QDataType            { [$1, $3] }
-    | QDataType '*' QData_tensor_list    { $1:$3 }
+      QDataType '*' QDataType                   { [$1, $3] }
+    | QData_tensor_list '*' QDataType           { $1 ++ [$3] }
+
+
+Typedef_list :
+      {- empty -}                               { [] }
+    | Typedef_list Typedef                      { $2:$1 }
+
+
+Typedef :
+      TYPE VAR '=' Data_intro_list              { Typedef (snd $2) $4 }
+
+
+Data_intro_list :
+      DATACON OF Type                           { [(snd $1, $3)] }
+    | Data_intro_list '|' DATACON OF Type       { $1 ++ [(snd $3, $5)] }
+
 
 {
 parseError :: [Token] -> a
