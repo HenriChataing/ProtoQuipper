@@ -143,20 +143,29 @@ Matching_list :
 
 
 Type :
-      BOOL                                      { locate TBool $1 }
-    | QBIT                                      { locate TQBit $1 }
-    | VAR                                       { locate (TVar $ snd $1) (fst $1) }
-    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
-    | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
-    | Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
+      Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
     | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
-    | '!' Type                                  { locate_opt (TExp $2) (fromto_opt (Just $1) (location $2)) }
-    | '(' Type ')'                              { $2 }
+    | '!' Type                                  { locate_opt (TBang $2) (fromto_opt (Just $1) (location $2)) }
+    | Type_app                                  { $1 }
+
+
+Type_app :
+      Atom_type                                 { $1 }
+    | Type_app Atom_type                        { TApp $1 $2 }
 
 
 Tensor_list :
       Type '*' Type                             { [$1, $3] }
     | Tensor_list '*' Type                      { $1 ++ [$3] }
+
+
+Atom_type :
+      BOOL                                      { locate TBool $1 }
+    | QBIT                                      { locate TQBit $1 }
+    | VAR                                       { locate (TVar $ snd $1) (fst $1) }
+    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
+    | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
+    | '(' Type ')'                              { $2 }
 
 
 QDataType : 
@@ -177,13 +186,17 @@ Typedef_list :
 
 
 Typedef :
-      TYPE VAR '=' Data_intro_list              { Typedef (snd $2) $4 }
+      TYPE VAR Var_list '=' Data_intro_list     { Typedef (snd $2) $3 $5 }
 
 
 Data_intro_list :
       DATACON OF Type                           { [(snd $1, $3)] }
     | Data_intro_list '|' DATACON OF Type       { $1 ++ [(snd $3, $5)] }
 
+
+Var_list :
+      {- empty -}                               { [] }
+    | Var_list VAR                              { $1 ++ [snd $2] }
 
 {
 parseError :: [Token] -> a

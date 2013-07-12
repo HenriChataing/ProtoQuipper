@@ -3,7 +3,8 @@ module Utils where
 import Localizing
 
 import Data.Char as Char
-import Data.Map as Map
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.List as List
 
 -- | String manipulation functions | --
@@ -67,3 +68,10 @@ apply_binding b a =
   Just a' -> a'
   Nothing -> a
 
+
+-- Perform the disjoint union of the list of sets
+disjoint_union :: Eq a => [[a]] -> [a]
+disjoint_union [] = []
+disjoint_union (l:restl) =
+  let disunion = disjoint_union restl in
+  (l \\ disunion) ++ (disunion \\ l)

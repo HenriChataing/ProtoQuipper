@@ -1,10 +1,11 @@
-{- Contain all the printer instance declarations of the surface syntax -}
+-- | Provides all the printing functions of the surface syntax
 module Printer where
 
 import Classes
 
 import Syntax
 
+import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
 {- Type printing -}
@@ -38,9 +39,9 @@ instance PPrint Type where
        TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
        _ -> sprintn dlv b)
 
-  sprintn lv (TExp a) =
+  sprintn lv (TBang a) =
     "!" ++ (case a of
-              TExp a -> sprintn lv a
+              TBang a -> sprintn lv a
               TTensor _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
@@ -83,67 +84,72 @@ instance PPrint Pattern where
 
 {- Expression printing -}
 
--- Second argument is indentation level
-indent_sprintn :: Lvl -> String -> Expr -> String
-------------------------------------------------
-indent_sprintn _ _ EUnit = "<>"
-indent_sprintn _ _ (EVar x) = x
-indent_sprintn _ _ ERev = "rev"
-indent_sprintn _ _ EUnbox = "unbox"
-indent_sprintn _ _ (EBox a) = "box[" ++ pprint a ++ "]"
-indent_sprintn _ _ (EBool b) = if b then "true" else "false"
+-- | Print the expression as a PP document
+print_doc :: Expr -> Doc
 
-indent_sprintn (Nth 0) _ _ = "..."
+print_doc EUnit = text "<>"
+print_doc (EVar x) = text x
+print_doc ERev = text "rev"
+print_doc EUnbox = text "unbox"
+print_doc (EBox a) = text "box" <> brackets (text $ pprint a)
+print_doc (EBool b) = if b then text "true" else text "false"
 
-indent_sprintn lv ind (ELet p e f) =
-  let dlv = decr lv in
-  "let " ++ sprintn dlv p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
-  ind ++ indent_sprintn dlv ind f
+print_doc (ELet p e f) =
+  let pf = print_doc f in
+  text "let" <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
+  pf
 
-indent_sprintn lv ind (ETuple elist) =
-  let dlv = decr lv in
-  case elist of
-    [] -> "<>"
-    [e] -> "<" ++ indent_sprintn dlv ind e ++ ">"
-    e:rest -> "<" ++ indent_sprintn dlv ind e ++ List.foldl (\s f -> s ++ ", " ++ indent_sprintn dlv ind f) "" rest ++ ">"
+print_doc (ETuple elist) =
+  let plist = List.map print_doc elist in
+  let slist = punctuate comma (List.init plist) ++ [List.last plist] in
+  char '<' <> hsep plist <> char '>'
 
-indent_sprintn lv ind (EIf e f g) =
-  let dlv = decr lv in
-  "if " ++ indent_sprintn dlv ind e ++ " then\n" ++
-  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") f ++ "\n" ++
-  ind ++ "else\n" ++
-  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") g
+print_doc (EIf e f g) =
+  text "if" <+> print_doc e <+> text "then" $$
+  nest 2 (print_doc f) $$
+  text "else" $$
+  nest 2 (print_doc g)
 
-indent_sprintn lv ind (EApp e f) =
-  let dlv = decr lv in
+print_doc (EApp e f) =
+  let pe = print_doc e
+      pf = print_doc f in
   (case e of
-     EIf _ _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-     EFun _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-     _ -> indent_sprintn dlv ind e) ++ " " ++
+     EIf _ _ _ -> parens pe
+     EFun _ _ -> parens pe
+     _ -> pe) <+> 
   (case f of
-     EIf _ _ _ ->  "(" ++ indent_sprintn dlv ind f ++ ")"
-     EFun _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
-     EApp _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
-     _ -> indent_sprintn dlv ind f)
+     EIf _ _ _ -> parens pe 
+     EFun _ _ -> parens pe
+     EApp _ _ -> parens pe
+     _ -> pe)
 
-indent_sprintn lv ind (EFun p e) =
-  let dlv = decr lv in
-  "fun " ++ sprintn dlv p ++ " ->\n" ++
-  ind ++ "    " ++ indent_sprintn dlv (ind ++ "    ") e
+print_doc (EFun p e) =
+  text "fun" <+> text (pprint p) <+> text "->" $$
+  nest 4 (print_doc e)
 
-indent_sprintn lv ind (EData datacon e) =
-  datacon ++ "(" ++ indent_sprintn (decr lv) ind e ++ ")"
+print_doc (EData datacon e) =
+  let pe = print_doc e in
+  text datacon <+> (case e of
+                      EVar _ -> pe
+                      EBool _ -> pe
+                      EUnit -> pe
+                      _ -> parens pe)
 
-indent_sprintn lv ind (EMatch e plist) =
-  let dlv = decr lv in
-  "match " ++ indent_sprintn dlv ind e ++ " with" ++
-    List.foldl (\s (p, f) -> s ++ "\n" ++ ind ++ "  | " ++ sprintn dlv p ++ " -> " ++ indent_sprintn dlv (ind ++ "    ") f) "" plist
+print_doc (EMatch e plist) =
+  text "match" <+> print_doc e <+> text "with" $$
+    nest 2 (List.foldl (\doc (p, f) ->
+                          let pmatch = char '|' <+> text (pprint p) <+> text "->" <+> print_doc f in
+                          if isEmpty doc then
+                            pmatch
+                          else
+                            doc $$ pmatch) PP.empty plist)
 
-indent_sprintn lv ind (EConstraint e t) = "(" ++ indent_sprintn (decr lv) ind e ++ " : " ++ pprint t ++ ")"
-indent_sprintn lv ind (ELocated e _) = indent_sprintn lv ind e
+
+print_doc (EConstraint e t) = print_doc e
+print_doc (ELocated e _) = print_doc e
  
 instance PPrint Expr where
-  sprintn lv e = indent_sprintn lv "" e
+  sprintn lv e = PP.render $ print_doc e
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
 

@@ -1,38 +1,60 @@
-module Subtyping (TypeConstraint(..), FlagConstraint(..), ConstraintSet(..),
-                  is_trivial, is_atomic, is_composite, is_semi_composite,
-                  is_one_sided,
-                  constraint_unifier,
-                  chain_constraints) where
+-- | This module defines all that is needed to work with sub-typing and flag constraints
+
+module Subtyping (
+  -- Constraints definition
+  TypeConstraint(..),
+  FlagConstraint(..),
+  ConstraintSet(..),
+  -- Operation on constraints
+  (<:),
+  (<>),
+  is_trivial, is_atomic, is_composite, is_semi_composite,
+  is_one_sided,
+  constraint_unifier,
+  chain_constraints) where
+
 
 import Classes
 import Utils
 
 import CoreSyntax
+import CorePrinter
 
 import Data.List as List
 
-{-
-  Definition of the generated constraints :
-    - typing constraints, which can be either
-        T <: U   or   A <: B
-      where T, U are types ; and A, B linear types (no ! annotation)
 
-    - flag constraints, of the form
-        n <= m
-      where n, m can be 0, 1 or a flag id
-
-    - constraint sets, combining typing constraints and flag constraints
--}
-
+-- | The subtyping relation <: operates on both linear types and types
+-- Two constructors are provided to build sub-typing constraints : one for linear types,
+-- one for types
 data TypeConstraint =
     Linear LinType LinType
   | NonLinear Type Type
 
-type FlagConstraint =
-  (Flag, Flag)
 
+-- | Flag constraints, of the form n <= m, to be interpreted as
+--    n <= 0  ==  n :=: 0
+--    1 <= n  ==  n :=: 1
+--    m <= n  ==  m = 1 => n = 1
+-- However, the constraints n <= 0 and 1 <= m are immediately applied to the reference, or eliminated
+type FlagConstraint =
+  (RefFlag, RefFlag)
+
+
+
+-- | A constraint set contains both subtyping and flag constraints
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
+
+
+-- | Shortcut operator for writing TYPE constraints (not linear type)
+(<:) :: Type -> Type -> TypeConstraint
+t <: u = NonLinear t u
+
+
+-- | Concatenation of two constraint sets
+(<>) :: ConstraintSet -> ConstraintSet -> ConstraintSet
+(lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
+
 
 
 {-
@@ -55,10 +77,10 @@ is_atomic :: TypeConstraint -> Bool
 is_composite :: TypeConstraint -> Bool
 is_semi_composite :: TypeConstraint -> Bool
 -------------------------------------------
-is_trivial (Linear (a, _) (b, _)) = a == b
+is_trivial (Linear a b) = a == b
 is_trivial (NonLinear t u) = t == u
 
-is_atomic (Linear (TVar _, _) (TVar _, _)) = True
+is_atomic (Linear (TVar _) (TVar _)) = True
 is_atomic _ = False
 
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
@@ -66,9 +88,9 @@ is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 is_semi_composite (NonLinear _ _) = False
 is_semi_composite (Linear t u) =
   case (t, u) of
-    ((TVar _, _), (TVar _, _)) -> False
-    ((TVar _, _), _) -> True
-    (_, (TVar _, _)) -> True
+    ((TVar _), (TVar _)) -> False
+    ((TVar _), _) -> True
+    (_, (TVar _)) -> True
     _ -> False
 
 {-
@@ -88,18 +110,18 @@ is_right_sided :: [TypeConstraint] -> Bool
 is_one_sided [] = True
 is_one_sided ((Linear t u):cset) =
   case (t, u) of
-    ((TVar _, _), _) -> is_left_sided cset
-    (_, (TVar _, _)) -> is_right_sided cset
+    ((TVar _), _) -> is_left_sided cset
+    (_, (TVar _)) -> is_right_sided cset
     _ -> False
 is_one_sided _ = False
 
 is_left_sided [] = True
-is_left_sided ((Linear (TVar _, _) _):cset) =
+is_left_sided ((Linear (TVar _) _):cset) =
   is_left_sided cset
 is_left_sided _ = False
 
 is_right_sided [] = True
-is_right_sided ((Linear _ (TVar _, _)):cset) =
+is_right_sided ((Linear _ (TVar _)):cset) =
   is_right_sided cset
 is_right_sided _ = False
 
@@ -117,8 +139,8 @@ constraint_unifier :: [TypeConstraint] -> LinType
 -------------------------------------------------
 constraint_unifier constraints =
   let comptypes = List.map (\c -> case c of
-                                    Linear (TVar _, _) t -> t
-                                    Linear t (TVar _, _) -> t) constraints
+                                    Linear (TVar _) t -> t
+                                    Linear t (TVar _) -> t) constraints
   in
   list_unifier comptypes
 
@@ -137,10 +159,10 @@ chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
   case List.find (\c -> case c of
-                          Linear (TVar y, _) _ -> y == endvar
+                          Linear (TVar y) _ -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Linear (TVar _, _) (TVar y, _) -> chain_left_to_right (c:chain) y (List.delete c l)
+                Linear (TVar _) (TVar y) -> chain_left_to_right (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, List.reverse (c:chain))
                      else
@@ -150,10 +172,10 @@ chain_left_to_right chain endvar l =
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
   case List.find (\c -> case c of
-                          Linear _ (TVar y, _) -> y == endvar
+                          Linear _ (TVar y) -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Linear (TVar y, _) (TVar _, _) -> chain_right_to_left (c:chain) y (List.delete c l)
+                Linear (TVar y) (TVar _) -> chain_right_to_left (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, c:chain)
                      else
@@ -162,17 +184,17 @@ chain_right_to_left chain endvar l =
 
 chain_constraints l =
   case List.find (\c -> case c of
-                          Linear (TVar _, _) _ -> False
+                          Linear (TVar _) _ -> False
                           _ -> True) l of
     Just c -> case c of
-                Linear _ (TVar y, _) -> chain_left_to_right [c] y (List.delete c l)
+                Linear _ (TVar y) -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
   
     Nothing -> case List.find (\c -> case c of
-                                       Linear _ (TVar _, _) -> False
+                                       Linear _ (TVar _) -> False
                                        _ -> True) l of
                  Just c -> case c of
-                             Linear (TVar y, _) _ -> chain_right_to_left [c] y (List.delete c l)
+                             Linear (TVar y) _ -> chain_right_to_left [c] y (List.delete c l)
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
@@ -205,7 +227,7 @@ instance PPrint TypeConstraint where
   sprint c = pprint c
 
 instance Eq TypeConstraint where
-  (==) (Linear (t, _) (u, _)) (Linear (t', _) (u', _)) = t == t' && u == u'
+  (==) (Linear t u) (Linear t' u') = t == t' && u == u'
   (==) (NonLinear t u) (NonLinear t' u') = t == t' && u == u'
   (==) _ _ = False
 

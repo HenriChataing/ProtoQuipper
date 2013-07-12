@@ -44,12 +44,12 @@ import_typedefs :: [S.Typedef] -> QpState (Map String Int)
 import_typedefs typedefs = do
   -- Import the names of the types in the current labelling map
   -- This operation permits the writing of inductive types
-  m <- List.foldl (\rec (S.Typedef typename _) -> do
+  m <- List.foldl (\rec (S.Typedef typename _ _) -> do
                      m <- rec
                      return $ Map.insert typename (-1) m) (return Map.empty) typedefs
 
   -- Transcribe the rest of the type definitions
-  List.foldl (\rec (S.Typedef typename dlist) -> do
+  List.foldl (\rec (S.Typedef typename _ dlist) -> do
                 m <- rec
                 List.foldl (\rec (dcon, dtype) -> do
                               m <- rec
@@ -61,21 +61,21 @@ import_typedefs typedefs = do
 -- | Translate a type, given a labelling
 translate_type_with_label :: S.Type -> Map String Int -> QpState Type
 translate_type_with_label S.TUnit _ = do
-  return $ TExp (-1) (TUnit, NoInfo)
+  return $ TBang (-1) TUnit
 
 translate_type_with_label S.TBool _ = do
-  return $ TExp (-1) (TBool, NoInfo)
+  return $ TBang (-1) TBool
 
 translate_type_with_label S.TQBit _ = do
-  return $ TExp 0 (TQbit, NoInfo)
+  return $ TBang 0 TQbit
 
 translate_type_with_label (S.TVar x) label = do
   case Map.lookup x label of
     Just (-1) ->
-        return $ TExp 0 (TUser x, NoInfo)
+        return $ TBang (-1) (TUser x)
 
     Just id ->
-        return $ TExp 0 (TVar id, NoInfo)
+        return $ TBang (-1) (TVar id)
 
     Nothing ->
         -- This could be a user defined type : need to add a check
@@ -84,23 +84,23 @@ translate_type_with_label (S.TVar x) label = do
 translate_type_with_label (S.TArrow t u) label = do
   t' <- translate_type_with_label t label
   u' <- translate_type_with_label u label
-  return $ TExp 0 (TArrow t' u', NoInfo)
+  return $ TBang (-2) (TArrow t' u')
 
 translate_type_with_label (S.TTensor tlist) label = do
   tlist' <- List.foldr (\t rec -> do
                           r <- rec
                           t' <- translate_type_with_label t label
                           return (t':r)) (return []) tlist
-  return $ TExp 0 (TTensor tlist', NoInfo)
+  return $ TBang (-2) (TTensor tlist')
 
-translate_type_with_label (S.TExp t) label = do
-  TExp _ t' <- translate_type_with_label t label
-  return $ TExp 1 t'
+translate_type_with_label (S.TBang t) label = do
+  TBang _ t' <- translate_type_with_label t label
+  return $ TBang 1 t'
 
 translate_type_with_label (S.TCirc t u) label = do
   t' <- translate_type_with_label t label
   u' <- translate_type_with_label u label
-  return $ TExp (-1) (TCirc t' u', NoInfo)
+  return $ TBang (-1) (TCirc t' u')
 
 translate_type_with_label (S.TLocated t _) label = do
   translate_type_with_label t label

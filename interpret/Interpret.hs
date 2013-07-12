@@ -46,27 +46,27 @@ reset_qbits = do
 -- the specimen range from 0 .. to n, n being the number of qbits in the type
 -- The axiliary function keeps track of the counter
 linspec :: LinType -> QpState Value
-linspec (TLocated t ex, _) = do
+linspec (TLocated t ex) = do
   set_location ex
   linspec t
 
-linspec (TQbit, _) = do
+linspec TQbit = do
   q <- fresh_qbit
   return (VQbit q)
 
-linspec (TTensor tlist, _) = do
+linspec (TTensor tlist) = do
   qlist <- List.foldr (\t rec -> do
                          r <- rec
                          q <- spec t
                          return (q:r)) (return []) tlist
   return (VTuple qlist)
 
-linspec (TUnit, _) = do
+linspec TUnit = do
   return VUnit
 
 
 spec :: Type -> QpState Value
-spec (TExp _ t) = linspec t
+spec (TBang _ t) = linspec t
 
 
 -- | Modifiers of qpState specififc to circuit construction

@@ -13,23 +13,86 @@ type Datacon = String
 
 -- | Type declarations
 -- For now, types takes no type argument
--- The definition is a list of pairs datacon * type
-data Typedef = Typedef String [(Datacon, Type)]
+-- The definition is a list of pairs datacon * generic type variables * type
+data Typedef = Typedef String [String] [(Datacon, Type)]
 
 
 -- | Definition of types
 data Type =
+-- STLC types
     TVar String               -- a
+  | TArrow Type Type          -- A -> B
+
+-- Tensor types
   | TUnit                     -- T
-  | TBool                     -- bool
+  | TTensor [Type]            -- A1 * .. * An
+
+-- Flavour : duplicable flag
+  | TBang Type                 -- !A
+
+-- Quantum related types
   | TQBit                     -- qbit
   | TCirc Type Type           -- circ (A, B)
-  | TTensor [Type]            -- A1 * .. * An
-  | TArrow Type Type          -- A -> B
-  | TExp Type                 -- !A
-  | TApp Type Type            -- generic types specialization
+
+-- Sum types : bool and generic type instanciation
+  | TApp Type Type            -- T a
+  | TBool                     -- bool
+
+-- Unrelated
   | TLocated Type Extent      -- A @ ex
   deriving Show
+
+
+-- | This function should be called every time a banged type is produced, since
+-- it ensures that no duplicate bangs is added
+bang :: Type -> Type
+bang (TLocated a ex) =
+  TLocated (bang a) ex
+
+bang (TBang a) =
+  TBang a
+
+bang a =
+  TBang a
+
+
+-- | Eq instance declaration of types. This instance can't be otained by deriving Eq, because of the
+-- TLocated terms : should T and U be equal, then T @ ex and U @ ex' must be equal too.
+instance Eq Type where
+  (==) (TLocated t1 _) t2 = t1 == t2
+  (==) t1 (TLocated t2 _) = t1 == t2
+  (==) TUnit TUnit = True
+  (==) TBool TBool = True
+  (==) TQBit TQBit = True
+  (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
+  (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
+  (==) (TArrow t1 t2) (TArrow t1' t2') = (t1 == t1') && (t2 == t2')
+  (==) (TBang t1) (TBang t2) = (t1 == t2)
+  (==) _ _ = False
+
+
+-- | Types can contain location information, so Type is instance of Located
+instance Located Type where
+  -- Add location information to a type
+  locate (TLocated t ex) _ = TLocated t ex
+  locate t ex = TLocated t ex
+
+  -- Return, if any, the location of the type
+  location (TLocated _ ex) = Just ex
+  location _ = Nothing
+
+  -- Same as locate, with an optional argument
+  locate_opt t Nothing = t
+  locate_opt t (Just ex) = locate t ex
+
+  -- Recursively removes the location annotations
+  clear_location (TLocated t _) = clear_location t
+  clear_location (TCirc t u) = TCirc (clear_location t) (clear_location u)
+  clear_location (TTensor tlist) = TTensor $ List.map clear_location tlist
+  clear_location (TArrow t u) = TArrow (clear_location t) (clear_location u)
+  clear_location (TBang t) = TBang (clear_location t)
+  clear_location t = t
+
 
 
 -- | Definition of patterns
@@ -46,159 +109,74 @@ data Pattern =
   deriving Show
 
 
--- | Definition of terms
-data Expr =
-    EUnit                          -- <>
-  | EVar String                    -- x  
-  | EFun Pattern Expr              -- fun p -> e
-  | ELet Pattern Expr Expr         -- let p = e in f
-  | EApp Expr Expr                 -- e f
-  | EBool Bool                     -- true / false
-  | ETuple [Expr]                  -- <e1, .., en>
-  | EData String Expr              -- datacon e
-  | EMatch Expr [(Pattern, Expr)]  -- match e with (x1 -> f1) (x2 -> f2) ...(xn -> fn)
-  | EBox Type                      -- box[A]
-  | EUnbox                         -- unbox
-  | EIf Expr Expr Expr             -- if e then f else g
-  | ERev                           -- rev
-  | EConstraint Expr Type          -- (e : A)
-  | ELocated Expr Extent           -- e @ ex
-  deriving Show
-
-
-{-
-   Instance declarations and functions of data type Type :   
-  
-   Type is instance of :
-     -- Show
-     -- PPrint / SPrint
-     -- Located
-     -- Eq
-
-   Functions declared :
-     -- extractVariables :: Type -> [String]
-     -- subst :: String -> Type -> Type -> Type
-     -- substAll :: Map String Type -> Type -> Type
-     -- appSubst :: Map String Type -> Type -> Type
--}
-
--- Eq instance declaration of types
--- The declaration takes into account the ismorphism : !! A = ! A
-instance Eq Type where
-  (==) (TLocated t1 _) t2 = t1 == t2
-  (==) t1 (TLocated t2 _) = t1 == t2
-  (==) TUnit TUnit = True
-  (==) TBool TBool = True
-  (==) TQBit TQBit = True
-  (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
-  (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
-  (==) (TArrow t1 t2) (TArrow t1' t2') = (t1 == t1') && (t2 == t2')
-  (==) (TExp t1) (TExp t2) = (t1 == t2)
-  (==) _ _ = False
-
-instance Located Type where
-  locate (TLocated t ex) _ = TLocated t ex
-  locate t ex = TLocated t ex
-
-  location (TLocated _ ex) = Just ex
-  location _ = Nothing
-
-  locate_opt t Nothing = t
-  locate_opt t (Just ex) = locate t ex
-
-  clear_location (TLocated t _) = clear_location t
-  clear_location (TCirc t u) = TCirc (clear_location t) (clear_location u)
-  clear_location (TTensor tlist) = TTensor $ List.map clear_location tlist
-  clear_location (TArrow t u) = TArrow (clear_location t) (clear_location u)
-  clear_location (TExp t) = TExp (clear_location t)
-  clear_location t = t
- 
-{-
-   Instance declarations and functions of data type Pattern :   
-  
-   Pattern is instance of :
-     -- Show
-     -- Constraint
-     -- Located
-
-   Functions declared :
-     --
--}
-
+-- | Patterns can contain location information, so Pattern is instance of Located
 instance Located Pattern where
+  -- Add location information to a pattern
   locate (PLocated p ex) _ = PLocated p ex
   locate p ex = PLocated p ex
 
+  -- Return, if any defined, the location of the pattern
   location (PLocated _ ex) = Just ex
   location _ = Nothing
 
+  -- Same as locate, with an optional argument
   locate_opt p Nothing = p
   locate_opt p (Just ex) = locate p ex
 
+  -- Recursively removes all location annotations
   clear_location (PLocated p _) = clear_location p
   clear_location (PTuple plist) = PTuple $ List.map clear_location plist
   clear_location (PConstraint p t) = PConstraint (clear_location p) t
   clear_location p = p
 
-instance Constraint Pattern where
-  drop_constraints (PConstraint p _) = p
-  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
-  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
-  drop_constraints p = p
-
--- Translate an pattern into the matching expression
-expr_of_pattern :: Pattern -> Expr
-----------------------------------
-expr_of_pattern PUnit = EUnit
-expr_of_pattern (PVar x) = EVar x
-expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
-expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
-
-pattern_of_expr :: Expr -> Pattern
-----------------------------------
-pattern_of_expr EUnit = PUnit
-pattern_of_expr (EVar x) = PVar x
-pattern_of_expr (ETuple elist) = PTuple $ List.map pattern_of_expr elist
-pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
-
-{-
-   Instance declarations and functions of data type Expr :
-  
-   Expr is instance of :
-     -- Show
-     -- Constraint
-     -- Located
-
-   Functions declared :
-     -- isValue :: Expr -> Bool 
--}
 
 
--- Value identification
-isValue :: Expr -> Bool
------------------------
-isValue (ELocated e _) = isValue e
-isValue (EConstraint e _) = isValue e
-isValue EUnbox = True
-isValue ERev = True
-isValue (ETuple elist) = List.and $ List.map isValue elist
-isValue (EIf _ _ _) = False
-isValue (EApp _ _) = False
-isValue (ELet _ _ _) = False
-isValue (EData _ e) = isValue e
-isValue (EMatch _ _) = False
-isValue _ = True
+-- | Definition of terms
+-- Smilarly to patterns, tuples have size >= 2, enforced by the grammar
+data Expr =
+-- STLC
+    EVar String                    -- x  
+  | EFun Pattern Expr              -- fun p -> e
+  | EApp Expr Expr                 -- e f
 
+-- Addition of tensors
+  | ETuple [Expr]                  -- <e1, .., en>
+  | ELet Pattern Expr Expr         -- let p = e in f
+  | EUnit                          -- <>
+
+-- Addition of sum types
+  | EData String Expr              -- datacon e
+  | EMatch Expr [(Pattern, Expr)]  -- match e with (x1 -> f1 | x2 -> f2 | ... | xn -> fn)
+  | EIf Expr Expr Expr             -- if e then f else g
+  | EBool Bool                     -- true / false
+
+-- Circuit construction
+  | EBox Type                      -- box[A]
+  | EUnbox                         -- unbox
+  | ERev                           -- rev
+
+-- Unrelated
+  | EConstraint Expr Type          -- (e : A)
+  | ELocated Expr Extent           -- e @ ex
+  deriving Show
+
+
+
+-- | Expressions can contain location information, so Expr is instance of Located
 instance Located Expr where
+  -- Add some location information to an expression
   locate (ELocated e ex) _ = ELocated e ex
   locate e ex = ELocated e ex
 
+  -- Return, if any given, the location of an expression
   location (ELocated _ ex) = Just ex
   location _ = Nothing
 
+  -- Same as locate, with an optional argument
   locate_opt e Nothing = e
   locate_opt e (Just ex) = locate e ex
 
+  -- Recursively removes all location annotations
   clear_location (ELocated e _) = clear_location e
   clear_location (EConstraint e t) = EConstraint (clear_location e) t
   clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
@@ -211,16 +189,23 @@ instance Located Expr where
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 
-instance Constraint Expr where
-  drop_constraints (EConstraint e _) = e
-  drop_constraints (ELocated e ex) = ELocated (drop_constraints e) ex
-  drop_constraints (EFun p e) = EFun (drop_constraints p) (drop_constraints e)
-  drop_constraints (ELet p e1 e2) = ELet (drop_constraints p) (drop_constraints e1) (drop_constraints e2)
-  drop_constraints (EApp e1 e2) = EApp (drop_constraints e1) (drop_constraints e2)
-  drop_constraints (ETuple elist) = ETuple $ List.map drop_constraints elist
-  drop_constraints (EIf e1 e2 e3) = EIf (drop_constraints e1) (drop_constraints e2) (drop_constraints e3)
-  drop_constraints (EData datacon e) = EData datacon (drop_constraints e)
-  drop_constraints (EMatch e plist) = EMatch (drop_constraints e) $ List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) plist
-  drop_constraints e = e
 
+
+-- | Translate an pattern into the corresponding expression. For example, the pattern <x, y> is transformed
+-- into the expression <x, y> (...). The location annotations are conserved.
+expr_of_pattern :: Pattern -> Expr
+expr_of_pattern PUnit = EUnit
+expr_of_pattern (PVar x) = EVar x
+expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
+expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
+
+
+-- | Function reverse of expre_of_pattern : translate an expression into the corresponding pattern. When
+-- expr_of_pattern was sure to succeed, this one may fail if called on smth "not a pattern" : for example
+-- a lambda abstraction. The locations are conserved.
+pattern_of_expr :: Expr -> Pattern
+pattern_of_expr EUnit = PUnit
+pattern_of_expr (EVar x) = PVar x
+pattern_of_expr (ETuple elist) = PTuple $ List.map pattern_of_expr elist
+pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
 

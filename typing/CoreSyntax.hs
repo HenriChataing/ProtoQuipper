@@ -1,3 +1,8 @@
+-- | Definition of an internal syntax, which consideraly modifies the grammar of types
+-- so as to facilitate the working of the type inference algorithm. For more efficiency, all
+-- the term and type variables are labelled by a unique id, which serves as reference in maps
+-- and other structures
+
 module CoreSyntax where
 
 import Classes
@@ -6,71 +11,119 @@ import Localizing
 
 import Data.List as List
 
-{-
-  Definition of types :
-    - Variable : to represent type variables, as well as language variables
-    
-    - Flag : to represent flag values. The values of flags are divided as follow :
-      - 0 and 1 are reserved and are the expected value 0 and 1 (not variables)
-      - -1 represent any value (0 or 1) : for example the type bool is automatically duplicable,
-        so no value needs to be given to its prefix flag
-      - the remaining are flag variables
--}
 
+
+-- | Variable is a synonym for Int, which is the type of type variables, as well as term variables
 type Variable = Int
-type Flag = Int
 
-{-
-  Definition of types
-  To force the presence of flags, the definition is divided between :
-  
-  - LinType : 'linear types', types that are not prefixed by any annotations
- 
-  - Type : linear types with the addition of a prefix flag
 
-  The division may need to be reviewed in regard of certain type constants like bool,
-  unit, qbit ; flag annotation are unecessary for those constants since bool and unit
-  are automatically duplicable, and qbit can never be such
+-- | Flags represent flag values. The value of flags can be
+--     0 : is the flag equal to zero (meaning not duplicable)
+--     1 : is the flag equal to one (meaning duplicable)
+--     -1 : can be either zero or one, for example with types like bool or unit,
+--          implicitely equal to !bool and !unit. Typically, the flag constraints
+--          where the left or right hand side is -1 are dropped
+--     -2 : a generic flag, put to fill in gaps in types at the end of a translation, they have to be replaced
+--          when using the type
+--     any other value : is a flag variable, substituted by one of the vlues above
+type RefFlag = Int
 
-  Another division would be
-    - LinType : TTensor, TArrow
-    - Type : TVar, TQbit, TUnit, TCirc (duplicable as well), TExp
--}
 
-data Detail =
-    ActualOfE Expr Extent      -- Meaning T is the actual type of the expression e at the extent ex
-  | ActualOfP Pattern Extent   -- Meaning T is the actual type of the pattern p at the extent ex
-  | NoInfo
+-- | Respresent the value a flag can take. Initially, all flags are set to Unknown, except
+-- for some imposed to zero or one by the typing rules
+data FlagValue =
+    Unknown   -- The value of the flag has not yet be decided
+  | One       -- The value 1
+  | Zero      -- The value 0
+  | Any       -- Any flag value, typically the flag prefix of circ, bool, unit
+
+
+-- | Information relevant to a flag
+data FlagInfo = FInfo {
+-- The value 
+  value :: FlagValue,
+
+-- Information concerning the maybe associated expression
+  typeof :: Maybe TypeOf,
+
+-- Location of the expression
+  elocation :: Maybe Extent
+}
+
+
+-- | Describe a type
+-- A type can fit into several categories : it can be the actual type of a pattern / expr, or
+-- the expected type of a pattern / expr
+data TypeOf =
+-- Actual type
+    ActualOfE Expr
+  | ActualOfP Pattern
+-- Expected type
+  | ExpectedOfE Expr
+  | ExpectedOfP Pattern
   deriving Show
 
--- Select the more detailed information, with a preference for the one on the right 
-more_detailed :: Detail -> Detail -> Detail
-more_detailed d NoInfo = d
-more_detailed _ d = d
 
--- Simple type
-data LinSType =
+-- | The flag 1
+one :: RefFlag
+one = 1
+
+-- | The flag 0
+zero :: RefFlag 
+zero = 0
+
+-- | The flag with any value
+anyflag :: RefFlag
+anyflag = -1
+
+-- | The generic flag
+genflag :: RefFlag
+genflag = -2
+
+
+-- | The definition of types distinguishes between linear types (never duplicable) and types,
+-- the latter annotated by a exponential flag. The grammar makes it so that the types are annotated
+-- every where with flags, to make it simpler for the type inference algorithm
+-- The division may need to be reviewed in regard of certain type constants like bool,
+--  unit, qbit ; flag annotation are unecessary for those constants since bool and unit
+--  are automatically duplicable, and qbit can never be such
+--
+--  Another division would be
+--     LinType : TTensor, TArrow
+--     Type : TVar, TQbit, TUnit, TCirc (duplicable as well), TBang
+
+data LinType =
+-- Basic types
     TVar Variable              -- a
+  | TArrow Type Type           -- a -> b
+
+-- Tensor types
+  | TUnit                      -- 1
+  | TTensor [Type]             -- a1 * .. * an
+
+-- Sum types
   | TUser String               -- user defined type
   | TBool                      -- bool
-  | TUnit                      -- 1
+
+-- Polymorphism
+  | TForall [Variable] Type    -- type generalization
+  | TApp Type [Type]           -- generic type instanciation
+
+-- Quantum related types
   | TQbit                      -- qbit
-  | TTensor [Type]             -- a1 * .. * an
-  | TArrow Type Type           -- a -> b
   | TCirc Type Type            -- circ (a, b)
+
+-- Unrelated
   | TLocated LinType Extent    -- t @ ex
   deriving Show
 
--- Detailed type
-type LinType = (LinSType, Detail)
 
+-- | As stated above, type are annotated by flags
 data Type =
-    TExp Flag LinType          -- !n a
+    TBang RefFlag LinType          -- !n a
   deriving Show
 
 
-add_detail :: Detail -> Type -> Type
-add_detail d' (TExp n (t, d)) = TExp n (t, more_detailed d' d)
 
 {-
   The pattern structure has been left in the core syntax, although it is a syntactic sugar.
@@ -130,27 +183,27 @@ lintype_unifier :: LinType -> LinType -> LinType
 type_unifier :: Type -> Type -> Type
 list_unifier :: [LinType] -> LinType
 ------------------------------------
-lintype_unifier (TUnit, _) _ = (TUnit, NoInfo)
-lintype_unifier _ (TUnit, _) = (TUnit, NoInfo)
-lintype_unifier (TBool, _) _ = (TBool, NoInfo)
-lintype_unifier _ (TBool, _) = (TBool, NoInfo)
-lintype_unifier (TQbit, _) _ = (TQbit, NoInfo)
-lintype_unifier _ (TQbit, _) = (TQbit, NoInfo)
-lintype_unifier (TUser n, _) _ = (TUser n, NoInfo)
-lintype_unifier _ (TUser n, _) = (TUser n, NoInfo)
-lintype_unifier (TVar _, _) t = t
-lintype_unifier t (TVar _, _) = t
-lintype_unifier (TArrow t u, _) (TArrow t' u', _) = (TArrow (type_unifier t t') (type_unifier u u'), NoInfo)
-lintype_unifier (TTensor tlist, _) (TTensor tlist', _) =
+lintype_unifier TUnit _ = TUnit
+lintype_unifier _ TUnit = TUnit
+lintype_unifier TBool _ = TBool
+lintype_unifier _ TBool = TBool
+lintype_unifier TQbit _ = TQbit
+lintype_unifier _ TQbit = TQbit
+lintype_unifier (TUser n) _ = TUser n
+lintype_unifier _ (TUser n) = TUser n
+lintype_unifier (TVar _) t = t
+lintype_unifier t (TVar _) = t
+lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
+lintype_unifier (TTensor tlist) (TTensor tlist') =
   case (tlist, tlist') of
-    ([], []) -> (TTensor [], NoInfo)
+    ([], []) -> (TTensor [])
     (t:rest, t':rest') ->
       let u = type_unifier t t'
-          (TTensor urest, _) = lintype_unifier (TTensor rest, NoInfo) (TTensor rest', NoInfo) in
-      (TTensor (u:urest), NoInfo)
-lintype_unifier (TCirc t u, _) (TCirc t' u', _) = (TCirc (type_unifier t t') (type_unifier u u'), NoInfo)
+          TTensor urest = lintype_unifier (TTensor rest) (TTensor rest') in
+      TTensor (u:urest)
+lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
 
-type_unifier (TExp m t) (TExp _ u) = TExp m $ lintype_unifier t u
+type_unifier (TBang m t) (TBang _ u) = TBang m $ lintype_unifier t u
 
 list_unifier (t:ct) =
   List.foldl (\unif u -> lintype_unifier unif u) t ct
@@ -179,32 +232,29 @@ list_unifier (t:ct) =
       - Param
 -}
 
-instance PPrint Flag where
-  sprintn _ n | n <= 0 = ""
-              | n == 1 = "!"
-              | otherwise = "!" ++ (superscript $ show n)
-
+instance PPrint RefFlag where
+  sprintn _ n = supervar '!' n
   sprint n = sprintn defaultLvl n
   pprint n = sprintn Inf n
 
 
 
 instance Param LinType where
-  free_var (TVar x, _) = [x]
-  free_var (TTensor tlist, _) = List.foldl (\fv t -> List.union (free_var t) fv) [] tlist
-  free_var (TArrow t u, _) = List.union (free_var t) (free_var u)
-  free_var (TCirc t u, _) = List.union (free_var t) (free_var u)
+  free_var (TVar x) = [x]
+  free_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_var t) fv) [] tlist
+  free_var (TArrow t u) = List.union (free_var t) (free_var u)
+  free_var (TCirc t u) = List.union (free_var t) (free_var u)
   free_var _ = []
 
-  subs_var a b (TVar x, d) | x == a = (TVar b, d)
-                        | otherwise = (TVar x, d)
-  subs_var _ _ (TUnit, d) = (TUnit, d)
-  subs_var _ _ (TBool, d) = (TBool, d)
-  subs_var a b (TArrow t u, d) = (TArrow (subs_var a b t) (subs_var a b u), d)
-  subs_var a b (TTensor tlist, d) = (TTensor $ List.map (subs_var a b) tlist, d)
-  subs_var a b (TCirc t u, d) = (TCirc (subs_var a b t) (subs_var a b u), d)
+  subs_var a b (TVar x) | x == a = TVar b
+                        | otherwise = TVar x
+  subs_var _ _ TUnit = TUnit
+  subs_var _ _ TBool = TBool
+  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
+  subs_var a b (TTensor tlist) = TTensor $ List.map (subs_var a b) tlist
+  subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
 
-instance Eq LinSType where
+instance Eq LinType where
   (==) (TVar x) (TVar y) = x == y
   (==) TUnit TUnit = True
   (==) TBool TBool = True
@@ -214,69 +264,13 @@ instance Eq LinSType where
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
   (==) _ _ = False
 
-instance PPrint LinType where
-  -- Print unto Lvl = n
-  sprintn _ (TVar x, _) = subvar 'X' x
-  sprintn _ (TUnit, _) = "T"
-  sprintn _ (TBool, _) = "bool"
-  sprintn _ (TQbit, _) = "qbit"
-  sprintn _ (TUser n, _) = n
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (TTensor (a:rest), _) =
-    let dlv = decr lv in
-    (case a of
-       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
-       TExp _ (TTensor _, _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++
-    List.foldl (\s b -> s ++ " * " ++
-                  (case b of
-                     TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv b ++ ")"
-                     TExp _ (TTensor _, _) -> "(" ++ sprintn dlv b ++ ")"
-                     _ -> sprintn dlv b)) "" rest
-
-  sprintn lv (TArrow a b, _) =
-    let dlv = decr lv in
-    (case a of
-       TExp _ (TArrow _ _, _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " -> " ++
-    sprintn dlv b
-
-  sprintn lv (TCirc a b, _) =
-    let dlv = decr lv in
-    "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
-
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
-
-
 
 instance Param Type where
-  free_var (TExp _ t) = free_var t
-  subs_var a b (TExp n t) = TExp n (subs_var a b t)
+  free_var (TBang _ t) = free_var t
+  subs_var a b (TBang n t) = TBang n (subs_var a b t)
 
 instance Eq Type where
-  (==) (TExp m (t, _)) (TExp n (t', _)) = m == n && t == t'
-
-instance PPrint Type where
-  sprintn lv (TExp f a) =
-    let pf = pprint f in
-    if List.length pf == 0 then
-      pf ++ sprintn lv a
-    else
-      pf ++ (case a of
-               (TTensor _, _) -> "(" ++ sprintn lv a ++ ")"
-               (TArrow _ _, _) -> "(" ++ sprintn lv a ++ ")"
-               _ -> sprintn lv a)
- 
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
+  (==) (TBang m t) (TBang n t') = m == n && t == t'
 
 
 
@@ -288,28 +282,6 @@ instance Param Pattern where
   free_var (PLocated p _) = free_var p
 
   subs_var _ _ p = p
-
-instance PPrint Pattern where
-   -- Print unto Lvl = n
-  sprintn _ (PVar x) = subvar 'x' x
-  sprintn _ PUnit = "<>"
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (PTuple (p:rest)) =
-    let dlv = decr lv in
-    "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
-
-  sprintn lv (PData dcon p) =
-    subvar 'D' dcon ++ "(" ++ sprintn (decr lv) p ++ ")"
-
-  sprintn lv (PLocated p _) =
-    sprintn lv p
-
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
 
 
 
@@ -354,69 +326,4 @@ instance Param Expr where
 
 print_var x = subvar 'x' x
 
--- Second argument is indentation level
-indent_sprintn :: Lvl -> String -> Expr -> String
-------------------------------------------------
-indent_sprintn _ _ EUnit = "<>"
-indent_sprintn _ _ (EBool b) = if b then "true" else "false"
-indent_sprintn _ _ (EVar x) = print_var x
-
-indent_sprintn (Nth 0) _ _ = "..."
-
-indent_sprintn lv ind (ELet p e f) =
-  let dlv = decr lv in
-  "let " ++ pprint p ++ " = " ++ indent_sprintn dlv ind e ++ " in\n" ++
-  ind ++ indent_sprintn dlv ind f
-
-indent_sprintn lv ind (ETuple (e:rest)) =
-  let dlv = decr lv in
-  "<" ++ indent_sprintn dlv ind e ++ List.foldl (\s f -> ", " ++ indent_sprintn dlv ind f) "" rest ++ ">"
-
-indent_sprintn lv ind (EApp e f) =
-  let dlv = decr lv in
-  (case e of
-     EFun _ _ -> "(" ++ indent_sprintn dlv ind e ++ ")"
-     _ -> indent_sprintn dlv ind e) ++ " " ++
-  (case f of
-     EFun _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
-     EApp _ _ -> "(" ++ indent_sprintn dlv ind f ++ ")"
-     _ -> indent_sprintn dlv ind f)
-
-indent_sprintn lv ind (EFun p e) =
-  let dlv = decr lv in
-  "fun " ++ pprint p ++ " ->\n" ++
-  ind ++ "    " ++ indent_sprintn dlv (ind ++ "    ") e
-
-indent_sprintn lv ind (EIf e f g) =
-  let dlv = decr lv in
-  "if " ++ indent_sprintn dlv ind e ++ " then\n" ++
-  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") f ++ "\n" ++
-  ind ++ "else\n" ++
-  ind ++ "  " ++ indent_sprintn dlv (ind ++ "  ") g
-
-indent_sprintn _ _ (EBox t) =
-  "box[" ++ pprint t ++ "]"
-
-indent_sprintn _ _ EUnbox =
-  "unbox"
-
-indent_sprintn _ _ ERev =
-  "rev"
-
-indent_sprintn lv ind (EData datacon e) =
-  subvar 'D' datacon ++ "(" ++ indent_sprintn (decr lv) ind e ++ ")"
-
-indent_sprintn lv ind (EMatch e  blist) =
-  let dlv = decr lv in
-  "match " ++ indent_sprintn dlv ind e ++ " with\n" ++
-    List.foldl (\s (p, f) ->
-                  s ++ ind ++ "  " ++ sprintn dlv p ++  " -> " ++ indent_sprintn dlv (ind ++ "  ") f ++ "\n") "" blist
-
-indent_sprintn lv ind (ELocated e _) =
-  indent_sprintn lv ind e
-
-instance PPrint Expr where
-  sprintn lv e = indent_sprintn lv "" e
-  sprint e = sprintn defaultLvl e
-  pprint e = sprintn Inf e
 

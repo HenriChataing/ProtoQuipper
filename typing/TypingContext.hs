@@ -56,17 +56,15 @@ bind_pattern (PLocated p ex) ctx = do
 
 bind_pattern PUnit ctx = do
   ex <- get_location
-  detail <- return $ ActualOfP PUnit ex
-  return (TExp (-1) (TUnit, detail), ctx, ([], []))
+  return (TBang (-1) TUnit, ctx, ([], []))
 
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) ctx = do
   a <- fresh_type
   n <- fresh_flag
   ex <- get_location
-  detail <- return $ ActualOfP (PVar x) ex
-  ctx' <- bind_var x (TExp n (TVar a, detail)) ctx
-  return (TExp n (TVar a, detail), ctx', ([], []))
+  ctx' <- bind_var x (TBang n (TVar a)) ctx
+  return (TBang n (TVar a), ctx', ([], []))
 
 bind_pattern (PTuple plist) ctx = do
   ex <- get_location
@@ -78,26 +76,24 @@ bind_pattern (PTuple plist) ctx = do
 
   n <- fresh_flag
 
-  pflags <- return $ List.foldl (\fgs (TExp f _) -> (n, f):fgs) [] ptypes
+  pflags <- return $ List.foldl (\fgs (TBang f _) -> (n, f):fgs) [] ptypes
 
-  detail <- return $ ActualOfP (PTuple plist) ex
-  return (TExp n (TTensor ptypes, detail), ctx, (lc, pflags ++ fc))
+  return (TBang n (TTensor ptypes), ctx, (lc, pflags ++ fc))
 
 -- While binding datacons, a new type is generated for the inner one,
 -- with the condition that it is a subtype of the type required by the data constructor
 bind_pattern (PData dcon p) ctx = do
   ex <- get_location
-  detail <- return $ ActualOfP (PData dcon p) ex
   n <- fresh_flag
   
   (typename, dtype) <- datacon_def dcon
   
-      -- Alternate version --
-  --(typep, ctx', (lc, fc)) <- bind_pattern p ctx
-  --return (TExp n (TUser typename, detail), ctx', ((NonLinear dtype typep):lc, fc))
+      -- Alternate versions --
+  (typep, ctx', (lc, fc)) <- bind_pattern p ctx
+  return (TBang n (TUser typename), ctx', ((NonLinear dtype typep):lc, fc))
 
-  (ctx', constraints) <- bind_pattern_to_type p dtype ctx
-  return (TExp n (TUser typename, detail), ctx', constraints)
+  --(ctx', constraints) <- bind_pattern_to_type p dtype ctx
+  --return (TBang n (TUser typename, detail), ctx', constraints)
 
 
 -- | This function does the same as bind_pattern, expect that it attempts to use the expected
@@ -113,10 +109,10 @@ bind_pattern_to_type (PVar x) t ctx = do
   ctx' <- bind_var x t ctx
   return (ctx', ([], []))
 
-bind_pattern_to_type PUnit t@(TExp _ (TUnit, _)) ctx = do
+bind_pattern_to_type PUnit t@(TBang _ TUnit) ctx = do
   return (ctx, ([], []))
 
-bind_pattern_to_type (PTuple plist) (TExp n (TTensor tlist, d)) ctx =
+bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) ctx =
   let bind_list = (\plist tlist ctx ->
                      case (plist, tlist) of 
                        ([], []) ->
@@ -135,7 +131,7 @@ bind_pattern_to_type (PTuple plist) (TExp n (TTensor tlist, d)) ctx =
     (ctx', constraints) <- bind_list plist tlist ctx
     return (ctx', constraints)
 
-bind_pattern_to_type (PData dcon p) (TExp _ (TUser tname, _)) ctx = do
+bind_pattern_to_type (PData dcon p) (TBang _ (TUser tname)) ctx = do
   (typename, dtype) <- datacon_def dcon
   if typename == tname then
     bind_pattern_to_type p dtype ctx
@@ -148,9 +144,15 @@ bind_pattern_to_type _ _ _ = do
 
 
 -- | Return the set of the annotation flags of the context
-context_annotation :: TypingContext -> QpState [(Variable, Flag)]
+context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
-  return $ IMap.foldWithKey (\x (TExp f _) ann -> (x, f):ann) [] ctx
+  return $ IMap.foldWithKey (\x (TBang f _) ann -> (x, f):ann) [] ctx
+
+
+-- | Return a set of flag constraints forcing the context to be banged
+have_duplicable_context :: TypingContext -> QpState [FlagConstraint]
+have_duplicable_context ctx = do
+  return $ IMap.fold (\(TBang f _) ann -> (one, f):ann) [] ctx
 
 
 -- | Perform the union of two typing contexts

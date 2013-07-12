@@ -56,7 +56,7 @@ tokens :-
   with                                { locate_token TkWith }
 
   $low_alpha [$alpha $digit]*         { locate_named_token TkVar }
-  $up_alpha+                          { locate_named_token TkVar }
+  $up_alpha [$up_alpha $digit]*       { locate_named_token TkVar }
   $up_alpha [$alpha $digit]*          { locate_named_token TkDatacon }
 
 {
