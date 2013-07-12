@@ -124,6 +124,10 @@ data Type =
   deriving Show
 
 
+-- | Remove the flag annotation from a type, returning a linear type
+no_bang :: Type -> LinType
+no_bang (TBang _ t) = t
+
 
 {-
   The pattern structure has been left in the core syntax, although it is a syntactic sugar.
@@ -181,7 +185,7 @@ data Expr =
 
 lintype_unifier :: LinType -> LinType -> LinType
 type_unifier :: Type -> Type -> Type
-list_unifier :: [LinType] -> LinType
+list_unifier :: [Type] -> Type
 ------------------------------------
 lintype_unifier TUnit _ = TUnit
 lintype_unifier _ TUnit = TUnit
@@ -206,7 +210,7 @@ lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unif
 type_unifier (TBang m t) (TBang _ u) = TBang m $ lintype_unifier t u
 
 list_unifier (t:ct) =
-  List.foldl (\unif u -> lintype_unifier unif u) t ct
+  List.foldl (\unif u -> type_unifier unif u) t ct
 
 {-
   Instance declarations of Flag, LinType, Type, Pattern, Expr :

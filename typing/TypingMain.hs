@@ -88,7 +88,7 @@ test_unification set =
                                    r <- rec
                                    t' <- translate_type t
                                    u' <- translate_type u
-                                   return $ (NonLinear t' u'):r) (return []) set
+                                   return $ (Subtype t' u'):r) (return []) set
 
       non_composite <- break_composite (constraints, [])
 

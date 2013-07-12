@@ -116,12 +116,12 @@ init_ordering =
 
 register_constraint c = do
   case c of
-    Linear (TVar x) (TVar y) -> do
+    Subtype (TBang _ (TVar x)) (TBang _ (TVar y)) -> do
         cx <- cluster_of x
         cy <- cluster_of y
         merge_clusters cx cy
 
-    Linear (TVar x) u -> do
+    Subtype (TBang _ (TVar x)) u -> do
         cx <- cluster_of x
         fvu <- return $ free_var u
         List.foldl (\e y -> do
@@ -130,7 +130,7 @@ register_constraint c = do
                       new_relation cx cy
                       return ()) (return ()) fvu
         
-    Linear t (TVar x) -> do
+    Subtype t (TBang _ (TVar x)) -> do
         cx <- cluster_of x
         fvt <- return $ free_var t
         List.foldl (\e y -> do

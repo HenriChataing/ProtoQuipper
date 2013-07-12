@@ -69,9 +69,9 @@ instance Show QError where
   show (NotBoolError v ex) = "Error: " ++ v ++ " is not of type bool: at extent " ++ show ex
 
   show (TypingError ta tb) = "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
-  show (DetailedTypingError ta tb e ex) = "Typing error: can not match the actual type\n" ++
+  show (DetailedTypingError ta tb e ex) = "Typing error: couldn't match actual type\n" ++
                                           "    " ++ ta ++ "\n" ++
-                                          "with the expected type\n" ++
+                                          "with expected type\n" ++
                                           "    " ++ tb ++ "\n" ++
                                           "in the type of\n" ++
                                           "    " ++ e ++ "\n" ++

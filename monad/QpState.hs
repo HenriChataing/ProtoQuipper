@@ -301,7 +301,10 @@ referenced_expression ref = do
           _ -> return $ Nothing
 
     Nothing ->
-        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+        -- One option would be to send an exception
+        --    throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+        -- but he said flag can also be 0, 1 ... which are used as values, not referenced
+        return $ Nothing
 
 
 -- | Specify the expression typed by the associated type of an flag

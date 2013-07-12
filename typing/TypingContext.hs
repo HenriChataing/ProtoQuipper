@@ -54,28 +54,44 @@ bind_pattern (PLocated p ex) ctx = do
   set_location ex
   bind_pattern p ctx
 
+-- Unit value
 bind_pattern PUnit ctx = do
+  -- Detailed information
   ex <- get_location
-  return (TBang (-1) TUnit, ctx, ([], []))
+  n <- fresh_flag_with_value Any
+  specify_expression n $ ActualOfP PUnit
+  specify_location n ex
+
+  return (TBang n TUnit, ctx, ([], []))
 
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) ctx = do
-  a <- fresh_type
-  n <- fresh_flag
+  -- Detailed information 
   ex <- get_location
+  n <- fresh_flag
+  specify_expression n $ ActualOfP (PVar x)
+  specify_location n ex
+
+  a <- fresh_type
+
   ctx' <- bind_var x (TBang n (TVar a)) ctx
   return (TBang n (TVar a), ctx', ([], []))
 
+-- Tuples
 bind_pattern (PTuple plist) ctx = do
+  -- Detailed information
   ex <- get_location
-
-  (ptypes, ctx, (lc, fc)) <- List.foldr (\p rec -> do
-                                 (r, ctx, (lc, fc)) <- rec
-                                 (p', ctx, (lc', fc')) <- bind_pattern p ctx
-                                 return ((p':r), ctx, (lc++lc', fc++fc'))) (return ([], ctx, ([], []))) plist
-
   n <- fresh_flag
+  specify_expression n $ ActualOfP (PTuple plist)
+  specify_location n ex
 
+  -- Bind the patterns of the tuple
+  (ptypes, ctx, (lc, fc)) <- List.foldr (\p rec -> do
+                                 (r, ctx, cset) <- rec
+                                 (p', ctx, cset') <- bind_pattern p ctx
+                                 return ((p':r), ctx, cset <> cset')) (return ([], ctx, ([], []))) plist
+
+  -- Generate the constraints on the flag of the tuple
   pflags <- return $ List.foldl (\fgs (TBang f _) -> (n, f):fgs) [] ptypes
 
   return (TBang n (TTensor ptypes), ctx, (lc, pflags ++ fc))
@@ -83,14 +99,18 @@ bind_pattern (PTuple plist) ctx = do
 -- While binding datacons, a new type is generated for the inner one,
 -- with the condition that it is a subtype of the type required by the data constructor
 bind_pattern (PData dcon p) ctx = do
+  -- Detailed information
   ex <- get_location
   n <- fresh_flag
-  
+  specify_expression n $ ActualOfP (PData dcon p)
+  specify_location n ex
+ 
+  -- Definition of the data constructor 
   (typename, dtype) <- datacon_def dcon
   
       -- Alternate versions --
   (typep, ctx', (lc, fc)) <- bind_pattern p ctx
-  return (TBang n (TUser typename), ctx', ((NonLinear dtype typep):lc, fc))
+  return (TBang n (TUser typename), ctx', ((Subtype dtype typep):lc, fc))
 
   --(ctx', constraints) <- bind_pattern_to_type p dtype ctx
   --return (TBang n (TUser typename, detail), ctx', constraints)

@@ -416,6 +416,41 @@ constraint_typing typctx (EIf e f g) typ = do
 
 
 
+-- | Throw a typing error, based on the reference flags of the faulty types
+-- The return type can be anything, since an exception will be thrown in any case
+throw_TypingError :: Type -> Type -> QpState a
+throw_TypingError t@(TBang n _) u@(TBang m _) = do
+  -- Retrieve the location / expression of the types
+  termn <- referenced_expression n
+  termm <- referenced_expression m
+
+  -- Print the types t and u
+  prt <- return $ pprint t
+  pru <- return $ pprint u
+
+  -- See what information we have
+  case (termn, termm) of
+    (Just (e, ex), _) -> do
+        -- Print the expression / pattern
+        pre <- case e of
+                 ActualOfE e -> return $ pprint e
+                 ActualOfP p -> return $ pprint p
+
+        throwQ $ DetailedTypingError prt pru pre ex 
+
+    (_, Just (e, ex)) -> do
+        -- Print the expression / pattern
+        pre <- case e of
+                 ActualOfE e -> return $ pprint e
+                 ActualOfP p -> return $ pprint p
+
+        throwQ $ DetailedTypingError pru prt pre ex 
+ 
+    _ ->
+      -- No information available
+      throwQ $ TypingError prt pru
+
+
 
 -- Break composite constrainst of the form :
   -- T -> U <: T' -> U'
@@ -426,89 +461,83 @@ break_composite :: ConstraintSet -> QpState ConstraintSet
 -- Nothing to do
 break_composite ([], lc) = return ([], lc)
 
+
 -- With location
-break_composite ((Linear (TLocated t _) u):lc, fc) = do
-  break_composite ((Linear t u):lc, fc)
+break_composite ((Subtype (TBang n (TLocated t _)) u):lc, fc) = do
+  break_composite ((Subtype (TBang n t) u):lc, fc)
 
-break_composite ((Linear t (TLocated u _)):lc, fc) = do
-  break_composite ((Linear t u):lc, fc)
+break_composite ((Subtype t (TBang n (TLocated u _))):lc, fc) = do
+  break_composite ((Subtype t (TBang n u)):lc, fc)
 
-break_composite ((Linear TUnit TUnit):lc, fc) = do
+
+-- Unit against unit : removed
+break_composite ((Subtype (TBang _ TUnit) (TBang _ TUnit)):lc, fc) = do
   break_composite (lc, fc)
 
-break_composite ((Linear TBool TBool):lc, fc) = do
+
+-- Bool against bool : removed
+break_composite ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
   break_composite (lc, fc)
 
-break_composite ((Linear TQbit TQbit):lc, fc) = do
+
+-- Qbit against QBit : removed
+break_composite ((Subtype (TBang _ TQbit) (TBang _ TQbit)):lc, fc) = do
   break_composite (lc, fc)
 
--- Break constraints
+
+-- Arrow against arrow
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite ((Linear (TArrow t u) (TArrow t' u')):lc, fc) = do
-  break_composite ((NonLinear t' t):(NonLinear u u'):lc, fc)
+break_composite ((Subtype (TBang n (TArrow t u)) (TBang m (TArrow t' u'))):lc, fc) = do
+  break_composite ((Subtype t' t):(Subtype u u'):lc, (m, n):fc)
+ 
 
--- Break constraints
+-- Tensor against tensor
   -- T * U <: T' * U'
 -- Into
   -- T <: T' && U <: U'
+break_composite ((Subtype (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))):lc, fc) = do
+  if List.length tlist == List.length tlist' then do
+    comp <- return $ List.map (\(t, u) -> t <: u) $ List.zip tlist tlist'
+    break_composite $ (comp, [(q, p)]) <> (lc, fc)
 
-break_composite ((Linear (TTensor tlist) (TTensor tlist')):lc, fc) = do
-  case (tlist, tlist') of
-    ([], []) ->
-        break_composite (lc, fc)
+  else do
+    throw_TypingError (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))
 
-    (t:rest, t':rest') -> do
-        break_composite ((Linear (TTensor rest) (TTensor rest')):(NonLinear t t'):lc, fc)
 
-    _ ->
-        throw $ TypingError (pprint (TTensor tlist)) (pprint (TTensor tlist'))
-
--- Break constraints
-  -- T + U <: T' + U'
--- Into
-  -- T <: T' && U <: U'
-
-break_composite ((Linear (TUser n) (TUser m)):lc, fc) = do
-  if n == m then do
+-- User type against user type : removed
+break_composite ((Subtype (TBang n (TUser utyp)) (TBang m (TUser utyp'))):lc, fc) = do
+  if utyp == utyp' then do
     break_composite (lc, fc)
   else
-    throw $ TypingError (pprint (TUser n)) (pprint (TUser m))
+    throw $ TypingError (pprint (TUser utyp)) (pprint (TUser utyp'))
 
 
--- Break constraints
+-- Circ against Circ
   -- circ (T, U) <: circ (T', U')
 -- Into
   -- T' <: T && U <: U'
-break_composite ((Linear (TCirc t u) (TCirc t' u')):lc, fc) = do
-  break_composite ((NonLinear t' t):(NonLinear u u'):lc, fc)
+-- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
+break_composite ((Subtype (TBang _ (TCirc t u)) (TBang _ (TCirc t' u'))):lc, fc) = do
+  break_composite ((Subtype t' t):(Subtype u u'):lc, fc)
 
--- Break constraints
-  -- !n T <: !m U
--- Into
-  -- T <: U && m <= n
-break_composite ((NonLinear (TBang n TQbit) (TBang m u)):lc, fc) = do
-  break_composite ((Linear TQbit u):lc, (m, 0):fc)
-
-break_composite ((NonLinear (TBang n t) (TBang m TQbit)):lc, fc) = do
-  break_composite ((Linear t TQbit):lc, (n, 0):fc)
-
-break_composite ((NonLinear (TBang n t) (TBang m u)):lc, fc) = do
-  break_composite ((Linear t u):lc, (m, n):fc)
 
 -- Semi composite (unbreakable) constraints
-break_composite (c@(Linear (TVar _) _):lc, fc) = do
+break_composite (c@(Subtype (TBang _ (TVar _)) _):lc, fc) = do
   (lc', fc') <- break_composite (lc, fc)
   return (c:lc', fc')
 
-break_composite (c@(Linear _ (TVar _)):lc, fc) = do
+break_composite (c@(Subtype _ (TBang _ (TVar _))):lc, fc) = do
   (lc', fc') <- break_composite (lc, fc)
   return (c:lc', fc')
 
--- Other non composite / non-semi composite constraints
-break_composite ((Linear t u):lc, fc) = do
-  throwQ $ TypingError (pprint t) (pprint u) 
+
+-- Everything else is a typing error
+break_composite ((Subtype t u):lc, fc) = do
+  throw_TypingError t u
+
+
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
 
@@ -584,8 +613,8 @@ unify (lc, fc) = do
 
       -- Filter the constraint which have an element of cx as right or left hand side
       (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
-                                                          Linear (TVar x) _ -> List.elem x cx
-                                                          Linear _ (TVar y) -> List.elem y cx) lc
+                                                          Subtype (TBang _ (TVar x)) _ -> List.elem x cx
+                                                          Subtype _ (TBang _ (TVar y)) -> List.elem y cx) lc
         
       -- Log
       logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -614,32 +643,32 @@ unify (lc, fc) = do
             if ischain then do
               newlog 0 "CHAINED"
               leftend <- case List.head sorted of
-                           Linear t _ -> return $ t
+                           Subtype t _ -> return $ t
               rightend <- case List.last sorted of
-                            Linear _ t -> return t
+                            Subtype _ t -> return t
 
               -- Map x1 .. xn to T or U
               case (leftend, rightend) of
-                ((TVar x), _) -> do
+                (TBang _ (TVar x), _) -> do
                     List.foldl (\rec x -> do
                                   rec
-                                  mapsto x rightend) (return ()) cx
+                                  mapsto x $ no_bang rightend) (return ()) cx
                     -- Unify the rest
                     unify (non_lcx, fc)
                     
-                (_, (TVar x)) -> do
+                (_, TBang _ (TVar x)) -> do
                     List.foldl (\rec x -> do
                                   rec
-                                  mapsto x leftend) (return ()) cx
+                                  mapsto x $ no_bang leftend) (return ()) cx
                     -- Unify the rest
                     unify (non_lcx, fc)
 
                 _ -> do
                     List.foldl (\rec x -> do
                                   rec
-                                  mapsto x leftend) (return ()) cx
+                                  mapsto x $ no_bang leftend) (return ()) cx
 
-                    (cset', fc') <- break_composite ([Linear leftend rightend], fc)
+                    (cset', fc') <- break_composite ([Subtype leftend rightend], fc)
                     register_constraints cset'
                     -- Unify the rest
                     unify (cset' ++ non_lcx, fc')
@@ -656,8 +685,8 @@ unify (lc, fc) = do
                                       rec
                                       mapsto x (TVar cxh)) (return ()) $ List.tail cx
                       return $ List.map (\c -> case c of
-                                                 Linear (TVar _) t -> Linear (TVar cxh) t
-                                                 Linear t (TVar _) -> Linear t (TVar cxh)) cset
+                                                 Subtype (TBang n (TVar _)) t -> Subtype (TBang n $ TVar cxh) t
+                                                 Subtype t (TBang n (TVar _)) -> Subtype t (TBang n $ TVar cxh)) cset
                     else do
                       return cset
 
@@ -669,27 +698,29 @@ unify (lc, fc) = do
             
               List.foldl (\rec x -> do
                              rec
-                             _ <- map_to_model x model
+                             _ <- map_to_model x $ no_bang model
                              return ()) (return ()) cx
             
               -- Rewrite and reduce the atomic constraints
-              atomx' <- List.foldl (\rec (Linear (TVar x) (TVar y)) -> do
+              atomx' <- List.foldl (\rec (Subtype (TBang n (TVar x)) (TBang m (TVar y))) -> do
                                       (lr, fr) <- rec
                                       xt <- appmap x
                                       yt <- appmap y
-                                      (lr', fr')  <- break_composite ([Linear xt yt], fr)
+                                      (lr', fr')  <- break_composite ([Subtype (TBang n xt) (TBang m yt)], fr)
                                       return (lr' ++ lr, fr')) (return (non_lcx, fc)) atomx
 
               -- Rewrite and reduce the remaining constraints
               (cset', fc'') <- List.foldl (\rec c -> do
                                      (lr, fr) <- rec
                                      c' <- case c of
-                                             Linear (TVar x) t -> do
+                                             Subtype (TBang n (TVar x)) t -> do
                                                  xt <- appmap x
-                                                 return $ Linear xt t
-                                             Linear t (TVar x) -> do
+                                                 return $ Subtype (TBang n xt) t
+
+                                             Subtype t (TBang n (TVar x)) -> do
                                                  xt <- appmap x
-                                                 return $ Linear t xt
+                                                 return $ Subtype t (TBang n xt)
+
                                      (lr', fr') <- break_composite ([c'], fr)
                                      return (lr' ++ lr, fr')) (return atomx') cset
               
