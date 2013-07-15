@@ -395,6 +395,11 @@ data TypeConstraint =
   deriving Show
 
 
+-- | Shortcut operator for writing sub-typing constraints
+(<:) :: Type -> Type -> TypeConstraint
+t <: u = Subtype t u
+
+
 -- | Flag constraints, of the form n <= m, to be interpreted as
 --    n <= 0  ==  n :=: 0
 --    1 <= n  ==  n :=: 1
@@ -409,14 +414,18 @@ type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
 
--- | Shortcut operator for writing sub-typing constraints
-(<:) :: Type -> Type -> TypeConstraint
-t <: u = Subtype t u
+-- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
+class Constraints a where
+  (<>) :: a -> ConstraintSet -> ConstraintSet
 
+instance Constraints [TypeConstraint] where
+  lc <> (lc', fc') = (lc ++ lc', fc')
 
--- | Concatenation of two constraint sets
-(<>) :: ConstraintSet -> ConstraintSet -> ConstraintSet
-(lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
+instance Constraints [FlagConstraint] where
+  fc <> (lc', fc') = (lc', fc ++ fc')
+
+instance Constraints ConstraintSet where
+  (lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
 
 
 -- | Empty constraint set

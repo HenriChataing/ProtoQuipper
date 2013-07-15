@@ -21,10 +21,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 
-
 -- Build all the deriving constraints
 constraint_typing :: TypingContext -> Expr -> Type -> QpState ConstraintSet
-
 
 -- | Located things
 -- Change the location and resume
@@ -328,7 +326,7 @@ constraint_typing typctx (EDatacon dcon e) typ = do
   ex <- get_location
 
   -- Retrieve the definition of the data constructor, and instanciate its typing scheme
-  (_, dtype) <- datacon_def dcon
+  dtype <- datacon_def dcon
   (dtype', cset) <- instanciate dtype
 
   case (dtype', e) of
@@ -338,7 +336,7 @@ constraint_typing typctx (EDatacon dcon e) typ = do
         specify_expression n $ ActualOfE (EDatacon dcon Nothing)
         specify_location n ex
 
-        return $ ([dtype' <: typ], []) <> cset
+        return $ [dtype' <: typ] <> cset
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
@@ -347,7 +345,7 @@ constraint_typing typctx (EDatacon dcon e) typ = do
         specify_location n ex
         
         csete <- constraint_typing typctx e t
-        return $ ([u <: typ], []) <> csete <> cset
+        return $ [u <: typ] <> csete <> cset
 
 
 -- Match typing rule

@@ -98,7 +98,7 @@ bind_pattern (PTuple plist) ctx = do
 -- with the condition that it is a subtype of the type required by the data constructor
 bind_pattern (PDatacon dcon p) ctx = do
   -- Definition of the data constructor 
-  (_, dtype) <- datacon_def dcon
+  dtype <- datacon_def dcon
   
   -- Instanciate the type
   (typ, cset) <- instanciate dtype
@@ -153,17 +153,17 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) ctx =
     return (ctx', constraints)
 
 bind_pattern_to_type (PDatacon dcon p) typ ctx = do
-  (_, dtype) <- datacon_def dcon
+  dtype <- datacon_def dcon
   (dtype', cset) <- instanciate dtype
   
   case (dtype', p) of
     (TBang _ (TArrow t u), Just p) -> do
         -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
         (ctx', cset') <- bind_pattern_to_type p t ctx
-        return (ctx', ([u <: typ], []) <> cset <> cset')
+        return (ctx', [u <: typ] <> cset <> cset')
 
     (_, Nothing) ->
-        return (ctx, ([dtype' <: typ], []) <> cset)
+        return (ctx, [dtype' <: typ] <> cset)
 
     _ ->
         fail "In pattern, data constructor takes no argument, when it was given one"

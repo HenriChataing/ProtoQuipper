@@ -83,7 +83,7 @@ data Context = Ctx {
 -- This helps typing the constructor as :  datacon :: type -> usertype
 --                                   or :  datacon :: usertype
 -- depending on whether the constructor takes an argument or not
-  datacons :: IntMap (String, Type),
+  datacons :: IntMap Type,
 
 -- Information relevant to the flags
 -- This includes the value of the flag, as well as the expression typed by
@@ -273,7 +273,7 @@ register_datacon :: String -> String -> Type -> QpState Int
 register_datacon dcon typename dtype = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
-  set_context $ ctx { namespace = nspace, datacons = IMap.insert id (typename, dtype) $ datacons ctx }
+  set_context $ ctx { namespace = nspace, datacons = IMap.insert id dtype $ datacons ctx }
   return id
 
 
@@ -297,7 +297,7 @@ type_def typ = do
 
 
 -- | Retrieves the definition of a datacon
-datacon_def :: Int -> QpState (String, Type)
+datacon_def :: Int -> QpState Type
 datacon_def id = do
   ctx <- get_context
   case IMap.lookup id $ datacons ctx of

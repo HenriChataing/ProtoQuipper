@@ -88,7 +88,7 @@ test_unification set =
                                    r <- rec
                                    (t', csett) <- translate_type t [] (Map.empty)
                                    (u', csetu) <- translate_type u [] (Map.empty)
-                                   return $ ([t' <: u'], []) <> csett <> csetu <> r) (return emptyset) set
+                                   return $ [t' <: u'] <> csett <> csetu <> r) (return emptyset) set
 
       non_composite <- break_composite constraints
 

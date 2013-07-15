@@ -123,7 +123,7 @@ translate_type (S.TTensor tlist) [] label = do
   (tlist', cset') <- List.foldr (\t rec -> do
                                    (r, cs) <- rec
                                    (t'@(TBang m _), cs') <- translate_type t [] label
-                                   return ((t':r), ([], [(n, m)]) <> cs' <> cs)) (return ([], emptyset)) tlist
+                                   return ((t':r), [(n, m)] <> cs' <> cs)) (return ([], emptyset)) tlist
   return (TBang n (TTensor tlist'), cset')
 
 translate_type (S.TBang t) [] label = do
