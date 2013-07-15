@@ -28,15 +28,17 @@ gate_context :: [(String, S.Type)] -> QpState TypingContext
 gate_context gates = do
   List.foldl (\rec (s, t) -> do
                 ctx <- rec
-                t' <- translate_type t
+                (t', _) <- translate_type t [] (Map.empty)
                 x <- gate_id s
                 bind_var x t' ctx) (return IMap.empty) gates
 
-full_inference :: ([S.Typedef], S.Expr) -> IO String
+full_inference :: S.Program -> IO String
 ----------------------------------
 full_inference fprog =
 
   let run = do
+      set_verbose 5
+
       prog <- translate_program fprog
       typctx <- gate_context typing_environment
   
@@ -51,8 +53,8 @@ full_inference fprog =
 
       inferred <- map_type a
 
-      sol <- solve_annotation $ snd red_constraints
-      valinf <- app_val_to_type inferred sol
+      solve_annotation $ snd red_constraints
+      valinf <- rewrite_flags inferred
       
 
       maps <- mapping_list
@@ -63,7 +65,6 @@ full_inference fprog =
       return $ pprint constraints ++ "\n\n" ++
                pprint red_constraints ++ "\n\n" ++
                pmaps ++ "\n\n" ++
-               pprint_val sol ++ "\n\n" ++
                pprint inferred ++ "\n\n" ++
                pprint valinf
   in do
@@ -86,18 +87,18 @@ test_unification set =
   let run = do
       constraints <- List.foldl (\rec (t, u) -> do
                                    r <- rec
-                                   t' <- translate_type t
-                                   u' <- translate_type u
-                                   return $ (Subtype t' u'):r) (return []) set
+                                   (t', csett) <- translate_type t [] (Map.empty)
+                                   (u', csetu) <- translate_type u [] (Map.empty)
+                                   return $ ([t' <: u'], []) <> csett <> csetu <> r) (return emptyset) set
 
-      non_composite <- break_composite (constraints, [])
+      non_composite <- break_composite constraints
 
       -- Unification
       init_ordering
       register_constraints $ fst non_composite
       red_constraints <- unify non_composite
 
-      return $ pprint ((constraints, []) :: ConstraintSet) ++ "\n\n" ++
+      return $ pprint (constraints :: ConstraintSet) ++ "\n\n" ++
                pprint non_composite ++ "\n\n" ++
                pprint red_constraints
   in

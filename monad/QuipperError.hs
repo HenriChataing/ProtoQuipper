@@ -11,33 +11,41 @@ import Control.Exception
 import Data.Typeable
 
 data QError =
-    {-
-       Lexical errors, thrown during the lexing of the input file.
-       It is of but one type of error : unknown token %%%
-       The extent give the location of the error.
-    -}
+    
+    -- Lexical, thrown by the lexer when coming upon an unkown token
     LexicalError Extent
 
-    {-
-       Parsing errors, thrown during the parsing. Parsing errors generally correspond to an unknwon
-       sequence of tokens. As of now, only one parsing error is provided to represent them all. Others
-       will be added later to differenciate between missing parenthesis, ... -}
+    -- Parsing error : a same kind of error is used to describe all syntax errors
   | ParsingError String
+
+    -- The box constructor requires a quantum data type, this error is thrown otherwise
   | BoxTypeError Extent
 
-    {-
-       Runtime errors. Some of those may overlap with the type inference errors, but the context in which
-       they are thrown is different
-    -}
   | NoBoxError Extent
+
+    -- Variable / datacon is unbound / undefined
   | UnboundVariable String Extent
   | UnboundDatacon String Extent
+
+    -- A type constructor expect a certain number of arguments n, and is given m /= n instead
+  | WrongTypeArguments String Int Int Extent
+
+    -- Matching errors
   | MatchingError String String
+
+    -- Strictly runtime error : when no match is found in a match .. with .. construction
   | NoMatchError String Extent
+
+    -- Something not a function is applied to an argument
   | NotFunctionError String Extent
+
+    
   | NotUnionError String
+
+    -- Runtime error, if the condition of a if .. then .. else is not a boolean
   | NotBoolError String Extent
-  
+ 
+    -- Typing errors : thrown during the unification 
   | TypingError String String                             -- Typing error
   | DetailedTypingError String String String Extent       -- Typing error : actual vs expected in type of expr at extent ex
 
@@ -61,6 +69,12 @@ instance Show QError where
 
   show (UnboundVariable x ex) = "Error: unbound variable " ++ x ++ ": at extent " ++ show ex
   show (UnboundDatacon dcon ex) = "Error: unbound data constructor " ++ dcon ++ ": at extent " ++ show ex
+  show (WrongTypeArguments typ exp act ex) =
+    if exp == 0 then
+      "Error: the type " ++ typ ++ " expects no arguments, but has been given " ++ show act ++ ": at extent " ++ show ex
+    else
+      "Error: the type " ++ typ ++ " expects " ++ show exp ++ " arguments, but has been given " ++ show act ++ ": at extent " ++ show ex
+
   show (NoBoxError ex) = "Error: unbox operations must be executed in the context of a box: at extent " ++ show ex
   show (MatchingError p q) = "Error: the objects " ++ p ++ " and " ++ q ++ " don't have the same type"
   show (NoMatchError v ex) = "Error: the pattern matching is not exhaustive: with the value " ++ v ++ ": at the extent " ++ show ex

@@ -137,11 +137,18 @@ bind_pattern (PTuple plist) (VTuple vlist) env = do
 bind_pattern PUnit VUnit env = do
   return env
 
-bind_pattern (PData dcon p) (VData dcon' v) env = do
+bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
   if dcon == dcon' then
-    bind_pattern p v env
+    case (p, v) of
+      (Just p, Just v) ->
+          bind_pattern p v env
+      (Nothing, Nothing) ->
+          return env
+      _ ->
+          throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
+
   else
-    throw $ MatchingError (sprint $ PData dcon p) (sprint $ VData dcon' v)
+    throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
 
 bind_pattern (PLocated p ex) v env = do
   set_location ex
@@ -173,9 +180,15 @@ match_value (PTuple plist) (VTuple vlist) =
 match_value PUnit VUnit =
   True
 
-match_value (PData dcon p) (VData dcon' v) =
+match_value (PDatacon dcon p) (VDatacon dcon' v) =
   if dcon == dcon' then
-    match_value p v
+    case (p, v) of
+      (Just p, Just v) ->
+          match_value p v
+      (Nothing, Nothing) ->
+          True
+      _ ->
+          False
   else
     False
 
@@ -363,9 +376,14 @@ interpret env (EApp ef arg) = do
   do_application env f x
 
 -- Patterns and pattern matching
-interpret env (EData datacon e) = do
-  v <- interpret env e
-  return (VData datacon v)
+interpret env (EDatacon datacon e) = do
+  case e of
+    Just e -> do
+        v <- interpret env e
+        return (VDatacon datacon (Just v))
+
+    Nothing ->
+        return (VDatacon datacon Nothing)
 
 interpret env (EMatch e blist) = do
   let match = (\ex v blist ->

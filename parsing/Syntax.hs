@@ -14,7 +14,25 @@ type Datacon = String
 -- | Type declarations
 -- For now, types takes no type argument
 -- The definition is a list of pairs datacon * generic type variables * type
-data Typedef = Typedef String [String] [(Datacon, Type)]
+data Typedef = Typedef String [String] [(Datacon, Maybe Type)]
+
+
+-- | Import module declaration
+data Import = Import String
+
+
+-- | Definition of a program
+data Program = Prog {
+  -- A list of modules to import
+  -- A module is named by the name of the file, with the first letter an upper case
+  imports :: [Import],
+
+  -- A list of type definitions
+  typedefs :: [Typedef],
+ 
+  -- The body of the module, can be interpreted as the main function
+  body :: Expr
+}
 
 
 -- | Definition of types
@@ -100,12 +118,12 @@ instance Located Type where
 -- the program must be cautious not to change it
 --        - should PUnit be written as PTuple [] ?
 data Pattern =
-    PUnit                     -- <>
-  | PVar String               -- x
-  | PTuple [Pattern]          -- <x1, .., xn>
-  | PData Datacon Pattern     -- datacon (p)
-  | PConstraint Pattern Type  -- (x : A)
-  | PLocated Pattern Extent   -- x @ ex
+    PUnit                                -- <>
+  | PVar String                          -- x
+  | PTuple [Pattern]                     -- <x1, .., xn>
+  | PDatacon Datacon (Maybe Pattern)     -- datacon (p)
+  | PConstraint Pattern Type             -- (x : A)
+  | PLocated Pattern Extent              -- x @ ex
   deriving Show
 
 
@@ -145,7 +163,7 @@ data Expr =
   | EUnit                          -- <>
 
 -- Addition of sum types
-  | EData String Expr              -- datacon e
+  | EDatacon String (Maybe Expr)   -- datacon e
   | EMatch Expr [(Pattern, Expr)]  -- match e with (x1 -> f1 | x2 -> f2 | ... | xn -> fn)
   | EIf Expr Expr Expr             -- if e then f else g
   | EBool Bool                     -- true / false
@@ -185,7 +203,8 @@ instance Located Expr where
   clear_location (ETuple elist) = ETuple $ List.map clear_location elist
   clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
   clear_location (EBox t) = EBox (clear_location t)
-  clear_location (EData datacon e) = EData datacon (clear_location e)
+  clear_location (EDatacon dcon Nothing) = EDatacon dcon Nothing
+  clear_location (EDatacon dcon (Just e)) = EDatacon dcon (Just $ clear_location e)
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 

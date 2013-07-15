@@ -74,7 +74,7 @@ import Data.List as List
 %%
 
 Program :
-      Typedef_list Expr                      { ($1, $2) }
+      Typedef_list Expr                      { Prog { imports = [], typedefs = $1, body = $2 } }
 
 Expr :
       FUN Pattern_list "->" Expr             { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
@@ -92,7 +92,7 @@ Do_expr :
 
 Apply_expr :
       Apply_expr Atom_expr               { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | DATACON Atom_expr                  { locate_opt (EData (snd $1) $2) (fromto_opt (Just $ fst $1) (location $2)) }
+    | DATACON Atom_expr                  { locate_opt (EDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | Atom_expr                          { $1 }
 
 Atom_expr :
@@ -103,6 +103,7 @@ Atom_expr :
     | BOX '[' QDataType ']'              { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                              { locate EUnbox $1 }
     | REV                                { locate ERev $1 }
+    | DATACON                            { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' Expr ')'                       { $2 }
     | '<' Expr_sep_list '>'              { locate (ETuple $2) (fromto $1 $3) }
     | '<' '>'                            { locate EUnit (fromto $1 $2) }
@@ -118,7 +119,8 @@ Pattern :
       VAR                                { locate (PVar (snd $1)) (fst $1) }
     | '(' Pattern ':' Type ')'           { locate (PConstraint $2 $4) (fromto $1 $5) }
     | '<' Pattern_sep_list '>'           { locate (PTuple $2) (fromto $1 $3) }
-    | DATACON Pattern                    { locate_opt (PData (snd $1) $2) (fromto_opt (Just $ fst $1) (location $2)) }
+    | DATACON Pattern                    { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
+    | DATACON                            { locate (PDatacon (snd $1) Nothing) (fst $1) }
     | '<' '>'                            { locate PUnit (fromto $1 $2) }
     | '(' Pattern ')'                    { $2 }
 
@@ -190,8 +192,10 @@ Typedef :
 
 
 Data_intro_list :
-      DATACON OF Type                           { [(snd $1, $3)] }
-    | Data_intro_list '|' DATACON OF Type       { $1 ++ [(snd $3, $5)] }
+      DATACON OF Type                           { [(snd $1, Just $3)] }
+    | DATACON                                   { [(snd $1, Nothing)] }
+    | Data_intro_list '|' DATACON OF Type       { $1 ++ [(snd $3, Just $5)] }
+    | Data_intro_list '|' DATACON               { $1 ++ [(snd $3, Nothing)] }
 
 
 Var_list :

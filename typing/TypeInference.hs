@@ -82,13 +82,14 @@ constraint_typing typctx (EBool b) t = do
 constraint_typing typctx (EVar x) u = do
   -- Retrieve the type of x from the typing context
   t <- type_of x typctx
+  (t, cset) <- instanciate t -- In case t is a typing scheme
 
   -- Have the rest of the context be duplicable
   flags <- context_annotation typctx
   flags_nx <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) flags
   fconstraints <- return $ List.map (\(_, f) -> (one, f)) flags_nx
 
-  return ([t <: u], fconstraints)
+  return $ ([t <: u], fconstraints) <> cset
 
 
 -- | Box typing rule
@@ -182,7 +183,8 @@ constraint_typing typctx (EApp t u) b = do
 
   -- Filter on the free variables of t and type t
   (typctx_fvt, _) <- sub_context fvt typctx
-  csett <- constraint_typing typctx_fvt t (TBang 0 (TArrow a b))
+  n <- fresh_flag
+  csett <- constraint_typing typctx_fvt t (TBang n (TArrow a b))
 
   -- Filter on the free variables of u and type u
   (typctx_fvu, _) <- sub_context fvu typctx
@@ -322,24 +324,31 @@ constraint_typing typctx (ELet p t u) typ = do
 --  G |- datacon t : !p UserT  [L u {p <= n}]
 --
 
-constraint_typing typctx (EData dcon t) typ = do
+constraint_typing typctx (EDatacon dcon e) typ = do
   -- Detailed information
   ex <- get_location
-  p <- fresh_flag
-  specify_expression p $ ActualOfE (EData dcon t)
-  specify_location p ex
 
-  -- Retrieve the definition of the data constructor
+  -- Retrieve the definition of the data constructor, and instanciate its typing scheme
+  (_, dtype) <- datacon_def dcon
+  (dtype', cset) <- instanciate dtype
 
--- ============== TODO : the flag can't be the same for all uses of the data constructor, so it has to be instanciated
--- ============== it will have to be done at the same time generic usr types will be dealt with
+  case (dtype', e) of
+    -- No argument given, the constructor is typed as is
+    (TBang n _, Nothing) -> do
+        -- Some information
+        specify_expression n $ ActualOfE (EDatacon dcon Nothing)
+        specify_location n ex
 
-  (typename, dtype@(TBang n _)) <- datacon_def dcon
+        return $ ([dtype' <: typ], []) <> cset
 
-  -- The term t must have the type required as argument of the data constructor dcon
-  cset <- constraint_typing typctx t dtype
-
-  return $ cset <> ([TBang p (TUser typename) <: typ], [(p, n)])
+    -- One argument given, and the constructor requires one
+    (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
+        -- Some information
+        specify_expression n $ ActualOfE (EDatacon dcon $ Just e)
+        specify_location n ex
+        
+        csete <- constraint_typing typctx e t
+        return $ ([u <: typ], []) <> csete <> cset
 
 
 -- Match typing rule
@@ -481,7 +490,13 @@ break_composite ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
 
 
 -- Qbit against QBit : removed
-break_composite ((Subtype (TBang _ TQbit) (TBang _ TQbit)):lc, fc) = do
+break_composite ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
+  -- Make sure the qbit type is not banged
+  if n >= 2 then unset_flag n
+  else return ()
+  if m >= 2 then unset_flag m
+  else return ()
+  
   break_composite (lc, fc)
 
 
@@ -507,11 +522,12 @@ break_composite ((Subtype (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))):
 
 
 -- User type against user type : removed
-break_composite ((Subtype (TBang n (TUser utyp)) (TBang m (TUser utyp'))):lc, fc) = do
-  if utyp == utyp' then do
-    break_composite (lc, fc)
+break_composite ((Subtype (TBang n (TUser utyp args)) (TBang m (TUser utyp' args'))):lc, fc) = do
+  if utyp == utyp' && List.length args == List.length args' then do
+    cset <- return $ List.map (\(t, u) -> t <: u) $ List.zip args args'
+    break_composite $ (cset, [(m, n)]) <> (lc, fc)
   else
-    throw $ TypingError (pprint (TUser utyp)) (pprint (TUser utyp'))
+    throw $ TypingError (pprint (TUser utyp args)) (pprint (TUser utyp' args'))
 
 
 -- Circ against Circ
@@ -568,8 +584,12 @@ model_of_lin (TTensor tlist) = do
                           return (t':r)) (return []) tlist
   return (TTensor tlist')
 
-model_of_lin (TUser n) = do
-  return (TUser n)
+model_of_lin (TUser n args) = do
+  args' <- List.foldr (\a rec -> do
+                         r <- rec
+                         a' <- model_of a
+                         return (a':r)) (return []) args
+  return (TUser n args')
 
 model_of_lin (TVar _) = do
   x <- fresh_type
@@ -634,10 +654,9 @@ unify (lc, fc) = do
             return (non_lcx' ++ atomx, fc')
 
         -- Semi-composite constraints :
-           -- Pick up a sample type, and map all variables of cx to an instance of this type
         (atomx, cset) -> do
             
-            -- If all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T
+            -- If all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T, T <: U
             (ischain, sorted) <- return $ chain_constraints lcx
             
             if ischain then do
@@ -730,81 +749,73 @@ unify (lc, fc) = do
               -- Unifcation of the remaining
               unify (cset', fc'')
 
--- Flag unification
 
--- Set a flag value
-set_flag_u :: Int -> Int -> Map.Map Int Int -> QpState (Map.Map Int Int)
------------------------------------------------------------------------
-set_flag_u f n val = do
-  case Map.lookup f val of
-    Just m | m == n -> do return val
-           | otherwise -> do fail ("Unsolvable flag constraint set : flag " ++ show f)
-    _ -> do return $ Map.insert f n val 
-
-
-apply_constraints :: [FlagConstraint] -> Map.Map Int Int -> QpState (Bool, [FlagConstraint], Map.Map Int Int)
+-- | Recursively applies the flag constraints until no deduction can be drewn
+apply_constraints :: [FlagConstraint] -> QpState (Bool, [FlagConstraint])
 -----------------------------------------------------------------------------------------------------------
-apply_constraints [] v = do
-  return (False, [], v)
+apply_constraints [] = do
+  return (False, [])
 
-apply_constraints (c:cc) v = do
+apply_constraints (c:cc) = do
   case c of
     (1, 0) -> do
         fail "Absurd constraint 1 <= 0"
 
     (n, 0) -> do
-        v' <- set_flag_u n 0 v
-        (_, cc', v'') <- apply_constraints cc v'
-        return (True, cc', v'')
+        unset_flag n
+        (_, cc') <- apply_constraints cc
+        return (True, cc')
 
     (1, m) -> do
-        v' <- set_flag_u m 1 v
-        (_, cc', v'') <- apply_constraints cc v'
-        return (True, cc', v'')
+        set_flag m
+        (_, cc') <- apply_constraints cc
+        return (True, cc')
 
     (m, n) -> do
-      case (Map.lookup m v, Map.lookup n v) of
-        (Nothing, Nothing) -> do
-            (b, cc', v') <- apply_constraints cc v
-            return (b, c:cc', v')
+        vm <- flag_value m
+        vn <- flag_value n
+        case (vm, vm) of
+          (One, Zero) -> do
+              fail "Absurd constraint 1 <= 0"
 
-        (Just 1, Just 0) -> do
-            fail "Absurd constraint 1 <= 0"
+          (Unknown, Zero) -> do
+              unset_flag m
+              (_, cc') <- apply_constraints cc
+              return (True, cc')
+ 
+          (One, Unknown) -> do
+              set_flag n
+              (_, cc') <- apply_constraints cc
+              return (True, cc')
 
-        (Nothing, Just 0) -> do
-            v' <- set_flag_u m 0 v
-            (_, cc', v'') <- apply_constraints cc v'
-            return (True, cc', v'')
+          (Unknown, Unknown) -> do
+              (b, cc') <- apply_constraints cc
+              return (b, c:cc')
 
-        (Just 1, Nothing) -> do
-            v' <- set_flag_u n 1 v
-            (_, cc', v'') <- apply_constraints cc v'
-            return (True, cc', v'')
+          _ -> do
+              apply_constraints cc
 
-        _ -> do
-            apply_constraints cc v
 
-solve_constraints :: [FlagConstraint] -> Map.Map Int Int -> QpState ([FlagConstraint], Map.Map Int Int)
+solve_constraints :: [FlagConstraint] -> QpState [FlagConstraint]
 -----------------------------------------------------------------------------------------------------
-solve_constraints fc v = do
-  (b, fc', v') <- apply_constraints fc v
+solve_constraints fc = do
+  (b, fc') <- apply_constraints fc
   if b then
-    solve_constraints fc' v'
+    solve_constraints fc'
   else
-    return (fc', v')
+    return fc'
+
 
 -- Solve the constraint set
-solve_annotation :: [FlagConstraint] -> QpState (Map.Map Int Int)
+solve_annotation :: [FlagConstraint] -> QpState ()
 ----------------------------------------------------------------
 solve_annotation fc = do
-  -- Empty valuation
-  valuation <- return $ Map.empty
 
   -- Elimination of trivial constraints f <= 1 and 0 <= f, -1 <= f and f <= -1
   fc' <- return $ List.filter (\(m, n) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
 
   -- Application of the constraints 1 <= f and f <= 0
-  (fc'', val) <- solve_constraints fc' valuation
+  fc'' <- solve_constraints fc'
 
-  return val
+  return ()
 

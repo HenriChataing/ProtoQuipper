@@ -62,7 +62,7 @@ bind_pattern PUnit ctx = do
   specify_expression n $ ActualOfP PUnit
   specify_location n ex
 
-  return (TBang n TUnit, ctx, ([], []))
+  return (TBang n TUnit, ctx, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) ctx = do
@@ -75,7 +75,7 @@ bind_pattern (PVar x) ctx = do
   a <- fresh_type
 
   ctx' <- bind_var x (TBang n (TVar a)) ctx
-  return (TBang n (TVar a), ctx', ([], []))
+  return (TBang n (TVar a), ctx', emptyset)
 
 -- Tuples
 bind_pattern (PTuple plist) ctx = do
@@ -86,34 +86,37 @@ bind_pattern (PTuple plist) ctx = do
   specify_location n ex
 
   -- Bind the patterns of the tuple
-  (ptypes, ctx, (lc, fc)) <- List.foldr (\p rec -> do
+  (ptypes, ctx, cset) <- List.foldr (\p rec -> do
                                  (r, ctx, cset) <- rec
                                  (p', ctx, cset') <- bind_pattern p ctx
-                                 return ((p':r), ctx, cset <> cset')) (return ([], ctx, ([], []))) plist
+                                 return ((p':r), ctx, cset <> cset')) (return ([], ctx, emptyset)) plist
 
   -- Generate the constraints on the flag of the tuple
   pflags <- return $ List.foldl (\fgs (TBang f _) -> (n, f):fgs) [] ptypes
 
-  return (TBang n (TTensor ptypes), ctx, (lc, pflags ++ fc))
+  return (TBang n (TTensor ptypes), ctx, cset <> ([], pflags))
 
 -- While binding datacons, a new type is generated for the inner one,
 -- with the condition that it is a subtype of the type required by the data constructor
-bind_pattern (PData dcon p) ctx = do
-  -- Detailed information
-  ex <- get_location
-  n <- fresh_flag
-  specify_expression n $ ActualOfP (PData dcon p)
-  specify_location n ex
- 
+bind_pattern (PDatacon dcon p) ctx = do
   -- Definition of the data constructor 
-  (typename, dtype) <- datacon_def dcon
+  (_, dtype) <- datacon_def dcon
   
-      -- Alternate versions --
-  (typep, ctx', (lc, fc)) <- bind_pattern p ctx
-  return (TBang n (TUser typename), ctx', ((Subtype dtype typep):lc, fc))
+  -- Instanciate the type
+  (typ, cset) <- instanciate dtype
+  
+  -- Check the arguments
+  case (typ, p) of
+    (TBang _ (TArrow t u), Just p) -> do
+        -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
+        (ctx', cset') <- bind_pattern_to_type p t ctx
+        return (u, ctx', cset <> cset')
 
-  --(ctx', constraints) <- bind_pattern_to_type p dtype ctx
-  --return (TBang n (TUser typename, detail), ctx', constraints)
+    (_, Nothing) ->
+        return (typ, ctx, cset)
+
+    _ ->
+        fail "In pattern, data constructor takes no argument, when it was given one"
 
 
 -- | This function does the same as bind_pattern, expect that it attempts to use the expected
@@ -127,10 +130,10 @@ bind_pattern_to_type (PLocated p ex) t ctx = do
 
 bind_pattern_to_type (PVar x) t ctx = do
   ctx' <- bind_var x t ctx
-  return (ctx', ([], []))
+  return (ctx', emptyset)
 
 bind_pattern_to_type PUnit t@(TBang _ TUnit) ctx = do
-  return (ctx, ([], []))
+  return (ctx, emptyset)
 
 bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) ctx =
   let bind_list = (\plist tlist ctx ->
@@ -139,9 +142,9 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) ctx =
                            return (ctx, ([], []))
 
                        (p:prest, t:trest) -> do
-                           (ctx', (lc, fc)) <- bind_pattern_to_type p t ctx
-                           (ctx'', (lc', fc')) <- bind_list prest trest ctx'
-                           return (ctx'', (lc ++ lc', fc ++ fc'))
+                           (ctx', cset) <- bind_pattern_to_type p t ctx
+                           (ctx'', cset') <- bind_list prest trest ctx'
+                           return (ctx'', cset <> cset')
 
                        -- In case the list are of unequal size
                        _ ->
@@ -151,12 +154,21 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) ctx =
     (ctx', constraints) <- bind_list plist tlist ctx
     return (ctx', constraints)
 
-bind_pattern_to_type (PData dcon p) (TBang _ (TUser tname)) ctx = do
-  (typename, dtype) <- datacon_def dcon
-  if typename == tname then
-    bind_pattern_to_type p dtype ctx
-  else
-    fail "Not same constructor type"
+bind_pattern_to_type (PDatacon dcon p) typ ctx = do
+  (_, dtype) <- datacon_def dcon
+  (dtype', cset) <- instanciate dtype
+  
+  case (dtype', p) of
+    (TBang _ (TArrow t u), Just p) -> do
+        -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
+        (ctx', cset') <- bind_pattern_to_type p t ctx
+        return (ctx', ([u <: typ], []) <> cset <> cset')
+
+    (_, Nothing) ->
+        return (ctx, ([dtype' <: typ], []) <> cset)
+
+    _ ->
+        fail "In pattern, data constructor takes no argument, when it was given one"
 
 bind_pattern_to_type _ _ _ = do
   fail "Unmatching pattern / type"

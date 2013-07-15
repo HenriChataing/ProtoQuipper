@@ -6,10 +6,11 @@ module CorePrinter where
 import Classes
 import Utils
 
-import CoreSyntax
+import CoreSyntax hiding ((<>))
 
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
+
 
 instance PPrint LinType where
   -- Print unto Lvl = n
@@ -17,7 +18,7 @@ instance PPrint LinType where
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
   sprintn _ TQbit = "qbit"
-  sprintn _ (TUser n) = n
+  sprintn _ (TUser n app) = n ++ List.foldr (\t rec -> " " ++ pprint t ++ rec) "" app
   sprintn (Nth 0) _ = "..."
 
   sprintn lv (TTensor (a:rest)) =
@@ -79,8 +80,10 @@ instance PPrint Pattern where
     let dlv = decr lv in
     "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
 
-  sprintn lv (PData dcon p) =
-    subvar 'D' dcon ++ "(" ++ sprintn (decr lv) p ++ ")"
+  sprintn lv (PDatacon dcon p) =
+    subvar 'D' dcon ++ case p of
+                         Just p -> "(" ++ sprintn (decr lv) p ++ ")"
+                         Nothing -> ""
 
   sprintn lv (PLocated p _) =
     sprintn lv p
@@ -137,13 +140,16 @@ print_doc EUnbox =
 print_doc ERev =
   text "rev"
 
-print_doc (EData datacon e) =
+print_doc (EDatacon datacon Nothing) =
+  text (subvar 'D' datacon)
+
+print_doc (EDatacon datacon (Just e)) =
   let pe = print_doc e in
   text (subvar 'D' datacon) <+> (case e of
-                            EBool _ -> pe
-                            EUnit -> pe
-                            EVar _ -> pe
-                            _ -> parens pe)
+                                   EBool _ -> pe
+                                   EUnit -> pe
+                                   EVar _ -> pe
+                                   _ -> parens pe)
 
 print_doc (EMatch e blist) =
   text "match" <+> print_doc e <+> text "with" $$
@@ -157,8 +163,64 @@ print_doc (EMatch e blist) =
 print_doc (ELocated e _) =
   print_doc e
 
+
 instance PPrint Expr where
   sprintn lv e = PP.render $ print_doc e
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
 
+
+
+instance PPrint TypeConstraint where
+  pprint (Subtype t u) = pprint t ++ " <: " ++ pprint u
+  sprintn _ c = pprint c
+  sprint c = pprint c
+
+
+instance PPrint FlagConstraint where
+  pprint (m, n) =
+    (if m < 2 then
+       show m
+     else
+       subvar 'f' m) ++ " <= " ++
+    (if n < 2 then
+       show n
+     else
+       subvar 'f' n)
+
+  sprintn _ c = pprint c
+  sprint c = pprint c
+
+instance PPrint ConstraintSet where
+  pprint (lcs, fcs) =
+    let screenw = 120 in
+    let plcs = List.map pprint lcs in
+    let maxw = List.maximum $ List.map List.length plcs in
+    let nline = screenw `quot` (maxw + 5) in 
+
+    let slcons = fst $ List.foldl (\(s, nth) pc ->
+                        let padding = List.take (maxw - List.length pc + 5) $ List.repeat ' ' in
+
+                        if nth == 0 then
+                          (s ++ "\n" ++ pc ++ padding, nline)
+                        else
+                          (s ++ pc ++ padding, nth-1)) ("", nline+1) plcs
+    in
+
+    let pfcs = List.map pprint fcs in
+    let maxw = List.maximum $ List.map List.length pfcs in
+    let nline = screenw `quot` (maxw + 5) in
+
+    let sfcons = fst $ List.foldl (\(s, nth) pc ->
+                        let padding = List.take (maxw - List.length pc + 5) $ List.repeat ' ' in
+
+                        if nth == 0 then
+                          (s ++ "\n" ++ pc ++ padding, nline)
+                        else
+                          (s ++ pc ++ padding, nth-1)) ("", nline+1) pfcs
+    in
+
+    slcons ++ "\n" ++ sfcons
+
+  sprintn _ cs = pprint cs
+  sprint cs = pprint cs

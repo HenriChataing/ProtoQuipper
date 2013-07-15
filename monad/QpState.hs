@@ -2,6 +2,7 @@ module QpState where
 
 import Localizing (Extent, extent_unknown)
 import Utils
+import Classes
 import QuipperError
 
 import Namespace (Namespace)
@@ -25,6 +26,8 @@ import Data.Array as Array
 import qualified Data.Set as Set
 import Data.Sequence as Seq 
 
+
+
 -- | Implementation of a logger. Logs can be given different priorities, depending on their importance.
 -- The verbose control then discards any log whose priority is lower than the control. The logs are printed
 -- to a channel, which can be, for example, stdout, stderr, any file writing channel
@@ -39,10 +42,11 @@ data Logfile = Logfile {
 write_log :: Logfile -> Int -> String -> IO ()
 write_log logfile lvl s = do
   w <- hIsWritable $ channel logfile
-  if lvl < verbose logfile || not w  then
+  if lvl >= verbose logfile || not w then
     return ()
-  else
+  else do
     hPutStrLn (channel logfile) s
+    hFlush (channel logfile)
 
 
 
@@ -70,9 +74,16 @@ data Context = Ctx {
 -- since those have been replaced by their unique id
   namespace :: Namespace,
 
+-- Definition of the types
+-- Types are referenced by their name. Is recorded the number of type arguments
+-- needed by any type
+  types :: Map String Int,
+
 -- Definition of the data constructors
 -- The definition includes the name of the data type, and the expected type
 -- This helps typing the constructor as :  datacon :: type -> usertype
+--                                   or :  datacon :: usertype
+-- depending on whether the constructor takes an argument or not
   datacons :: IntMap (String, Type),
 
 -- Information relevant to the flags
@@ -153,7 +164,7 @@ liftIO x = QpState { runS = (\ctx -> do
 empty_context :: Context
 empty_context =  Ctx {
 -- The logfile is initialized to print on the standard output, with the lowest verbose level possible
-  logfile = Logfile { channel = stdin, verbose = 0 },
+  logfile = Logfile { channel = stdout, verbose = 0 },
 
 -- The namespace is initially empty
   namespace = N.new_namespace,
@@ -162,7 +173,8 @@ empty_context =  Ctx {
   filename = "*UNKNOWN*",
   location = extent_unknown,
 
--- No predefined datacons or flags
+-- No predefined types, datacons or flags
+  types = Map.empty,
   datacons = IMap.empty,
   flags = IMap.empty,
    
@@ -194,6 +206,12 @@ set_context :: Context -> QpState ()
 set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
+
+-- | Change the level of verbosity
+set_verbose :: Int -> QpState ()
+set_verbose v = do
+  ctx <- get_context
+  set_context $ ctx { logfile = (logfile ctx) { verbose = v } }
 
 
 -- | Enter a new log entry
@@ -253,11 +271,30 @@ register_var x = do
 -- | Access to the name space : variable registration
 -- The datacon registration also records the type of the datacon in the field datacons
 register_datacon :: String -> String -> Type -> QpState Int
-register_datacon dcon typename dtype= do
+register_datacon dcon typename dtype = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
   set_context $ ctx { namespace = nspace, datacons = IMap.insert id (typename, dtype) $ datacons ctx }
   return id
+
+
+-- | resgister the definition of a type
+register_type :: String -> Int -> QpState ()
+register_type typ args = do
+  ctx <- get_context
+  set_context $ ctx { types = Map.insert typ args $ types ctx }
+
+
+-- | Retrieves the definition of a type
+type_def :: String -> QpState Int
+type_def typ = do
+  ctx <- get_context
+  case Map.lookup typ $ types ctx of
+    Just n ->
+        return n
+
+    Nothing ->
+        throwQ $ ProgramError $ "Missing the definition of the type: " ++ typ
 
 
 -- | Retrieves the definition of a datacon
@@ -323,8 +360,8 @@ specify_location ref loc = do
 
 -- | Set the value of the flag to one
 -- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = Zero)
-set_flag :: RefFlag -> FlagValue -> QpState ()
-set_flag ref v = do
+set_flag :: RefFlag-> QpState ()
+set_flag ref = do
   ctx <- get_context 
   case IMap.lookup ref $ flags ctx of
     Just info -> do
@@ -332,6 +369,22 @@ set_flag ref v = do
           Zero -> fail $ "Non duplicable expression"
           One -> return ()
           _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
+
+    Nothing ->
+        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+
+
+-- | Set the value of the flag to zero
+-- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = One)
+unset_flag :: RefFlag -> QpState ()
+unset_flag ref = do
+  ctx <- get_context 
+  case IMap.lookup ref $ flags ctx of
+    Just info -> do
+        case value info of
+          One -> fail $ "Non duplicable expression"
+          Zero -> return ()
+          _ -> set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
 
     Nothing ->
         throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
@@ -359,6 +412,96 @@ fresh_flag_with_value v = do
   return id 
 
 
+-- | Generic type instanciation
+-- New variables are produced for every generalized over, and substitute the old ones in the type and the constraints
+instanciate_scheme :: [RefFlag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
+instanciate_scheme refs vars cset typ = do
+  -- Replace the flag references by new ones
+  (typ', cset') <- List.foldl (\rec ref -> do
+                                 (typ, cset) <- rec
+                                 nref <- fresh_flag
+                                 typ' <- return $ subs_flag ref nref typ
+                                 cset' <- return $ subs_flag_in_constraints ref nref cset
+                                 return (typ', cset')) (return (typ, cset)) refs
+
+  -- Replace the variables
+  List.foldl (\rec var -> do
+                (typ, cset) <- rec
+                nvar <- fresh_type
+                typ' <- return $ subs_var var nvar typ
+                cset' <- return $ subs_var var nvar cset
+                return (typ', cset')) (return (typ', cset')) vars
+
+
+-- | If the type is generic, then it instanciates the typing scheme, else it just returns the type
+instanciate :: Type -> QpState (Type, ConstraintSet)
+instanciate (TForall refs vars cset typ) =
+  instanciate_scheme refs vars cset typ
+
+instanciate typ =
+  return (typ, ([], []))
+
+
+-- | Replaces all the flag references by their actual value :
+--     0 if no flag
+--     1 of one
+--     -1 of any
+--     -2 if unknown
+rewrite_flags_in_lintype :: LinType -> QpState LinType
+rewrite_flags_in_lintype (TArrow t u) = do
+  t' <- rewrite_flags t
+  u' <- rewrite_flags u
+  return (TArrow t' u')
+
+rewrite_flags_in_lintype (TTensor tlist) = do
+  tlist' <- List.foldr (\t rec -> do
+                          r <- rec
+                          t' <- rewrite_flags t
+                          return (t':r)) (return []) tlist
+  return (TTensor tlist')  
+
+rewrite_flags_in_lintype (TCirc t u) = do
+  t' <- rewrite_flags t
+  u' <- rewrite_flags u
+  return (TCirc t' u')
+
+rewrite_flags_in_lintype (TUser n args) = do
+  args' <- List.foldr (\a rec -> do
+                         r <- rec
+                         a' <- rewrite_flags a
+                         return (a':r)) (return []) args
+  return (TUser n args')
+
+rewrite_flags_in_lintype (TLocated t ex) = do
+  set_location ex
+  rewrite_flags_in_lintype t
+
+rewrite_flags_in_lintype t =
+  return t
+
+
+-- | Replaces all the flag references by their actual value :
+--     0 if no flag
+--     1 of one
+--     -1 of any
+--     -2 if unknown
+rewrite_flags :: Type -> QpState Type
+rewrite_flags (TBang n t) = do
+  t' <- rewrite_flags_in_lintype t
+  if n < 2 then
+    return (TBang n t')
+  else do
+    v <- flag_value n 
+    case v of
+      One ->
+          return (TBang 1 t')
+      Zero ->
+          return (TBang 0 t')
+      Any ->
+          return (TBang (-1) t')
+      Unknown ->
+          return (TBang (-2) t')
+        
 
 
 -- | Retrieves the id of a gate

@@ -71,7 +71,11 @@ instance PPrint Pattern where
       [p] -> "<" ++ sprintn dlv p ++ ">"
       p:rest -> "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
 
+  sprintn lv (PDatacon dcon Nothing) = dcon
+  sprintn lv (PDatacon dcon (Just p)) = dcon ++ " (" ++ pprint p ++ ")"
+
   sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " : " ++ pprint t ++ ")"
+
   sprintn lv (PLocated p _) = sprintn lv p
 
   -- Print unto Lvl = +oo
@@ -127,7 +131,10 @@ print_doc (EFun p e) =
   text "fun" <+> text (pprint p) <+> text "->" $$
   nest 4 (print_doc e)
 
-print_doc (EData datacon e) =
+print_doc (EDatacon datacon Nothing) =
+  text datacon
+
+print_doc (EDatacon datacon (Just e)) =
   let pe = print_doc e in
   text datacon <+> (case e of
                       EVar _ -> pe
