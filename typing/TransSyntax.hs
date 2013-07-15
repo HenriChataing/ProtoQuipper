@@ -6,6 +6,8 @@ import Localizing
 import QuipperError
 
 import CoreSyntax
+import CorePrinter
+
 import qualified Syntax as S
 import Printer
 

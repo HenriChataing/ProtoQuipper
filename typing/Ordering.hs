@@ -5,9 +5,9 @@ import Utils
 import Localizing
 
 import CoreSyntax
-import QpState
+import CorePrinter
 
-import Subtyping
+import QpState
 
 import Data.List as List
 import qualified Data.Map as Map

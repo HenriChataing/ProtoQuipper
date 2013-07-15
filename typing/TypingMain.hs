@@ -11,7 +11,6 @@ import TransSyntax
 
 import Gates
 
-import Subtyping
 import Ordering
 
 import QpState

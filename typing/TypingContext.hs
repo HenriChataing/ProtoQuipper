@@ -12,8 +12,6 @@ import Utils
 
 import Namespace
 
-import Subtyping
-
 import Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map

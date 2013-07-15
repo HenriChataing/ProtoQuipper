@@ -10,7 +10,6 @@ import CoreSyntax
 import QpState
 import TypingContext
 
-import Subtyping
 import Ordering
 
 import Control.Exception as E

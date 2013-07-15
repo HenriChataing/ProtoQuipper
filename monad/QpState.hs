@@ -10,7 +10,6 @@ import qualified Namespace as N
 
 import CoreSyntax
 import Circuits
-import Subtyping
 
 import System.IO
 

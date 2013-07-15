@@ -13,6 +13,7 @@ import Utils
 import QpState
 
 import CoreSyntax
+import CorePrinter
 
 import Circuits
 import Gates
