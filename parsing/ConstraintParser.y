@@ -25,7 +25,7 @@ import Data.List as List
   "<:" { TkSubType $$ }
   
   ARROW { TkArrow $$ }
-  VAR { TkVar $$ }
+  VAR { TkLId $$ }
   CIRC { TkCirc $$ }
   BOOL { TkBool $$ }
   QBIT { TkQBit $$ }

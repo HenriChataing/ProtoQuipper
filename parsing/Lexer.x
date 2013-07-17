@@ -43,6 +43,7 @@ tokens :-
   false                               { locate_token TkFalse }
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
+  import                              { locate_token TkImport }
   in                                  { locate_token TkIn }
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
@@ -56,9 +57,9 @@ tokens :-
   unbox                               { locate_token TkUnbox }
   with                                { locate_token TkWith }
 
-  $low_alpha [$alpha $digit]*         { locate_named_token TkVar }
-  $up_alpha [$up_alpha $digit]*       { locate_named_token TkVar }
-  $up_alpha [$alpha $digit]*          { locate_named_token TkDatacon }
+  $low_alpha [$alpha $digit]*         { locate_named_token TkLId }
+  $up_alpha [$up_alpha $digit]*       { locate_named_token TkLId }
+  $up_alpha [$alpha $digit]*          { locate_named_token TkUId }
 
 {
 
@@ -74,8 +75,8 @@ posn_to_extent (AlexPn p l c) s =
 
 data Token =
   -- Name tokens : variables and data constructors
-    TkVar (Extent, String)
-  | TkDatacon (Extent, String)
+    TkLId (Extent, String)
+  | TkUId (Extent, String)
 
   -- Reserved notations : list of reserved names
   | TkBool Extent          | TkQBit Extent
@@ -88,6 +89,7 @@ data Token =
   | TkLet Extent           | TkIn Extent
   | TkRev Extent           | TkType Extent
   | TkOf Extent            | TkRec Extent
+  | TkImport Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent

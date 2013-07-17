@@ -63,9 +63,11 @@ import Data.List as List
 
   TYPE { TkType $$ }
   OF { TkOf $$ }
+ 
+  IMPORT { TkImport $$ }
 
-  VAR { TkVar $$ }
-  DATACON { TkDatacon $$ }
+  LID { TkLId $$ }
+  UID { TkUId $$ }
 
 
 %left "->"
@@ -75,15 +77,15 @@ import Data.List as List
 %%
 
 Program :
-      Typedef_list Expr                          { Prog { imports = [], typedefs = $1, body = $2 } }
+     Import_list Typedef_list Expr               { Prog { imports = $1, typedefs = $2, body = $3 } }
 
 Expr :
       FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH Expr WITH Matching_list              { EMatch $2 $4 }
     | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | LET VAR Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
-    | LET REC VAR Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
+    | LET LID Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
+    | LET REC LID Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
     | DO '{' Do_expr '}'                         { locate $3 (fromto $1 $4) }
     | Apply_expr                                 { $1 }
 
@@ -94,18 +96,18 @@ Do_expr :
 
 Apply_expr :
       Apply_expr Atom_expr               { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | DATACON Atom_expr                  { locate_opt (EDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
+    | UID Atom_expr                  { locate_opt (EDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | Atom_expr                          { $1 }
 
 Atom_expr :
       TRUE                               { locate (EBool True) $1 }
     | FALSE                              { locate (EBool False) $1 }
-    | VAR                                { locate (EVar (snd $1)) (fst $1) }
+    | LID                                { locate (EVar (snd $1)) (fst $1) }
     | BOX '[' ']'                        { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QDataType ']'              { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                              { locate EUnbox $1 }
     | REV                                { locate ERev $1 }
-    | DATACON                            { locate (EDatacon (snd $1) Nothing) (fst $1) }
+    | UID                            { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' Expr ')'                       { $2 }
     | '<' Expr_sep_list '>'              { locate (ETuple $2) (fromto $1 $3) }
     | '<' '>'                            { locate EUnit (fromto $1 $2) }
@@ -118,11 +120,11 @@ Expr_sep_list :
 
 
 Pattern :
-      VAR                                { locate (PVar (snd $1)) (fst $1) }
+      LID                                { locate (PVar (snd $1)) (fst $1) }
     | '(' Pattern ':' Type ')'           { locate (PConstraint $2 $4) (fromto $1 $5) }
     | '<' Pattern_sep_list '>'           { locate (PTuple $2) (fromto $1 $3) }
-    | DATACON Pattern                    { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
-    | DATACON                            { locate (PDatacon (snd $1) Nothing) (fst $1) }
+    | UID Pattern                    { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
+    | UID                            { locate (PDatacon (snd $1) Nothing) (fst $1) }
     | '<' '>'                            { locate PUnit (fromto $1 $2) }
     | '(' Pattern ')'                    { $2 }
 
@@ -166,7 +168,7 @@ Tensor_list :
 Atom_type :
       BOOL                                      { locate TBool $1 }
     | QBIT                                      { locate TQBit $1 }
-    | VAR                                       { locate (TVar $ snd $1) (fst $1) }
+    | LID                                       { locate (TVar $ snd $1) (fst $1) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }
     | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
     | '(' Type ')'                              { $2 }
@@ -190,19 +192,25 @@ Typedef_list :
 
 
 Typedef :
-      TYPE VAR Var_list '=' Data_intro_list     { Typedef (snd $2) $3 $5 }
+      TYPE LID Var_list '=' Data_intro_list     { Typedef (snd $2) $3 $5 }
 
 
 Data_intro_list :
-      DATACON OF Type                           { [(snd $1, Just $3)] }
-    | DATACON                                   { [(snd $1, Nothing)] }
-    | Data_intro_list '|' DATACON OF Type       { $1 ++ [(snd $3, Just $5)] }
-    | Data_intro_list '|' DATACON               { $1 ++ [(snd $3, Nothing)] }
+      UID OF Type                               { [(snd $1, Just $3)] }
+    | UID                                       { [(snd $1, Nothing)] }
+    | Data_intro_list '|' UID OF Type           { $1 ++ [(snd $3, Just $5)] }
+    | Data_intro_list '|' UID                   { $1 ++ [(snd $3, Nothing)] }
 
 
 Var_list :
       {- empty -}                               { [] }
-    | Var_list VAR                              { $1 ++ [snd $2] }
+    | Var_list LID                              { $1 ++ [snd $2] }
+
+
+Import_list :
+      {- empty -}                               { [] }
+    | Import_list IMPORT UID                    { (Import $ snd $3):$1 }
+
 
 {
 parseError :: [Token] -> a
