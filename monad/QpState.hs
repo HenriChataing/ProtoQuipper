@@ -309,14 +309,19 @@ datacon_def id = do
 -- | Access to the information held by flags
 -- Return the current value of a flag given by its reference
 flag_value :: RefFlag -> QpState FlagValue
-flag_value ref = do
-  ctx <- get_context
-  case IMap.lookup ref $ flags ctx of
-    Just info ->
-        return $ value info
+flag_value ref =
+  case ref of
+    (-1) -> return Any
+    0 -> return Zero
+    1 -> return One
+    _ -> do
+        ctx <- get_context
+        case IMap.lookup ref $ flags ctx of
+          Just info ->
+              return $ value info
 
-    Nothing ->
-        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+          Nothing ->
+              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 
 -- | Access to the information held by a flag
@@ -355,32 +360,42 @@ specify_location ref loc = do
 -- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = Zero)
 set_flag :: RefFlag-> QpState ()
 set_flag ref = do
-  ctx <- get_context 
-  case IMap.lookup ref $ flags ctx of
-    Just info -> do
-        case value info of
-          Zero -> throwQ $ NonDuplicableError "" extent_unknown 
-          One -> return ()
-          _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
+  case ref of
+    (-1) -> return ()
+    0 -> throwQ $ NonDuplicableError "" extent_unknown
+    1 -> return ()
+    _ -> do
+        ctx <- get_context 
+        case IMap.lookup ref $ flags ctx of
+          Just info -> do
+              case value info of
+                Zero -> throwQ $ NonDuplicableError "" extent_unknown 
+                One -> return ()
+                _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
 
-    Nothing ->
-        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+          Nothing ->
+              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 
 -- | Set the value of the flag to zero
 -- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = One)
 unset_flag :: RefFlag -> QpState ()
 unset_flag ref = do
-  ctx <- get_context 
-  case IMap.lookup ref $ flags ctx of
-    Just info -> do
-        case value info of
-          One -> fail $ "Non duplicable expression"
-          Zero -> return ()
-          _ -> set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
+  case ref of
+    (-1) -> return ()
+    0 -> return ()
+    1 -> fail "Non duplicable expression"
+    _ -> do
+        ctx <- get_context 
+        case IMap.lookup ref $ flags ctx of
+          Just info -> do
+              case value info of
+                One -> fail $ "Non duplicable expression"
+                Zero -> return ()
+                _ -> set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
 
-    Nothing ->
-        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+          Nothing ->
+              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 
 -- | Generates a new flag reference, and add its accompying binding in the flags map
@@ -409,16 +424,21 @@ fresh_flag_with_value v = do
 -- referenced by the argument flag
 duplicate_flag :: RefFlag -> QpState RefFlag
 duplicate_flag ref = do
-  ctx <- get_context
-  id <- return $ flag_id ctx
-  case IMap.lookup ref $ flags ctx of
-    Just info -> do
-        set_context $ ctx { flag_id = id + 1,
-                            flags = IMap.insert id info $ flags ctx }
-        return id
+  case ref of
+    (-1) -> return (-1)
+    0 -> return 0
+    1 -> return 1
+    _ -> do
+        ctx <- get_context
+        id <- return $ flag_id ctx
+        case IMap.lookup ref $ flags ctx of
+          Just info -> do
+              set_context $ ctx { flag_id = id + 1,
+                                  flags = IMap.insert id info $ flags ctx }
+              return id
 
-    Nothing ->
-        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+          Nothing ->
+              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 -- | Generic type instanciation
 -- New variables are produced for every generalized over, and substitute the old ones in the type and the constraints
