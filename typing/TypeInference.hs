@@ -568,7 +568,7 @@ break_composite ((Subtype t u):lc, fc) = do
   -- The bang annotations of the model are ignored
 model_of_lin :: LinType -> QpState LinType
 model_of :: Type -> QpState Type
-map_to_model :: Variable -> LinType -> QpState LinType
+map_to_model :: Type -> Type -> QpState LinType
 -------------------------------------------------------------------------
 model_of_lin TUnit = do
   return TUnit
@@ -613,7 +613,7 @@ model_of (TBang _ t) = do
   return $ TBang n t'
 
 -------------
-map_to_model x t = do
+map_to_model (TBang _ (TVar x)) (TBang _ t) = do
   t' <- model_of_lin t
   mapsto x t'
   return t'
@@ -660,7 +660,49 @@ unify (lc, fc) = do
 
         -- Semi-composite constraints :
         (atomx, cset) -> do
-            
+            -- Select a composite type from the semi-composite constraints
+            model <- case List.head cset of
+                       Subtype (TBang _ (TVar _)) t -> return t
+                       Subtype t (TBang _ (TVar _)) -> return t
+
+            -- Map the youngest variables each to a new specimen of the model
+            List.foldl (\rec x -> do
+                          rec
+                          _ <- map_to_model x model
+                          return ()) (return ()) cx
+
+            -- Rewrite and reduce the atomic constraints
+            atomx' <- List.foldl (\rec (Subtype (TBang n (TVar x)) (TBang m (TVar y))) -> do
+                                    atom <- rec
+                                    xt <- appmap x
+                                    yt <- appmap y
+                                    atom' <- break_composite ([TBang n xt <: TBang m yt], [])
+                                    return $ atom' <> atom) (return emptyset) atomx
+
+            -- Rewrite and reduce the semi composite constraints
+            cset' <- List.foldl (\rec c -> do
+                                   cs <- rec
+                                   case c of
+                                     Subtype (TBang n (TVar x)) u -> do
+                                         xt <- appmap x
+                                         cs' <- break_composite ([TBang n xt <: u], [])
+                                         return $ cs' <> cs
+
+                                     Subtype t (TBang m (TVar y)) -> do
+                                         yt <- appmap y
+                                         cs' <- break_composite ([t <: TBang m yt], [])
+                                         return $ cs' <> cs)  (return emptyset) cset
+
+
+            -- Register the relations defined by those new constraints
+            register_constraints $ fst atomx'
+            register_constraints $ fst cset'
+
+            -- Unify the rest
+            unify $ atomx' <> cset' <> (non_lcx, fc)
+
+
+            {-
             -- If all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T, T <: U
             (ischain, sorted) <- return $ chain_constraints lcx
             
@@ -754,6 +796,7 @@ unify (lc, fc) = do
 
               -- Unifcation of the remaining
               unify (cset', fc'')
+              -}
 
 
 -- | Recursively applies the flag constraints until no deduction can be drewn
