@@ -3,6 +3,7 @@ module Ordering where
 import Classes
 import Utils
 import Localizing
+import QuipperError
 
 import CoreSyntax
 import CorePrinter
@@ -10,183 +11,198 @@ import CorePrinter
 import QpState
 
 import Data.List as List
-import qualified Data.Map as Map
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IMap
 
-{-
-  This module (Ordering) is dedicated to finding the minimum of the poset formed
-  by the type variables, where the relation is given by the typing constraints.
+-- |  This module (Ordering) is dedicated to finding the minimum of the poset formed
+--  by the type variables, where the relation is given by the typing constraints.
+--
+--  As a reminder, for every constraint :
+--
+--    a <: b, the relation a = b is added
+--    a <: T or T <: a, a relation a < b is added for every b free type variable of T
+--
+-- Variables are later organized in clusters (= classes) of variables with the same age,
+-- and the relations between variables are changed into relations between the assiciated
+-- clusters.
+--
+-- The algorithm for finding the youngest cluster (= set of youngest variables) has a complexity
+-- O (n2) where n is the number of clusters, and in practice tries every cluster c, and checks
+-- whether there is a relation c' < c, with c' another cluster.
+--
 
-  As a reminder, for every constraint :
 
-    - a <: b, the relation a = b is added
-    - a <: T or T <: a, a relation a < b is added for every b free type variable of T
-
-  Variables are later organized in clusters (= classes) of variables with the same age,
-  and the relations between variables are changed into relations between the assiciated
-  clusters.
-  
-  The algorithm for finding the youngest cluster (= set of youngest variables) has a complexity
-  O (n2) where n is the number of clusters, and in practice tries every cluster c, and checks
-  whether there is a relation c' < c, with c' another cluster.
-
-  The following functions are :
-    - cluster_of : returns the cluster the variable is part of
-    - new_cluster : creates a new singleton cluster (with the same as the variable)
-    - cluster_content : returns the variable content of a cluster
-    - merge_clusters : merge two clusters, and do the necessary changes (typically used when coming upon a constraint a <: b)
-    - new_relation : extend the partial relation with c < c'
-    - add_variable : insert a new variable in the system, and creates a new matching cluster at the same time
-    - null_cluster : checks whether the number of clusters is 0
-    - cluster_relations : returns the partial relations
--}
-
+-- | The type of a cluster id
 type Cluster = Int
 
-cluster_of :: Variable -> QpState Cluster
-new_cluster :: Variable -> QpState ()
-cluster_content :: Cluster -> QpState [Variable]
+
+-- | Given a variable, finds to which cluster it has been added
+-- If a cluster can't be found, a new cluster is created to contain
+-- this variable, with an id equal to the variable id
+cluster_of :: Type -> QpState Cluster
+cluster_of ta@(TBang _ (TVar a)) = do
+  ctx <- get_context
+  case IMap.lookup a $ cmap ctx of
+    Just c ->
+        return c
+
+    Nothing -> do
+        set_context $ ctx { clusters = IMap.insert a [ta] $ clusters ctx,
+                            cmap = IMap.insert a a $ cmap ctx }
+        return a
+
+
+-- | Returns the content of a cluster
+cluster_content :: Cluster -> QpState [Type]
+cluster_content c = do
+  ctx <- get_context
+  case IMap.lookup c $ clusters ctx of
+    Just cts ->
+        return cts
+
+    Nothing ->
+        throwQ $ ProgramError $ "cluster " ++ show c ++ " lacks an accompying definition"
+
+
+-- | Merge two clusters
+-- The left cluster remains, and is augmented with the contents of the right one
 merge_clusters :: Cluster -> Cluster -> QpState ()
+merge_clusters c c' = do
+  if c == c' then
+    -- If trying to merge the same cluster, do nothing
+    return ()
+  
+  else do
+    ctx <- get_context
+    case (IMap.lookup c $ clusters ctx, IMap.lookup c' $ clusters ctx) of
+      (Just cts, Just cts') -> do
+          set_context $ ctx { cmap = IMap.map (\d -> if d == c' then c else d) $ cmap ctx,             -- All the variables of c' must know they are now part of c
+                              clusters = IMap.insert c (cts ++ cts') $ IMap.delete c' $ clusters ctx,  -- Remove the cluster c', and transfer its contents to cluster c
+                              relations = List.map (\(a, b) -> (if a == c' then c else a,
+                                                                if b == c' then c else b)) $ relations ctx }  -- All the relations on c' are now relations on c
+
+      -- In case one of the clusters is undefined
+      (Nothing, _) ->
+          throwQ $ ProgramError $ "cluster " ++ show c ++ " lacks an accompying definition"
+
+      _ ->
+          throwQ $ ProgramError $ "cluster " ++ show c' ++ " lacks an accompying definition"
+
+
+-- | Add an age relation between two clusters
 new_relation :: Cluster -> Cluster -> QpState ()
-add_variable :: Cluster -> QpState ()
-null_cluster :: QpState Bool
+new_relation c c' = do
+  ctx <- get_context
+  set_context $ ctx { relations = (c, c'):(relations ctx) }
+
+
+-- | Return the list of all defined relations
 cluster_relations :: QpState [(Cluster, Cluster)]
-----------------------------------------
-cluster_of x =
-  QpState (\ctx -> case Map.lookup x $ ages ctx of
-                   Just c -> return (ctx, c)
-                   Nothing -> fail ("Unassigned variable " ++ show x))
-
-cluster_content x =
-  QpState (\ctx -> case Map.lookup x $ clusters ctx of
-                   Just c -> return (ctx, c)
-                   Nothing -> fail "Cluster lacks an accompying definition")
-
-new_cluster x =
-  QpState (\ctx -> return (ctx { clusters = Map.insert x [x] $ clusters ctx,
-                               ages = Map.insert x x $ ages ctx }, ()))
-
-merge_clusters x y =
-  QpState (\ctx -> if x == y then
-                   return (ctx, ())
-                 else
-                   case (Map.lookup x $ clusters ctx, Map.lookup y $ clusters ctx) of
-                     (Just cx, Just cy) ->
-                         return (ctx { ages = Map.map (\z -> if z == y then x else z) $ ages ctx,
-                                       clusters = Map.insert x (cx ++ cy) $ Map.delete y $ clusters ctx,
-                                       relations = List.map (\(a, b) -> (if a == y then x else a,
-                                                                         if b == y then x else b)) $ relations ctx }, ())
-                     _ ->
-                         fail ("Cluster #" ++ show x ++ "lacks a defintion"))
-
-new_relation x y =
-  QpState (\ctx -> return (ctx { relations = (x, y):(relations ctx) }, ()))
-
-add_variable x =
-  QpState (\ctx -> return (ctx { variables = x:(variables ctx),
-                               clusters = Map.insert x [x] $ clusters ctx,
-                               ages = Map.insert x x $ ages ctx }, ())) 
-
-null_cluster =
-  QpState (\ctx -> return (ctx, Map.null $ clusters ctx))
-
-cluster_relations =
-  QpState (\ctx -> return (ctx, relations ctx))
+cluster_relations = do
+  get_context >>= return . relations
 
 
-{-
-  Construction of the poset, with two functions to instanciate the poset, and insert new relations defined by
-  typing constraints.
+-- | Returns true iff the clusters map is empty
+null_cluster :: QpState Bool
+null_cluster = do
+  ctx <- get_context
+  return $ IMap.null $ clusters ctx
 
-  - init_ordering : inserts all the type variables in the ordering system
-  - register_constraint / register_constraints : following the forma of the constraint :
-     - if the constraint is atomic : a <: b, then a and b must be in the same cluster, so merge the clusters of a and b
-     - if the constraint is a <: T or T <: a, for every b free variable of T, add the relation cluster a < cluster b
--}
 
-init_ordering :: QpState ()
+
+-- All the following functions are used for the construction / definition of the poset and its relation
+-- The relation is defined by the subtyping constraints :
+--      if the constraint is atomic a <: b, then a and b must be of the same cluster, so merge the clusters of a and b
+--      if the constraint is a <: T or T <: a, for every b free_variable of T, add the relation cluster a < cluster b
+
+
+-- | Returns the free type variables of a type, associated with their flag reference
+free_var_with_flag :: Type -> [Type]
+free_var_with_flag ta@(TBang _ (TVar _)) = [ta]
+free_var_with_flag (TBang _ (TArrow t u)) = free_var_with_flag t ++ free_var_with_flag u
+free_var_with_flag (TBang _ (TTensor tlist)) = List.concat $ List.map free_var_with_flag tlist
+free_var_with_flag (TBang _ (TCirc t u)) = free_var_with_flag t ++ free_var_with_flag u 
+free_var_with_flag _ = []
+
+
+-- | Register a constraint and its consequences upon the poset
 register_constraint :: TypeConstraint -> QpState ()
-register_constraints :: [TypeConstraint] -> QpState ()
-----------------------------------------------------
-init_ordering =
-  QpState (\ctx -> let n = type_id ctx in
-           return (ctx { variables = [0 .. type_id ctx - 1],
-                         relations = [],
-                         clusters = Map.fromList $ List.map (\x -> (x, [x])) [0 .. type_id ctx - 1],
-                         ages = Map.fromList $ List.map (\x -> (x, x)) [0 .. type_id ctx - 1] }, ()))
-
-register_constraint c = do
+register_constraint c =
   case c of
-    Subtype (TBang _ (TVar x)) (TBang _ (TVar y)) -> do
-        cx <- cluster_of x
-        cy <- cluster_of y
+    -- Case of an atomic constraint
+    Subtype tx@(TBang _ (TVar _)) ty@(TBang _ (TVar _)) -> do
+        cx <- cluster_of tx
+        cy <- cluster_of ty
+        -- Merge the clusters of x and y
         merge_clusters cx cy
 
-    Subtype (TBang _ (TVar x)) u -> do
-        cx <- cluster_of x
-        fvu <- return $ free_var u
-        List.foldl (\e y -> do
-                      e
-                      cy <- cluster_of y
-                      new_relation cx cy
-                      return ()) (return ()) fvu
+    -- Case of semi composite constraints
+    Subtype tx@(TBang _ (TVar _)) u -> do
+        cx <- cluster_of tx
+        fvu <- return $ free_var_with_flag u
+        List.foldl (\rec ty -> do
+                      rec
+                      cy <- cluster_of ty
+                      new_relation cx cy) (return ()) fvu
         
-    Subtype t (TBang _ (TVar x)) -> do
-        cx <- cluster_of x
-        fvt <- return $ free_var t
-        List.foldl (\e y -> do
-                      e
-                      cy <- cluster_of y
-                      new_relation cx cy
-                      return ()) (return ()) fvt
+    Subtype t tx@(TBang _ (TVar _)) -> do
+        cx <- cluster_of tx
+        fvt <- return $ free_var_with_flag t
+        List.foldl (\rec ty -> do
+                      rec
+                      cy <- cluster_of ty
+                      new_relation cx cy) (return ()) fvt
 
-    _ -> fail ("Unreduced composite constraint (" ++ pprint c ++ ")")
-
-register_constraints [] = return ()
-register_constraints (c:cc) = do
-  register_constraint c
-  register_constraints cc
+    _ ->
+        throwQ $ ProgramError $ "Unreduced composite constraint: " ++ pprint c
 
 
-{-
-  Core of the algorithm :
-  
-  - some_cluster : returns any cluster
-  - try_cluster : returns True iff the cluster is a minimum. It takes as input a cluster, and the list of processed clusters, and
-                  returns either the same cluster if it was a minimum, or a new candidate deduced from the relation that forbade c as a minimum.
-                  If the new candidate is in the list of processed clusters, that means a cyclic dependency === trying to build an infinite type
-  - find_youngest_cluster : try every cluster, starting from a random one, until it finds a minimum, which it returns
-  - youngest_cluster :
-  - remove_cluster : remove the cluster from the system : erases the relations involving this cluster, removes the definition of the cluster..
-  - younngest_variables : same as youngest_cluster, only it returns the contents of the youngest cluster
+-- | Register a list of constraints
+register_constraints :: [TypeConstraint] -> QpState ()
+register_constraints clist = do
+  List.foldl (\rec c -> do
+                rec
+                register_constraint c) (return ()) clist
 
--}
+
+
+-- All the following functions serve to find the youngest cluster / variables, given
+-- the relation defined in the cluster
+
+-- | Returns a randomly chosen cluster
 some_cluster :: QpState Cluster
-try_cluster :: Cluster -> [Cluster] -> QpState (Cluster, [Cluster])
-find_youngest_cluster :: Cluster -> [Cluster] -> QpState Cluster
-youngest_cluster :: QpState Cluster
-remove_cluster :: Cluster -> QpState ()
-youngest_variables :: QpState [Variable]
---------------------------------------
-some_cluster =
-  QpState (\ctx -> case Map.keys $ clusters ctx of
-                   [] -> fail "Empty cluster list"
-                   (c:_) -> return (ctx, c))
+some_cluster = do
+  ctx <- get_context
+  case IMap.keys $ clusters ctx of
+    [] ->
+        throwQ $ ProgramError $ "empty cluster list"
 
+    (c: _) ->
+        return c
+
+
+-- | Tests if the given cluster c is a minimum of the poset. It takes as input a cluster, and the list of processed clusters (all older than c). It returns
+-- either the same cluster c if it was a minimum, or a new candidate c' taken from a relation c' < c. If the new candidate is in the list of processed
+-- clusters, that means a cyclic dependency (infinite type)
+try_cluster :: Cluster -> [Cluster] -> QpState (Cluster, [Cluster])
 try_cluster c used = do
   rel <- cluster_relations
 
   List.foldl (\rec (t, u) -> do
-                           (yg, used) <- rec
-                           if t == u then
-                             fail "Cyclic dependency"
-                           else if yg == u then
-                             if List.elem t used then
-                               fail "Cyclic dependency"
-                             else
-                               return (t, yg:used)
-                           else
-                             return (yg, used)) (return (c, [])) rel
+                (c', used) <- rec
+                if t == u then
+                  fail "Cyclic dependency"
+                else if c' == u then
+                  if List.elem t used then
+                    fail "Cyclic dependency"
+                  else
+                    return (t, c':used)
+                else
+                  return (c', used)) (return (c, used)) rel
 
+
+-- | Using the function try_cluster, try every cluster until it finds a minimum of the poset, which it returns
+find_youngest_cluster :: Cluster -> [Cluster] -> QpState Cluster
 find_youngest_cluster c used = do
   (c', used') <- try_cluster c used
   if c == c' then
@@ -194,30 +210,43 @@ find_youngest_cluster c used = do
   else
     find_youngest_cluster c' used'
 
+
+-- | Apply the function find_youngest_cluster with a random cluster, and an empty used cluster list 
+youngest_cluster :: QpState Cluster
 youngest_cluster = do
   c <- some_cluster
-  yg <- find_youngest_cluster c []
+  c' <- find_youngest_cluster c []
 
-  cyg <- cluster_content yg
-  log_yg <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cyg
-  newlog 0 $ "\x1b[1m" ++ log_yg ++ "\x1b[0m"
-  return yg
+  cts <- cluster_content c'
 
-remove_cluster x =
-  QpState (\ctx -> case Map.lookup x $ clusters ctx of 
-                   Just xc ->
-                       return (ctx { variables = (variables ctx) \\ xc,
-                                     clusters = Map.delete x $ clusters ctx,
-                                     ages = List.foldl (\ag y -> Map.delete y ag) (ages ctx) xc,
-                                     relations = List.foldl (\r (t, u) -> if List.elem t xc || List.elem u xc then
-                                                                            r
-                                                                          else
-                                                                            (t, u):r) [] $ relations ctx }, ())
-                   _ ->
-                       return (ctx, ()))
-                        
+  -- Log the contents of the youngest cluster
+  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cts
+  newlog 0 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
+
+  -- Return the youngest cluster
+  return c'
+
+
+-- | Remove the cluster from the system : erases the relations involving this cluster, and removes the definition of the cluster
+remove_cluster :: Cluster -> QpState ()
+remove_cluster c = do
+  ctx <- get_context
+  case IMap.lookup c $ clusters ctx of
+    Just cts -> do
+        set_context $ ctx { clusters = IMap.delete c $ clusters ctx,
+                            cmap = List.foldl (\m (TBang _ (TVar x)) -> IMap.delete x m) (cmap ctx) cts,
+                            relations = List.foldl (\r (t, u) -> if t == c || u == c then
+                                                                   r
+                                                                 else
+                                                                   (t, u):r) [] $ relations ctx }
+    Nothing ->
+        return ()
+
+                
+-- | Returns the contents of the youngest cluster, after removing the cluster definition from the system
+youngest_variables :: QpState [Type]
 youngest_variables = do
-  x <- youngest_cluster
-  cx <- cluster_content x
-  remove_cluster x
-  return cx
+  c <- youngest_cluster
+  cts <- cluster_content c
+  remove_cluster c
+  return cts

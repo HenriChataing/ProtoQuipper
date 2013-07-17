@@ -46,7 +46,6 @@ full_inference fprog =
       non_composite <- break_composite constraints
 
       -- Unification
-      init_ordering
       register_constraints $ fst non_composite
       red_constraints <- unify non_composite
 
@@ -93,7 +92,6 @@ test_unification set =
       non_composite <- break_composite constraints
 
       -- Unification
-      init_ordering
       register_constraints $ fst non_composite
       red_constraints <- unify non_composite
 

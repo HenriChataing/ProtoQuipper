@@ -90,27 +90,21 @@ data Context = Ctx {
 -- the type it is prefix of
   flags :: IntMap FlagInfo,
 
-
+-- Circuits / gates
   gatesid :: Map String Int,
-
   circuits :: [Circuit],
 
-    {- Id generation -}
-
-    type_id :: Int, 
-    flag_id :: Int,
-    qbit_id :: Int,
+-- Id generation
+  type_id :: Int, 
+  flag_id :: Int,
+  qbit_id :: Int,
      
-    
-    --
-    -- VARIABLE DATING STUFF
-    --
-
-    -- Variable classes
-    variables :: [Variable],
-    relations :: [(Int, Int)],
-    clusters :: Map.Map Int [Variable],  -- Age clusters definition
-    ages :: Map.Map Variable Int,  -- Map variables to age clusters (not the age itself)
+-- Variable ordering
+-- Variables are grouped into clusters of variables sharing the same age    
+  variables :: [Variable],
+  relations :: [(Int, Int)],
+  clusters :: IntMap [Type],  -- Age clusters definition
+  cmap :: IntMap Int,  -- Map variables to age clusters
 
     --
     -- UNIFICATION STUFF
@@ -183,8 +177,8 @@ empty_context =  Ctx {
 
   variables = [],
   relations = [],
-  clusters = Map.empty,
-  ages = Map.empty,
+  clusters = IMap.empty,
+  cmap = IMap.empty,
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,

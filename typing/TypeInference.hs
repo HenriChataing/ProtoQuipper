@@ -600,8 +600,6 @@ model_of_lin (TUser n args) = do
 
 model_of_lin (TVar _) = do
   x <- fresh_type
-  -- Add the variable to the list managed by the ordering process
-  add_variable x
   return (TVar x)
 
 model_of_lin (TCirc t u) = do
@@ -640,8 +638,8 @@ unify (lc, fc) = do
 
       -- Filter the constraint which have an element of cx as right or left hand side
       (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
-                                                          Subtype (TBang _ (TVar x)) _ -> List.elem x cx
-                                                          Subtype _ (TBang _ (TVar y)) -> List.elem y cx) lc
+                                                          Subtype tx@(TBang _ (TVar _)) _ -> List.elem tx cx
+                                                          Subtype _ ty@(TBang _ (TVar _)) -> List.elem ty cx) lc
         
       -- Log
       logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -676,21 +674,21 @@ unify (lc, fc) = do
               -- Map x1 .. xn to T or U
               case (leftend, rightend) of
                 (TBang _ (TVar x), _) -> do
-                    List.foldl (\rec x -> do
+                    List.foldl (\rec (TBang n (TVar x)) -> do
                                   rec
                                   mapsto x $ no_bang rightend) (return ()) cx
                     -- Unify the rest
                     unify (non_lcx, fc)
                     
                 (_, TBang _ (TVar x)) -> do
-                    List.foldl (\rec x -> do
+                    List.foldl (\rec (TBang n (TVar x)) -> do
                                   rec
                                   mapsto x $ no_bang leftend) (return ()) cx
                     -- Unify the rest
                     unify (non_lcx, fc)
 
                 _ -> do
-                    List.foldl (\rec x -> do
+                    List.foldl (\rec (TBang n (TVar x)) -> do
                                   rec
                                   mapsto x $ no_bang leftend) (return ()) cx
 
@@ -706,10 +704,11 @@ unify (lc, fc) = do
               -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
               cset <- if onesided then do
                       newlog 0 "ONE SIDED"
-                      cxh <- return $ List.head cx
-                      List.foldl (\rec x -> do
+                      (TBang _ (TVar cxh)) <- return $ List.head cx
+                      List.foldl (\rec (TBang n (TVar x)) -> do
                                       rec
                                       mapsto x (TVar cxh)) (return ()) $ List.tail cx
+
                       return $ List.map (\c -> case c of
                                                  Subtype (TBang n (TVar _)) t -> Subtype (TBang n $ TVar cxh) t
                                                  Subtype t (TBang n (TVar _)) -> Subtype t (TBang n $ TVar cxh)) cset
@@ -722,7 +721,7 @@ unify (lc, fc) = do
               newlog 0 $ pprint model
 
             
-              List.foldl (\rec x -> do
+              List.foldl (\rec (TBang _ (TVar x)) -> do
                              rec
                              _ <- map_to_model x $ no_bang model
                              return ()) (return ()) cx
