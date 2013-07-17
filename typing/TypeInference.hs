@@ -5,6 +5,7 @@ import Utils
 import Localizing
 import QuipperError
 
+import Syntax (RecFlag (..))
 import CoreSyntax
 
 import QpState
@@ -281,7 +282,7 @@ constraint_typing typctx (ETuple elist) typ = do
 --     G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
 --
 
-constraint_typing typctx (ELet p t u) typ = do
+constraint_typing typctx (ELet rec p t u) typ = do
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
@@ -294,7 +295,16 @@ constraint_typing typctx (ELet p t u) typ = do
   (a, typctx_fvu', cseta) <- bind_pattern p typctx_fvu
 
   -- Type t with this type
-  csett <- constraint_typing typctx_fvt t a 
+  csett <- case rec of
+             Recursive -> do
+                 -- Isolate the bindings issued by the pattern in typctx_fvu
+                 (typctx_p, _) <- sub_context (free_var p) typctx_fvu'
+                 -- Add them into typctx_fvt
+                 typctx_fvt' <- merge_contexts typctx_p typctx_fvt
+                 constraint_typing typctx_fvt' t a
+
+             Nonrecursive -> do
+                 constraint_typing typctx_fvt t a 
   
   -- Type u
   csetu <- constraint_typing typctx_fvu' u typ

@@ -30,6 +30,9 @@ data QError =
     -- A type constructor expect a certain number of arguments n, and is given m /= n instead
   | WrongTypeArguments String Int Int Extent
 
+    -- A non duplicable term (eg of type qbit), has been used in a non linear fashion
+  | NonDuplicableError String Extent
+
     -- Matching errors
   | MatchingError String String
 
@@ -74,6 +77,8 @@ instance Show QError where
       "Error: the type " ++ typ ++ " expects no arguments, but has been given " ++ show act ++ ": at extent " ++ show ex
     else
       "Error: the type " ++ typ ++ " expects " ++ show exp ++ " arguments, but has been given " ++ show act ++ ": at extent " ++ show ex
+
+  show (NonDuplicableError e ex) = "Error: the term " ++ e ++ " is not duplicable: at extent " ++ show ex
 
   show (NoBoxError ex) = "Error: unbox operations must be executed in the context of a box: at extent " ++ show ex
   show (MatchingError p q) = "Error: the objects " ++ p ++ " and " ++ q ++ " don't have the same type"

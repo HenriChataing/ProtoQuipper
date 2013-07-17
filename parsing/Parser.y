@@ -40,6 +40,7 @@ import Data.List as List
   "->" { TkArrow $$ }
   "<-" { TkBackArrow $$ }
   LET { TkLet $$ }
+  REC { TkRec $$ }
   IN { TkIn $$ }
   DO { TkDo $$ }
 
@@ -74,20 +75,21 @@ import Data.List as List
 %%
 
 Program :
-      Typedef_list Expr                      { Prog { imports = [], typedefs = $1, body = $2 } }
+      Typedef_list Expr                          { Prog { imports = [], typedefs = $1, body = $2 } }
 
 Expr :
-      FUN Pattern_list "->" Expr             { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
-    | IF Expr THEN Expr ELSE Expr            { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | MATCH Expr WITH Matching_list          { EMatch $2 $4 }
-    | LET Pattern '=' Expr IN Expr           { locate_opt (ELet $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | LET VAR Pattern_list '=' Expr IN Expr  { locate_opt (ELet (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
-    | DO '{' Do_expr '}'                     { locate $3 (fromto $1 $4) }
-    | Apply_expr                             { $1 }
+      FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
+    | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
+    | MATCH Expr WITH Matching_list              { EMatch $2 $4 }
+    | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
+    | LET VAR Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
+    | LET REC VAR Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
+    | DO '{' Do_expr '}'                         { locate $3 (fromto $1 $4) }
+    | Apply_expr                                 { $1 }
 
 Do_expr :
-      Expr "<-" Expr ';' Do_expr         { locate_opt (ELet (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Expr ';' Do_expr                   { locate_opt (ELet PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
+      Expr "<-" Expr ';' Do_expr         { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
+    | Expr ';' Do_expr                   { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
     | Expr                               { $1 }
 
 Apply_expr :

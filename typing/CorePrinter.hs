@@ -6,6 +6,7 @@ module CorePrinter where
 import Classes
 import Utils
 
+import Syntax (RecFlag (..))
 import CoreSyntax hiding ((<>))
 
 import Text.PrettyPrint.HughesPJ as PP
@@ -101,8 +102,9 @@ print_doc EUnit = text "<>"
 print_doc (EBool b) = if b then text "true" else text "false"
 print_doc (EVar x) = text $ subvar 'x' x
 
-print_doc (ELet p e f) =
-  text "let" <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
+print_doc (ELet r p e f) =
+  let recflag = if r == Recursive then text "rec" else empty in
+  text "let" <+> recflag <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
   print_doc f
 
 print_doc (ETuple elist) =

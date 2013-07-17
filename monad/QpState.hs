@@ -269,8 +269,8 @@ register_var x = do
 
 -- | Access to the name space : variable registration
 -- The datacon registration also records the type of the datacon in the field datacons
-register_datacon :: String -> String -> Type -> QpState Int
-register_datacon dcon typename dtype = do
+register_datacon :: String -> Type -> QpState Int
+register_datacon dcon dtype = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
   set_context $ ctx { namespace = nspace, datacons = IMap.insert id dtype $ datacons ctx }
@@ -365,7 +365,7 @@ set_flag ref = do
   case IMap.lookup ref $ flags ctx of
     Just info -> do
         case value info of
-          Zero -> fail $ "Non duplicable expression"
+          Zero -> throwQ $ NonDuplicableError "" extent_unknown 
           One -> return ()
           _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
 
@@ -411,6 +411,21 @@ fresh_flag_with_value v = do
   return id 
 
 
+-- | Create a new flag reference, initialized with the information
+-- referenced by the argument flag
+duplicate_flag :: RefFlag -> QpState RefFlag
+duplicate_flag ref = do
+  ctx <- get_context
+  id <- return $ flag_id ctx
+  case IMap.lookup ref $ flags ctx of
+    Just info -> do
+        set_context $ ctx { flag_id = id + 1,
+                            flags = IMap.insert id info $ flags ctx }
+        return id
+
+    Nothing ->
+        throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+
 -- | Generic type instanciation
 -- New variables are produced for every generalized over, and substitute the old ones in the type and the constraints
 instanciate_scheme :: [RefFlag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
@@ -418,7 +433,7 @@ instanciate_scheme refs vars cset typ = do
   -- Replace the flag references by new ones
   (typ', cset') <- List.foldl (\rec ref -> do
                                  (typ, cset) <- rec
-                                 nref <- fresh_flag
+                                 nref <- duplicate_flag ref
                                  typ' <- return $ subs_flag ref nref typ
                                  cset' <- return $ subs_flag_in_constraints ref nref cset
                                  return (typ', cset')) (return (typ, cset)) refs
@@ -438,7 +453,7 @@ instanciate (TForall refs vars cset typ) =
   instanciate_scheme refs vars cset typ
 
 instanciate typ =
-  return (typ, ([], []))
+  return (typ, emptyset)
 
 
 -- | Replaces all the flag references by their actual value :
@@ -515,19 +530,16 @@ gate_id g = do
         fail "Unregistered gate"
 
 
-{-
-  Id generation
-    - fresh_var/type/flag return a fresh id of the corresponding kind
-    - new_type creates a new type !n a where n and a are fresh
-    - create_pattern_type creates a type matching the structure of the pattern
--}
-
+-- | Generates a fresh type variable (linear type)
 fresh_type :: QpState Variable
+fresh_type = do
+  ctx <- get_context
+  id <- return $ type_id ctx
+  set_context $ ctx { type_id = id + 1 }
+  return id
 
+-- | Generates a type of the form !n a, where n and a are fresh flag reference and type variable
 new_type :: QpState Type
-----------------------------------------------------------------
-fresh_type = QpState (\ctx -> return (ctx { type_id = (+1) $ type_id ctx }, type_id ctx))
-
 new_type = do
   x <- fresh_type
   f <- fresh_flag
@@ -547,10 +559,6 @@ mapping_list :: QpState [(Int, LinType)]
 map_type_step :: Type -> QpState Type
 map_lintype_step :: LinType -> QpState LinType
 map_type :: Type -> QpState Type
--- Apply a valuation to a type
-app_val_to_flag :: RefFlag -> Map.Map Int Int -> QpState RefFlag
-app_val_to_lintype :: LinType -> Map.Map Int Int -> QpState LinType
-app_val_to_type :: Type -> Map.Map Int Int -> QpState Type
 -------------------------------------------------
 mapsto x t = QpState (\ctx -> return (ctx { mappings = Map.insert x t $ mappings ctx }, ()))
 
@@ -605,47 +613,4 @@ map_type t = do
   else
     map_type t'
 
-app_val_to_flag n map = do
-  if n < 2 then
-    return n
-  else do
-    case Map.lookup n map of
-      Just x -> do
-          return x
 
-      Nothing -> do
-          return n
-
-app_val_to_lintype TUnit _ = do
-  return TUnit
-
-app_val_to_lintype TBool _ = do
-  return TBool
-
-app_val_to_lintype TQbit _ = do
-  return TQbit
-
-app_val_to_lintype (TVar x) _ = do
-  return (TVar x)
-
-app_val_to_lintype (TArrow t u) map = do
-  t' <- app_val_to_type t map
-  u' <- app_val_to_type u map
-  return (TArrow t' u')
-
-app_val_to_lintype (TTensor tlist) map = do
-  tlist' <- List.foldr (\t rec -> do
-                          r <- rec
-                          t' <- app_val_to_type t map
-                          return (t':r)) (return []) tlist
-  return (TTensor tlist')
-
-app_val_to_lintype (TCirc t u) map = do
-  t' <- app_val_to_type t map
-  u' <- app_val_to_type u map
-  return (TCirc t' u')
-
-app_val_to_type (TBang f t) map = do
-  fv <- app_val_to_flag f map
-  t' <- app_val_to_lintype t map
-  return $ TBang fv t' 

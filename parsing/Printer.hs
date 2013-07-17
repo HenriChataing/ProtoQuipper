@@ -98,9 +98,10 @@ print_doc EUnbox = text "unbox"
 print_doc (EBox a) = text "box" <> brackets (text $ pprint a)
 print_doc (EBool b) = if b then text "true" else text "false"
 
-print_doc (ELet p e f) =
-  let pf = print_doc f in
-  text "let" <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
+print_doc (ELet r p e f) =
+  let pf = print_doc f
+      recflag = if r == Recursive then text "rec" else text "" in
+  text "let" <+> recflag <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
   pf
 
 print_doc (ETuple elist) =

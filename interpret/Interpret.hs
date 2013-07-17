@@ -8,6 +8,7 @@ import QuipperError
 import qualified Utils
 
 import QpState
+import Syntax (RecFlag (..))
 import CoreSyntax
 import Printer
 
@@ -360,13 +361,24 @@ interpret env (EFun p e) = do
   return (VFun env p e)
 
 -- Let .. in ..
-interpret env (ELet p e1 e2) = do
+interpret env (ELet r p e1 e2) = do
   -- Reduce the argument e1
   v1 <- interpret env e1
-  -- Bind it to the pattern p in the current context
-  ev <- bind_pattern p v1 env
-  -- Interpret the body e2 in this context
-  interpret ev e2
+  
+  -- Recursive function ?
+  case (r, v1, p) of
+    (Recursive, VFun ev arg body, PVar x) ->
+        let ev' = IMap.insert x (VFun ev' arg body) ev in do
+          newlog 0 "recursive addition"
+          env <- bind_pattern p (VFun ev' arg body) env
+          interpret env e2
+
+    _ -> do
+        newlog 0 "no recursive addition"
+        -- Bind it to the pattern p in the current context
+        ev <- bind_pattern p v1 env
+        -- Interpret the body e2 in this context
+        interpret ev e2
 
 -- Function application
 interpret env (EApp ef arg) = do

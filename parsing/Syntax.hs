@@ -148,9 +148,14 @@ instance Located Pattern where
   clear_location p = p
 
 
+-- | Definition of a recursive flag, used in the expression ELet to indicate
+-- whether the function is recursive or not
+data RecFlag = Nonrecursive | Recursive
+  deriving (Show, Eq)
+
 
 -- | Definition of terms
--- Smilarly to patterns, tuples have size >= 2, enforced by the grammar
+-- Similarly to patterns, tuples have size >= 2, enforced by the grammar
 data Expr =
 -- STLC
     EVar String                    -- x  
@@ -159,7 +164,7 @@ data Expr =
 
 -- Addition of tensors
   | ETuple [Expr]                  -- <e1, .., en>
-  | ELet Pattern Expr Expr         -- let p = e in f
+  | ELet RecFlag Pattern Expr Expr -- let [rec] p = e in f
   | EUnit                          -- <>
 
 -- Addition of sum types
@@ -198,7 +203,7 @@ instance Located Expr where
   clear_location (ELocated e _) = clear_location e
   clear_location (EConstraint e t) = EConstraint (clear_location e) t
   clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
-  clear_location (ELet p e f) = ELet (clear_location p) (clear_location e) (clear_location f)
+  clear_location (ELet r p e f) = ELet r (clear_location p) (clear_location e) (clear_location f)
   clear_location (EApp e f) = EApp (clear_location e) (clear_location f)
   clear_location (ETuple elist) = ETuple $ List.map clear_location elist
   clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)

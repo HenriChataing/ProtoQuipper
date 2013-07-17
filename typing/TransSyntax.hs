@@ -8,6 +8,7 @@ import QuipperError
 import CoreSyntax
 import CorePrinter
 
+import Syntax (RecFlag (..))
 import qualified Syntax as S
 import Printer
 
@@ -60,15 +61,17 @@ import_typedefs typedefs = do
 
                                                   -- If the constructor takes an argument
                                                   Just dt -> do
+                                                      -- The same flag is used to mark the argument and the return value of the function
                                                       (dt'@(TBang n _), cset) <- translate_type dt [] m'
                                                       return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), cset)
 
-                              -- Generalize the type of the constructor over the free variables an types
+                              -- Generalize the type of the constructor over the free variables and flags
+                              -- Those variables must also respect the constraints from the construction of the type
                               (fv, ff) <- return (free_var dtype', free_flag dtype')
                               dtype' <- return $ TForall fv ff cset dtype'
 
                               -- Register the datacon
-                              id <- register_datacon dcon typename dtype'
+                              id <- register_datacon dcon dtype'
                               return $ Map.insert dcon id lbl) (return lbl) dlist) (return Map.empty) typedefs 
 
 
@@ -213,11 +216,18 @@ translate_expression_with_label (S.EFun p e) label = do
   e' <- translate_expression_with_label e lbl
   return (EFun p' e')
 
-translate_expression_with_label (S.ELet p e f) label = do
-  e' <- translate_expression_with_label e label
+translate_expression_with_label (S.ELet r p e f) label = do
   (p', lbl) <- translate_pattern_with_label p label
-  f' <- translate_expression_with_label f lbl
-  return (ELet p' e' f')
+  case r of
+    Recursive -> do
+        e' <- translate_expression_with_label e lbl
+        f' <- translate_expression_with_label f lbl
+        return (ELet r p' e' f')
+
+    Nonrecursive -> do
+        e' <- translate_expression_with_label e label
+        f' <- translate_expression_with_label f lbl
+        return (ELet r p' e' f')
 
 translate_expression_with_label (S.EDatacon datacon e) label = do
   case Map.lookup datacon label of

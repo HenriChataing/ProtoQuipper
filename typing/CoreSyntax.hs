@@ -9,6 +9,8 @@ import Classes
 import Utils
 import Localizing
 
+import Syntax (RecFlag (..))
+
 import Data.List as List
 
 
@@ -152,7 +154,6 @@ data Pattern =
 
 
 -- | Definition of the core expressions
-
 data Expr =
 -- STLC
     EVar Variable                                 -- x
@@ -162,7 +163,7 @@ data Expr =
 -- Introduction of the tensor
   | EUnit                                         -- <>
   | ETuple [Expr]                                 -- <t1, .. , tn>
-  | ELet Pattern Expr Expr                        -- let p = e in f
+  | ELet RecFlag Pattern Expr Expr              -- let [rec] p = e in f
 
 -- Custom union types
   | EBool Bool                                    -- True / False
@@ -351,7 +352,7 @@ instance Param Expr where
         fvp = free_var p in
     fve \\ fvp
 
-  free_var (ELet p e f) =
+  free_var (ELet r p e f) =
     let fve = free_var e
         fvf = free_var f
         fvp = free_var p in

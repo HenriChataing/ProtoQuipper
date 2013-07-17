@@ -48,6 +48,7 @@ tokens :-
   match                               { locate_token TkMatch }
   of                                  { locate_token TkOf }
   qbit                                { locate_token TkQBit }
+  rec                                 { locate_token TkRec }
   rev                                 { locate_token TkRev }
   then                                { locate_token TkThen }
   type                                { locate_token TkType }
@@ -86,7 +87,7 @@ data Token =
   | TkFun Extent           | TkDo Extent
   | TkLet Extent           | TkIn Extent
   | TkRev Extent           | TkType Extent
-  | TkOf Extent
+  | TkOf Extent            | TkRec Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent
