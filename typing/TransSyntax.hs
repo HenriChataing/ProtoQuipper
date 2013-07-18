@@ -272,8 +272,11 @@ translate_expression_with_label (S.EIf e f g) label = do
   return (EIf e' f' g')
 
 translate_expression_with_label (S.EBox t) _ = do
-  (t', _) <- translate_type t [] Map.empty
-  return (EBox t')
+  (t', cset) <- translate_type t [] Map.empty
+  -- The translation of the type of the box in the core syntax produces
+  -- some constraints that needs to be conveyed to the type inference
+  -- Using a scheme is a way of doing it
+  return (EBox (TForall [] [] cset t'))
 
 translate_expression_with_label S.EUnbox _ = do
   return EUnbox

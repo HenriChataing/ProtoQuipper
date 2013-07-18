@@ -96,7 +96,7 @@ constraint_typing typctx (EVar x) u = do
 --  !I G |- box[T] :  !n (!1 (T -> U) -> !n Circ (T, U))  [L u {1 <= I}]
 --
 
-constraint_typing typctx (EBox a) typ = do
+constraint_typing typctx (EBox (TForall _ _ cset a)) typ = do
   -- The context must be duplicable 
   fconstraints <- have_duplicable_context typctx
 
@@ -111,7 +111,7 @@ constraint_typing typctx (EBox a) typ = do
   arw <- return $ TBang one (TArrow a b)
   cir <- return $ TBang anyflag (TCirc a b)
 
-  return ([TBang n (TArrow arw cir) <: typ], fconstraints)
+  return $ cset <> ([TBang n (TArrow arw cir) <: typ], fconstraints)
   
 
 -- | Rev typing rule

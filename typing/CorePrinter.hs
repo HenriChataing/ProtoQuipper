@@ -62,6 +62,9 @@ instance PPrint Type where
                (TTensor _) -> "(" ++ sprintn lv a ++ ")"
                (TArrow _ _) -> "(" ++ sprintn lv a ++ ")"
                _ -> sprintn lv a)
+
+  sprintn lv (TForall _ _ _ t) = 
+    sprintn lv t
  
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a

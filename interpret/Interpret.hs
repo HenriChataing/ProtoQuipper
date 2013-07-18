@@ -344,7 +344,11 @@ interpret _ ERev = do
   return VRev
 
 interpret _ (EBox typ) = do
-  return (VBox typ)
+  case typ of
+    TForall _ _ _ typ ->
+        return (VBox typ)
+    _ ->
+        return (VBox typ)
 
 -- Variables
 interpret env (EVar x) = do
