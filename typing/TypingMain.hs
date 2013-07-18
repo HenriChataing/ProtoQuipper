@@ -23,7 +23,6 @@ import Data.IntMap as IMap
 
 -- Import the gates into the current context
 gate_context :: [(String, S.Type)] -> QpState TypingContext
----------------------------------------------------------
 gate_context gates = do
   List.foldl (\rec (s, t) -> do
                 ctx <- rec
@@ -31,79 +30,73 @@ gate_context gates = do
                 x <- gate_id s
                 bind_var x t' ctx) (return IMap.empty) gates
 
-full_inference :: S.Program -> IO String
-----------------------------------
-full_inference fprog =
 
-  let run = do
-      set_verbose 5
-
-      prog <- translate_program fprog
-      typctx <- gate_context typing_environment
+-- | Type inference algorithm
+-- This is the main function of the inference, which puts together all the different part of the algorithm
+-- It is to be called on a surface program, and it returns the inferred type.
+-- If the expression is not typable, it fails with a 'appropriate' error message.
+-- The boolean argument indicates whether an exact solution is expected, or if approximations can be made, giving
+-- only one specific (not most general) type
+type_inference :: Bool -> S.Program -> QpState Type
+type_inference exact fprog = do
+  -- Translation into core syntax
+  prog <- translate_program fprog
   
-      a <- new_type
-      constraints <- constraint_typing typctx prog a
-      non_composite <- break_composite constraints
+  -- Create the initial typing context
+  typctx <- gate_context typing_environment
+  
+  -- Create the initial type
+  a <- new_type
 
-      -- Unification
-      register_constraints $ fst non_composite
-      red_constraints <- unify non_composite
+  -- | constraint typing | --
+  constraints <- constraint_typing typctx prog a
+  newlog 0 $ pprint constraints
 
-      inferred <- map_type a
+  -- | Unification | --
+  constraints <- break_composite constraints
+  newlog 0 $ pprint constraints
+    -- For ordering purposes
+  register_constraints $ fst constraints
+  constraints <- unify exact constraints
+  newlog 0 $ pprint constraints
 
-      solve_annotation $ snd red_constraints
-      valinf <- rewrite_flags inferred
-      
+  -- Application of the solution map to the initial type
+  inferred <- map_type a
+  newlog 0 $ pprint inferred
 
-      maps <- mapping_list
-      pmaps <- List.foldl (\rec (x, t) -> do
-                             s <- rec
-                             return $ subvar 'X' x ++ " |-> " ++ pprint t ++ "\n" ++ s) (return "") maps
-
-      return $ pprint constraints ++ "\n\n" ++
-               pprint red_constraints ++ "\n\n" ++
-               pmaps ++ "\n\n" ++
-               pprint inferred ++ "\n\n" ++
-               pprint valinf
-  in do
-    (_, s) <- runS run QpState.empty_context
-    return s
+  -- Solve the remaining flag constraints,
+  -- and apply the result to the inferred type to get the final answer
+  solve_annotation $ snd constraints
+  inferred <- rewrite_flags inferred
+  newlog 0 $ pprint inferred
+  
+  -- Return the inferred type 
+  return inferred
 
 
--- Unification test
-translate_list [] = do return []
-translate_list ((t, u):l) = do
-  t' <- translate_type t
-  u' <- translate_type u
-  l' <- translate_list l
-  return $ (t', u'):l'
-
-test_unification :: [(S.Type, S.Type)] -> IO String
------------------------------------------------- 
-test_unification set =
-
+-- | A unification test : the unification alogorithm is run
+-- on a set of typing constraints. It doesn't return anything, 
+-- but prints the constraint after the unification
+unification_test :: [(S.Type, S.Type)] -> IO String
+unification_test set =
   let run = do
+      -- Translate the types in the internal syntax
       constraints <- List.foldl (\rec (t, u) -> do
                                    r <- rec
                                    (t', csett) <- translate_type t [] (Map.empty)
                                    (u', csetu) <- translate_type u [] (Map.empty)
                                    return $ [t' <: u'] <> csett <> csetu <> r) (return emptyset) set
 
-      non_composite <- break_composite constraints
+      -- Run the unification algorithm
+      constraints <- break_composite constraints
 
       -- Unification
-      register_constraints $ fst non_composite
-      red_constraints <- unify non_composite
+      register_constraints $ fst constraints
+      constraints <- unify True constraints
 
-      return $ pprint (constraints :: ConstraintSet) ++ "\n\n" ++
-               pprint non_composite ++ "\n\n" ++
-               pprint red_constraints
+      return $ pprint constraints
   in
   do
     (_, s) <- runS run QpState.empty_context
     return s
 
-pprint_val :: Map Int Int -> String
-------------------------------------
-pprint_val val =
-  Map.foldWithKey (\f n s -> s ++ " | " ++ subvar 'f' f ++ "=" ++ show n) "" val

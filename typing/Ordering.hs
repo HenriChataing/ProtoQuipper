@@ -221,7 +221,7 @@ youngest_cluster = do
 
   -- Log the contents of the youngest cluster
   log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cts
-  newlog 0 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
+  newlog 1 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
 
   -- Return the youngest cluster
   return c'

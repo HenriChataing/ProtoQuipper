@@ -101,18 +101,14 @@ data Context = Ctx {
      
 -- Variable ordering
 -- Variables are grouped into clusters of variables sharing the same age    
-  variables :: [Variable],
   relations :: [(Int, Int)],
   clusters :: IntMap [Type],  -- Age clusters definition
   cmap :: IntMap Int,  -- Map variables to age clusters
 
-    --
-    -- UNIFICATION STUFF
-    --
 
-    -- Substitution from type variable to types
-    mappings :: Map.Map Variable LinType
-  }
+-- Substitution from type variable to types
+  mappings :: Map.Map Variable LinType
+}
 
 
 
@@ -175,7 +171,6 @@ empty_context =  Ctx {
 
   circuits = [],
 
-  variables = [],
   relations = [],
   clusters = IMap.empty,
   cmap = IMap.empty,

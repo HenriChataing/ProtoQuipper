@@ -29,7 +29,11 @@ import Data.List as List
 data Options = Options {
   showHelp :: Bool,
   showVersion :: Bool,
-  verbose :: Bool, 
+  verbose :: Int, 
+
+  withConstraints :: Bool,
+  approximations :: Bool,
+  workWithProto :: Bool,
  
   runInterpret :: Bool,
   runTyping :: Bool,
@@ -38,13 +42,28 @@ data Options = Options {
 } deriving Show
 
 defaultOptions = Options {
+  -- General options
   showHelp = False,
   showVersion = False,
-  verbose = False,
+  verbose = -1,
   
+  -- Typing options
+    -- Make use of the typing constraints  (e :: T)
+  withConstraints = False,
+    -- Authorize approximations in unification
+  approximations = False,
+    -- Remove ALL syntactic sugars, giving raw proto quipper code
+  workWithProto = False,
+
+  -- Actions
+    -- Run the interpreter
   runInterpret = False,
+    -- Run the type inference algorithm
   runTyping = False,
+    -- Run the unification algorithm on a chosen set of constraints
   runUnify = Nothing,
+
+  -- Output specification
   outputFile = Nothing
 }
 
@@ -53,8 +72,17 @@ options =
       "Display this screen",
     Option ['V'] ["version"] (NoArg (\opts -> opts { showVersion = True }))
       "Output version information",
-    Option ['v'] ["verbose"] (NoArg (\opts -> opts { verbose = True }))
+    Option ['v'] ["verbose"] (OptArg (\lvl opts -> let n = case lvl of
+                                                             Just n -> (read n) :: Int
+                                                             Nothing -> 5 in
+                                                   opts { verbose = n }) "LEVEL")
       "Enable lavish output",
+    Option []    ["constr"] (NoArg (\opts -> opts { withConstraints = True }))
+      "Make use of typing constraints (e :: T)",
+    Option []    ["approx"] (NoArg (\opts -> opts { approximations = True }))
+      "Authorize approximations in unfication algorithm",
+    Option []    ["proto"] (NoArg (\opts -> opts { workWithProto = True }))
+      "Remove all syntactic sugars",
     Option ['i'] ["interpret"] (NoArg (\opts -> opts { runInterpret = True }))
       "Execute the program received in arguement",
     Option ['t'] ["type"] (NoArg (\opts -> opts { runTyping = True }))
@@ -101,7 +129,7 @@ main = do
           tokens <- mylex "" set
           constraints <- return $ parse_constraints tokens
           (do
-             s <- test_unification constraints
+             s <- unification_test constraints
              putStrLn s) `E.catch` (\(e :: QError) -> do
                                       putStrLn $ show e)
 
@@ -121,7 +149,7 @@ main = do
       prog <- return (parse tokens)
       coreprog <- return $ translate_program prog
 
-      (_, pc) <- Q.runS (coreprog >>= (\c -> return $ pprint c)) Q.empty_context
+      (_, pc) <- Q.runS (coreprog >>= return . pprint) Q.empty_context
       putStrLn pc
       hFlush stdout
 
@@ -140,9 +168,10 @@ main = do
         putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
         putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
         (do
-           s <- full_inference prog
-           putStrLn s) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+           (_, s) <- Q.runS (Q.set_verbose (verbose opts) >> type_inference (not $ approximations opts) prog) Q.empty_context
+           putStrLn $ pprint s) `E.catch` (\(e :: QError) -> putStrLn $ show e)
       else
         return ()
   else
     return ()
+
