@@ -98,6 +98,7 @@ instance Show QError where
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg
+
 {-
    The type QError must be declared as an exception to be thrown/caught in the IO monad
 -}

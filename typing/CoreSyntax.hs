@@ -119,6 +119,15 @@ no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
+-- | Specification of a user type
+data Typespec = Spec {
+  args :: Int,                                  -- The number of arguments
+  unfolded :: ([Type], [Type]),                 -- The unfolded defintion : on the left the arguments, on the right the unfolded type
+  subtype :: ([Type], [Type], [TypeConstraint]) -- The result of breaking the constraint {user args <: user args'}
+}
+
+
+
 -- | Like variables (term and type), datacons are attributed unique ids, which serve to represent them
 type Datacon = Int
 
@@ -322,7 +331,7 @@ subs_flag_in_lintype _ _ t = t
 
 
 -- | Subtitute a flag reference in the type
--- The function os not defined on typing schemes, it would make no sense
+-- The function is not defined on typing schemes, it would make no sense
 subs_flag :: RefFlag -> RefFlag -> Type -> Type
 subs_flag n m (TBang f t) =
   if n == f then
@@ -330,6 +339,15 @@ subs_flag n m (TBang f t) =
   else
     TBang f t
 
+
+-- | Substitute a variable by a linear type in a either a type or a linear type
+subs_var_by_lintype_in_lintype :: Variable -> LinType -> LinType -> LinType
+subs_var_by_lintype_in_lintype x a (TTensor tlist) = TTensor $ List.map (subs_var_by_lintype x a) tlist
+subs_var_by_lintype_in_lintype x a (TArrow t u) = TArrow (subs_var_by_lintype x a t) (subs_var_by_lintype x a u)
+subs_var_by_lintype_in_lintype x a (TCirc t u) = TCirc (subs_var_by_lintype x a t) (subs_var_by_lintype x a u)
+subs_var_by_lintype_in_lintype _ _ t = t
+
+subs_var_by_lintype x a (TBang f t) = TBang f (subs_var_by_lintype_in_lintype x a t)
 
 
 instance Param Pattern where
@@ -452,6 +470,7 @@ is_trivial :: TypeConstraint -> Bool
 is_atomic :: TypeConstraint -> Bool
 is_composite :: TypeConstraint -> Bool
 is_semi_composite :: TypeConstraint -> Bool
+is_user :: TypeConstraint -> Bool
 -------------------------------------------
 is_trivial (Subtype a b) = a == b
 
@@ -467,6 +486,10 @@ is_semi_composite (Subtype t u) =
     (_, TBang _ (TVar _)) -> True
     _ -> False
 
+is_user (Subtype t u) =
+  case (t, u) of
+    (TBang _ (TUser _ _), TBang _ (TUser _ _)) -> True
+    _ -> False
 
 {-
   Check whether all the constraints of a list have the same property of being right / left sided, ie :
@@ -603,6 +626,12 @@ subs_flag_in_constraints n m (lc, fc) =
                                  else if q == n then (p, m)
                                  else (p, q)) fc in
   (lc', fc')
+
+
+-- | Substitute a variable by a linear type in a constraint set
+subs_var_in_constraints :: Variable -> LinType -> ConstraintSet -> ConstraintSet
+subs_var_in_constraints x a (lc, fc) =
+  (List.map (\(Subtype t u) -> subs_var_by_lintype x a t <: subs_var_by_lintype x a u) lc, fc)
 
 
 instance Eq TypeConstraint where

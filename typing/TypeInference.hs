@@ -139,7 +139,7 @@ constraint_typing typctx ERev typ = do
   return ([TBang n (TArrow cirab cirba) <: typ], fconstraints)
 
 
--- Unbox typing rule
+-- | Unbox typing rule
 --    
 -- ------------------------------------------------
 --  G |- unbox : !1 (!n circ(T, U) -> !1 (T -> U))  [L]
@@ -468,73 +468,104 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
 
 
 
--- Break composite constrainst of the form :
-  -- T -> U <: T' -> U'
-  -- ! T <: ! U
-break_composite :: ConstraintSet -> QpState ConstraintSet
+-- | Using the type specifications registered in the state monad, unfolds any subtyping
+-- constraints of the form  user a <: user a'. This functions assumes that the two type
+-- names are the same, and that the rigth number of arguments have been given.
+unfold_user_constraint :: String -> [Type] -> String -> [Type] -> QpState [TypeConstraint]
+unfold_user_constraint utyp arg utyp' arg' = do
+  -- Retrieve the specification of the type
+  spec <- type_spec utyp
+  -- The constraints
+  (a, a', cset) <- return $ subtype spec
 
+  -- Replace the arguments a by arg
+  cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
+                        cs <- rec
+                        (cs, _) <- return $ subs_flag_in_constraints n m (cs, [])
+                        return $ fst $ subs_var_in_constraints x b (cs, [])) (return cset) (List.zip a arg)
+  -- Replace the arguments a' by arg'
+  cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
+                        cs <- rec
+                        (cs, _) <- return $ subs_flag_in_constraints n m (cs, [])
+                        return $ fst $ subs_var_in_constraints x b (cs, [])) (return cset) (List.zip a' arg')
+
+  return cset
+
+
+-- | Break the composite constrainst of a constraint set, leaving only atomic constraints
+-- and semi composite constraints. The boolean argument indicates whether to break user
+-- type constraints or not.
+break_composite :: Bool -> ConstraintSet -> QpState ConstraintSet
 
 -- Nothing to do
-break_composite ([], lc) = return ([], lc)
-
+break_composite bu ([], lc) = return ([], lc)
 
 -- With location
-break_composite ((Subtype (TBang n (TLocated t _)) u):lc, fc) = do
-  break_composite ((Subtype (TBang n t) u):lc, fc)
+break_composite bu ((Subtype (TBang n (TLocated t _)) u):lc, fc) = do
+  break_composite bu ((Subtype (TBang n t) u):lc, fc)
 
-break_composite ((Subtype t (TBang n (TLocated u _))):lc, fc) = do
-  break_composite ((Subtype t (TBang n u)):lc, fc)
+break_composite bu ((Subtype t (TBang n (TLocated u _))):lc, fc) = do
+  break_composite bu ((Subtype t (TBang n u)):lc, fc)
 
 
 -- Unit against unit : removed
-break_composite ((Subtype (TBang _ TUnit) (TBang _ TUnit)):lc, fc) = do
-  break_composite (lc, fc)
+break_composite bu ((Subtype (TBang _ TUnit) (TBang _ TUnit)):lc, fc) = do
+  break_composite bu (lc, fc)
 
 
 -- Bool against bool : removed
-break_composite ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
-  break_composite (lc, fc)
+break_composite bu ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
+  break_composite bu (lc, fc)
 
 
 -- Qbit against QBit : removed
-break_composite ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
+break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
   -- Make sure the qbit type is not banged
   if n >= 2 then unset_flag n
   else return ()
   if m >= 2 then unset_flag m
   else return ()
   
-  break_composite (lc, fc)
+  break_composite bu (lc, fc)
 
 
 -- Arrow against arrow
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite ((Subtype (TBang n (TArrow t u)) (TBang m (TArrow t' u'))):lc, fc) = do
-  break_composite ((Subtype t' t):(Subtype u u'):lc, (m, n):fc)
+break_composite bu ((Subtype (TBang n (TArrow t u)) (TBang m (TArrow t' u'))):lc, fc) = do
+  break_composite bu ((Subtype t' t):(Subtype u u'):lc, (m, n):fc)
  
 
 -- Tensor against tensor
   -- T * U <: T' * U'
 -- Into
   -- T <: T' && U <: U'
-break_composite ((Subtype (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))):lc, fc) = do
+break_composite bu ((Subtype (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))):lc, fc) = do
   if List.length tlist == List.length tlist' then do
     comp <- return $ List.map (\(t, u) -> t <: u) $ List.zip tlist tlist'
-    break_composite $ (comp, [(q, p)]) <> (lc, fc)
+    break_composite bu $ (comp, [(q, p)]) <> (lc, fc)
 
   else do
     throw_TypingError (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))
 
 
--- User type against user type : removed
-break_composite ((Subtype (TBang n (TUser utyp args)) (TBang m (TUser utyp' args'))):lc, fc) = do
-  if utyp == utyp' && List.length args == List.length args' then do
-    cset <- return $ List.map (\(t, u) -> t <: u) $ List.zip args args'
-    break_composite $ (cset, [(m, n)]) <> (lc, fc)
+-- User type against user type
+-- The result of breaking this kind of constraints has been placed in the specification of the user type
+-- It need only be instanciated with the current type arguments
+break_composite bu ((Subtype (TBang n (TUser utyp arg)) (TBang m (TUser utyp' arg'))):lc, fc) = do
+  if utyp == utyp' then do
+    
+    if bu then do
+      cset <- unfold_user_constraint utyp arg utyp' arg'
+      break_composite bu $ [(m, n)] <> (cset <> (lc, fc))
+
+    else do
+      cset <- break_composite bu $ (lc, fc)
+      return $ [TBang n (TUser utyp arg) <: TBang m (TUser utyp' arg')] <> cset
+      
   else
-    throw $ TypingError (pprint (TUser utyp args)) (pprint (TUser utyp' args'))
+    throw $ TypingError (pprint (TUser utyp arg)) (pprint (TUser utyp' arg'))
 
 
 -- Circ against Circ
@@ -542,24 +573,23 @@ break_composite ((Subtype (TBang n (TUser utyp args)) (TBang m (TUser utyp' args
 -- Into
   -- T' <: T && U <: U'
 -- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
-break_composite ((Subtype (TBang _ (TCirc t u)) (TBang _ (TCirc t' u'))):lc, fc) = do
-  break_composite ((Subtype t' t):(Subtype u u'):lc, fc)
+break_composite bu ((Subtype (TBang _ (TCirc t u)) (TBang _ (TCirc t' u'))):lc, fc) = do
+  break_composite bu ((Subtype t' t):(Subtype u u'):lc, fc)
 
 
 -- Semi composite (unbreakable) constraints
-break_composite (c@(Subtype (TBang _ (TVar _)) _):lc, fc) = do
-  (lc', fc') <- break_composite (lc, fc)
+break_composite bu (c@(Subtype (TBang _ (TVar _)) _):lc, fc) = do
+  (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
 
-break_composite (c@(Subtype _ (TBang _ (TVar _))):lc, fc) = do
-  (lc', fc') <- break_composite (lc, fc)
+break_composite bu (c@(Subtype _ (TBang _ (TVar _))):lc, fc) = do
+  (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
 
 
 -- Everything else is a typing error
-break_composite ((Subtype t u):lc, fc) = do
+break_composite bu ((Subtype t u):lc, fc) = do
   throw_TypingError t u
-
 
 
 -------------------------------------- UNIFICATION -----------------------------------------------------
@@ -696,7 +726,7 @@ unify exact (lc, fc) = do
                                   mapsto x $ no_bang leftend) (return ()) cx
 
                     -- Add the constraint  leftend <: rightend
-                    cset' <- break_composite ([leftend <: rightend], [])
+                    cset' <- break_composite True ([leftend <: rightend], [])
                     register_constraints $ fst cset'
 
                     -- Unify the rest
@@ -722,7 +752,7 @@ unify exact (lc, fc) = do
                                       atom <- rec
                                       xt <- appmap x
                                       yt <- appmap y
-                                      atom' <- break_composite ([TBang n xt <: TBang m yt], [])
+                                      atom' <- break_composite True ([TBang n xt <: TBang m yt], [])
                                       return $ atom' <> atom) (return emptyset) atomx
 
               -- Rewrite and reduce the semi composite constraints
@@ -731,12 +761,12 @@ unify exact (lc, fc) = do
                                      case c of
                                        Subtype (TBang n (TVar x)) u -> do
                                            xt <- appmap x
-                                           cs' <- break_composite ([TBang n xt <: u], [])
+                                           cs' <- break_composite True ([TBang n xt <: u], [])
                                            return $ cs' <> cs
 
                                        Subtype t (TBang m (TVar y)) -> do
                                            yt <- appmap y
-                                           cs' <- break_composite ([t <: TBang m yt], [])
+                                           cs' <- break_composite True ([t <: TBang m yt], [])
                                            return $ cs' <> cs)  (return emptyset) cset
 
 

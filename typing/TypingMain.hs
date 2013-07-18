@@ -53,7 +53,7 @@ type_inference exact fprog = do
   newlog 0 $ pprint constraints
 
   -- | Unification | --
-  constraints <- break_composite constraints
+  constraints <- break_composite True constraints
   newlog 0 $ pprint constraints
     -- For ordering purposes
   register_constraints $ fst constraints
@@ -88,7 +88,7 @@ unification_test set =
                                    return $ [t' <: u'] <> csett <> csetu <> r) (return emptyset) set
 
       -- Run the unification algorithm
-      constraints <- break_composite constraints
+      constraints <- break_composite True constraints
 
       -- Unification
       register_constraints $ fst constraints

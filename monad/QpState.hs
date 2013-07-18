@@ -76,7 +76,7 @@ data Context = Ctx {
 -- Definition of the types
 -- Types are referenced by their name. Is recorded the number of type arguments
 -- needed by any type
-  types :: Map String Int,
+  types :: Map String Typespec,
 
 -- Definition of the data constructors
 -- The definition includes the name of the data type, and the expected type
@@ -267,15 +267,15 @@ register_datacon dcon dtype = do
 
 
 -- | resgister the definition of a type
-register_type :: String -> Int -> QpState ()
-register_type typ args = do
+register_type :: String -> Typespec -> QpState ()
+register_type typ spec = do
   ctx <- get_context
-  set_context $ ctx { types = Map.insert typ args $ types ctx }
+  set_context $ ctx { types = Map.insert typ spec $ types ctx }
 
 
 -- | Retrieves the definition of a type
-type_def :: String -> QpState Int
-type_def typ = do
+type_spec :: String -> QpState Typespec
+type_spec typ = do
   ctx <- get_context
   case Map.lookup typ $ types ctx of
     Just n ->
