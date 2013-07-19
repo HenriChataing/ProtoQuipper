@@ -332,6 +332,7 @@ instance Eq LinType where
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
+  (==) (TUser n arg) (TUser n' arg') = (n == n') && (arg == arg')
   (==) _ _ = False
 
 

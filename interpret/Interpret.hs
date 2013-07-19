@@ -316,6 +316,9 @@ do_application env f x =
         c <- close_box
         return (VCirc s c s')
 
+    (VDatacon dcon Nothing, _) ->
+        return $ VDatacon dcon $ Just x
+
     _ -> do
         ex <- get_location
         file <- get_file
@@ -375,12 +378,10 @@ interpret env (ELet r p e1 e2) = do
   case (r, v1, p) of
     (Recursive, VFun ev arg body, PVar x) ->
         let ev' = IMap.insert x (VFun ev' arg body) ev in do
-          newlog 0 "recursive addition"
           env <- bind_pattern p (VFun ev' arg body) env
           interpret env e2
 
     _ -> do
-        newlog 0 "no recursive addition"
         -- Bind it to the pattern p in the current context
         ev <- bind_pattern p v1 env
         -- Interpret the body e2 in this context

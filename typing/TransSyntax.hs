@@ -473,6 +473,36 @@ translate_program prog = do
   ctx <- get_context
   set_context $ ctx { gatesid = gates }
 
-  translate_expression_with_label (S.body prog) (Map.union dcons gates)
+  translate_body (S.body prog) (Map.union dcons gates)
+
+
+-- | Translate and merge the list of term declarations
+translate_body :: [S.Declaration] -> Map String Int -> QpState Expr
+-- The general type of a file, if empty, is unit
+translate_body [] _ =
+  return EUnit
+
+-- However, if the last declaration is an expression,
+-- it becomes the return value of the evaluation
+translate_body [S.DExpr e] lbl = do
+  translate_expression_with_label e lbl
+
+-- If an lonely expression is encountered, it is ignored
+translate_body ((S.DExpr _):rest) lbl = do
+  translate_body rest lbl
+
+-- If a variable declaration is encountered,
+-- the variables of the pattern are marked to be exported,
+-- and the "let p = e" is connected with the rest of the body
+translate_body ((S.DLet recflag p e):rest) lbl = do
+  (p', lbl') <- translate_pattern_with_label p lbl
+  -- Export the variables of the pattern
+  List.foldl (\rec x -> do
+                rec
+                export_var x) (return ()) (free_var p')
+  -- Connect the let
+  e' <- translate_expression_with_label e (if recflag == Recursive then lbl' else lbl)
+  r <- translate_body rest lbl'
+  return (ELet recflag p' e' r)
 
 

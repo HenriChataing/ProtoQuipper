@@ -21,6 +21,12 @@ data Typedef = Typedef String [String] [(Datacon, Maybe Type)]
 data Import = Import String
 
 
+-- | Declarations
+data Declaration =
+    DLet RecFlag Pattern Expr
+  | DExpr Expr
+
+
 -- | Definition of a program
 data Program = Prog {
   -- A list of modules to import
@@ -31,7 +37,7 @@ data Program = Prog {
   typedefs :: [Typedef],
  
   -- The body of the module, can be interpreted as the main function
-  body :: Expr
+  body :: [Declaration]
 }
 
 

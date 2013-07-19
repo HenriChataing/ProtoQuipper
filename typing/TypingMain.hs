@@ -50,25 +50,41 @@ type_inference exact fprog = do
 
   -- | constraint typing | --
   constraints <- constraint_typing typctx prog a
-  newlog 0 $ pprint constraints
+  newlog 0 ">> Initial constraint set"
+  newlog 0 $ pprint constraints ++ "\n"
 
   -- | Unification | --
   constraints <- break_composite True constraints
-  newlog 0 $ pprint constraints
     -- For ordering purposes
   register_constraints $ fst constraints
   constraints <- unify exact constraints
-  newlog 0 $ pprint constraints
+  newlog 0 ">> Unified constraint set"
+  newlog 0 $ pprint constraints ++ "\n"
 
   -- Application of the solution map to the initial type
   inferred <- map_type a
-  newlog 0 $ pprint inferred
+  newlog 0 $ ">> Inferred type : " ++ pprint inferred
 
   -- Solve the remaining flag constraints,
   -- and apply the result to the inferred type to get the final answer
   solve_annotation $ snd constraints
   inferred <- rewrite_flags inferred
-  newlog 0 $ pprint inferred
+  newlog 0 $ ">> Inferred type, references removed : " ++  pprint inferred ++ "\n"
+
+  -- Same with the export variables
+  ctx <- get_context
+  exp <- return $ IMap.assocs $ export ctx
+  exp <- List.foldl (\rec (x, a) -> do
+                       r <- rec
+                       a' <- map_type a
+                       a' <- rewrite_flags a'
+                       return ((x, a'):r)) (return []) exp
+
+  newlog 0 ">> Export variables"
+  List.foldl (\rec (x, a) -> do
+                rec
+                newlog 0 $ subvar 'x' x ++ " :: " ++ pprint a) (return ()) exp
+  newlog 0 "<<\n"
   
   -- Return the inferred type 
   return inferred

@@ -73,6 +73,9 @@ data Context = Ctx {
 -- since those have been replaced by their unique id
   namespace :: Namespace,
 
+-- Contains the list of variables originating from term declarations, and to be exported outside of the module
+  export :: IntMap Type,
+
 -- Definition of the types
 -- Types are referenced by their name. Is recorded the number of type arguments
 -- needed by any type
@@ -157,6 +160,9 @@ empty_context =  Ctx {
 
 -- The namespace is initially empty
   namespace = N.new_namespace,
+
+-- No export variables
+  export = IMap.empty,
 
 -- The initial location is unknown, as well as the name of the code file
   filename = "*UNKNOWN*",
@@ -271,6 +277,13 @@ register_type :: String -> Typespec -> QpState ()
 register_type typ spec = do
   ctx <- get_context
   set_context $ ctx { types = Map.insert typ spec $ types ctx }
+
+
+-- | Request for the variable x to be exported
+export_var :: Variable -> QpState ()
+export_var x = do
+  ctx <- get_context
+  set_context $ ctx { export = IMap.insert x (TBang (-1) TUnit) $ export ctx }
 
 
 -- | Retrieves the definition of a type
@@ -614,6 +627,14 @@ map_lintype_step (TCirc t u) = do
   t' <- map_type_step t
   u' <- map_type_step u
   return (TCirc t' u')
+
+map_lintype_step (TUser typename arg) = do
+  arg' <- List.foldr (\a rec -> do
+                        r <- rec
+                        a' <- map_type_step a
+                        return (a':r)) (return []) arg
+  return (TUser typename arg')
+
 
 map_type_step (TBang f t) = do
   t' <- map_lintype_step t

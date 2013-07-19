@@ -25,6 +25,10 @@ type TypingContext = IntMap Type
 -- | Add a binding to the context, from the variable x to the type t
 bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
 bind_var x t ctx = do
+  -- If the export was requested, update the type of the variable
+  stt <- get_context
+  set_context $ stt { export = IMap.update (\_ -> Just t) x $ export stt }
+
   return $ IMap.insert x t ctx
 
 

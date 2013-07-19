@@ -21,6 +21,7 @@ tokens :-
   ","                                 { locate_token TkComma }
   ":"                                 { locate_token TkColon }
   ";"                                 { locate_token TkSemiColon }
+  ";;"                                { locate_token TkDblSemiColon }
   "="                                 { locate_token TkEq }
   "!"                                 { locate_token TkBang }
   "|"                                 { locate_token TkBar }
@@ -97,6 +98,7 @@ data Token =
   | TkSemiColon Extent     | TkEq Extent
   | TkBang Extent          | TkArrow Extent
   | TkBackArrow Extent     | TkSubType Extent
+  | TkDblSemiColon Extent
 
   -- Delimiters
   | TkLParen Extent        | TkRParen Extent
