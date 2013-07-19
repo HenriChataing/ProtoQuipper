@@ -481,13 +481,13 @@ unfold_user_constraint utyp arg utyp' arg' = do
   -- Replace the arguments a by arg
   cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
                         cs <- rec
-                        (cs, _) <- return $ subs_flag_in_constraints n m (cs, [])
-                        return $ fst $ subs_var_in_constraints x b (cs, [])) (return cset) (List.zip a arg)
+                        cset <- return $ subs_flag n m ((cs, []) :: ConstraintSet)
+                        return $ fst $ subs_typ_var x b cset) (return cset) (List.zip a arg)
   -- Replace the arguments a' by arg'
   cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
                         cs <- rec
-                        (cs, _) <- return $ subs_flag_in_constraints n m (cs, [])
-                        return $ fst $ subs_var_in_constraints x b (cs, [])) (return cset) (List.zip a' arg')
+                        cset <- return $ subs_flag n m ((cs, []) :: ConstraintSet)
+                        return $ fst $ subs_typ_var x b cset) (return cset) (List.zip a' arg')
 
   return cset
 

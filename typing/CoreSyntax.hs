@@ -262,22 +262,66 @@ instance PPrint RefFlag where
   pprint n = sprintn Inf n
 
 
-instance Param LinType where
-  free_var (TVar x) = [x]
-  free_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_var t) fv) [] tlist
-  free_var (TArrow t u) = List.union (free_var t) (free_var u)
-  free_var (TCirc t u) = List.union (free_var t) (free_var u)
-  free_var _ = []
+class KType a where
+  free_typ_var :: a -> [Int]
+  subs_typ_var :: Int -> LinType -> a -> a
+  
+  free_flag :: a -> [Int]
+  subs_flag :: Int -> Int -> a -> a
 
-  subs_var a b (TVar x) | x == a = TVar b
+
+instance KType LinType where
+  free_typ_var (TVar x) = [x]
+  free_typ_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] tlist
+  free_typ_var (TArrow t u) = List.union (free_typ_var t) (free_typ_var u)
+  free_typ_var (TCirc t u) = List.union (free_typ_var t) (free_typ_var u)
+  free_typ_var (TUser _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
+  free_typ_var (TLocated t _) = free_typ_var t
+  free_typ_var _ = []
+
+
+  subs_typ_var a b (TVar x) | x == a = b
                         | otherwise = TVar x
-  subs_var _ _ TUnit = TUnit
-  subs_var _ _ TBool = TBool
-  subs_var _ _ TQbit = TQbit
-  subs_var a b (TUser n args) = TUser n $ List.map (subs_var a b) args
-  subs_var a b (TArrow t u) = TArrow (subs_var a b t) (subs_var a b u)
-  subs_var a b (TTensor tlist) = TTensor $ List.map (subs_var a b) tlist
-  subs_var a b (TCirc t u) = TCirc (subs_var a b t) (subs_var a b u)
+  subs_typ_var _ _ TUnit = TUnit
+  subs_typ_var _ _ TBool = TBool
+  subs_typ_var _ _ TQbit = TQbit
+  subs_typ_var a b (TUser n args) = TUser n $ List.map (subs_typ_var a b) args
+  subs_typ_var a b (TArrow t u) = TArrow (subs_typ_var a b t) (subs_typ_var a b u)
+  subs_typ_var a b (TTensor tlist) = TTensor $ List.map (subs_typ_var a b) tlist
+  subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
+  subs_typ_var a b (TLocated t ex) = TLocated (subs_typ_var a b t) ex
+
+
+  free_flag (TVar x) = [x]
+  free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
+  free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
+  free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
+  free_flag (TUser _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
+  free_flag (TLocated t _) = free_flag t
+  free_flag _ = []
+
+
+  subs_flag n m (TUser typename args) = TUser typename $ List.map (subs_flag n m) args
+  subs_flag n m (TArrow t u) = TArrow (subs_flag n m t) (subs_flag n m u)
+  subs_flag n m (TTensor tlist) = TTensor $ List.map (subs_flag n m) tlist
+  subs_flag n m (TCirc t u) = TCirc (subs_flag n m t) (subs_flag n m u)
+  subs_flag n m (TLocated t ex) = TLocated (subs_flag n m t) ex
+  subs_flag _ _ t = t
+
+
+
+instance KType Type where
+  free_typ_var (TBang _ t) = free_typ_var t
+  subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
+
+  free_flag (TBang n t) = n:(free_flag t)
+  subs_flag n m (TBang p t) =
+    let t' = subs_flag n m t in
+    if n == p then
+      TBang m t'
+    else
+      TBang p t'
+
 
 
 instance Eq LinType where
@@ -291,63 +335,10 @@ instance Eq LinType where
   (==) _ _ = False
 
 
-instance Param Type where
-  free_var (TBang _ t) = free_var t
-  subs_var a b (TBang n t) = TBang n (subs_var a b t)
-
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
 
 
--- | Returns the set of used flag references
-free_flag_of_lintype :: LinType -> [RefFlag]
-free_flag_of_lintype (TTensor tlist) =
-  List.concat $ List.map free_flag tlist
-
-free_flag_of_lintype (TArrow t u) =
-  free_flag t ++ free_flag u
-
-free_flag_of_lintype (TCirc t u) =
-  free_flag t ++ free_flag u
-
-free_flag_of_lintype _ =
-  []
-
--- | Returns the set of used flag references of a type
-free_flag :: Type -> [RefFlag]
-free_flag (TBang n t) =
-  if n < 2 then
-    free_flag_of_lintype t
-  else
-    n:(free_flag_of_lintype t)
-
-
--- | Substitute a flag in a linear type
-subs_flag_in_lintype :: RefFlag -> RefFlag -> LinType -> LinType
-subs_flag_in_lintype n m (TTensor tlist) = TTensor $ List.map (subs_flag n m) tlist
-subs_flag_in_lintype n m (TArrow t u) = TArrow (subs_flag n m t) (subs_flag n m u)
-subs_flag_in_lintype n m (TCirc t u) = TCirc (subs_flag n m t) (subs_flag n m u)
-subs_flag_in_lintype _ _ t = t
-
-
--- | Subtitute a flag reference in the type
--- The function is not defined on typing schemes, it would make no sense
-subs_flag :: RefFlag -> RefFlag -> Type -> Type
-subs_flag n m (TBang f t) =
-  if n == f then
-    TBang m $ subs_flag_in_lintype n m t
-  else
-    TBang f t
-
-
--- | Substitute a variable by a linear type in a either a type or a linear type
-subs_var_by_lintype_in_lintype :: Variable -> LinType -> LinType -> LinType
-subs_var_by_lintype_in_lintype x a (TTensor tlist) = TTensor $ List.map (subs_var_by_lintype x a) tlist
-subs_var_by_lintype_in_lintype x a (TArrow t u) = TArrow (subs_var_by_lintype x a t) (subs_var_by_lintype x a u)
-subs_var_by_lintype_in_lintype x a (TCirc t u) = TCirc (subs_var_by_lintype x a t) (subs_var_by_lintype x a u)
-subs_var_by_lintype_in_lintype _ _ t = t
-
-subs_var_by_lintype x a (TBang f t) = TBang f (subs_var_by_lintype_in_lintype x a t)
 
 
 instance Param Pattern where
@@ -610,28 +601,29 @@ chain_constraints l =
     - PPrint
 -}
 
-instance Param TypeConstraint where
-  free_var (Subtype t u) = free_var t ++ free_var u
-  subs_var a b (Subtype t u) = Subtype (subs_var a b t) (subs_var a b u)
+instance KType TypeConstraint where
+  free_typ_var (Subtype t u) = List.union (free_typ_var t) (free_typ_var u)
+  subs_typ_var a b (Subtype t u) = Subtype (subs_typ_var a b t) (subs_typ_var a b u)
 
-instance Param ConstraintSet where
-  free_var (lc, _) = List.concat $ List.map free_var lc  
-  subs_var a b (lc, fc) = (List.map (subs_var a b) lc, fc)
-
--- | Substitute a flag reference by a new one in a constraint set
-subs_flag_in_constraints :: RefFlag -> RefFlag -> ConstraintSet -> ConstraintSet
-subs_flag_in_constraints n m (lc, fc) =
-  let lc' = List.map (\(Subtype t u) -> Subtype (subs_flag n m t) (subs_flag n m u)) lc
-      fc' = List.map (\(p, q) -> if p == n then (m, q)
-                                 else if q == n then (p, m)
-                                 else (p, q)) fc in
-  (lc', fc')
+  free_flag (Subtype t u) = List.union (free_flag t) (free_flag u)
+  subs_flag n m (Subtype t u) = Subtype (subs_flag n m t) (subs_flag n m u)
 
 
--- | Substitute a variable by a linear type in a constraint set
-subs_var_in_constraints :: Variable -> LinType -> ConstraintSet -> ConstraintSet
-subs_var_in_constraints x a (lc, fc) =
-  (List.map (\(Subtype t u) -> subs_var_by_lintype x a t <: subs_var_by_lintype x a u) lc, fc)
+instance KType ConstraintSet where
+  free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
+  subs_typ_var a b (lc, fc) = (List.map (subs_typ_var a b) lc, fc)
+
+  free_flag (lc, fc) =
+    let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
+        fff = List.foldl (\fv (n, m) -> List.union [n, m] fv) [] fc in
+    List.union ffl fff 
+
+  subs_flag n m (lc, fc) =
+    let lc' = List.map (subs_flag n m) lc
+        fc' = List.map (\(p, q) -> if p == n then (m, q)
+                                   else if q == n then (p, m)
+                                   else (p, q)) fc in
+    (lc', fc')
 
 
 instance Eq TypeConstraint where

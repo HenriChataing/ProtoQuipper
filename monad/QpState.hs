@@ -444,15 +444,15 @@ instanciate_scheme refs vars cset typ = do
                                  (typ, cset) <- rec
                                  nref <- duplicate_flag ref
                                  typ' <- return $ subs_flag ref nref typ
-                                 cset' <- return $ subs_flag_in_constraints ref nref cset
+                                 cset' <- return $ subs_flag ref nref cset
                                  return (typ', cset')) (return (typ, cset)) refs
 
   -- Replace the variables
   List.foldl (\rec var -> do
                 (typ, cset) <- rec
                 nvar <- fresh_type
-                typ' <- return $ subs_var var nvar typ
-                cset' <- return $ subs_var var nvar cset
+                typ' <- return $ subs_typ_var var (TVar nvar) typ
+                cset' <- return $ subs_typ_var var (TVar nvar) cset
                 return (typ', cset')) (return (typ', cset')) vars
 
 

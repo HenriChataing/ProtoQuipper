@@ -47,7 +47,6 @@ import qualified Data.List as List
 -- No modification is made to the specification of the type.
 unfold_once :: String -> QpState [TypeConstraint]
 unfold_once name = do
-  ctx <- get_context
   spec <- type_spec name
   
   -- Unfolded constraints
@@ -84,6 +83,7 @@ unfold_once name = do
 -- types. It doesn't output anything, but updates the constraint set in the specification
 -- of the input types
 unfold_all :: [String] -> QpState ()
+unfold_all [] = return ()
 unfold_all names = do
   -- Get all the specifications
   specs <- List.foldr (\n rec -> do 
@@ -108,19 +108,19 @@ unfold_all names = do
                                  (cuser, cnuser) <- return $ List.partition is_user after
                           
                                  -- Check the stability of the non user constraints of before and after the unfolding
-                                 if cnuser List.\\ before == [] && before List.\\ cnuser == [] then
+                                 if cnuser List.\\ before == [] && before List.\\ cnuser == [] then do
                                    -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
+                                   newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" before ++ " ] => " ++
+                                             pprint (TUser n a) ++ " <: " ++ pprint (TUser n a'))
+
                                    return (b, ctx { types = Map.insert n (spec { subtype = (a, a', before) }) $ types ctx })
                                  else do
                                    -- Continue the recursion, but update the subtyping of n
-                                   return (False, ctx { types = Map.insert n (spec { subtype = (a, a', after) }) $ types ctx })) (return (True, ctx)) (List.zip3 names specs unfolded) 
+                                   return (n:b, ctx { types = Map.insert n (spec { subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
 
   -- Continue or not with the recursion
   set_context ctx
-  if finish then
-    return ()
-  else
-    unfold_all names
+  unfold_all finish
 
 
 -- | Define the subtyping relations for all the user defined types
@@ -128,35 +128,36 @@ unfold_all names = do
 -- on the unfolded definition of the user types
 define_user_subtyping :: [S.Typedef] -> QpState () 
 define_user_subtyping typedefs = do
+  newlog 0 ">> Extension of the subtyping relation to user types"
   -- Get the type names
   names <- return $ List.map (\(S.Typedef n _ _) -> n) typedefs
 
   -- Initialize the constraint set of each user type
-  ctx <- get_context
-  ctx <- List.foldl (\rec n -> do
-                       ctx <- rec
-                       spec <- type_spec n
-                       -- One version of the unfolded type
-                       (a, ufold) <- return $ unfolded spec
-                       -- Another version of the unfolded type, where a has been replaced by fresh types a'
-                       (a', ufold') <- List.foldr (\(TBang n (TVar x)) rec -> do
-                                                     (a', ufold') <- rec
-                                                     b@(TBang m (TVar y)) <- new_type
-                                                     ufold' <- return $ List.map (subs_var x y) ufold'
-                                                     ufold' <- return $ List.map (subs_flag n m) ufold'
-                                                     return (b:a', ufold')) (return ([], ufold)) a
-                       -- Generate the constraints ufold <: ufold'
-                       constraints <- List.foldl (\rec (t, u) -> do
-                                                    r <- rec
-                                                    (lc, _) <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
-                                                    return $ lc ++ r) (return []) (List.zip ufold ufold')
+  List.foldl (\rec n -> do
+                rec
+                spec <- type_spec n
+                -- One version of the unfolded type
+                (a, ufold) <- return $ unfolded spec
+                -- Another version of the unfolded type, where a has been replaced by fresh types a'
+                (a', ufold') <- List.foldr (\(TBang n (TVar x)) rec -> do
+                                              (a', ufold') <- rec
+                                              b@(TBang m (TVar y)) <- new_type
+                                              ufold' <- return $ List.map (subs_typ_var x $ TVar y) ufold'
+                                              ufold' <- return $ List.map (subs_flag n m) ufold'
+                                              return (b:a', ufold')) (return ([], ufold)) a
 
-                       ctx <- return $ ctx { types = Map.insert n (spec { subtype = (a, a', constraints) }) $ types ctx }
-                       return ctx) (return ctx) names
-  set_context ctx
+                -- Generate the constraints ufold <: ufold'
+                constraints <- List.foldl (\rec (t, u) -> do
+                                             r <- rec
+                                             (lc, _) <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
+                                             return $ lc ++ r) (return []) (List.zip ufold ufold')
+
+                ctx <- get_context
+                set_context $ ctx { types = Map.insert n (spec { subtype = (a, a', constraints) }) $ types ctx }) (return ()) names
 
   -- Unfold until the constraint set is stable
   unfold_all names
+  newlog 0 "<<\n"
 
 
 -- | Import the type definitions in the current state
@@ -181,34 +182,32 @@ import_typedefs typedefs = do
                 -- For each string argument a, a type !n a is created and bound
                 (args', m') <- List.foldr (\a rec -> do
                                              (args, m) <- rec
-                                             id <- register_var a
-                                             n <- fresh_flag
-                                             ta <- return $ TBang n (TVar id)
+                                             ta <- new_type
                                              return (ta:args, Map.insert a ta m)) (return ([], m)) args
 
                 -- Define the type of the data constructors
                 (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
                                              (dt, lbl) <- rec
-                                             (dtype', cset) <- case dtype of
+                                             (dtype', dtype'', cset) <- case dtype of
                                                                  -- If the constructor takes no argument
                                                                  Nothing -> do
                                                                      n <- fresh_flag 
-                                                                     return (TBang n (TUser typename args'), emptyset)
+                                                                     return (TBang n (TUser typename args'), TBang n TUnit, emptyset)
 
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
                                                                      -- The same flag is used to mark the argument and the return value of the function
                                                                      (dt'@(TBang n _), cset) <- translate_type dt [] m'
-                                                                     return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), cset)
+                                                                     return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
                                              -- Those variables must also respect the constraints from the construction of the type
-                                             (fv, ff) <- return (free_var dtype', free_flag dtype')
+                                             (fv, ff) <- return (free_typ_var dtype', free_flag dtype')
                                              dtype' <- return $ TForall fv ff cset dtype'
 
                                              -- Register the datacon
                                              id <- register_datacon dcon dtype'
-                                             return $ (dtype':dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
+                                             return $ (dtype'':dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
 
                 -- Update the specification of the type
                 spec <- type_spec typename
@@ -273,9 +272,8 @@ translate_type (S.TTensor tlist) [] label = do
   return (TBang n (TTensor tlist'), cset')
 
 translate_type (S.TBang t) [] label = do
-  (t'@(TBang n _), cset) <- translate_type t [] label
-  set_flag n
-  return (t', cset)
+  (TBang _ t, cset) <- translate_type t [] label
+  return (TBang 1 t, cset)
 
 translate_type (S.TCirc t u) [] label = do
   (t', csett) <- translate_type t [] label
