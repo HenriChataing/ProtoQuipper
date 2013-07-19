@@ -107,7 +107,7 @@ unencap c b = do
   case circuits ctx of
     [] -> do
         ex <- get_location
-        throw $ NoBoxError ex
+        throw $ ProgramError "empty circuit stack"
 
     (top:rest) -> do
         (c', b') <- return $ C.unencap top c b
@@ -318,7 +318,8 @@ do_application env f x =
 
     _ -> do
         ex <- get_location
-        throw $ NotFunctionError (sprint f) ex
+        file <- get_file
+        throw $ NotFunctionError (sprint f) (file, ex)
 
 
 
@@ -358,7 +359,8 @@ interpret env (EVar x) = do
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
         ex <- get_location
-        throw $ UnboundVariable (show x) ex
+        file <- get_file
+        throw $ UnboundVariable (show x) (file, ex)
 
 -- Functions : The current context is enclosed in the function value
 interpret env (EFun p e) = do
@@ -413,8 +415,9 @@ interpret env (EMatch e blist) = do
                        else
                          match ex v rest) in do
     ex <- get_location
+    f <- get_file
     v <- interpret env e
-    match ex v blist
+    match (f, ex) v blist
 
 -- Pairs
 interpret env (ETuple elist) = do
@@ -436,7 +439,8 @@ interpret env (EIf e1 e2 e3) = do
 
     _ -> do
         ex <- get_location
-        throw $ NotBoolError (sprint v1) ex
+        f <- get_file
+        throw $ NotBoolError (sprint v1) (f, ex)
 
 
 
@@ -446,6 +450,8 @@ interpret env (EIf e1 e2 e3) = do
 run :: Expr -> QpState Value
 run e = do
   gv <- gate_values
+  ctx <- get_context
+  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
   basic_environment <- return $ IMap.fromList gv
   interpret basic_environment e
 

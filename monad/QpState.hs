@@ -357,14 +357,18 @@ set_flag :: RefFlag-> QpState ()
 set_flag ref = do
   case ref of
     (-1) -> return ()
-    0 -> throwQ $ NonDuplicableError "" extent_unknown
+    0 -> do
+        f <- get_file
+        throwQ $ NonDuplicableError "" (f, extent_unknown)
     1 -> return ()
     _ -> do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
           Just info -> do
               case value info of
-                Zero -> throwQ $ NonDuplicableError "" extent_unknown 
+                Zero -> do
+                    f <- get_file
+                    throwQ $ NonDuplicableError "" (f, extent_unknown)
                 One -> return ()
                 _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
 

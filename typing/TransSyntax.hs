@@ -244,18 +244,21 @@ translate_type (S.TVar x) arg label = do
           return (TBang n (TUser x arg), emptyset)
         else do
           ex <- get_location
-          throw $ WrongTypeArguments x nexp nact ex
+          f <- get_file
+          throw $ WrongTypeArguments x nexp nact (f, ex)
 
     Just typ ->
         if arg == [] then
           return (typ, emptyset)
         else do
           ex <- get_location
-          throw $ WrongTypeArguments (pprint typ) 0 (List.length arg) ex
+          f <- get_file
+          throw $ WrongTypeArguments (pprint typ) 0 (List.length arg) (f, ex)
 
     Nothing -> do
         ex <- get_location
-        throw $ UnboundVariable x ex
+        f <- get_file
+        throw $ UnboundVariable x (f, ex)
 
 translate_type (S.TArrow t u) [] label = do
   (t', csett) <- translate_type t [] label
@@ -293,7 +296,8 @@ translate_type (S.TLocated t ex) args label = do
 -- Remaining cases : of types applied to an argument when they are not generic
 translate_type t args label = do
   ex <- get_location
-  throw $ WrongTypeArguments (pprint t) 0 (List.length args) ex
+  f <- get_file
+  throw $ WrongTypeArguments (pprint t) 0 (List.length args) (f, ex)
 
 
 
@@ -327,7 +331,8 @@ translate_pattern_with_label (S.PDatacon datacon p) label = do
 
     Nothing -> do
         ex <- get_location
-        throw $ UnboundDatacon datacon ex
+        f <- get_file
+        throw $ UnboundDatacon datacon (f, ex)
 
 translate_pattern_with_label (S.PLocated p ex) label = do
   set_location ex
@@ -350,7 +355,8 @@ translate_expression_with_label (S.EVar x) label = do
 
     Nothing -> do
         ex <- get_location
-        throw $ UnboundVariable x ex
+        f <- get_file
+        throw $ UnboundVariable x (f, ex)
 
 translate_expression_with_label (S.EFun p e) label = do
   (p', lbl) <- translate_pattern_with_label p label
@@ -383,7 +389,8 @@ translate_expression_with_label (S.EDatacon datacon e) label = do
 
     Nothing -> do
         ex <- get_location
-        throw $ UnboundDatacon datacon ex
+        f <- get_file
+        throw $ UnboundDatacon datacon (f, ex)
 
 translate_expression_with_label (S.EMatch e blist) label = do
   e' <- translate_expression_with_label e label

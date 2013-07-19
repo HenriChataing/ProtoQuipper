@@ -452,7 +452,8 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
                  ActualOfE e -> return $ pprint e
                  ActualOfP p -> return $ pprint p
 
-        throwQ $ DetailedTypingError prt pru pre ex 
+        f <- get_file
+        throwQ $ DetailedTypingError prt pru pre (f, ex)
 
     (_, Just (e, ex)) -> do
         -- Print the expression / pattern
@@ -460,7 +461,8 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
                  ActualOfE e -> return $ pprint e
                  ActualOfP p -> return $ pprint p
 
-        throwQ $ DetailedTypingError pru prt pre ex 
+        f <- get_file
+        throwQ $ DetailedTypingError pru prt pre (f, ex)
  
     _ ->
       -- No information available
