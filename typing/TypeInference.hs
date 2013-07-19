@@ -281,6 +281,15 @@ constraint_typing typctx (ETuple elist) typ = do
 --   -----------------------------------------------------------------------------
 --     G1, G2, !ID |- let <x, y> = t in u : T    [L u L' u {1 <= I}]
 --
+-- With the let polymorphism, the typing rule becomes the following
+--
+--             G1, !ID |- t : T               [L]
+--      G2, !ID, p : forall A, L=>T |- u : U  [L']
+--   ----------------------------------------
+--        G1, G2, !ID |- let p = t in u : T   [L u L' u {1 <= I}]
+--
+--  where A = free variables of T \\ free_variables of G1, !ID
+--
 
 constraint_typing typctx (ELet rec p t u) typ = do
   -- Extract the free variables of t and u

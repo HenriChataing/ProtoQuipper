@@ -262,12 +262,15 @@ instance PPrint RefFlag where
   pprint n = sprintn Inf n
 
 
+-- | The class of objects of 'kind' type. The only two members are
+-- LinType and Type
 class KType a where
   free_typ_var :: a -> [Int]
   subs_typ_var :: Int -> LinType -> a -> a
   
   free_flag :: a -> [Int]
   subs_flag :: Int -> Int -> a -> a
+
 
 
 instance KType LinType where
