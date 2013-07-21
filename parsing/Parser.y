@@ -21,6 +21,7 @@ import Data.List as List
 
 %token
   '*' { TkStar $$ }
+  '.' { TkDot $$ }
   ',' { TkComma $$ }
   ':' { TkColon $$ }
   ';' { TkSemiColon $$ }
@@ -153,6 +154,7 @@ Atom_expr :
     | BOX '[' QDataType ']'                     { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
     | REV                                       { locate ERev $1 }
+    | UID '.' LID                               { locate (EQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' Expr ')'                              { $2 }
     | '<' Expr_sep_list '>'                     { locate (ETuple $2) (fromto $1 $3) }
