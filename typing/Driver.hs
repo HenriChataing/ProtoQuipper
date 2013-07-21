@@ -39,8 +39,8 @@ gate_context gates = do
                 bind_var x t' ctx) (return IMap.empty) gates
 
 -- | Lex and parse a file located by the given filepath
-lex_and_parse_file :: FilePath -> QpState S.Program
-lex_and_parse_file file = do
+lex_and_parse_implementation :: FilePath -> QpState S.Program
+lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
   tokens <- liftIO $ mylex file contents
   mod <- return $ module_of_file file
@@ -48,16 +48,15 @@ lex_and_parse_file file = do
 
 
 -- | Find the implementation of a module in a given directory
--- The name of the code file is expected to be dir/module.qi,
+-- The name of the code file is expected to be dir/module.ext,
 -- where dir is the directory, module is the name of the module with
--- the first letter put to lower case, and .qi the standard extension
--- As of now, only one directory is listed, others will be added later with the
--- addition of the -i option
+-- the first letter put to lower case, and ext the extension, which can be either .qp (implementation)
+-- or .qpi (interface). 'dir' is taken in the provided list of directories
 --
--- If several or none implementations are found, an error is raised
-find_in_directories :: String -> [FilePath] -> QpState FilePath
-find_in_directories mod@(initial:rest) directories = do
-  mfile <- return $ (Char.toLower initial):(rest ++ ".qi")
+-- If several implementations are found, an error is raised
+find_in_directories :: String -> [FilePath] -> String -> QpState (Maybe FilePath)
+find_in_directories mod@(initial:rest) directories extension = do
+  mfile <- return $ (Char.toLower initial):(rest ++ extension)
   existing <- List.foldl (\rec d -> do
                             r <- rec
                             nexttry <- return $ d ++ mfile
@@ -68,44 +67,67 @@ find_in_directories mod@(initial:rest) directories = do
                               return r) (return []) directories
   case existing of
     [] ->
-        -- The module doesn't exist
-        throwQ $ NotExistingModule mod
+        return Nothing
+
     [path] ->
         -- OK
-        return path
+        return $ Just path
+
     (m1:m2:_) ->
         -- Several implementations found
         throwQ $ DuplicateImplementation mod m1 m2
+
+
+-- | Specifically look for the implementation of a module
+-- Since an implementation is expected, the function fails if no matching
+-- file is found
+find_implementation_in_directories :: String -> [FilePath] -> QpState FilePath
+find_implementation_in_directories mod directories = do
+  f <- find_in_directories mod directories ".qp"
+  case f of
+    Just f ->
+        return f 
+
+    Nothing ->
+        -- The module doesn't exist
+        throwQ $ NotExistingModule mod
+
+
+-- | Specifically look for the interface of a module
+-- Since the interface file is optional, so is the return value
+find_interface_in_directories :: String -> [FilePath] -> QpState (Maybe FilePath)
+find_interface_in_directories mod directories =
+  find_in_directories mod directories ".qpi"
 
 
 -- | Recursively explore the dependencies of the program. It returns
 -- a map linking the modules to their parsed implementation, and a map corresponding
 -- to the dependency graph
 -- It proceeds to sort topologically the dependencies at the same time, using an in-depth exploration of the graph
+-- Note that the return list is reversed, with the 'oldest' module first
 explore_dependencies :: [String] -> S.Program -> Map String S.Program -> [S.Program] -> QpState [S.Program]
 explore_dependencies dirs prog mods sorted = do
-  case (Map.lookup (S.mname prog) mods, List.elem prog sorted)  of
-    (Just _, True) ->
-        return sorted
+  -- Mark the module as explored
+  mods <- return $ Map.insert (S.mname prog) prog mods
+  -- Sort the dependencies
+  sorted <- List.foldl (\rec m -> do
+                           sorted <- rec
+                           case (Map.lookup m mods, List.find (\p -> S.mname p == m) sorted) of
+                             -- Nothing to do
+                             (Just _, Just _) ->
+                                 return sorted
 
-    (Just _, False) ->
-        -- The module has already been visited : cyclic dependency
-        throwQ $ CyclicDependencies (S.mname prog)
-   
-    _ -> do
-        mods <- return $ Map.insert (S.mname prog) prog mods
-        sorted <- List.foldl (\rec m -> do
-                                sorted <- rec
-                                case Map.lookup m mods of
-                                  -- Nothing to do
-                                  Just _ -> return sorted
+                             (Just _, Nothing) ->
+                                 -- The module has already been visited : cyclic dependency
+                                 throwQ $ CyclicDependencies (S.mname prog)
 
-                                  -- Explore
-                                  Nothing -> do
-                                      file <- find_in_directories m dirs
-                                      p <- lex_and_parse_file file
-                                      explore_dependencies dirs p mods sorted) (return sorted) (S.imports prog)
-        return (prog:sorted)
+                             -- Explore
+                             _ -> do
+                                 file <- find_implementation_in_directories m dirs
+                                 p <- lex_and_parse_implementation file
+                                 explore_dependencies dirs p mods sorted) (return sorted) (S.imports prog)
+  -- Push the module on top of the list : after its dependencies
+  return (prog:sorted)
 
 
 -- | Sort the dependencies of file in a topological fashion
@@ -210,7 +232,7 @@ process_module exact prog = do
 do_everything :: [String] -> Bool -> FilePath -> QpState Type
 do_everything dirs exact file = do
   -- Parse the original file
-  prog <- lex_and_parse_file file
+  prog <- lex_and_parse_implementation file
 
   -- Build the dependencies
   deps <- build_dependencies dirs prog
