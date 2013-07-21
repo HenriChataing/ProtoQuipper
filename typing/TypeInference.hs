@@ -702,8 +702,25 @@ unify exact (lc, fc) = do
 
         -- No semi-composite constraints : trivial solution with x1 = .. = xn,  unify the rest
         (atomx, []) -> do
-            (non_lcx', fc') <- unify exact (non_lcx, fc)
-            return (non_lcx' ++ atomx, fc')
+
+            if not exact then do
+
+              -- APPROXIMATION :
+              -- Of all the variables, keep only one and replace the rest
+              ((TBang n xh):rest) <- return cx
+              fc' <- List.foldl (\rec (TBang m (TVar x)) -> do 
+                                   fc <- rec
+                                   mapsto x $ xh
+                                   (_, fc') <- return $ subs_flag m n (([], fc) :: ConstraintSet)
+                                   return fc') (return fc) rest
+              unify exact (non_lcx, fc')
+
+            else do
+
+              -- EXACT :
+              -- Unify the rest, and keep the atomic constraints untouched
+              (non_lcx', fc') <- unify exact (non_lcx, fc)
+              return (non_lcx' ++ atomx, fc')
 
         -- Semi-composite constraints :
         (atomx, cset) -> do
