@@ -752,6 +752,10 @@ map_type_step (TBang f t) = do
   t' <- map_lintype_step t
   return $ TBang f t'
 
+map_type_step (TForall fv ff cset typ) = do
+  typ' <- map_type_step typ
+  return $ TForall fv ff cset typ'
+
 map_type t = do
   t' <- map_type_step t
   if t == t' then

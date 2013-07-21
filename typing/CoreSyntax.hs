@@ -342,6 +342,7 @@ instance Eq LinType where
 
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
+  (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
 
 
 
@@ -636,4 +637,21 @@ instance KType ConstraintSet where
 instance Eq TypeConstraint where
   (==) (Subtype t u) (Subtype t' u') = t == t' && u == u'
 
+
+-- | Generalize a type, associated with constraints, over its free variables and flags
+-- The free variables of the type are those as are superior than or equal to lim type/flag
+-- elsewhere
+generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> Type
+generalize_type typ (limtype, limflag) cset =
+  -- Free variables and flags of the type
+  let fvt = free_typ_var typ
+      fft = free_flag typ in
+
+  -- Filter the bound variables
+  let fvt' = List.filter (\x -> x >= limtype) fvt
+      fft' = List.filter (\f -> f >= limflag) fft in
+
+  -- An optimisation would separate the constraints relevant
+  -- to the type before generalizing, but later
+  TForall fvt' fft' cset typ
 

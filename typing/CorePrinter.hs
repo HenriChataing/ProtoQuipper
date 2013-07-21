@@ -63,8 +63,8 @@ instance PPrint Type where
                (TArrow _ _) -> "(" ++ sprintn lv a ++ ")"
                _ -> sprintn lv a)
 
-  sprintn lv (TForall _ _ _ t) = 
-    sprintn lv t
+  sprintn lv (TForall fv ff cset t) =
+    "forall ... : " ++ sprintn lv t
  
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a

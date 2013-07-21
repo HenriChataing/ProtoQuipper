@@ -182,13 +182,17 @@ bind_pattern_to_type _ _ _ = do
 -- | Return the set of the annotation flags of the context
 context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
-  return $ IMap.foldWithKey (\x (TBang f _) ann -> (x, f):ann) [] ctx
+  return $ IMap.foldWithKey (\x t ann -> case t of
+                                           (TBang f _) -> (x, f):ann
+                                           (TForall _ _ _ (TBang f _)) -> (x, f):ann) [] ctx
 
 
 -- | Return a set of flag constraints forcing the context to be banged
 have_duplicable_context :: TypingContext -> QpState [FlagConstraint]
 have_duplicable_context ctx = do
-  return $ IMap.fold (\(TBang f _) ann -> (one, f):ann) [] ctx
+  return $ IMap.fold (\t ann -> case t of
+                                  (TBang f _) -> (one, f):ann
+                                  (TForall _ _ _ (TBang f _)) -> (one, f):ann) [] ctx
 
 
 -- | Perform the union of two typing contexts

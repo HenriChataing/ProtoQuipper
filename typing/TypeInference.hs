@@ -10,6 +10,7 @@ import CoreSyntax
 
 import QpState
 import TypingContext
+import Modules
 
 import Ordering
 
@@ -20,6 +21,7 @@ import Data.Sequence as Seq
 import Data.Array as Array
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.IntMap as IMap
 
 
 -- Build all the deriving constraints
@@ -311,21 +313,40 @@ constraint_typing typctx (ELet rec p t u) typ = do
   (typctx_fvt, _) <- sub_context fvt typctx
   (typctx_fvu, _) <- sub_context fvu typctx
 
+  -- Mark the limit free variables / bound variables
+  limtype <- get_context >>= return . type_id
+  limflag <- get_context >>= return . flag_id
+
   -- Create the type of the pattern
   (a, typctx_fvu', cseta) <- bind_pattern p typctx_fvu
 
+  -- Isolate the bindings issued by the pattern in typctx_fvu
+  (typctx_p, _) <- sub_context (free_var p) typctx_fvu'
   -- Type t with this type
   csett <- case rec of
              Recursive -> do
-                 -- Isolate the bindings issued by the pattern in typctx_fvu
-                 (typctx_p, _) <- sub_context (free_var p) typctx_fvu'
-                 -- Add them into typctx_fvt
+                 -- Add the bindings of the pattern into typctx_fvt
                  typctx_fvt' <- merge_contexts typctx_p typctx_fvt
                  constraint_typing typctx_fvt' t a
 
              Nonrecursive -> do
                  constraint_typing typctx_fvt t a 
-  
+
+  -- Last of the free variables of t
+  endtype <- get_context >>= return . type_id
+  endflag <- get_context >>= return . flag_id
+ 
+  -- Generalize the types of the pattern (= polymorphism)
+  typctx_fvu' <- IMap.foldWithKey (\x a rec -> do
+                                     typctxu <- rec
+                                     gena <- return $ TForall [limflag .. endflag-1] [limtype .. endtype-1] (cseta <> csett) a
+                                     -- Update the global variables
+                                     ctx <- get_context
+                                     cm <- get_module
+                                     set_context $ ctx { cmodule = cm { global_types = IMap.update (\_ -> Just $ gena) x (global_types cm) } }
+                                     -- Update the typing context of u
+                                     return $ IMap.update (\_ -> Just $ gena) x typctxu) (return typctx_fvu') typctx_p
+ 
   -- Type u
   csetu <- constraint_typing typctx_fvu' u typ
   
@@ -334,7 +355,7 @@ constraint_typing typctx (ELet rec p t u) typ = do
   flags <- context_annotation typctx_delta
   fconstraints <- return $ List.map (\(_, f) -> (1, f)) flags
   
-  return $ csett <> csetu <> cseta <> ([], fconstraints)
+  return $ csetu <> ([], fconstraints)
 
 
 -- Data typing rule
