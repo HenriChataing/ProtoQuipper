@@ -2,6 +2,8 @@ module Utils where
 
 import Localizing
 
+import System.FilePath.Posix as P
+
 import Data.Char as Char
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -56,6 +58,13 @@ supervar x n =
 subvar :: Char -> Int -> String
 subvar x n =
   x:(subscript $ show n)
+
+
+-- | Return the name of the module coded in file f
+module_of_file :: FilePath -> String
+module_of_file f =
+  let (init:body) = (P.dropExtension . P.takeFileName) f in
+  (Char.toUpper init):body
 
 -----------------------------------------
 ------ Manipulation of bindings ---------

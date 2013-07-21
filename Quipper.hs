@@ -14,7 +14,7 @@ import Printer
 
 import CoreSyntax
 import TransSyntax
-import TypingMain
+import Driver
 
 import qualified Interpret
 import Values
@@ -149,9 +149,9 @@ main = do
       prog <- return (parse tokens)
       coreprog <- return $ translate_program prog
 
-      (_, pc) <- Q.runS (coreprog >>= return . pprint) Q.empty_context
-      putStrLn pc
-      hFlush stdout
+--      (_, pc) <- Q.runS (coreprog >>= return . pprint) Q.empty_context
+--      putStrLn pc
+--      hFlush stdout
 
       -- Actions
       if runInterpret opts then do
@@ -168,7 +168,7 @@ main = do
         putStrLn $ "\x1b[1;33m" ++ ">> Typing" ++ "\x1b[0m"
         putStrLn $ "\x1b[1m" ++ "TypeInference :" ++ "\x1b[0m"
         (do
-           (_, s) <- Q.runS (Q.set_verbose (verbose opts) >> type_inference (not $ approximations opts) prog) Q.empty_context
+           (_, s) <- Q.runS (Q.set_verbose (verbose opts) >> do_everything ["test/"] (not $ approximations opts) file) Q.empty_context
            putStrLn $ pprint s) `E.catch` (\(e :: QError) -> putStrLn $ show e)
       else
         return ()

@@ -11,6 +11,7 @@ import QuipperError
 import Utils
 
 import Namespace
+import Modules
 
 import Data.List as List
 import Data.Map (Map)
@@ -27,7 +28,8 @@ bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
 bind_var x t ctx = do
   -- If the export was requested, update the type of the variable
   stt <- get_context
-  set_context $ stt { export = IMap.update (\_ -> Just t) x $ export stt }
+  cm <- get_module
+  set_context $ stt { cmodule = cm { global_types = IMap.update (\_ -> Just t) x $ global_types cm } }
 
   return $ IMap.insert x t ctx
 

@@ -84,12 +84,12 @@ import Data.List as List
 -}
 
 Program :
-     Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3 } }
+     Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3, mname = "", filepath = "" } }
 
 
 Import_list :
       {- empty -}                                { [] }
-    | Import_list IMPORT UID                     { (Import $ snd $3):$1 }
+    | Import_list IMPORT UID                     { (snd $3):$1 }
 
 
 Typedef_list :

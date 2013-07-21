@@ -90,6 +90,17 @@ constraint_typing typctx (EVar x) u = do
   return $ ([t <: u], fconstraints) <> cset
 
 
+-- Global variables are stored in the global field of the context
+-- Also, global variables are supposed to be banged
+constraint_typing typctx (EGlobal x) u = do
+  -- Retrieve the type of x from the typing context
+  t <- type_of_global x
+  (t, cset) <- instanciate t -- In case t is a typing scheme
+
+  return $ [t <: u] <> cset
+
+
+
 -- | Box typing rule
 --
 -- ------------------------------------------------------

@@ -93,6 +93,7 @@ print_doc :: Expr -> Doc
 
 print_doc EUnit = text "<>"
 print_doc (EVar x) = text x
+print_doc (EQualified m x) = text m <> text "." <> text x
 print_doc ERev = text "rev"
 print_doc EUnbox = text "unbox"
 print_doc (EBox a) = text "box" <> brackets (text $ pprint a)

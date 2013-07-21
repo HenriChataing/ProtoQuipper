@@ -104,6 +104,7 @@ print_doc :: Expr -> Doc
 print_doc EUnit = text "<>"
 print_doc (EBool b) = if b then text "true" else text "false"
 print_doc (EVar x) = text $ subvar 'x' x
+print_doc (EGlobal x) = text $ subvar 'x' x
 
 print_doc (ELet r p e f) =
   let recflag = if r == Recursive then text "rec" else empty in

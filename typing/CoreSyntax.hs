@@ -166,13 +166,14 @@ data Pattern =
 data Expr =
 -- STLC
     EVar Variable                                 -- x
+  | EGlobal Variable                              -- global variable from the imported modules
   | EFun Pattern Expr                             -- fun p -> t
   | EApp Expr Expr                                -- t u
 
 -- Introduction of the tensor
   | EUnit                                         -- <>
   | ETuple [Expr]                                 -- <t1, .. , tn>
-  | ELet RecFlag Pattern Expr Expr              -- let [rec] p = e in f
+  | ELet RecFlag Pattern Expr Expr                -- let [rec] p = e in f
 
 -- Custom union types
   | EBool Bool                                    -- True / False
@@ -360,6 +361,8 @@ instance Param Pattern where
 instance Param Expr where
   free_var (EVar x) = [x]
   
+  free_var (EGlobal x) = [x]
+
   free_var (EFun p e) = 
     let fve = free_var e
         fvp = free_var p in

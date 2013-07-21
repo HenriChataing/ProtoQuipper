@@ -11,8 +11,9 @@ import qualified Namespace as N
 import CoreSyntax
 import Circuits
 
-import System.IO
+import Modules
 
+import System.IO
 import Control.Exception as E
 
 import Data.IntMap (IntMap)
@@ -67,14 +68,23 @@ data Context = Ctx {
 
 -- File name and location in the file
   filename :: String,
-  location :: Extent,  
+  location :: Extent,
+
+
+-- All stuff to support module imports
+  -- List of processed modules
+  modules :: [(String, Module)],
+  -- Current module
+  cmodule :: Module,
+ 
+  -- Global variables (imported from other modules)
+  globals :: IntMap Type, 
+
 
 -- Namespace, which contains the names of the term variables and datacons,
 -- since those have been replaced by their unique id
   namespace :: Namespace,
 
--- Contains the list of variables originating from term declarations, and to be exported outside of the module
-  export :: IntMap Type,
 
 -- Definition of the types
 -- Types are referenced by their name. Is recorded the number of type arguments
@@ -161,8 +171,15 @@ empty_context =  Ctx {
 -- The namespace is initially empty
   namespace = N.new_namespace,
 
--- No export variables
-  export = IMap.empty,
+-- No modules
+  modules = [],
+-- Current module is dummy
+  cmodule = dummy_module,
+ 
+-- No global variables
+  globals = IMap.empty, 
+
+
 
 -- The initial location is unknown, as well as the name of the code file
   filename = "*UNKNOWN*",
@@ -251,6 +268,9 @@ get_file =
   get_context >>= return . filename
 
 
+get_module :: QpState Module
+get_module =
+  get_context >>= return . cmodule
 
 
 -- | Access to the name space : variable registration
@@ -279,11 +299,103 @@ register_type typ spec = do
   set_context $ ctx { types = Map.insert typ spec $ types ctx }
 
 
--- | Request for the variable x to be exported
+-- | Return the name of the variablechopin études op 25 
+-- Looks in the namespace for the name of the variable n. If no match is found,
+-- a standard name x_n is produced
+variable_name :: Variable -> QpState String
+variable_name x = do
+  ctx <- get_context
+  case IMap.lookup x $ N.varcons (namespace ctx) of
+    Just n ->
+        return n
+
+    Nothing ->
+        return $ subvar 'x' x
+
+
+-- | Request for the variable x to be exported (added to the current module export list)
 export_var :: Variable -> QpState ()
 export_var x = do
   ctx <- get_context
-  set_context $ ctx { export = IMap.insert x (TBang (-1) TUnit) $ export ctx }
+  -- Current module
+  cm <- return $ cmodule ctx
+  -- Name of the variable
+  name <- variable_name x
+
+  set_context $ ctx { cmodule = cm { global_ids = Map.insert name x $ global_ids cm,
+                                     global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm } }
+
+
+-- | Import the global variables from the modules dependencies in the globals field
+import_globals :: QpState ()
+import_globals = do
+  ctx <- get_context
+  cm <- return $ cmodule ctx
+  gbls <- List.foldl (\rec m -> do
+                        g <- rec
+                        -- Look for the definition of the module m
+                        case List.lookup m $ modules ctx of
+                          Just mod -> do
+                              return $ IMap.union g (global_types mod)
+
+                          Nothing ->
+                              throwQ $ ProgramError $ "missing module implementation of " ++ m) (return IMap.empty) $ dependencies cm
+  set_context $ ctx { globals = gbls }
+
+
+-- | Lookup the type of a global variable
+type_of_global :: Variable -> QpState Type
+type_of_global x = do
+  ctx <- get_context
+  case IMap.lookup x $ globals ctx of
+    Just t ->
+        return t
+    Nothing -> do
+        n <- variable_name x
+        throwQ $ ProgramError $ "undefined global variable " ++ n
+
+
+-- | Look up variable in a specific module (typically used with a qualified variable)
+lookup_qualified_var :: (String, String) -> QpState Variable
+lookup_qualified_var (mod, n) = do
+  ctx <- get_context
+  -- Check that the module is part of the dependencies
+  if List.elem mod $ dependencies (cmodule ctx) then do
+    case List.lookup mod $ modules ctx of
+      Just modi -> do
+          case Map.lookup n $ global_ids modi of
+            Just x -> return x
+            Nothing -> do
+                ex <- get_location
+                f <- return $ codefile (cmodule ctx)
+                throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+      Nothing -> do
+          ex <- get_location
+          f <- return $ codefile (cmodule ctx)
+          throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+  else do
+    ex <- get_location
+    f <- return $ codefile (cmodule ctx)
+    throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+
+-- | Create the initializer of the translation into internal syntax : create a namescape including
+-- all the global variables from the module dependencies. 
+global_namespace :: QpState (Map String Variable)
+global_namespace = do
+  ctx <- get_context
+  cmod <- get_module
+  List.foldl (\rec m -> do
+                nsp <- rec
+                case List.lookup m $ modules ctx of
+                  Just m ->
+                      return $ Map.union (global_ids m) nsp
+
+                  Nothing ->
+                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return Map.empty) $ dependencies cmod
+
 
 
 -- | Retrieves the definition of a type

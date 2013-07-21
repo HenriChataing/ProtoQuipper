@@ -12,10 +12,18 @@ import Data.Typeable
 
 data QError =
 
+-- FILE ERRORS
+
+    -- Related to module implementations
+    NotExistingModule String
+  | DuplicateImplementation String String String
+    -- Cyclic dependencies in modules
+  | CyclicDependencies String
+
 -- LEXICAL ERRORS
     
     -- Lexical, thrown by the lexer when coming upon an unkown token
-    LexicalError (String, Extent)
+  | LexicalError (String, Extent)
 
 -- SYNTAX ERRORS
 
@@ -60,6 +68,12 @@ data QError =
 
 -- | Error pretty printing
 instance Show QError where
+  show (NotExistingModule mod) = "Error: the module " ++ mod ++ " lacks an implementation"
+  show (DuplicateImplementation mod p1 p2) = "Error: several implementations of the module " ++ mod ++ " have been found:\n" ++
+                                             "   at: " ++ p1 ++ "\n" ++
+                                             "   at: " ++ p2 
+  show (CyclicDependencies mod) = "Error: cyclic dependency in module " ++ mod
+
   show (LexicalError (f, ex)) = f ++ ":" ++ show ex ++ ": unknown token"
 
   show (ParsingError tk) = "Parsing error: on token " ++ tk

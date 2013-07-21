@@ -1,4 +1,8 @@
-module TransSyntax (translate_program, translate_type) where
+module TransSyntax (define_user_subtyping,
+                    translate_program,
+                    translate_type,
+                    translate_body,
+                    import_typedefs) where
 
 import Utils
 import Classes
@@ -22,7 +26,7 @@ import Control.Exception
 
 import Data.Map as Map
 import qualified Data.List as List
-
+import qualified Data.IntMap as IMap
 
 -- | The typing constraints  {user a <: user a'} don't make much sense as is, so they need
 -- to be converted to some constraints about the arguments, like {user a <: user a'} == {a <: a'}
@@ -341,7 +345,7 @@ translate_pattern_with_label (S.PLocated p ex) label = do
 
 
 -- | Translate an expression, given a labelling map
-translate_expression_with_label :: S.Expr -> Map String Int -> QpState Expr
+translate_expression_with_label :: S.Expr -> Map String Variable -> QpState Expr
 translate_expression_with_label S.EUnit _ = do
   return EUnit
 
@@ -350,13 +354,21 @@ translate_expression_with_label (S.EBool b) _ = do
 
 translate_expression_with_label (S.EVar x) label = do
   case Map.lookup x label of
-    Just id ->
-        return (EVar id)
+    Just id -> do
+        ctx <- get_context
+        if List.elem id $ IMap.keys $ globals ctx then
+          return $ EGlobal id
+        else
+          return $ EVar id
 
     Nothing -> do
         ex <- get_location
         f <- get_file
         throw $ UnboundVariable x (f, ex)
+
+translate_expression_with_label (S.EQualified m x) _ = do
+  id <- lookup_qualified_var (m, x)
+  return $ EGlobal id
 
 translate_expression_with_label (S.EFun p e) label = do
   (p', lbl) <- translate_pattern_with_label p label

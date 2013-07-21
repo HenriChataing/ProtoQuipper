@@ -17,9 +17,6 @@ type Datacon = String
 data Typedef = Typedef String [String] [(Datacon, Maybe Type)]
 
 
--- | Import module declaration
-data Import = Import String
-
 
 -- | Declarations
 data Declaration =
@@ -29,9 +26,13 @@ data Declaration =
 
 -- | Definition of a program
 data Program = Prog {
+  -- Module name and file
+  mname :: String,
+  filepath :: FilePath,
+
   -- A list of modules to import
   -- A module is named by the name of the file, with the first letter an upper case
-  imports :: [Import],
+  imports :: [String],
 
   -- A list of type definitions
   typedefs :: [Typedef],
@@ -39,6 +40,9 @@ data Program = Prog {
   -- The body of the module, can be interpreted as the main function
   body :: [Declaration]
 }
+
+instance Eq Program where
+  (==) p1 p2 = mname p1 == mname p2
 
 
 -- | Definition of types
@@ -164,7 +168,8 @@ data RecFlag = Nonrecursive | Recursive
 -- Similarly to patterns, tuples have size >= 2, enforced by the grammar
 data Expr =
 -- STLC
-    EVar String                    -- x  
+    EVar String                    -- x
+  | EQualified String String       -- M.x
   | EFun Pattern Expr              -- fun p -> e
   | EApp Expr Expr                 -- e f
 
