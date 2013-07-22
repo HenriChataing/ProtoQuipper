@@ -9,7 +9,9 @@ import Namespace (Namespace)
 import qualified Namespace as N
 
 import CoreSyntax
+import CorePrinter
 import Circuits
+import Values
 
 import Modules
 
@@ -323,7 +325,8 @@ export_var x = do
   name <- variable_name x
 
   set_context $ ctx { cmodule = cm { global_ids = Map.insert name x $ global_ids cm,
-                                     global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm } }
+                                     global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm,
+                                     global_vars = IMap.insert x VUnit $ global_vars cm } }
 
 
 -- | Import the global variables and types from the module dependencies in the globals field
@@ -426,6 +429,23 @@ global_namespace = do
 
 
 
+-- | Create the initializer of the interpretation : create an evaluation context including
+-- all the global variables from the module dependencies
+global_context :: QpState (IntMap Value)
+global_context = do
+  ctx <- get_context
+  cmod <- get_module
+  List.foldl (\rec m -> do
+                ectx <- rec
+                case List.lookup m $ modules ctx of
+                  Just m ->
+                      return $ IMap.union (global_vars m) ectx
+
+                  Nothing ->
+                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return IMap.empty) $ dependencies cmod
+
+
+
 -- | Retrieves the definition of a type
 type_spec :: String -> QpState Typespec
 type_spec typ = do
@@ -512,7 +532,7 @@ set_flag ref = do
     (-1) -> return ()
     0 -> do
         f <- get_file
-        throwQ $ NonDuplicableError "" (f, extent_unknown)
+        throwQ $ NonDuplicableError "(unknown)" (f, extent_unknown)
     1 -> return ()
     _ -> do
         ctx <- get_context 
@@ -520,10 +540,11 @@ set_flag ref = do
           Just info -> do
               case value info of
                 Zero -> do
-                    f <- get_file
-                    throwQ $ NonDuplicableError "" (f, extent_unknown)
-                One -> return ()
-                _ -> set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
+                    throw_NonDuplicableError ref
+                One ->
+                    return ()
+                _ ->
+                    set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
 
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
@@ -536,15 +557,20 @@ unset_flag ref = do
   case ref of
     (-1) -> return ()
     0 -> return ()
-    1 -> fail "Non duplicable expression"
+    1 -> do
+        f <- get_file
+        throwQ $ NonDuplicableError "(unknown)" (f, extent_unknown)
     _ -> do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
           Just info -> do
               case value info of
-                One -> fail $ "Non duplicable expression"
-                Zero -> return ()
-                _ -> set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
+                One ->
+                    throw_NonDuplicableError ref
+                Zero ->
+                    return ()
+                _ ->
+                    set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
 
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
@@ -692,8 +718,8 @@ gate_id g = do
     Just id ->
         return id
  
-    Nothing ->
-        fail "Unregistered gate"
+    Nothing -> do
+        register_var g
 
 
 -- | Generates a fresh type variable (linear type)
@@ -710,6 +736,65 @@ new_type = do
   x <- fresh_type
   f <- fresh_flag
   return (TBang f (TVar x))
+
+
+
+-- | Throw a typing error, based on the reference flags of the faulty types
+-- The return type can be anything, since an exception will be thrown in any case
+throw_TypingError :: Type -> Type -> QpState a
+throw_TypingError t@(TBang n _) u@(TBang m _) = do
+  -- Retrieve the location / expression of the types
+  termn <- referenced_expression n
+  termm <- referenced_expression m
+
+  -- Print the types t and u
+  prt <- return $ pprint t
+  pru <- return $ pprint u
+
+  -- See what information we have
+  case (termn, termm) of
+    (Just (e, ex), _) -> do
+        -- Print the expression / pattern
+        pre <- case e of
+                 ActualOfE e -> return $ pprint e
+                 ActualOfP p -> return $ pprint p
+
+        f <- get_file
+        throwQ $ DetailedTypingError prt pru pre (f, ex)
+
+    (_, Just (e, ex)) -> do
+        -- Print the expression / pattern
+        pre <- case e of
+                 ActualOfE e -> return $ pprint e
+                 ActualOfP p -> return $ pprint p
+
+        f <- get_file
+        throwQ $ DetailedTypingError pru prt pre (f, ex)
+ 
+    _ ->
+      -- No information available
+      throwQ $ TypingError prt pru
+
+
+-- | Throw a duplicable error, based on the faulty reference flags
+throw_NonDuplicableError :: RefFlag -> QpState a
+throw_NonDuplicableError ref = do
+  -- Referenced expression / location
+  term <- referenced_expression ref
+
+  -- See what information we have
+  case term of
+    Just (e, ex) -> do
+        pre <- case e of
+                 ActualOfE e -> return $ pprint e
+                 ActualOfP p -> return $ pprint p
+        f <- get_file
+        throwQ $ NonDuplicableError pre (f, ex)
+
+    Nothing -> do
+        f <- get_file
+        throwQ $ NonDuplicableError "(Unknown)" (f, extent_unknown)
+
 
 
 -- =============================== --

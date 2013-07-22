@@ -473,43 +473,6 @@ constraint_typing typctx (EIf e f g) typ = do
 
 
 
--- | Throw a typing error, based on the reference flags of the faulty types
--- The return type can be anything, since an exception will be thrown in any case
-throw_TypingError :: Type -> Type -> QpState a
-throw_TypingError t@(TBang n _) u@(TBang m _) = do
-  -- Retrieve the location / expression of the types
-  termn <- referenced_expression n
-  termm <- referenced_expression m
-
-  -- Print the types t and u
-  prt <- return $ pprint t
-  pru <- return $ pprint u
-
-  -- See what information we have
-  case (termn, termm) of
-    (Just (e, ex), _) -> do
-        -- Print the expression / pattern
-        pre <- case e of
-                 ActualOfE e -> return $ pprint e
-                 ActualOfP p -> return $ pprint p
-
-        f <- get_file
-        throwQ $ DetailedTypingError prt pru pre (f, ex)
-
-    (_, Just (e, ex)) -> do
-        -- Print the expression / pattern
-        pre <- case e of
-                 ActualOfE e -> return $ pprint e
-                 ActualOfP p -> return $ pprint p
-
-        f <- get_file
-        throwQ $ DetailedTypingError pru prt pre (f, ex)
- 
-    _ ->
-      -- No information available
-      throwQ $ TypingError prt pru
-
-
 
 -- | Using the type specifications registered in the state monad, unfolds any subtyping
 -- constraints of the form  user a <: user a'. This functions assumes that the two type

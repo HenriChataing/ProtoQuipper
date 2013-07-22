@@ -176,7 +176,16 @@ import_typedefs typedefs = do
   m <- List.foldl (\rec (S.Typedef typename args _) -> do
                      m <- rec
                      n <- fresh_flag
-                     register_type typename $ Spec { args = List.length args, unfolded = ([], []), subtype = ([], [], []) }
+                     spec <- return $ Spec { args = List.length args, unfolded = ([], []), subtype = ([], [], []) }
+
+                     -- Register the type in the current context
+                     register_type typename spec
+
+                     -- Add an entry to the current module
+                     cm <- get_module
+                     ctx <- get_context
+                     set_context $ ctx { cmodule = cm { typespecs = Map.insert typename spec $ typespecs cm } }
+
                      return $ Map.insert typename (TBang n $ TUser typename []) m) (return Map.empty) typedefs
 
   -- Transcribe the rest of the type definitions

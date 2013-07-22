@@ -3,6 +3,7 @@ module Driver where
 import Classes
 import Utils
 import QuipperError
+import Options
 
 import Lexer
 import Parser
@@ -14,6 +15,8 @@ import CoreSyntax
 import TransSyntax
 
 import Gates
+import Interpret
+import Values
 
 import Ordering
 import TypeInference
@@ -145,8 +148,8 @@ build_dependencies dirs main = do
 -- | Process a module, from the syntax translation to the type inference
 -- Every result produced by the type inference is recorded in the module
 -- internal representation (type Module)
-process_module :: Bool -> S.Program -> QpState Type
-process_module exact prog = do
+process_module :: Bool -> Bool -> S.Program -> QpState (Maybe Value, Type)
+process_module exact runinter prog = do
 
 -- Configuration part
   -- Get the module name
@@ -160,7 +163,8 @@ process_module exact prog = do
                                       dependencies = S.imports prog,
                                       typespecs = Map.empty,
                                       global_ids = Map.empty,
-                                      global_types = IMap.empty } }
+                                      global_types = IMap.empty,
+                                      global_vars = IMap.empty } }
 
   set_file f
 
@@ -230,30 +234,37 @@ process_module exact prog = do
                 n <- variable_name x
                 newlog 0 $ n ++ " :: " ++ pprint a) (return ()) exp
   newlog 0 "<<\n"
-  
+ 
+  -- Run the module
+  v <- if runinter then do
+         v <- run_module cprog
+         return $ Just v
+       else
+         return Nothing
+ 
   -- Return the inferred type 
-  return inferred
+  return (v, inferred)
 
 
 -- ==================================== --
 -- | DO EVERYTHING !
-do_everything :: [String] -> Bool -> FilePath -> QpState Type
-do_everything dirs exact file = do
+do_everything :: Options -> FilePath -> QpState (Maybe Value, Type)
+do_everything opts file = do
   -- Parse the original file
   prog <- lex_and_parse_implementation file
 
   -- Build the dependencies
-  deps <- build_dependencies dirs prog
+  deps <- build_dependencies (includes opts) prog
 
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
                 _ <- rec
-                typ <- process_module exact p
+                typ <- process_module (not $ approximations opts) (runInterpret opts) p
                 -- Move the module internally onto the modules stack
                 ctx <- get_context
                 set_context $ ctx { modules = (S.mname p, cmodule ctx):(modules ctx) }
                 -- Return the last type
-                return typ) (return (TBang (-1) TUnit)) deps
+                return typ) (return (Nothing, TBang (-1) TUnit)) deps
 -- ===================================== --
 
 

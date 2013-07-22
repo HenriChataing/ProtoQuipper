@@ -132,7 +132,11 @@ bind_pattern_to_type (PLocated p ex) t ctx = do
   set_location ex
   bind_pattern_to_type p t ctx
 
-bind_pattern_to_type (PVar x) t ctx = do
+bind_pattern_to_type (PVar x) t@(TBang n _) ctx = do
+  ex <- get_location
+  specify_location n ex
+  specify_expression n (ActualOfP $ PVar x)
+
   ctx' <- bind_var x t ctx
   return (ctx', emptyset)
 
