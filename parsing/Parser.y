@@ -151,7 +151,7 @@ Atom_expr :
     | FALSE                                     { locate (EBool False) $1 }
     | LID                                       { locate (EVar (snd $1)) (fst $1) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
-    | BOX '[' QDataType ']'                     { locate (EBox $3) (fromto $1 $4) }
+    | BOX '[' Type ']'                          { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
     | REV                                       { locate ERev $1 }
     | UID '.' LID                               { locate (EQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
@@ -196,6 +196,14 @@ Matching_list :
     | Matching_list '|' Matching                { $1 ++ [$3] }
 
 
+{- Definition of types :
+   Types are divided in the following categories :
+     Type (all)
+     Type application
+     Tensor Type
+     Atom type
+-}
+
 Type :
       Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
     | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
@@ -217,21 +225,10 @@ Atom_type :
       BOOL                                      { locate TBool $1 }
     | QBIT                                      { locate TQBit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
+    | UID '.' LID                               { locate (TQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }
-    | CIRC '(' QDataType ',' QDataType ')'      { locate (TCirc $3 $5) (fromto $1 $6) }
+    | CIRC '(' Type ',' Type ')'                { locate (TCirc $3 $5) (fromto $1 $6) }
     | '(' Type ')'                              { $2 }
-
-
-QDataType : 
-      QBIT                                      { locate TQBit $1 }
-    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
-    | QData_tensor_list                         { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
-    | '(' QDataType ')'                         { $2 }
-
-
-QData_tensor_list :
-      QDataType '*' QDataType                   { [$1, $3] }
-    | QData_tensor_list '*' QDataType           { $1 ++ [$3] }
 
 
 {

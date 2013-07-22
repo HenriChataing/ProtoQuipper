@@ -326,21 +326,21 @@ export_var x = do
                                      global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm } }
 
 
--- | Import the global variables from the modules dependencies in the globals field
+-- | Import the global variables and types from the module dependencies in the globals field
 import_globals :: QpState ()
 import_globals = do
   ctx <- get_context
-  cm <- return $ cmodule ctx
-  gbls <- List.foldl (\rec m -> do
-                        g <- rec
-                        -- Look for the definition of the module m
-                        case List.lookup m $ modules ctx of
-                          Just mod -> do
-                              return $ IMap.union g (global_types mod)
+  cm <- get_module
+  (gvs, gts) <- List.foldl (\rec m -> do
+                              (gv, gt) <- rec
+                              -- Look for the definition of the module m
+                              case List.lookup m $ modules ctx of
+                                Just mod -> do
+                                    return $ (IMap.union gv (global_types mod), Map.union gt (typespecs mod))
 
-                          Nothing ->
-                              throwQ $ ProgramError $ "missing module implementation of " ++ m) (return IMap.empty) $ dependencies cm
-  set_context $ ctx { globals = gbls }
+                                Nothing ->
+                                    throwQ $ ProgramError $ "missing module implementation of " ++ m) (return (IMap.empty, Map.empty)) $ dependencies cm
+  set_context $ ctx { globals = gvs, types = gts }
 
 
 -- | Lookup the type of a global variable
@@ -379,6 +379,34 @@ lookup_qualified_var (mod, n) = do
     ex <- get_location
     f <- return $ codefile (cmodule ctx)
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+
+-- | Look up a type from a specific module (typically used with a qualified variable)
+lookup_qualified_type :: (String, String) -> QpState Typespec
+lookup_qualified_type (mod, n) = do
+  ctx <- get_context
+  -- Check that the module is part of the dependencies
+  if List.elem mod $ dependencies (cmodule ctx) then do
+    case List.lookup mod $ modules ctx of
+      Just modi -> do
+          case Map.lookup n $ typespecs modi of
+            Just x -> return x
+            Nothing -> do
+                ex <- get_location
+                f <- return $ codefile (cmodule ctx)
+                throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+      Nothing -> do
+          ex <- get_location
+          f <- return $ codefile (cmodule ctx)
+          throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+  else do
+    ex <- get_location
+    f <- return $ codefile (cmodule ctx)
+    throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+
 
 
 -- | Create the initializer of the translation into internal syntax : create a namescape including

@@ -49,6 +49,7 @@ instance Eq Program where
 data Type =
 -- STLC types
     TVar String               -- a
+  | TQualified String String  -- qualified type
   | TArrow Type Type          -- A -> B
 
 -- Tensor types
@@ -89,6 +90,8 @@ bang a =
 instance Eq Type where
   (==) (TLocated t1 _) t2 = t1 == t2
   (==) t1 (TLocated t2 _) = t1 == t2
+  (==) (TVar x) (TVar y) = x == y
+  (==) (TQualified m x) (TQualified m' x') = m == m' && x == x'
   (==) TUnit TUnit = True
   (==) TBool TBool = True
   (==) TQBit TQBit = True

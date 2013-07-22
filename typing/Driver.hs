@@ -153,20 +153,28 @@ process_module exact prog = do
   mod <- return $ S.mname prog
   f <- return $ S.filepath prog
 
-  -- Convert and import the type definitions
-  dcons <- import_typedefs $ S.typedefs prog
-  define_user_subtyping $ S.typedefs prog
-
   -- Set up a new module
   ctx <- get_context
   set_context $ ctx { cmodule = Mod { mname = mod,
                                       codefile = f,
                                       dependencies = S.imports prog,
-                                      global_ids = dcons,
+                                      typespecs = Map.empty,
+                                      global_ids = Map.empty,
                                       global_types = IMap.empty } }
 
   set_file f
+
+  -- Import the global variables and types in the current context
   import_globals
+
+  -- Convert and import the type definitions
+  dcons <- import_typedefs $ S.typedefs prog
+  define_user_subtyping $ S.typedefs prog
+  update_module_types
+
+  cm <- get_module
+  ctx <- get_context
+  set_context $ ctx { cmodule = cm { global_ids = dcons } }
 
 -- Translation part
 

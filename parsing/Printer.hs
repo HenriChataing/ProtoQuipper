@@ -15,6 +15,8 @@ instance PPrint Type where
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
   sprintn _ TQBit = "qbit"
+  sprintn _ (TVar x) = x
+  sprintn _ (TQualified m x) = m ++ "." ++ x
   sprintn (Nth 0) _ = "..."
   sprintn lv (TCirc a b) =
     "circ (" ++ sprintn (decr lv) a ++ ", " ++ sprintn (decr lv) b ++ ")"

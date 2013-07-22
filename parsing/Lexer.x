@@ -11,6 +11,9 @@ $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
 $digit = [0-9]
 
+$lid = $low_alpha [$alpha $digit]*
+$uid = $up_alpha [$alpha $digit]*
+
 tokens :-
 
   $white+                             ;
@@ -59,9 +62,9 @@ tokens :-
   unbox                               { locate_token TkUnbox }
   with                                { locate_token TkWith }
 
-  $low_alpha [$alpha $digit]*         { locate_named_token TkLId }
+  $lid                                { locate_named_token TkLId }
   $up_alpha [$up_alpha $digit]*       { locate_named_token TkLId }
-  $up_alpha [$alpha $digit]*          { locate_named_token TkUId }
+  $uid                                { locate_named_token TkUId }
 
 {
 

@@ -2,7 +2,8 @@ module TransSyntax (define_user_subtyping,
                     translate_program,
                     translate_type,
                     translate_body,
-                    import_typedefs) where
+                    import_typedefs,
+                    update_module_types) where
 
 import Utils
 import Classes
@@ -19,6 +20,7 @@ import Printer
 import TypeInference (unfold_user_constraint, break_composite)
 
 import QpState
+import Modules
 
 import Gates
 
@@ -220,6 +222,21 @@ import_typedefs typedefs = do
                 return m) (return Map.empty) typedefs 
 
 
+-- | Transfer the type definitions from the state monad to the current module
+-- This function assumes that the current module already have entries corresponding to its types, and
+-- then just updates them
+update_module_types :: QpState ()
+update_module_types = do
+  cmod <- get_module
+  cmod' <- Map.foldWithKey (\typename _ rec -> do
+                              cm <- rec
+                              spec <- type_spec typename
+                              return $ cm { typespecs = Map.insert typename spec (typespecs cm) }) (return cmod) (typespecs cmod)
+  ctx <- get_context
+  set_context $ ctx { cmodule = cmod' }
+
+
+
 -- | Translate a type, given a labelling.
 -- The arguments of type applications are passed via the function calls
 -- The output includes a set of structural constraints : eg !p (!n a * !m b) imposes p <= n and p <= m
@@ -263,6 +280,21 @@ translate_type (S.TVar x) arg label = do
         ex <- get_location
         f <- get_file
         throw $ UnboundVariable x (f, ex)
+
+translate_type (S.TQualified m x) arg _ = do
+  spec <- lookup_qualified_type (m, x)
+  -- Expected number of args
+  nexp <- return $ args spec
+  -- Actual number of args
+  nact <- return $ List.length arg
+
+  if nexp == nact then do
+    n <- fresh_flag
+    return (TBang n (TUser x arg), emptyset)
+  else do
+    ex <- get_location
+    f <- get_file
+    throw $ WrongTypeArguments x nexp nact (f, ex)
 
 translate_type (S.TArrow t u) [] label = do
   (t', csett) <- translate_type t [] label
@@ -432,7 +464,11 @@ translate_expression_with_label (S.EIf e f g) label = do
   return (EIf e' f' g')
 
 translate_expression_with_label (S.EBox t) _ = do
-  (t', cset) <- translate_type t [] Map.empty
+  -- Types
+  ctx <- get_context
+  typs <- return $ Map.mapWithKey (\typename _ -> TBang (-1) $ TUser typename []) (types ctx)
+
+  (t', cset) <- translate_type t [] typs
   -- The translation of the type of the box in the core syntax produces
   -- some constraints that needs to be conveyed to the type inference
   -- Using a scheme is a way of doing it

@@ -96,7 +96,7 @@ data LinType =
 
 -- Sum types
   | TBool                      -- bool
-  | TUser String [Type]                                    -- user type, parametrized over the variables a1 .. an
+  | TUser String [Type]        -- user type, parametrized over the variables a1 .. an
 
 -- Quantum related types
   | TQbit                      -- qbit
