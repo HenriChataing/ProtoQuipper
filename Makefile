@@ -45,4 +45,4 @@ test : all
 	done
 
 count : clean
-	wc -l *.hs */*.hs parsing/Lexer.x parsing/Parser.y
+	wc -l *.hs */*.hs parsing/Lexer.x parsing/Parser.y parsing/ConstraintParser.y
