@@ -42,13 +42,13 @@
 \subsection{Definition of the language LL}
 
 \begin{defn} The terms of the language are defined by the following grammar :
-	$$\texttt{Term} ~ t, u ~ ::= ~ x ~ | ~ \lambda x.t ~ | ~ t u ~|~ \pair{t}{u} ~|~ \text{let} ~ \pair{x}{y} = t ~ \text{in} ~ u  $$
+	$$\texttt{Term} ~ t, u ~ ::= ~ x ~ | ~ 1 ~ | ~\lambda x.t ~ | ~ t u ~|~ \pair{t}{u} ~|~ \text{let} ~ \pair{x}{y} = t ~ \text{in} ~ u  $$
 	The free variables of a term are given by the function $FV$.
 \end{defn}
 
 \begin{defn} The types of language are defined by the following grammar :
 	\begin{center}
-		$\texttt{Type} ~ T, U ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U ~|~ \bang U$
+		$\texttt{Type} ~ T, U ~ ::= ~ \alpha ~|~ \top ~|~ T \multimap U ~|~ T \otimes U ~|~ \bang U$
 	\end{center}
 	$\alpha$ is a type variable, of which we have an infinite number.
 	We use the notation $FTV$ for the free type variables of a type.
@@ -60,6 +60,11 @@
   	\AxiomC{}
   	\RightLabel{$(var)$}
   	\UnaryInfC{$\alpha <: ~ \alpha$}
+  \end{prooftree}
+  \begin{prooftree}
+  	\AxiomC{}
+  	\RightLabel{$(1)$}
+  	\UnaryInfC{$\top <: \top$}
   \end{prooftree}
   \begin{prooftree}	
   	\AxiomC{$A <: B$}
@@ -89,6 +94,11 @@
 		\AxiomC{$T <: U$}
 		\RightLabel{$(ax)$}
 			\UnaryInfC{$! \Delta, x : T \vdash x : U$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(\top)$}
+			\UnaryInfC{$! \Delta \vdash 1 : \,!^n\top$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\Gamma, x : T \vdash t : U$}
@@ -145,7 +155,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{center}
 	\begin{tabular}{l}
 		$\texttt{Flag} ::= ~ n ~|~ 0 ~|~ 1$ \\		
-		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ T \multimap U ~|~ T \otimes U$ \\
+		$\texttt{LinearType} ~ A ~ ::= ~ \alpha ~|~ \top ~|~ T \multimap U ~|~ T \otimes U$ \\
 		$\texttt{Type	} ~	T, U ~ ::= ~ !^n A$
 	\end{tabular}
 	\end{center}
@@ -161,6 +171,11 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
   	\AxiomC{}
   	\RightLabel{$(var)$}
   	\UnaryInfC{$\alpha <: \alpha$}
+  \end{prooftree}
+  \begin{prooftree}
+  	\AxiomC{}
+  	\RightLabel{$(\top)$}
+  	\UnaryInfC{$\top <: \top$}
   \end{prooftree}
   \begin{prooftree}
   	\AxiomC{$m \le n$}
@@ -200,6 +215,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
  		\begin{center}
  		\begin{tabular}{l}
  			$\bar{\sigma}(\alpha) = \sigma(\alpha)$ \\
+			$\bar{\sigma}(1) = 1$ \\
  			$\bar{\sigma}(T \multimap U) = \bar{\sigma}T \multimap \bar{\sigma}U$ \\
  			$\bar{\sigma}(T \otimes U) = \bar{\sigma}T \otimes \bar{\sigma}U$ \\
  			$\bar{\sigma}(!^n A) = ~ !^{\sigma(n)} \bar{\sigma}A$
@@ -237,6 +253,11 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 			\UnaryInfC{$!^I \Gamma, x : T \vdash_{\{T <: U\} \cup \{1 \le I \}} x : U$}
 	\end{prooftree}
 	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(1)$}
+			\UnaryInfC{$!^I \Gamma \vdash_{\{!^n \top <: T \} \cup \{1 \le I\}} 1 : T$}
+	\end{prooftree}
+	\begin{prooftree}
 		\AxiomC{$!^I\Gamma, x : T \vdash_{\mathcal{L}} t : U$}
 		\RightLabel{$(\lambda)$}
 		\UnaryInfC{$!^I\Gamma \vdash_{\mathcal{L} \cup \{n \le I\} } \lambda x.t : ~ !^n(T \multimap U)$}
@@ -269,6 +290,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
   \begin{center}
 	\begin{tabular}{ll}
 	  $\tau (!^n \alpha) ~=~ !^1 \alpha$ &	$\tau \alpha ~=~ !^0 \alpha$ \\
+	 	$\tau (!^n 1) ~=~ !^1 1$ &	 $\tau 1 ~=~ !^0 1$ \\
 		$\tau(!^n (T \multimap U)) ~=~ \, !^1(\tau T \multimap \tau U)$ & 	$\tau(T \multimap U) ~=~ !^0(\tau T \multimap \tau U)$ \\
 		$\tau(!^n(T \otimes U)) ~=~ !^1 (\tau (! T) \, \otimes \, \tau(! U))$ & $\tau(T \otimes U) ~=~ !^0 (\tau T \otimes \tau U)$
 	\end{tabular}
@@ -300,7 +322,8 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{proof}
 		By induction on the sub-typing derivation :
 		\begin{itemize}
-			\item If the rule is $(var)$, $T = U = \alpha$. By reflexivity of the sub-typing relation $<:$ in LL', $\tau \alpha <: \tau \alpha$.
+			\item If the rule is $(var)$ or $(\top)$, $T = U = \alpha$ or $\top$.
+				By reflexivity of the sub-typing relation $<:$ in LL', $\tau \alpha <: \tau \alpha$.
 			
 			\item If the rule is $(\multimap)$ or $(\otimes)$. By induction on $T' <: T$ and $U <: U'$, we have $\tau T' <: \tau T$ and
 				$\tau U <: \tau U'$. Hence, by application of the rule $(\multimap)$ (resp. $(\otimes)$) of LL',
@@ -348,6 +371,22 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{proof}
 		By induction on the typing derivation of $t$ : if the last typing rule used is
 			\begin{itemize}
+				\item{$(1)$} The typing derivation
+			    \begin{prooftree}
+						\AxiomC{}
+						\RightLabel{$(1)$}
+						\UnaryInfC{$! \Delta \vdash 1 : \,!^n \top$}
+					\end{prooftree}
+					is transformed by application of $\tau$ into
+					\begin{prooftree}
+						\AxiomC{}
+						\RightLabel{$(1)$}
+						\UnaryInfC{$!^I \tau\Delta \vdash 1 : \,!^0\top$ or $!^1 \top$}
+					\end{prooftree}
+					with $I = 1 \dots 1$. With the solved constraint set $\mathcal{L} = \{!^n \top <: !^{0 ~\text{or}~ 1}, ~ 1 \le I\}$,
+					by application of the rule $(1)$ of LL', the typing judgement
+					$!^I \tau\Delta \vdash_{\mathcal{L}} 1 : \,!^0\top$ or $!^1 \top$ holds
+					
 				\item{$(ax)$} The typing derivation
 			    \begin{prooftree}
 						\AxiomC{$T <: U$}
@@ -547,6 +586,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
   \begin{center}
 	\begin{tabular}{ll}
 		$\rho (!^0 \alpha) = \alpha $ & $\rho (!^1 \alpha) = \bang \alpha$ \\
+		$\rho (!^0 1) = 1 $ & $\rho (!^1 1) = \bang 1$ \\
 		$\rho (!^0 (T \multimap U)) ~=~ \rho T \multimap \rho U$ & $\rho (!^1(T \multimap U)) ~=~ \bang (\rho T \multimap \rho U)$ \\
 		$\rho (!^0 (T \otimes U)) ~=~ \rho T \otimes \rho U$ & $\rho (!^1(T \otimes U)) ~=~ \bang (\rho T \otimes \rho U)$ 
 	\end{tabular}
@@ -577,6 +617,21 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		of the constraint set of the conclusion sequent. The notation $\rho_\sigma$ will be used as a shortcut for $\rho \circ \sigma$.
 		If the last typing rule used is
 			\begin{itemize}
+				\item{$(1)$} The typing derivation is
+					\begin{prooftree}
+						\AxiomC{}
+						\RightLabel{$(1)$}
+						\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} 1 : T$}
+					\end{prooftree}
+					with $\mathcal{L} = \{ !^n\top <: T \} \cup \{ 1 \le I \}$. By hypothesis, $\sigma I = 1 \dots 1$ and $\sigma T = !^0\top$ or $!^1\top$.
+					By application of $\rho_sigma$, the typing derivation is transformed into
+					\begin{prooftree}
+						\AxiomC{}
+						\RightLabel{$(1)$}
+						\UnaryInfC{$! \rho_\sigma \Delta \vdash 1 : \bang \top$ or $\top$}
+					\end{prooftree}
+					which is valid in LL.
+					
 				\item{$(ax)$} The typing derivation is
 					\begin{prooftree}
 						\AxiomC{}
@@ -816,6 +871,12 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		  \begin{tabular}{l}
 				output $\{ T <: U \} \cup \{ 1 \le I \}$
 		  \end{tabular}
+		
+		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash 1 : T ~) = $ \\
+		  \begin{tabular}{l}
+		  	let $n$ be fresh \\
+				output $\{ \,!^n\top <: T \} \cup \{ 1 \le I \}$
+		  \end{tabular}		
 		  
 		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash t u : T ~) = $ \\
 			\begin{tabular}{l}
@@ -895,14 +956,9 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{proof} By induction on the typing derivation. Since the typing system is deterministic, as well as the constraint
 		typing algorithm, the typing derivation matches the calls to ConstraintTyping. If the last typing rule used is
 		\begin{itemize}
-			\item $(ax)$. The typing rule is
-				\begin{prooftree}
-					\AxiomC{}
-					\RightLabel{$(ax)$}
-					\UnaryInfC{$!^I \Gamma, x : T \vdash_\mathcal{L} x : U$}
-				\end{prooftree}
-				with $\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. The output of the constraint typing algorithm is exactly the
-				set $\mathcal{L}$, and $\mathcal{L} \vdash \mathcal{L}$ trivially holds.
+			\item $(ax)$ or $(1)$.
+				The output of the constraint typing algorithm is exactly the
+				set $\mathcal{L}$ as in the typing judgement, and $\mathcal{L} \vdash \mathcal{L}$ trivially holds.
 				
 			\item $(\lambda)$. The typing rule is
 				\begin{prooftree}
@@ -1124,6 +1180,22 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{proof} By induction on the typing derivation $\Pi$ of the typing judgement $\Gamma \vdash t : T$.
 		If the last rule used is
 		\begin{itemize}
+			\item $(1)$. The typing derivation is
+				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(1)$}
+					\UnaryInfC{$!^I\Gamma \vdash_{\mathcal{L}} 1 : T$}
+				\end{prooftree}
+				with $\mathcal{L} = \{ !^n \top <: T \} \cup \{1 \le I\}$
+				By application of the rule $(1)$ of LL', the derivation
+				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(1)$}
+					\UnaryInfC{$!^{I'}\Delta \vdash_{\mathcal{L'}} 1 : U$}
+				\end{prooftree}
+				with $\mathcal{L} = \{ !^m \top <: U \} \cup \{1 \le I'\}$.
+				Consequently, $\mathcal{L} \cup \{!^{I'} \Delta <: \,!^I \Gamma\} \cup \{T <: U\} \vdash \mathcal{L'}$ holds.
+				
 			\item $(ax)$. The typing derivation is
 				\begin{prooftree}
 					\AxiomC{}
@@ -1235,6 +1307,15 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 		By induction on the form of the term $t$.
 		If the term is
 		\begin{itemize}
+			\item $1$, the algorithm applied to $!^I \Gamma \vdash 1 : T$ produces the set
+				$\mathcal{L} = \{ !^n\top <: T \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being solvable, the typing derivation
+				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(ax)$}
+					\UnaryInfC{$!^I \Gamma, x : T \vdash_\mathcal{L} x : $}
+				\end{prooftree}
+				holds.
+				
 			\item $x$, the algorithm applied to $!^I \Gamma, x : T \vdash x : U$ produces the set
 				$\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being solvable, the typing derivation
 				\begin{prooftree}
@@ -1372,6 +1453,7 @@ the latter aiming to solve the remaining flag constraints.
       \item $T \multimap U <: T' \multimap U'$, replace $c$ by $T' <: T$ and $U <: U'$
       \item $T \otimes U <: T' \otimes U'$, replace $c$ by $T <: T'$ and $U <: U'$
       \item $!^n T <: \, !^m U$, replace $c$ by $T <: U$ and $m \le n$
+      \item $\top <: \top$, remove the constraint
       \item For any other composite constraint, the algorithm fails
     \end{itemize}
   When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha <: \beta$) or
@@ -1416,11 +1498,15 @@ the latter aiming to solve the remaining flag constraints.
 				return $\sigma, \mathcal{L''} \cup \{ \alpha_i <: \alpha_j \}$
 			\end{tabular}
 	  
-	  \item If not, it contains an element $V = V^1 \,\bullet \, V^2$, with $\bullet$ one in $\{ \otimes, \multimap \}$.
+	  \item If not, it contains an element $V$, which can be either $V^1 \,\bullet \, V^2$, with $\bullet$ one in $\{ \otimes, \multimap \}$, or
+	  	$\top$. The algorithm proceeds as follow :\\
 	  	\begin{tabular}{l}
 	  		for each $\alpha_i$ \\
-	  		~~ let $n_i, m_i, \beta_i, \gamma_i$ be fresh \\
-	  		~~ map $\alpha_i$ to $!^{n_i} \beta_i ~\bullet~ !^{m_i}\gamma_i$ in $\sigma$ \\
+	  		~~ if $V = \top$ then \\
+	  		~~ ~~ map $\alpha_i$ to $\top$ \\
+	  		~~ else \\
+	  		~~ ~~ let $n_i, m_i, \beta_i, \gamma_i$ be fresh \\
+	  		~~ ~~ map $\alpha_i$ to $!^{n_i} \beta_i ~\bullet~ !^{m_i}\gamma_i$ in $\sigma$ \\
 	  		substitute $\alpha_1 \dots \alpha_n$ in $\mathcal{L}$ \\
 	  		reduce $\mathcal{L}$ \\
 	  		let $\sigma', \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L})$ \\
@@ -1451,8 +1537,8 @@ the latter aiming to solve the remaining flag constraints.
 
 \begin{defn} Let $\mathcal{L}$ be a constraint set. For the purpose of the proof of termination, the following notations are introduced :
 	\begin{itemize}
-		\item[$\#\mathcal{L}$] for the complexity of $\mathcal{L}$, given by the number of connectives $\multimap$ and
-			$\otimes$ used in the types of the sub-typing constraints
+		\item[$\#\mathcal{L}$] for the complexity of $\mathcal{L}$, given by the number of connectives $\multimap$,
+			$\otimes$ and symbols $\top$ used in the types of the sub-typing constraints
 		\item[$|\mathcal{L}|$] for the number of constraints (sub-typing and flag) of $\mathcal{L}$
 	\end{itemize}
 	The index of $\mathcal{L}$ is defined as pair $(\#\mathcal{L}, |\mathcal{L}|)$, equipped with the lexicographical order.
@@ -1477,7 +1563,17 @@ the latter aiming to solve the remaining flag constraints.
 				Thus, the induction hypothesis applies, and the function call $\text{TypeUnification}\,(\mathcal{L'})$ terminates, and the same
 				for $\text{TypeInference}\,(\mathcal{L})$. \\
 							
-				If not, it contains $V = V_1 \,\bullet\, V_2$. Since that the variable ordering did not fail, we know for sure that
+				If it contains $V = \top$. Each variable $\alpha_i$ is mapped in $\sigma$ to $\top$.
+				The result of the application of the new mappings $\sigma$ to $\mathcal{L}$ is :
+			  	$$\sigma \mathcal{L} = \mathcal{L'} \cup \{\top <: \top\} \cup \{ T_{i, 1} \dots T_{i, k_i} <: \top <: U_{i, 1} \dots U_{i, l_i} \}$$
+       	What remains after reduction of the composite constraints is only $\mathcal{L'}$.
+       	The complexity of the reduced constraint set $\sigma \mathcal{L}$ is :
+			  	$$C' = \#\sigma\mathcal{L} = \#\mathcal{L'} $$
+			  which is strictly inferior to $C$, meaning $(C',|\sigma\mathcal{L}|) \lneq (C, N)$. The induction hypothesis holds, and the function
+			  call $\text{TypeUnification}\,(\sigma \mathcal{L})$ terminates, giving the termination of the call
+			  $\text{TypeUnification}\,(\mathcal{L})$. \\
+							
+				If it contains $V = V_1 \,\bullet\, V_2$. Since that the variable ordering did not fail, we know for sure that
 						$$\alpha_1 \dots \alpha_n ~ \notin ~ \bigcup_{i, k} FV(T_{i, k}) \cup \bigcup_{i, l} FV(U_{i, l})$$
 				Each $\alpha_i$ is mapped in $\sigma$ to $!^{n_i} \beta_i ~ \bullet ~ !^{m_i}\gamma_i$.
 				The result of the application of the new mappings $\sigma$ to $\mathcal{L}$ is :
@@ -1548,7 +1644,11 @@ the latter aiming to solve the remaining flag constraints.
 			
 			\item $(C, N)$, and $\mathcal{L} = \mathcal{L'} \cup \{ \alpha_i <: \alpha_j \} \cup
 				\{ T_{i, 1} \dots T_{i, k_i} <: \alpha_i <: U_{i, 1} \dots U_{i, l_i} \}$.
-				Let $\sigma$ be the substitution $\sigma = [\alpha_i \mapsto !^{n_i}\beta_i \,\bullet\, !^{m_i}\gamma_i]$, and
+				The case where the composite types $T_{1, 1} \dots U_{n, l_n}$ is solved easily, as the mappings $[\alpha_i \mapsto]$ give the
+				only solution for $\alpha_1 \dots \alpha_n$. By applying the induction hypothesis, the properties (a), (b) and (c) are easily
+				proved. \\
+				
+				Otherwise, let $\sigma$ be the substitution $\sigma = [\alpha_i \mapsto !^{n_i}\beta_i \,\bullet\, !^{m_i}\gamma_i]$, and
 				$\mathcal{L}^*$ the reduced set $\sigma \mathcal{L}$. Finally, let $\sigma', \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L}~*)$.
 				The induction hypothesis applied to $\mathcal{L}^*$ proves that $\sigma', \mathcal{L''}$ respect the properties (a), (b) and (c).
 					\begin{itemize}
@@ -1570,5 +1670,130 @@ the latter aiming to solve the remaining flag constraints.
 	\end{proof}
 \end{lemma}
 
+\subsection{Approximations}
+
+The previous algorithm gives an exact, and in a sense most general solution, because every possible type is represented by the
+pair $\sigma, \mathcal{L}$ returned by the algorithm (as enforced by the property (b)). However, the exact unification is highly
+inefficient as it can as much as double the number of variables each step (giving an exponential limit at the worst for the algorithm), and
+sometimes only the solvability of the set is needed. \\
+That is why it is possible, at the cost of a weakened property (b'), to make some approximations during the unification.
+Some possible approximations are listed below, which respect the property (b') :
+  \begin{center}
+		\textit{if there exists a solution $\rho$ of $\sigma$, then the unification returns a solution without failing}
+ 	\end{center}
+	
+\begin{itemize}
+	\item In the case where $\mathcal{L} = \mathcal{L'} \cup \{\alpha_i <: \alpha_j \}$, instead of sparing the constraints
+		$\{\alpha_i <: \alpha_j \}$, make the substitution $[\alpha_i \mapsto \alpha_1]$ with $i \in \{2 \dots n\}$.
+		
+	\item In the case where $\mathcal{L} = \mathcal{L'} \cup \{T <: \alpha_1 <: \dots <: \alpha_n <: U\}$, make the substitution
+		$\sigma = [\alpha_i \mapsto T]$, and then apply TypeUnification to $\mathcal{L'} \cup \{ T <: U \}$.
+		
+	\item In the case where $\mathcal{L} = \mathcal{L'} \cup \{\alpha_i <: \alpha_j\} \cup \{T_{i, 1} \dots T_{i, k_i} <: \alpha_i \}$,
+		make the substitution $\sigma = [\alpha_i \mapsto \alpha_1]$ for $i \in \{2 \dots n\}$, and apply the algorithm to
+		$\mathcal{L'} \cup \{T_{1, 1} \dots T_{n, k_n} <: \alpha_1\}$.
+		
+	\item The same for the case $\mathcal{L} = \mathcal{L'} \cup \{\alpha_i <: \alpha_j\} \cup \{\alpha_i <: U_{i, 1} \dots U_{i, l_i}\}$
+\end{itemize}
+
+\section{Proto-quipper}
+
+\subsection{Additions to the language}
+
+The terms and types of the language are already listed in the paper on proto-quipper. The only modification to make is to adapt
+the typing rules for the purpose of the algorithm, meaning modify them to fit in LL'.
+The rule for typing circuits is omitted, as the term will not be generally used in written programs.
+
+\begin{defn}{\bf Additional typing rules}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(rev)$}
+			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} rev : ~!^1 (!^1Circ(T, U) \multimap~ !^1Circ(U, T)$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(unbox)$}
+		\UnaryInfC{$!^I\Gamma \vdash_{\{1 \le I\}} unbox : ~!^1(!^1Circ(T, U) \multimap~ !^n(T \multimap U))$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(box)$}
+		\UnaryInfC{$!^I\Gamma \vdash_\varnothing box^T : ~!^1(!^1(T \multimap U) \multimap~ !^1Circ (T, U))$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(\texttt{True})$}
+			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} \texttt{True} : ~!^n bool$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{}
+		\RightLabel{$(\texttt{False})$}
+			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} \texttt{False} : ~!^n bool$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\Gamma_1, ~!^I\Delta \vdash_\mathcal{L} t : ~!^nbool$}
+		\AxiomC{$\Gamma_2, ~!^I\Delta \vdash_\mathcal{L'} u : T$}
+		\noLine
+		\UnaryInfC{$\Gamma_2, ~!^I\Delta \vdash_\mathcal{L''} v : T$}
+		\RightLabel{$(if)$}
+		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L} \cup \mathcal{L'} \cup \mathcal{L''} \cup \{1 \le I\}}
+			\text{if}~ t ~\text{then}~ u ~\text{else}~ v : T$}
+	\end{prooftree}
+\end{defn}
+
+\subsection{Algorithms}
+
+\begin{defn}{Constraint typing}
+	The following cases are added to the constraint typing algorithm :
+	\begin{itemize}
+		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash \texttt{True} ~|~ \texttt{False} : T ~) = $ \\
+		  \begin{tabular}{l}
+		  	let $n$ be fresh \\
+				output $\{ !^n bool <: T \} \cup \{ 1 \le I \}$
+		  \end{tabular}
+		
+		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T ~) = $ \\
+			\begin{tabular}{l}
+				let $n$ be fresh \\
+				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ (~ \Gamma|_t \vdash t : \, !^nbool ~)$ \\
+				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_{u, v} \vdash u : T)$ \\
+				let $\mathcal{L''} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_{u, v} \vdash v : T)$ \\
+				let $!^I\Delta = \Gamma ~ \backslash ~ (FV(t) \oplus FV(u), FV(v))$ \\
+				output $\mathcal{L \cup L' \cup L''} \cup \{ 1 \le I \}$
+			\end{tabular}
+
+		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash rev : T ~) = $ \\
+		  \begin{tabular}{l}
+		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
+				output $\{ \,!^1 (!^1Circ (!^n\alpha, ~!^m\beta) \multimap ~!^1Circ (!^n\beta, ~!^m\alpha)) <: T \} \cup \{ 1 \le I \}$
+		  \end{tabular}
+		  
+		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash unbox : T ~) = $ \\
+		  \begin{tabular}{l}
+		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
+				output $\{ \,!^1 (!^1Circ (!^n\alpha, ~!^m\beta) \multimap ~!^1(!^n\alpha \multimap ~!^m\beta)) <: T \} \cup \{ 1 \le I \}$
+		  \end{tabular}
+
+		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash box : T ~) = $ \\
+		  \begin{tabular}{l}
+		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
+				output $\{!^1(!^n\alpha \multimap ~!^m\beta) \multimap \,!^1Circ (!^n\alpha, ~!^m\beta)) <: T \} \cup \{ 1 \le I \}$
+		  \end{tabular}
+	\end{itemize}
+\end{defn}
+
+\begin{defn}{Unification}
+	The unification algorithm does not in the principle. The only additions are the new types $qbit$, $bool$ which behave the same
+	as $\top$ ; and the new connective $Circ$ comparable to $\multimap$ and $\otimes$.
+\end{defn}
+
+\begin{defn}{Linearity check} Neither the constraint typing algorithm nor the unification actively enforces the linearity of the qbit type.
+	This means a linearity check has to be performed after the typing and the unification. The risk would be to reject
+	perfectly typeable terms, which use qbits in a linear way, because of an approximative typing. However, it has been proved that
+	the unification, as well as the constraint typing, always give all the solutions. This means that if the unification states that
+	a type must be duplicable, so it is. Then, during the linearity check, if a type $!^1 qbit$ is encountered, this means the term is
+	certainly not typeable, else there is a solution that type the said term with $!^0 qbit$.
+
+\end{defn}
 
 \end{document}
