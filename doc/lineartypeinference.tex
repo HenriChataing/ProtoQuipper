@@ -1356,60 +1356,170 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 
 \section{Unification Algorithm}
 
-\begin{defn}{unification algorithm} \\
-	The algorithm inputs a set of linear constraints $\mathcal{L}$, and returns
-	a substitutions $\sigma$ associated with a set of atomic constraints $\mathcal{L'}$ such that
-	$\mathcal{L'} \vdash \sigma \mathcal{L}$.
-	
-  \begin{itemize}
-  	\item{\bf Step 0 : reduction of composite constraints} The following reduction rules are applied recursively to all the composite
-  		constraints in $\mathcal{L}$ : if the constraint $c$ is :
-  		\begin{itemize}
-      	\item $T \multimap U <: T' \multimap U'$, replace $c$ by $T' <: T$ and $U <: U'$
-      	\item $!^n T <: \, !^m U$, replace $c$ by $T <: U$ and $m \le n$
-      	\item For any other composite constraint, the algorithm fails. Since all the types must be annotated, no constraint
-      		$!^n T <: U$ or $U <: !^n T$ may appear, where $U$ is not of the form $!^m U'$.
-      \end{itemize}
-      When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha <: \beta$) or
-      semi-composite ($T <: \alpha$ or $\alpha <: T$).  		
+\subsection{Algorithm}
+
+The unification process is divided into two parts, one addressing the problem of unifying the sub-typing constraints,
+the latter aiming to solve the remaining flag constraints.
+
+\begin{defn}{Reduction of composite constraints}
+	All the composite constraints produced by either the constraint typing
+  algorithm or the unification algorithm are automatically reduced, using the following reduction rules.
+  If the constraint $c$ is :
+  	\begin{itemize}
+      \item $T \multimap U <: T' \multimap U'$, replace $c$ by $T' <: T$ and $U <: U'$
+      \item $T \otimes U <: T' \otimes U'$, replace $c$ by $T <: T'$ and $U <: U'$
+      \item $!^n T <: \, !^m U$, replace $c$ by $T <: U$ and $m \le n$
+      \item For any other composite constraint, the algorithm fails
+    \end{itemize}
+  When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha <: \beta$) or
+  semi-composite ($T <: \alpha$ or $\alpha <: T$).
+  This automated reduction is justified in the sense that, due to the sub-typing relation rules, a set and its reduced version
+  have the exactly the same solutions.
+\end{defn}
+
+\begin{defn}{Variable Ordering}
+	The type unification relies on an ordering of the type variables, that ensures the termination of the algorithm, and gives a upper
+	bound to its complexity (even though the limit itself is exponential).
+	The goal is to sort variables topologically, from youngest to oldest. In particular,
+  the youngest variable may not appear in any composite type. This is done by defining an age for every variable, with the
+  relations :
+  	\begin{center}
+  	\begin{tabular}{l}
+  	  For all constraint $\alpha <: T$ or $T <: \alpha$, $\forall \beta \in FV(T), ~ Age (\alpha) < Age (\beta)$ \\
+  	  For all constraint $\alpha <: \beta$, $Age (\alpha) = Age (\beta)$
+  	\end{tabular}
+  	\end{center}
+  	The algorithm may fail to attribute an age to each variable, for example with the constraint $\alpha <: \alpha \multimap \beta$, which gives the
+  	relation in the age of $\alpha$ : $A(\alpha) < A(\alpha)$. This is true for all infinite types.
+  	There exists an algorithm that gives the minimum (or maximum) of such a poset in linear time in the number of variables and relations
+  	(that relies upon a in-depth exploration of the associated graph).
+\end{defn}
+
+\begin{defn}{Type Unification} \\
+	The algorithm TypeUnification inputs a set of linear constraints $\mathcal{L}$, and returns
+	a substitutions $\sigma$ associated with a set of atomic constraints $\mathcal{L'}$.
+	The algorithm proceeds as follow : \\
+	\\
+  Let $\alpha_1 \dots \alpha_n$ be the the youngest variables. The constraint set $\mathcal{L}$ is formed of the constraints
+  $\mathcal{L'} \cup \{ \alpha_i <: \alpha_j \} \cup \{ T_{i, 1} \dots T_{i, k_i} <: \alpha_i <: U_{i, 1} \dots U_{i, l_i} \}$.
+  The set $\mathcal{L'}$ contains all the constraints unrelated to $\alpha_1 \dots \alpha_n$,
+  and the linear types $T_{1, 1} \dots U_{n, l_n}$ are all composite.
   		
-  	\item{\bf Step 1 : variable ordering} The purpose of this step is to sort variables topologically, from youngest to oldest,
-  	  so that the youngest variable may not appear in any composite type. This is done by defining an age for every variable, with the
-  	  relations :
-  	  	\begin{center}
-  	  	\begin{tabular}{l}
-  	  		For all constraint $\alpha <: T$ or $T <: \alpha$, $\forall \beta \in FV(T), ~ Age (\alpha) < Age (\beta)$ \\
-  	  		For all constraint $\alpha <: \beta$, $Age (\alpha) = Age (\beta)$
-  	  	\end{tabular}
-  	  	\end{center}
-  	  This step may fail to attribute an age to a variable, for example with the constraint $\alpha <: \alpha \multimap \beta$, and
-  	  in general for all cyclic dependencies.
-  	  
-  	\item{\bf Step 2} Let $\alpha_1 \dots \alpha_n$ be the the youngest variables, chained together by atomic constraints
-  		$\alpha_i <: \alpha_j$. Each variable $\alpha_i$ is associated with non atomic constraints $T_i^1 \dots T_i^{n_i} <: \alpha_i
-  		<: U_i^1 \dots U_i^{m_i}$. Let $V$ be one of these composite types.
-  		If the type $V$ is
-  		\begin{itemize}
-  			\item $A \multimap B$ : for all $\alpha_i$, a mapping $\alpha_i \mapsto ~ !^{f_i} (\beta_i \multimap \gamma_i)$ is generated,
-  				with $f_i, \beta_i$ and $\gamma_i$ fresh.
-  			\item $!^n T$ : for all $\alpha_i$, a mapping $\alpha_i \mapsto ~ !^{f_i} \beta_i$ is generated,
-  				with $f_i$ and $\beta_i$ fresh.
-  		\end{itemize}
-		  $\alpha_1 \dots \alpha_n$ are then replaced in the constraints by their mappings, which constraints are immediately reduced
-		  using the rules from step 0. Step 2 is reiterated until all the composite types are reduced.  	
+  Depending on the types $T_{1, 1} \dots U_{n, l_n}$ :
+	\begin{itemize}
+		\item If this set is empty, then \\
+			\begin{tabular}{l}
+				let $\sigma, \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L'})$ \\
+				return $\sigma, \mathcal{L''} \cup \{ \alpha_i <: \alpha_j \}$
+			\end{tabular}
+	  
+	  \item If not, it contains an element $V = V^1 \,\bullet \, V^2$, with $\bullet$ one in $\{ \otimes, \multimap \}$.
+	  	\begin{tabular}{l}
+	  		for each $\alpha_i$ \\
+	  		~~ let $n_i, m_i, \beta_i, \gamma_i$ be fresh \\
+	  		~~ map $\alpha_i$ to $!^{n_i} \beta_i ~\bullet~ !^{m_i}\gamma_i$ in $\sigma$ \\
+	  		substitute $\alpha_1 \dots \alpha_n$ in $\mathcal{L}$ \\
+	  		reduce $\mathcal{L}$ \\
+	  		let $\sigma', \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L})$ \\
+	  		return $\sigma' \circ \sigma, \mathcal{L''}$
+	  	\end{tabular}
   \end{itemize}
 
-	At the end of the first part, we get a substitution $\sigma$, and the remaining sub-typing constraints are atomic.
-	
-	The second part of the unification algorithm concentrates on the flag constraints.
-	The problem is equivalent to cycle elimination in orientated graphs, where the nodes are the flags
-	$n, m \dots$, extended with two nodes $0$ and $1$. The edges are defined by the flag constraints :
-	for each constraint $n \le m$, there is a corresponding edge $m \rightarrow n$.
-	A loop $n_1 \le \dots \le n_p \le n_1$ gives a set of equal flags. If a loop contains both nodes $0$ and $1$, the
-	flag unification fails, else the substitutions $[n_2 \mapsto n_1 \dots n_p \mapsto n_1]$ are added to $\tau$.
-	The output of the unification is a substitution $\tau$ and a set of remaining constraints $n \le m$ where neither
-	$n$ nor $m$ is $0$ or $1$.
-
+  Of course, if the set of sub-typing constraint is empty, then the algorithm stops.
+  TypeUnification can fail in two different ways : either it attempted to construct an infinite
+  type, an the variable ordering failed, or the reduction encountered an absurd composite constraint.
 \end{defn}
+
+\begin{defn}{Flag unification}
+	The algorithm inputs a set of atomic constraints, and returns a substitution $\sigma$ on flags, along with
+	the remaining constraints (all atomic).
+	
+	The algorithm looks for constraints of the form
+	\begin{itemize}
+		\item $1 \le n$, in which case it removes the constraint, and sets $n$ to $1$
+		\item $n \le 0$, in which case it removes the constraint, and sets $n$ to $0$
+	\end{itemize}	
+	When setting a flag to a value, it also needs to replace the instances of this flag in the constraint set.
+	If no such constraints remains, it returns. The algorithm fails if and only if it encounters a absurdity,
+	as in the case of the set $\{ 1 \le n, n \le 0 \}$.
+\end{defn}
+
+\subsection{Termination and correctness}
+
+\begin{defn} Let $\mathcal{L}$ be a constraint set. For the purpose of the proof of termination, the following notations are introduced :
+	\begin{itemize}
+		\item[$\#\mathcal{L}$] for the complexity of $\mathcal{L}$, given by the number of connectives $\multimap$ and
+			$\otimes$ used in the types of the sub-typing constraints
+		\item[$|\mathcal{L}|$] for the number of constraints (sub-typing and flag) of $\mathcal{L}$
+	\end{itemize}
+	The index of $\mathcal{L}$ is defined as pair $(\#\mathcal{L}, |\mathcal{L}|)$, equipped with the lexicographical order.
+\end{defn}
+
+\begin{lemma}{Termination}
+	\textit{For all constraint sets $\mathcal{L}$, the unification algorithm applied to $\mathcal{L}$ terminates. }
+	\begin{proof}
+		By induction on indexed sets (see definition above)
+		\begin{itemize}
+			\item If the index is $(0, N)$, then $\mathcal{L}$ is only composed of atomic constraints, and TypeUnification returns
+				immediately when applied to $\mathcal{L}$.
+				
+			\item If the index is $(C, N)$.
+				Let $\alpha_1 \dots \alpha_n$ be the youngest variables of $\mathcal{L}$. The set $\mathcal{L}$ can
+				be split as $\mathcal{L'} \cup \{\alpha_i <: \alpha_j \} \cup \{ T_{i, 1} \dots T_{i, k_i} <: \alpha_i <: U_{i, 1} \dots U_{i, l_i} \}$.
+				Depending on the types $T_{1, 1} \dots U_{n, l_n}$ : \\
+
+				If $T_{1, 1} \dots U_{n, l_n}$ is empty, since $\mathcal{L'} \subsetneq \mathcal{L}$, it ensues $N' = |\mathcal{L'}| < N$.
+				Moreover, because all the constraints of $\mathcal{L} \,\backslash\, \mathcal{L'}$ are atomic, $C' = \#\mathcal{L'} = C$.
+				Consequently, the index $(C', N')$ of $\mathcal{L'}$ is such that $(C', N') \lneq (C, N)$.
+				Thus, the induction hypothesis applies, and the function call $\text{TypeUnification}\,(\mathcal{L'})$ terminates, and the same
+				for $\text{TypeInference}\,(\mathcal{L})$. \\
+							
+				If not, it contains $V = V_1 \,\bullet\, V_2$. Since that the variable ordering did not fail, we know for sure that
+						$$\alpha_1 \dots \alpha_n ~ \notin ~ \bigcup_{i, k} FV(T_{i, k}) \cup \bigcup_{i, l} FV(U_{i, l})$$
+				Each $\alpha_i$ is mapped in $\sigma$ to $!^{n_i} \beta_i ~ \bullet ~ !^{m_i}\gamma_i$.
+				The result of the application of the new mappings $\sigma$ to $\mathcal{L}$ is :
+			  	\begin{center}
+			  	\begin{tabular}{lcl}
+			  		$\sigma \mathcal{L}$ & $ = $ & $\mathcal{L'}$ \\
+				  	& $ \cup $ & $\{!^{n_i} \beta_i ~ \bullet ~ !^{m_i}\gamma_i <: \,!^{n_j} \beta_j ~ \bullet ~ !^{m_j}\gamma_j \}$ \\
+				  	& $ \cup $ & $\{ T_{i, 1} \dots T_{i, k_i} <: \,!^{n_i} \beta_i ~ \bullet ~ !^{m_i}\gamma_i <: U_{i, 1} \dots U_{i, l_i} \}$
+				  \end{tabular}
+				  \end{center}
+       	What remains after reduction of the composite constraints is
+					\begin{center}
+			  	\begin{tabular}{lcl}
+			  		$\sigma \mathcal{L}$ & $ = $ & $\mathcal{L'}$ \\
+			  		& $ \cup $ & $\{m_j \le m_i, ~n_j \le n_i, ~\beta_i <: \beta_j, ~\gamma_i <: \gamma_j \}$ \\
+			  		& $ \cup $ & $\{ T^1_{i, 1} \dots T^1_{i, k_i} <: \beta_i <: U^1_{i, 1} \dots U^1_{i, l_i} \}$ \\
+			  		& $ \cup $ & $\{ T^2_{i, 1} \dots T^2_{i, k_i} <: \gamma_i <: U^2_{i, 1} \dots U^2_{i, l_i} \}$ \\
+			  		& $ \cup $ & $\{$ some flag constraints $\}$
+			  	\end{tabular}
+			  	\end{center}
+				depending on the connective $\bullet$, the orientation of the constraints $\beta_i <: \beta_j$ and $T^1_{i, k} <: \beta_i <: U^1_{i, l}$
+			  may be reversed, though it is of no consequence to the proof.
+			  In the reduction of the constraints $T_{i, 1} \dots T_{i, k_i} <: \alpha_i <: U_{i, 1} \dots U_{i, l_i}$, it is assumed that
+			  the types $T_{i, k}$ and $U_{i, l}$ are of the form $T^1_{i, k} ~\bullet~ T^2_{i, k}$ and $U^1_{i, l} ~\bullet~ U^2_{i, l}$. \\
+			  Following, the complexity of the reduced constraint set $\sigma \mathcal{L}$ compared to that of the original set $\mathcal{L}$ is :
+			  	$$C' = \#\sigma\mathcal{L} = \#\mathcal{L'} + \sum_{i, k} \#T_{i, k} - 1 + \sum_{i, l} \#U_{i, l} - 1 $$
+			  which is strictly inferior to $C$, meaning $(C',|\sigma\mathcal{L}|) \lneq (C, N)$. The induction hypothesis holds, and the function
+			  call $\text{TypeUnification}\,(\sigma \mathcal{L})$ terminates, giving the termination of the call
+			  $\text{TypeUnification}\,(\mathcal{L})$.
+			  
+		\end{itemize}
+	\end{proof}
+\end{lemma}
+
+\begin{lemma}{Correctness}
+	\textit{Let $\mathcal{L}$ be a constraint set. The unification algorithm applied to $\mathcal{L}$ produces a
+		set $\mathcal{L'}$ and a substitution $\sigma$ such that for every solution $\tau$ of $\sigma \mathcal{L}$ there is a solution $\tau'$
+		of $\sigma\mathcal{L'}$, and conversely.}
+
+	\begin{proof}
+		NB : the reductions rules used in step 0 are always reversible, due to the fact that they derive from the sub-typing rules.
+		This means that for every set $\mathcal{L}$, with the corresponding reduced set $\mathcal{L'}$, the solutions of
+		$\mathcal{L}$ are the solutions of $\mathcal{L'}$. \\
+		One implication is direct : for every solution $\tau$ of $\sigma \mathcal{L}$,
+	\end{proof}
+\end{lemma}
 
 \end{document}
