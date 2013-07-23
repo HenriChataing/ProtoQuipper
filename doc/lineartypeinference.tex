@@ -6,8 +6,9 @@
 }
 \date{\today}
 
-\documentclass[9pt]{article}
+\documentclass[10pt]{article}
 
+\usepackage[margin=1.5in]{geometry}
 \usepackage[utf8]{inputenc}
 \usepackage{amsthm}
 \usepackage{amsmath}
@@ -31,7 +32,9 @@
 
 \begin{document}
 \maketitle
+\newpage
 
+\tableofcontents
 \newpage
 
 \section{Linear logic}
@@ -1511,15 +1514,61 @@ the latter aiming to solve the remaining flag constraints.
 
 \begin{lemma}{Correctness}
 	\textit{Let $\mathcal{L}$ be a constraint set. The unification algorithm applied to $\mathcal{L}$ produces a
-		set $\mathcal{L'}$ and a substitution $\sigma$ such that for every solution $\tau$ of $\sigma \mathcal{L}$ there is a solution $\tau'$
-		of $\sigma\mathcal{L'}$, and conversely.}
+		set $\mathcal{L'}$ and a substitution $\sigma$ such that :
+			\begin{center}
+			\begin{tabular}{ll}
+				(a) & for every solution $\tau$ of $\mathcal{L'}$, $\tau \circ \sigma$ is a solution of $\mathcal{L}$ \\
+				(b) & for every solution $\rho$ of $\mathcal{L}$, there exists $\tau$ solution of $\mathcal{L'}$ such that $\rho = \tau \circ \sigma$ \\
+				(c) & $\sigma \mathcal{L'} = \mathcal{L'}$
+			\end{tabular}
+			\end{center}}
 
 	\begin{proof}
-		NB : the reductions rules used in step 0 are always reversible, due to the fact that they derive from the sub-typing rules.
-		This means that for every set $\mathcal{L}$, with the corresponding reduced set $\mathcal{L'}$, the solutions of
-		$\mathcal{L}$ are the solutions of $\mathcal{L'}$. \\
-		One implication is direct : for every solution $\tau$ of $\sigma \mathcal{L}$,
+		The third property (c) is easier to prove than the other two, and the proof will be omitted.
+		By induction on indexed sets. If the index is
+		\begin{itemize}
+			\item $(0, N)	$. $\mathcal{L}$ is composed only of atomic constraints, and TypeUnification returns $\varnothing, \mathcal{L}$.
+				The properties (a) and (b) are trivially satisfied.
+				
+			\item $(C, N)$, and $\mathcal{L} = \mathcal{L'} \cup \{ \alpha_i <: \alpha_j \}$. \\
+				Let $\sigma, \mathcal{L''} = ~\text{TypeInference}\,(\mathcal{L'})$. By application of the induction hypothesis, $\sigma$ and
+				$\mathcal{L''}$ respect the properties (a) and (b).
+					\begin{itemize}
+						\item[(a)] Let $\tau$ be a solution of $\mathcal{L''} \cup \{ \alpha_i <: \alpha_j \}$. $\tau$ being a solution of $\mathcal{L''}$,
+							the application of the property (a) with $\tau$, $\mathcal{L''}$ and $\sigma$ proves that $\tau \circ \sigma$ is a solution of
+							$\mathcal{L'}$. Overall, $\tau \circ \sigma$ is a solution of $\mathcal{L}$.
+							
+						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$. The property (b) applied with $\mathcal{L''}$ and $\sigma$ ensures the existence
+							of $\tau$ solution of $\mathcal{L''}$ such that $\tau \circ \sigma$ is equal to $\rho$. Moreover, it follows from (c) that
+							$\sigma \{ \alpha_i <: \alpha_j \} = \{\alpha_i <: \alpha_j \}$. Thus,
+								$$\tau \circ \sigma \{\alpha_i <: \alpha_j \} = \tau \{\alpha_i <: \alpha_j \}$$
+							Since $\rho = \tau \circ \sigma$ is a solution of $\{\alpha_i <: \alpha_j \}$, it follows that $\tau$ is a solution of
+							$\{\alpha_i <: \alpha_j \}$, and also of $\mathcal{L''} \cup \{\alpha_i <: \alpha_j \}$. This proves the property (b).
+					\end{itemize}
+			
+			\item $(C, N)$, and $\mathcal{L} = \mathcal{L'} \cup \{ \alpha_i <: \alpha_j \} \cup
+				\{ T_{i, 1} \dots T_{i, k_i} <: \alpha_i <: U_{i, 1} \dots U_{i, l_i} \}$.
+				Let $\sigma$ be the substitution $\sigma = [\alpha_i \mapsto !^{n_i}\beta_i \,\bullet\, !^{m_i}\gamma_i]$, and
+				$\mathcal{L}^*$ the reduced set $\sigma \mathcal{L}$. Finally, let $\sigma', \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L}~*)$.
+				The induction hypothesis applied to $\mathcal{L}^*$ proves that $\sigma', \mathcal{L''}$ respect the properties (a), (b) and (c).
+					\begin{itemize}
+						\item[(a)] Let $\tau$ be a solution of $\mathcal{L''}$. By application of (b), $\tau \circ \sigma$ is a solution of $\mathcal{L}^*$.
+							Since the solutions of $\mathcal{L}^*$ and $\sigma \mathcal{L}$ are the same, $\tau \circ \sigma'$ is also a solution of
+							$\sigma \mathcal{L}$. Thence, $\tau \circ \sigma' \circ \sigma$ is a solution of $\mathcal{L}$.
+							
+						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$. In particular, $\rho$ contains the mappings :
+								$$\rho = \rho' \cup [\alpha_i \mapsto V_i \,\bullet\, W_i]$$
+							Thus it can be modified to be :
+								$$\rho = (\rho' \cup [!^{n_i}\beta_i \mapsto V_i] \cup [!^{m_i}\gamma_i \mapsto W_i]) \circ
+									[\alpha_i \mapsto \,!^{n_i}\beta_i \,\bullet\, !^{m_i}\gamma_i]$$
+							Using the notation $\rho^* = \rho' \cup [!^{n_i}\beta_i \mapsto V_i] \cup [!^{m_i}\gamma_i \mapsto W_i]$,
+							$\rho = \rho^* \circ \sigma$. By application of the sub-typing relation rules on $\mathcal{L}^*$, it can be proved
+							that $\rho^*$ is a solution of $\mathcal{L}^*$. By application of the induction hypothesis and (b), there exists
+							$\tau$ solution of $\mathcal{L''}$, such that $\rho^* = \tau \circ \sigma'$. Hence $\rho = \tau \circ \sigma' \circ \sigma$.
+					\end{itemize}
+		\end{itemize}
 	\end{proof}
 \end{lemma}
+
 
 \end{document}
