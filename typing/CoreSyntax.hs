@@ -192,67 +192,6 @@ data Expr =
 
 
 
-{-
-  Construction of the unfier of two / a list of types
-  Supposing that the types have the same skeleton, the unifier is the type holding
-  the most information about that commin skeleton, eg the unifier of
-  (a -> b) -> c and d -> (e * f) would be
-  (a -> b) -> (e * f)
--}
-
-lintype_unifier :: LinType -> LinType -> LinType
-type_unifier :: Type -> Type -> Type
-list_unifier :: [Type] -> Type
-------------------------------------
-lintype_unifier TUnit _ = TUnit
-lintype_unifier _ TUnit = TUnit
-lintype_unifier TBool _ = TBool
-lintype_unifier _ TBool = TBool
-lintype_unifier TQbit _ = TQbit
-lintype_unifier _ TQbit = TQbit
-lintype_unifier (TUser n app) _ = TUser n app
-lintype_unifier _ (TUser n app) = TUser n app
-lintype_unifier (TVar _) t = t
-lintype_unifier t (TVar _) = t
-lintype_unifier (TArrow t u) (TArrow t' u') = TArrow (type_unifier t t') (type_unifier u u')
-lintype_unifier (TTensor tlist) (TTensor tlist') =
-  case (tlist, tlist') of
-    ([], []) -> (TTensor [])
-    (t:rest, t':rest') ->
-      let u = type_unifier t t'
-          TTensor urest = lintype_unifier (TTensor rest) (TTensor rest') in
-      TTensor (u:urest)
-lintype_unifier (TCirc t u) (TCirc t' u') = TCirc (type_unifier t t') (type_unifier u u')
-
-type_unifier (TBang m t) (TBang _ u) = TBang m $ lintype_unifier t u
-
-list_unifier (t:ct) =
-  List.foldl (\unif u -> type_unifier unif u) t ct
-
-{-
-  Instance declarations of Flag, LinType, Type, Pattern, Expr :
-    - Flag is instance of
-      - PPrint
-
-    - LinType is instance of
-      - PPrint
-      - Param
-      - Eq
- 
-    - Type is instance of
-      - PPrint
-      - Param
-      - Eq
-
-    - Pattern is instance of
-      - PPrint
-      - Param
-
-    - Expr is instance of
-      - PPrint
-      - Param
--}
-
 instance PPrint RefFlag where
   sprintn _ 0 = ""
   sprintn _ 1 = "!"
@@ -264,7 +203,8 @@ instance PPrint RefFlag where
 
 
 -- | The class of objects of 'kind' type. The only two members are
--- LinType and Type
+-- LinType and Type. This classe serves to overload the functions
+-- below
 class KType a where
   free_typ_var :: a -> [Int]
   subs_typ_var :: Int -> LinType -> a -> a
@@ -340,10 +280,14 @@ instance Eq LinType where
   (==) _ _ = False
 
 
+-- | This instance can't be just obtained by deriving Eq in the definition
+-- of Type, because of alpha equivalence in the polymorphic types
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
+  -- Normally, the alpha equivalence would have to be checked. However, it may
+  -- be useless as : this function is never used, the generic instance is always the same, never
+  -- changed
   (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
-
 
 
 
@@ -356,7 +300,6 @@ instance Param Pattern where
   free_var (PLocated p _) = free_var p
 
   subs_var _ _ p = p
-
 
 
 instance Param Expr where
@@ -433,6 +376,8 @@ type ConstraintSet =
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
+-- The only purpose of this class is to overload the <> operator to be able to use it (on the left) with either constaint
+-- sets, lists of type constraints, or lists of flag constraints
 class Constraints a where
   (<>) :: a -> ConstraintSet -> ConstraintSet
 
@@ -450,34 +395,30 @@ instance Constraints ConstraintSet where
 emptyset :: ConstraintSet
 emptyset = ([], [])
 
-{-
-  Constraint properties
-    - Atomicity : a constraint is atomic if of the form a <: b
-      where a, b are type variables
-  
-    - Trivial : apply to constraints of the form T <: T or A <: A
-      which are solved by reflexivity
- 
-    - Composite : apply to constraints of the form T <: U
-      for any composite types T, U
 
-    - Semi-composite : apply to constraints of the form a <: T or T <: a
-      with a a type variable and T a composite type
--}
-
+-- | Returns true iff the constraint is of the form T <: T,
 is_trivial :: TypeConstraint -> Bool
-is_atomic :: TypeConstraint -> Bool
-is_composite :: TypeConstraint -> Bool
-is_semi_composite :: TypeConstraint -> Bool
-is_user :: TypeConstraint -> Bool
--------------------------------------------
 is_trivial (Subtype a b) = a == b
 
+
+-- | Returns true iff the constraint T <: U is atomic, meaning
+-- T and U are both of the form !na where a is a type variable
+is_atomic :: TypeConstraint -> Bool
 is_atomic (Subtype (TBang _ (TVar _)) (TBang _ (TVar _))) = True
 is_atomic _ = False
 
+
+-- | Returns true iff the constraint T <: U is composite, meaning
+-- it can be reduced by application of one or more of the subtyping
+-- relations
+is_composite :: TypeConstraint -> Bool
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
+
+-- | Returns true iff the constraint T <: U is semi composite, meaning
+-- it is not atomic, and either T or U is of the form !na, making it not
+-- composite
+is_semi_composite :: TypeConstraint -> Bool
 is_semi_composite (Subtype t u) =
   case (t, u) of
     (TBang _ (TVar _), TBang _ (TVar _)) -> False
@@ -485,25 +426,23 @@ is_semi_composite (Subtype t u) =
     (_, TBang _ (TVar _)) -> True
     _ -> False
 
+
+-- | Returns true iff the constraint is of the form  user n a <: user n a'
+is_user :: TypeConstraint -> Bool
 is_user (Subtype t u) =
   case (t, u) of
     (TBang _ (TUser _ _), TBang _ (TUser _ _)) -> True
     _ -> False
 
-{-
-  Check whether all the constraints of a list have the same property of being right / left sided, ie :
-    - of the form a <: T : left-sided
-    - of the from T <: a : right-sided
-
-  The function is_right_sided returns true if all the constraints are right sided
-               is_left_sided returns true if all the constraints are left sided
-               is_one_sided returns true if either is_left_sided or is_right_sided is true
--}
-
+-- | Check whether all the constraints of a list have the same property of being right / left sided, ie :
+--    - of the form a <: T : left-sided
+--    - of the from T <: a : right-sided
+--
+--  The function is_right_sided returns true if all the constraints are right sided
+--               is_left_sided returns true if all the constraints are left sided
+--               is_one_sided returns true if either is_left_sided or is_right_sided is true
+--
 is_one_sided :: [TypeConstraint] -> Bool
-is_left_sided :: [TypeConstraint] -> Bool
-is_right_sided :: [TypeConstraint] -> Bool
----------------------------------------
 is_one_sided [] = True
 is_one_sided ((Subtype t u):cset) =
   case (t, u) of
@@ -511,73 +450,29 @@ is_one_sided ((Subtype t u):cset) =
     (_, TBang _ (TVar _)) -> is_right_sided cset
     _ -> False
 
+
+is_left_sided :: [TypeConstraint] -> Bool
 is_left_sided [] = True
 is_left_sided ((Subtype (TBang _ (TVar _)) _):cset) =
   is_left_sided cset
 is_left_sided _ = False
 
+
+is_right_sided :: [TypeConstraint] -> Bool
 is_right_sided [] = True
 is_right_sided ((Subtype _ (TBang _ (TVar _))):cset) =
   is_right_sided cset
 is_right_sided _ = False
 
-{-
-  Finds the 'most general unifier' (not in the sense of unification) of a list of type constraints.
-  The unifier is a type chosen to carry the most information about the structure of the types of the constraints
-  (which has to be the same for each type). For example, the chosen unifier of ((a -> b) -> c) and (d -> (e -> f)) is
-  ((a -> b) -> (e -> f))
 
-  The list given as argument is assumed to form a 'class' of semi-composite constraints :
-    - all the constraints must be semi-composite
-    - all the variable of the semi-composite constraints are of the same age class (ie linked together by atomic constraints)
--}
-constraint_unifier :: [TypeConstraint] -> Type
--------------------------------------------------
-constraint_unifier constraints =
-  let comptypes = List.map (\c -> case c of
-                                    Subtype (TBang _ (TVar _)) t -> t
-                                    Subtype t (TBang _ (TVar _)) -> t) constraints
-  in
-  list_unifier comptypes
-
-{-
-  Attempts to link together the input constraints, for example the set { b <: U, a <: b, T <: a } can
-  be rearranged as { T <: a <: b <: U }
-
-  The result is used in the unfication algorithm : if the constraints can be linked, the approximation
-    { T <: a <: b <: U }  <=>  a :=: b :=: T, { T <: U } can be made
-  (Since if a solution of the approximation can be found, it is also a solution of the initial set, and conversely)
--}
+-- | Attempts to link together the input constraints, for example the set { b <: U, a <: b, T <: a } can
+--  be rearranged as { T <: a <: b <: U }
+--
+--  The result is used in the unification algorithm : if the constraints can be linked, the approximation
+--    { T <: a <: b <: U }  <=>  a :=: b :=: T, { T <: U } can be made
+--  (Since if a solution of the approximation can be found, it is also a solution of the initial set, and conversely)
+--
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
-chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
-chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
-----------------------------------------------------------------------------------------------
-chain_left_to_right chain endvar [] = (True, List.reverse chain)
-chain_left_to_right chain endvar l =
-  case List.find (\c -> case c of
-                          Subtype (TBang _ (TVar y)) _ -> y == endvar
-                          _ -> False) l of
-    Just c -> case c of
-                Subtype (TBang _ (TVar _)) (TBang _ (TVar y)) -> chain_left_to_right (c:chain) y (List.delete c l)
-                _ -> if List.length l == 1 then
-                       (True, List.reverse (c:chain))
-                     else
-                       (False, [])
-    Nothing -> (False, [])
-
-chain_right_to_left chain endvar [] = (True, chain)
-chain_right_to_left chain endvar l =
-  case List.find (\c -> case c of
-                          Subtype _ (TBang _ (TVar y)) -> y == endvar
-                          _ -> False) l of
-    Just c -> case c of
-                Subtype (TBang _ (TVar y)) (TBang _ (TVar _)) -> chain_right_to_left (c:chain) y (List.delete c l)
-                _ -> if List.length l == 1 then
-                       (True, c:chain)
-                     else
-                       (False, [])
-    Nothing -> (False, [])
-
 chain_constraints l =
   case List.find (\c -> case c of
                           Subtype (TBang _ (TVar _)) _ -> False
@@ -594,21 +489,44 @@ chain_constraints l =
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
-{-
-  Instance declaration
 
-  TypeConstraint is instance of
-    - PPrint
-    - Param
-    - Eq
 
-  FlagConstraint is instance of
-    - PPrint
+-- | Try linking the constraints, starting from the left, and progressing by adding constraints
+-- on the right
+chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
+chain_left_to_right chain endvar [] = (True, List.reverse chain)
+chain_left_to_right chain endvar l =
+  case List.find (\c -> case c of
+                          Subtype (TBang _ (TVar y)) _ -> y == endvar
+                          _ -> False) l of
+    Just c -> case c of
+                Subtype (TBang _ (TVar _)) (TBang _ (TVar y)) -> chain_left_to_right (c:chain) y (List.delete c l)
+                _ -> if List.length l == 1 then
+                       (True, List.reverse (c:chain))
+                     else
+                       (False, [])
+    Nothing -> (False, [])
 
-  ConstraintSet is instance of
-    - PPrint
--}
 
+-- | Try linking the constraints, starting from the right, and progressing by adding constraints
+-- on the left
+chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
+chain_right_to_left chain endvar [] = (True, chain)
+chain_right_to_left chain endvar l =
+  case List.find (\c -> case c of
+                          Subtype _ (TBang _ (TVar y)) -> y == endvar
+                          _ -> False) l of
+    Just c -> case c of
+                Subtype (TBang _ (TVar y)) (TBang _ (TVar _)) -> chain_right_to_left (c:chain) y (List.delete c l)
+                _ -> if List.length l == 1 then
+                       (True, c:chain)
+                     else
+                       (False, [])
+    Nothing -> (False, [])
+
+
+
+-- | Type constraints are also of a kind ktype
 instance KType TypeConstraint where
   free_typ_var (Subtype t u) = List.union (free_typ_var t) (free_typ_var u)
   subs_typ_var a b (Subtype t u) = Subtype (subs_typ_var a b t) (subs_typ_var a b u)
@@ -617,6 +535,7 @@ instance KType TypeConstraint where
   subs_flag n m (Subtype t u) = Subtype (subs_flag n m t) (subs_flag n m u)
 
 
+-- | .. as are constraint sets
 instance KType ConstraintSet where
   free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
   subs_typ_var a b (lc, fc) = (List.map (subs_typ_var a b) lc, fc)
@@ -654,4 +573,5 @@ generalize_type typ (limtype, limflag) cset =
   -- An optimisation would separate the constraints relevant
   -- to the type before generalizing, but later
   TForall fvt' fft' cset typ
+
 
