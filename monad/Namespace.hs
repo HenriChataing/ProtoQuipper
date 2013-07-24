@@ -3,6 +3,8 @@
 
 module Namespace where
 
+import Utils
+
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
@@ -33,6 +35,13 @@ register_var :: String -> Namespace -> (Int, Namespace)
 register_var s namespace =
   let id = vargen namespace in
   (id, namespace { varcons = IMap.insert id s $ varcons namespace, vargen = id+1 })
+
+
+-- | Create a dummy variable
+dummy_var :: Namespace -> (Int, Namespace)
+dummy_var namespace =
+  let id = vargen namespace in
+  (id, namespace { varcons = IMap.insert id (subvar 'x' id) $ varcons namespace, vargen = id+1 })
 
 
 -- | Register a new data constructor

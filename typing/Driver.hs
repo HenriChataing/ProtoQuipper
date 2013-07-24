@@ -148,8 +148,8 @@ build_dependencies dirs main = do
 -- | Process a module, from the syntax translation to the type inference
 -- Every result produced by the type inference is recorded in the module
 -- internal representation (type Module)
-process_module :: Bool -> Bool -> S.Program -> QpState (Maybe Value, Type)
-process_module exact runinter prog = do
+process_module :: Options -> S.Program -> QpState (Maybe Value, Type)
+process_module opts prog = do
 
 -- Configuration part
   -- Get the module name
@@ -171,22 +171,8 @@ process_module exact runinter prog = do
   -- Import the global variables and types in the current context
   import_globals
 
-  -- Convert and import the type definitions
-  dcons <- import_typedefs $ S.typedefs prog
-  define_user_subtyping $ S.typedefs prog
-  update_module_types
-
-  cm <- get_module
-  ctx <- get_context
-  set_context $ ctx { cmodule = cm { global_ids = dcons } }
-
--- Translation part
-
-  -- Import the global variables from the dependencies
-  gbls <- global_namespace
-
   -- Translate the body of the module
-  cprog <- translate_body (S.body prog) (Map.union dcons gbls)
+  cprog <- translate_program (workWithProto opts) prog
 
 -- Type inference part
 
@@ -205,7 +191,7 @@ process_module exact runinter prog = do
   constraints <- break_composite True constraints
     -- For ordering purposes
   register_constraints $ fst constraints
-  constraints <- unify exact constraints
+  constraints <- unify (not $ approximations opts) constraints
   newlog 1 ">> Unified constraint set"
   newlog 1 $ pprint constraints ++ "\n"
 
@@ -236,7 +222,7 @@ process_module exact runinter prog = do
   newlog 0 "<<\n"
  
   -- Run the module
-  v <- if runinter then do
+  v <- if runInterpret opts then do
          v <- run_module cprog
          return $ Just v
        else
@@ -259,7 +245,7 @@ do_everything opts file = do
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
                 _ <- rec
-                typ <- process_module (not $ approximations opts) (runInterpret opts) p
+                typ <- process_module opts p
                 -- Move the module internally onto the modules stack
                 ctx <- get_context
                 set_context $ ctx { modules = (S.mname p, cmodule ctx):(modules ctx) }

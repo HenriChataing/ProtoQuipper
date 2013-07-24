@@ -151,13 +151,14 @@ type Datacon = Int
 --                                     e
 --                                (and desugared again)
 --
+-- Most of the locations are dropped, only the one useful to locate variables are kept
+--
 
 data Pattern =
     PUnit                                         -- <>
-  | PVar Variable                                 -- x
+  | PVar Variable Extent                          -- x @ ex
   | PTuple [Pattern]                              -- <p1, .. , pn>
   | PDatacon Datacon (Maybe Pattern)              -- datacon p
-  | PLocated Pattern Extent                       -- p @ ex
   deriving Show 
 
 
@@ -293,11 +294,10 @@ instance Eq Type where
 
 instance Param Pattern where
   free_var PUnit = []
-  free_var (PVar x) = [x]
+  free_var (PVar x _) = [x]
   free_var (PDatacon _ Nothing) = []
   free_var (PDatacon _ (Just p)) = free_var p
   free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
-  free_var (PLocated p _) = free_var p
 
   subs_var _ _ p = p
 

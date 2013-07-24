@@ -160,7 +160,7 @@ unencap c b = do
 -- diffrent contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
 -- of from a pattern matching
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
-bind_pattern (PVar x) v env = do
+bind_pattern (PVar x _) v env = do
   -- If the var is global, update the module definition
   ctx <- get_context
   cm <- get_module
@@ -196,17 +196,13 @@ bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
   else
     throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
 
-bind_pattern (PLocated p ex) v env = do
-  set_location ex
-  bind_pattern p v env
-
 bind_pattern p v _ = do
   throw $ MatchingError (sprint p) (sprint v)
 
 
 -- | Try matching a pattern and a value. Return True if the value matches, else False
 match_value :: Pattern -> Value -> Bool
-match_value (PVar _) _  =
+match_value (PVar _ _) _  =
   True
 
 match_value (PTuple plist) (VTuple vlist) = 
@@ -237,9 +233,6 @@ match_value (PDatacon dcon p) (VDatacon dcon' v) =
           False
   else
     False
-
-match_value (PLocated p _) v =
-  match_value p v
 
 match_value _ _ =
   False
@@ -421,7 +414,7 @@ interpret env (ELet r p e1 e2) = do
   
   -- Recursive function ?
   case (r, v1, p) of
-    (Recursive, VFun ev arg body, PVar x) ->
+    (Recursive, VFun ev arg body, PVar x _) ->
         let ev' = IMap.insert x (VFun ev' arg body) ev in do
           env <- bind_pattern p (VFun ev' arg body) env
           interpret env e2

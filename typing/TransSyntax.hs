@@ -2,6 +2,7 @@ module TransSyntax (define_user_subtyping,
                     translate_program,
                     translate_type,
                     translate_body,
+                    unsugar,
                     import_typedefs,
                     update_module_types) where
 
@@ -169,8 +170,9 @@ define_user_subtyping typedefs = do
 -- | Import the type definitions in the current state
 -- The data constructors are labelled during this operation, and included in the field datacons of the state
 -- User types are added the same, with an id set to -1 to distinguish them from other type variables
-import_typedefs :: [S.Typedef] -> QpState (Map String Int)
-import_typedefs typedefs = do
+-- The boolean arguments indicates whether the types have to be translated to proto core
+import_typedefs :: Bool -> [S.Typedef] -> QpState (Map String Int)
+import_typedefs proto typedefs = do
   -- Import the names of the types in the current labelling map
   -- This operation permits the writing of inductive types
   m <- List.foldl (\rec (S.Typedef typename args _) -> do
@@ -212,7 +214,12 @@ import_typedefs typedefs = do
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
                                                                      -- The same flag is used to mark the argument and the return value of the function
-                                                                     (dt'@(TBang n _), cset) <- translate_type dt [] m'
+                                                                     (dt'@(TBang n _), cset) <- if proto then do
+                                                                                                  (t, cset) <- translate_type dt [] m'
+                                                                                                  t' <- unfold_tensors t
+                                                                                                  return (t', cset)
+                                                                                                else
+                                                                                                  translate_type dt [] m' 
                                                                      return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
@@ -354,7 +361,8 @@ translate_pattern_with_label S.PUnit label = do
 
 translate_pattern_with_label (S.PVar x) label = do
   id <- register_var x
-  return (PVar id, Map.insert x id label)
+  ex <- get_location
+  return (PVar id ex, Map.insert x id label)
 
 translate_pattern_with_label (S.PTuple plist) label = do
   (plist', lbl) <- List.foldr (\p rec -> do
@@ -381,9 +389,7 @@ translate_pattern_with_label (S.PDatacon datacon p) label = do
 
 translate_pattern_with_label (S.PLocated p ex) label = do
   set_location ex
-  (p', lbl) <- translate_pattern_with_label p label
-  return (PLocated p' ex, lbl)
-
+  translate_pattern_with_label p label
 
 -- | Translate an expression, given a labelling map
 translate_expression_with_label :: S.Expr -> Map String Variable -> QpState Expr
@@ -519,18 +525,27 @@ import_gates = do
 -- | Translate a whole program
 -- Proceeds in three steps:
 --   Import the type definitions
---   Import the gates
 --   Translate the expression body
-translate_program :: S.Program -> QpState Expr
-translate_program prog = do
-  dcons <- import_typedefs $ S.typedefs prog
+-- The boolean argument indicates whether the program has to be translated into the proto core or not
+translate_program :: Bool -> S.Program -> QpState Expr
+translate_program proto prog = do
+  dcons <- import_typedefs proto $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
+  update_module_types
 
-  gates <- import_gates
+  cm <- get_module
   ctx <- get_context
-  set_context $ ctx { gatesid = gates }
+  set_context $ ctx { cmodule = cm { global_ids = dcons } }
 
-  translate_body (S.body prog) (Map.union dcons gates)
+  -- Import the global variables from the dependencies
+  gbls <- global_namespace
+
+  t <- translate_body (S.body prog) (Map.union dcons gbls)
+  if proto then
+    unsugar t
+  else
+    return t
+
 
 
 -- | Translate and merge the list of term declarations
@@ -562,4 +577,243 @@ translate_body ((S.DLet recflag p e):rest) lbl = do
   r <- translate_body rest lbl'
   return (ELet recflag p' e' r)
 
+
+
+-- | Transform a type A * B * C * D into A * (B * (C * D))
+unfold_tensors_in_lintype :: LinType -> QpState LinType
+unfold_tensors_in_lintype (TVar a) =
+  return $ TVar a
+
+unfold_tensors_in_lintype (TArrow a b) = do
+  a' <- unfold_tensors a
+  b' <- unfold_tensors b
+  return $ TArrow a' b'
+
+unfold_tensors_in_lintype TUnit =
+  return TUnit
+
+unfold_tensors_in_lintype (TTensor tlist) = do
+  case tlist of
+    [a, b] -> do
+        a' <- unfold_tensors a
+        b' <- unfold_tensors b
+        return $ TTensor [a', b']
+
+    (a:rest) -> do
+        a' <- unfold_tensors a
+        rest' <- unfold_tensors_in_lintype $ TTensor rest
+        n <- fresh_flag
+        return $ TTensor [a', TBang n rest']
+
+unfold_tensors_in_lintype TBool =
+  return TBool
+
+unfold_tensors_in_lintype TQbit =
+  return TQbit
+
+unfold_tensors_in_lintype (TCirc a b) = do
+  a' <- unfold_tensors a
+  b' <- unfold_tensors b
+  return $ TCirc a' b'
+
+unfold_tensors_in_lintype (TUser typename arg) = do
+  arg' <- List.foldr (\a rec -> do
+                        r <- rec
+                        a' <- unfold_tensors a
+                        return $ a':r) (return []) arg
+  return $ TUser typename arg'
+
+unfold_tensors_in_lintype (TLocated a ex) = do
+  a' <- unfold_tensors_in_lintype a
+  return $ TLocated a' ex
+
+
+-- | Same for types
+unfold_tensors :: Type -> QpState Type
+unfold_tensors (TBang n a) = do
+  a' <- unfold_tensors_in_lintype a
+  return $ TBang n a'
+
+
+
+-- | Transform a pattern <a, b, c, d> into <a, <b, <c, d>>>
+unfold_tuples :: Pattern -> Pattern
+
+unfold_tuples PUnit =
+  PUnit
+
+unfold_tuples (PVar x ex) =
+  (PVar x ex)
+
+unfold_tuples (PDatacon dcon Nothing) =
+  (PDatacon dcon Nothing)
+
+unfold_tuples (PDatacon dcon (Just p)) =
+  let p' = unfold_tuples p in
+  PDatacon dcon $ Just p'
+
+unfold_tuples (PTuple plist) =
+  case plist of
+    [p, q] ->
+        let p' = unfold_tuples p
+            q' = unfold_tuples q in
+        PTuple [p', q']
+
+    (p:rest) ->
+        let p' = unfold_tuples p
+            rest' = unfold_tuples $ PTuple rest in
+        PTuple [p', rest']
+
+
+-- | Removes all the syntactic sugars of an expression
+-- This function operates on core expressions. As sugars are removed, new variables are
+-- produced, with a default name
+unsugar :: Expr -> QpState Expr
+
+unsugar (EVar x) =
+  return $ EVar x
+
+unsugar (EGlobal x) =
+  return $ EGlobal x
+
+unsugar (EFun p e) = do
+   -- Check whether the expression is already unsugared or not
+  case p of
+    -- The pattern is only one variable : do nothing
+    PVar _ _ -> do
+      e' <- unsugar e
+      return $ EFun p e'
+
+    -- If the pattern is more complicated, replace it by a variable
+    _ -> do
+      x <- dummy_var
+      e' <- unsugar $ ELet Nonrecursive p (EVar x) e
+      return $ EFun (PVar x extent_unknown) e'
+
+unsugar (EApp e f) = do
+  e' <- unsugar e
+  f' <- unsugar f
+  return $ EApp e' f'
+
+unsugar EUnit = do
+  return EUnit
+
+-- Tuples are a syntactic sugar for chained pairs :
+-- the tuple <a, b, c, d> is the pattern <a, <b, <c, d>>>
+unsugar (ETuple elist) = do
+  case elist of
+    -- This is the minimum size tuple, and is left as is
+    [e,f] -> do
+        e' <- unsugar e
+        f' <- unsugar f
+        return $ ETuple [e', f']
+
+    -- With more elements : unsugar the rest, and 'append' the head on the left
+    (e:rest) -> do
+        e' <- unsugar e
+        rest' <- unsugar $ ETuple rest
+        return $ ETuple [e', rest']
+
+    -- The other cases of empty and sinleton tuples shouldn't appear
+
+unsugar (ELet r p e f) = do
+  p' <- return $ unfold_tuples p
+  e' <- unsugar e
+  case p' of
+    -- If the pattern is unit : do nothing
+    PUnit -> do
+        f' <- unsugar f
+        return $ ELet r p' e' f'
+
+    -- If the pattern is one variable, do nothing
+    -- The let binding can't be removed because of let-polymorphism
+    PVar _ _ -> do
+        f' <- unsugar f
+        return $ ELet r p' e' f'
+
+    -- If the pattern is a pair of variables, this is the case of tensor elimination
+    PTuple [PVar _ _, PVar _ _] -> do
+        f' <- unsugar f
+        return $ ELet r p' e' f'
+
+    -- If one of the elements of the pattern is not a variable, unsugar
+    PTuple [PVar x ex, q] -> do
+        y <- dummy_var
+        f' <- unsugar $ ELet r q (EVar y) f
+        return $ ELet r (PTuple [PVar x ex, PVar y extent_unknown]) e' f'
+
+    PTuple [p, PVar x ex] -> do
+        y <- dummy_var
+        f' <- unsugar $ ELet r p (EVar y) f
+        return $ ELet r (PTuple [PVar y extent_unknown, PVar x ex]) e' f'
+
+    PTuple [p, q] -> do
+        x <- dummy_var
+        y <- dummy_var
+        f' <- unsugar $ ELet r p (EVar x) (ELet r q (EVar y) f)
+        return $ ELet Nonrecursive (PTuple [PVar x extent_unknown, PVar y extent_unknown]) e' f'
+
+    -- If the pattern is a datacon, unsugar by adding a pattern matching
+    PDatacon dcon Nothing -> do
+        f' <- unsugar f
+        return $ EMatch e' [(PDatacon dcon Nothing, f')]
+
+    PDatacon dcon (Just p) -> do
+        case p of
+          PVar x ex -> do
+              f' <- unsugar f
+              return $ EMatch e' [(PDatacon dcon $ Just p, f')]
+
+          _ -> do
+              x <- dummy_var
+              f' <- unsugar (ELet Nonrecursive p (EVar x) f)
+              return $ EMatch e' [(PDatacon dcon $ Just (PVar x extent_unknown), f')]
+
+    _ -> return $ ELet r p e f
+
+unsugar (EBool b) = do
+  return $ EBool b
+
+unsugar (EIf e f g) = do
+  e' <- unsugar e
+  f' <- unsugar f
+  g' <- unsugar g
+  return $ EIf e' f' g'
+
+unsugar (EDatacon dcon Nothing) = do
+  return $ EDatacon dcon Nothing
+
+unsugar (EDatacon dcon (Just e)) = do
+  e' <- unsugar e
+  return $ EDatacon dcon $ Just e'
+
+unsugar (EMatch e blist) = do
+  e' <- unsugar e
+  blist' <- List.foldr (\(p, f) rec -> do
+                          r <- rec
+                          case p of
+                            PDatacon dcon Nothing -> do
+                                f' <- unsugar f
+                                return $ (PDatacon dcon Nothing, f'):r
+
+                            PDatacon dcon (Just p) -> do
+                                x <- dummy_var
+                                f' <- unsugar $ ELet Nonrecursive p (EVar x) f
+                                return $ (PDatacon dcon $ Just (PVar x extent_unknown), f'):r) (return []) blist
+
+                            -- The other cases are ignored for now, as syntactic equlity hasn't been developped yet
+  return $ EMatch e' blist'
+
+unsugar (EBox typ) = do
+  return $ EBox typ
+
+unsugar EUnbox = do
+  return EUnbox
+
+unsugar ERev = do
+  return ERev
+
+unsugar (ELocated e ex) = do
+  e' <- unsugar e
+  return $ ELocated e' ex 
 

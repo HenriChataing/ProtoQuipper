@@ -54,26 +54,17 @@ type_of x ctx = do
 -- | Given a pattern, create a type matching the pattern, and binds the term variables of the pattern
 -- to new type variables, created as needed
 bind_pattern :: Pattern -> TypingContext -> QpState (Type, TypingContext, ConstraintSet)
-bind_pattern (PLocated p ex) ctx = do
-  set_location ex
-  bind_pattern p ctx
 
 -- Unit value
 bind_pattern PUnit ctx = do
-  -- Detailed information
-  ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfP PUnit
-  specify_location n ex
-
+  n <- fresh_flag
   return (TBang n TUnit, ctx, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x
-bind_pattern (PVar x) ctx = do
+bind_pattern (PVar x ex) ctx = do
   -- Detailed information 
-  ex <- get_location
   n <- fresh_flag
-  specify_expression n $ ActualOfP (PVar x)
+  specify_expression n $ ActualOfP (PVar x ex)
   specify_location n ex
 
   a <- fresh_type
@@ -128,14 +119,10 @@ bind_pattern (PDatacon dcon p) ctx = do
 -- the data constructor except its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this one
 bind_pattern_to_type :: Pattern -> Type -> TypingContext -> QpState (TypingContext, ConstraintSet)
-bind_pattern_to_type (PLocated p ex) t ctx = do
-  set_location ex
-  bind_pattern_to_type p t ctx
 
-bind_pattern_to_type (PVar x) t@(TBang n _) ctx = do
-  ex <- get_location
+bind_pattern_to_type (PVar x ex) t@(TBang n _) ctx = do
   specify_location n ex
-  specify_expression n (ActualOfP $ PVar x)
+  specify_expression n (ActualOfP $ PVar x ex)
 
   ctx' <- bind_var x t ctx
   return (ctx', emptyset)

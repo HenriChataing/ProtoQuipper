@@ -284,6 +284,15 @@ register_var x = do
   return id
 
 
+-- | Create a dummy variable from a new id n, registered under the name x_n
+dummy_var :: QpState Int
+dummy_var = do
+  ctx <- get_context
+  (id, nspace) <- return $ N.dummy_var (namespace ctx)
+  set_context $ ctx { namespace = nspace }
+  return id
+
+
 -- | Access to the name space : variable registration
 -- The datacon registration also records the type of the datacon in the field datacons
 register_datacon :: String -> Type -> QpState Int

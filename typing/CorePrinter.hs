@@ -76,7 +76,7 @@ instance PPrint Type where
 
 instance PPrint Pattern where
    -- Print unto Lvl = n
-  sprintn _ (PVar x) = subvar 'x' x
+  sprintn _ (PVar x _) = subvar 'x' x
   sprintn _ PUnit = "<>"
   sprintn (Nth 0) _ = "..."
 
@@ -88,9 +88,6 @@ instance PPrint Pattern where
     subvar 'D' dcon ++ case p of
                          Just p -> "(" ++ sprintn (decr lv) p ++ ")"
                          Nothing -> ""
-
-  sprintn lv (PLocated p _) =
-    sprintn lv p
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
