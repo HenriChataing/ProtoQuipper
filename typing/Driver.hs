@@ -37,7 +37,7 @@ gate_context :: [(String, S.Type)] -> QpState TypingContext
 gate_context gates = do
   List.foldl (\rec (s, t) -> do
                 ctx <- rec
-                (t', _) <- translate_type t [] (Map.empty)
+                (t', _) <- translate_bound_type t Map.empty
                 x <- gate_id s
                 bind_var x t' ctx) (return IMap.empty) gates
 
@@ -261,11 +261,11 @@ unification_test :: [(S.Type, S.Type)] -> IO String
 unification_test set =
   let run = do
       -- Translate the types in the internal syntax
-      constraints <- List.foldl (\rec (t, u) -> do
-                                   r <- rec
-                                   (t', csett) <- translate_type t [] (Map.empty)
-                                   (u', csetu) <- translate_type u [] (Map.empty)
-                                   return $ [t' <: u'] <> csett <> csetu <> r) (return emptyset) set
+      (constraints, _) <- List.foldl (\rec (t, u) -> do
+                                        (r, lbl) <- rec
+                                        (t', csett, lblt) <- translate_type t [] (lbl, False)
+                                        (u', csetu, lblu) <- translate_type u [] (lblt, False)
+                                        return ([t' <: u'] <> csett <> csetu <> r, lblu)) (return (emptyset, Map.empty)) set
 
       -- Run the unification algorithm
       constraints <- break_composite True constraints

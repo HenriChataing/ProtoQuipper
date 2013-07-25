@@ -472,6 +472,15 @@ constraint_typing typctx (EIf e f g) typ = do
   return $ csete <> csetf <> csetg <> ([], fconstraints)
 
 
+-- No typing rule, but a constraint on the type of the expression, of the form
+--
+--               e :> T   <==>   T <: type of e
+--
+constraint_typing typctx (EConstraint e (TForall _ _ cst t)) typ = do
+  cset <- constraint_typing typctx e typ
+  return $ [t <: typ] <> cst <> cset
+
+
 
 
 -- | Using the type specifications registered in the state monad, unfolds any subtyping

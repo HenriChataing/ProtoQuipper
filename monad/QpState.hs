@@ -419,6 +419,11 @@ lookup_qualified_type (mod, n) = do
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
 
+-- | Check the state for a type name
+exist_type :: String -> QpState Bool
+exist_type typename = do
+  ctx <- get_context
+  return $ Map.member typename $ types ctx
 
 
 -- | Create the initializer of the translation into internal syntax : create a namescape including

@@ -112,6 +112,13 @@ bind_pattern (PDatacon dcon p) ctx = do
     _ ->
         fail "In pattern, data constructor takes no argument, when it was given one"
 
+-- While binding to a pattern with a type constraint,
+-- do things normally, and add a constraint an the actual type of the pattern
+bind_pattern (PConstraint p (TForall _ _ cst t)) ctx = do
+  (typ, ctx, cset) <- bind_pattern p ctx
+  return (typ, ctx, [t <: typ] <> cst <> cset)
+
+
 
 -- | This function does the same as bind_pattern, expect that it attempts to use the expected
 -- type to bind the pattern. This function is typically called while binding a data constructor :
@@ -163,6 +170,11 @@ bind_pattern_to_type (PDatacon dcon p) typ ctx = do
 
     _ ->
         fail "In pattern, data constructor takes no argument, when it was given one"
+
+bind_pattern_to_type (PConstraint p (TForall _ _ cst t)) typ ctx = do
+  (ctx', cset) <- bind_pattern_to_type p typ ctx
+  return (ctx', [t <: typ] <> cst <> cset)
+
 
 bind_pattern_to_type _ _ _ = do
   fail "Unmatching pattern / type"

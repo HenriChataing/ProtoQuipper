@@ -1,6 +1,8 @@
 module TransSyntax (define_user_subtyping,
                     translate_program,
                     translate_type,
+                    translate_bound_type,
+                    translate_unbound_type,
                     translate_body,
                     unsugar,
                     import_typedefs,
@@ -175,20 +177,19 @@ import_typedefs :: Bool -> [S.Typedef] -> QpState (Map String Int)
 import_typedefs proto typedefs = do
   -- Import the names of the types in the current labelling map
   -- This operation permits the writing of inductive types
-  m <- List.foldl (\rec (S.Typedef typename args _) -> do
-                     m <- rec
-                     n <- fresh_flag
-                     spec <- return $ Spec { args = List.length args, unfolded = ([], []), subtype = ([], [], []) }
+  List.foldl (\rec (S.Typedef typename args _) -> do
+                rec
+                spec <- return $ Spec { args = List.length args, unfolded = ([], []), subtype = ([], [], []) }
 
-                     -- Register the type in the current context
-                     register_type typename spec
+                -- Register the type in the current context
+                register_type typename spec
 
-                     -- Add an entry to the current module
-                     cm <- get_module
-                     ctx <- get_context
-                     set_context $ ctx { cmodule = cm { typespecs = Map.insert typename spec $ typespecs cm } }
+                -- Add an entry to the current module
+                cm <- get_module
+                ctx <- get_context
+                set_context $ ctx { cmodule = cm { typespecs = Map.insert typename spec $ typespecs cm } }
 
-                     return $ Map.insert typename (TBang n $ TUser typename []) m) (return Map.empty) typedefs
+                return ()) (return ()) typedefs
 
   -- Transcribe the rest of the type definitions
   -- Type definitions include : the name of the type, generic variables, the list of constructors
@@ -200,7 +201,7 @@ import_typedefs proto typedefs = do
                 (args', m') <- List.foldr (\a rec -> do
                                              (args, m) <- rec
                                              ta <- new_type
-                                             return (ta:args, Map.insert a ta m)) (return ([], m)) args
+                                             return (ta:args, Map.insert a ta m)) (return ([], Map.empty)) args
 
                 -- Define the type of the data constructors
                 (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
@@ -215,11 +216,11 @@ import_typedefs proto typedefs = do
                                                                  Just dt -> do
                                                                      -- The same flag is used to mark the argument and the return value of the function
                                                                      (dt'@(TBang n _), cset) <- if proto then do
-                                                                                                  (t, cset) <- translate_type dt [] m'
+                                                                                                  (t, cset) <- translate_bound_type dt m'
                                                                                                   t' <- unfold_tensors t
                                                                                                   return (t', cset)
                                                                                                 else
-                                                                                                  translate_type dt [] m' 
+                                                                                                  translate_bound_type dt m' 
                                                                      return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
@@ -235,7 +236,7 @@ import_typedefs proto typedefs = do
                 spec <- type_spec typename
                 ctx <- get_context
                 set_context $ ctx { types = Map.insert typename (spec { unfolded = (args', dtypes') }) $ types ctx }
-                return m) (return Map.empty) typedefs 
+                return m) (return Map.empty) typedefs
 
 
 -- | Transfer the type definitions from the state monad to the current module
@@ -256,48 +257,62 @@ update_module_types = do
 -- | Translate a type, given a labelling.
 -- The arguments of type applications are passed via the function calls
 -- The output includes a set of structural constraints : eg !p (!n a * !m b) imposes p <= n and p <= m
-translate_type :: S.Type -> [Type] -> Map String Type -> QpState (Type, ConstraintSet)
-translate_type S.TUnit [] _ = do
-  return (TBang anyflag TUnit, emptyset)
+-- The boolean associated with the map indicates whether the type variables are bound (type definition) or free (type constraint)
+translate_type :: S.Type -> [Type] -> (Map String Type, Bool) -> QpState (Type, ConstraintSet, Map String Type)
+translate_type S.TUnit [] m = do
+  return (TBang anyflag TUnit, emptyset, fst m)
 
-translate_type S.TBool [] _ = do
-  return (TBang anyflag TBool, emptyset)
+translate_type S.TBool [] m = do
+  return (TBang anyflag TBool, emptyset, fst m)
 
-translate_type S.TQBit [] _ = do
-  return (TBang zero TQbit, emptyset)
+translate_type S.TQBit [] m = do
+  return (TBang zero TQbit, emptyset, fst m)
 
-translate_type (S.TVar x) arg label = do
+translate_type (S.TVar x) arg (label, bound) = do
   case Map.lookup x label of
-    -- This case corresponds to user types
-    Just (TBang _ (TUser _ _)) -> do
-        -- Expected number of args
-        spec <- type_spec x
-        nexp <- return $ args spec
-        -- Actual number of args
-        nact <- return $ List.length arg
-
-        if nexp == nact then do
-          n <- fresh_flag
-          return (TBang n (TUser x arg), emptyset)
-        else do
-          ex <- get_location
-          f <- get_file
-          throw $ WrongTypeArguments x nexp nact (f, ex)
-
+    -- All the registered variables are bound variables from a type definition or a constraint
     Just typ ->
         if arg == [] then
-          return (typ, emptyset)
+          return (typ, emptyset, label)
         else do
           ex <- get_location
           f <- get_file
           throw $ WrongTypeArguments (pprint typ) 0 (List.length arg) (f, ex)
 
+    -- If the variable is not found, it can be either a user type,
+    -- or a free variable (depending on the boolean arg)
     Nothing -> do
-        ex <- get_location
-        f <- get_file
-        throw $ UnboundVariable x (f, ex)
+        ctx <- get_context
+        -- The variable is a algebraic type
+        if Map.member x $ types ctx then do
 
-translate_type (S.TQualified m x) arg _ = do
+          -- Expected number of args
+          spec <- type_spec x
+          nexp <- return $ args spec
+          -- Actual number of args
+          nact <- return $ List.length arg
+
+          if nexp == nact then do
+            n <- fresh_flag
+            return (TBang n (TUser x arg), emptyset, label)
+          else do
+            ex <- get_location
+            f <- get_file
+            throw $ WrongTypeArguments x nexp nact (f, ex)
+        
+        else if bound then do
+          -- If the type variables are supposed to be bound, this one isn't
+          ex <- get_location
+          f <- get_file
+          throw $ UnboundVariable x (f, ex)
+
+        else do
+          -- Last case, if the type authorize free variables, register this one with a new type
+          t <- new_type
+          return (t, emptyset, Map.insert x t label)
+
+
+translate_type (S.TQualified m x) arg lbl = do
   spec <- lookup_qualified_type (m, x)
   -- Expected number of args
   nexp <- return $ args spec
@@ -306,40 +321,40 @@ translate_type (S.TQualified m x) arg _ = do
 
   if nexp == nact then do
     n <- fresh_flag
-    return (TBang n (TUser x arg), emptyset)
+    return (TBang n (TUser x arg), emptyset, fst lbl)
   else do
     ex <- get_location
     f <- get_file
     throw $ WrongTypeArguments x nexp nact (f, ex)
 
-translate_type (S.TArrow t u) [] label = do
-  (t', csett) <- translate_type t [] label
-  (u', csetu) <- translate_type u [] label
+translate_type (S.TArrow t u) [] (label, bound) = do
+  (t', csett, lblt) <- translate_type t [] (label, bound)
+  (u', csetu, lblu) <- translate_type u [] (lblt, bound)
   n <- fresh_flag
-  return (TBang n (TArrow t' u'), csett <> csetu)
+  return (TBang n (TArrow t' u'), csett <> csetu, lblu)
 
-translate_type (S.TTensor tlist) [] label = do
+translate_type (S.TTensor tlist) [] (label, bound) = do
   n <- fresh_flag
-  (tlist', cset') <- List.foldr (\t rec -> do
-                                   (r, cs) <- rec
-                                   (t'@(TBang m _), cs') <- translate_type t [] label
-                                   return ((t':r), [(n, m)] <> cs' <> cs)) (return ([], emptyset)) tlist
-  return (TBang n (TTensor tlist'), cset')
+  (tlist', cset', lbl) <- List.foldr (\t rec -> do
+                                        (r, cs, lbl) <- rec
+                                        (t'@(TBang m _), cs', lbl') <- translate_type t [] (lbl, bound)
+                                        return ((t':r), [(n, m)] <> cs' <> cs, lbl')) (return ([], emptyset, label)) tlist
+  return (TBang n (TTensor tlist'), cset', lbl)
 
 translate_type (S.TBang t) [] label = do
-  (TBang _ t, cset) <- translate_type t [] label
-  return (TBang 1 t, cset)
+  (TBang _ t, cset, lbl) <- translate_type t [] label
+  return (TBang 1 t, cset, lbl)
 
-translate_type (S.TCirc t u) [] label = do
-  (t', csett) <- translate_type t [] label
-  (u', csetu) <- translate_type u [] label
-  return (TBang anyflag (TCirc t' u'), csett <> csetu)
+translate_type (S.TCirc t u) [] (label, bound) = do
+  (t', csett, lblt) <- translate_type t [] (label, bound)
+  (u', csetu, lblu) <- translate_type u [] (lblt, bound)
+  return (TBang anyflag (TCirc t' u'), csett <> csetu, lblu)
 
 -- Case of type application : the argument is pushed onto the arg list
-translate_type (S.TApp t u) args label = do
-  (u', cset) <- translate_type u [] label
-  (t', cset') <- translate_type t (u':args) label
-  return (t', cset <> cset')
+translate_type (S.TApp t u) args (label, bound) = do
+  (u', cset, lblt) <- translate_type u [] (label, bound)
+  (t', cset', lblu) <- translate_type t (u':args) (lblt, bound)
+  return (t', cset <> cset', lblu)
 
 translate_type (S.TLocated t ex) args label = do
   set_location ex
@@ -350,6 +365,25 @@ translate_type t args label = do
   ex <- get_location
   f <- get_file
   throw $ WrongTypeArguments (pprint t) 0 (List.length args) (f, ex)
+
+
+
+-- | Function translate_type applied to a bound type
+-- The arguments are supposed to be null initially
+translate_bound_type :: S.Type -> Map String Type -> QpState (Type, ConstraintSet)
+translate_bound_type t m = do
+  (t', cset, _) <- translate_type t [] (m, True)
+  return (t', cset)
+
+
+
+-- | Same for an unbound type
+-- The binding map is initially empty, and is dropped after the translation of the type
+-- No argument is passed to the top type
+translate_unbound_type :: S.Type -> QpState (Type, ConstraintSet)
+translate_unbound_type t = do
+  (t', cset, _) <- translate_type t [] (Map.empty, False)
+  return (t', cset)
 
 
 
@@ -390,6 +424,13 @@ translate_pattern_with_label (S.PDatacon datacon p) label = do
 translate_pattern_with_label (S.PLocated p ex) label = do
   set_location ex
   translate_pattern_with_label p label
+
+
+translate_pattern_with_label (S.PConstraint p t) label = do
+  (p', lbl) <- translate_pattern_with_label p label
+  (t', c) <- translate_unbound_type t
+  return (PConstraint p' (TForall [] [] c t'), lbl)
+
 
 -- | Translate an expression, given a labelling map
 translate_expression_with_label :: S.Expr -> Map String Variable -> QpState Expr
@@ -479,11 +520,7 @@ translate_expression_with_label (S.EIf e f g) label = do
   return (EIf e' f' g')
 
 translate_expression_with_label (S.EBox t) _ = do
-  -- Types
-  ctx <- get_context
-  typs <- return $ Map.mapWithKey (\typename _ -> TBang (-1) $ TUser typename []) (types ctx)
-
-  (t', cset) <- translate_type t [] typs
+  (t', cset) <- translate_bound_type t Map.empty
   -- The translation of the type of the box in the core syntax produces
   -- some constraints that needs to be conveyed to the type inference
   -- Using a scheme is a way of doing it
@@ -499,6 +536,12 @@ translate_expression_with_label (S.ELocated e ex) label = do
   set_location ex
   e' <- translate_expression_with_label e label
   return $ ELocated e' ex
+
+translate_expression_with_label (S.EConstraint e t) label = do
+  e' <- translate_expression_with_label e label
+  (t', c) <- translate_unbound_type t
+  return $ EConstraint e' (TForall [] [] c t')
+
 
 
 -- Label the gates

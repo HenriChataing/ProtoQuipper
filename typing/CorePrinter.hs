@@ -89,6 +89,9 @@ instance PPrint Pattern where
                          Just p -> "(" ++ sprintn (decr lv) p ++ ")"
                          Nothing -> ""
 
+  sprintn lv (PConstraint p _) =
+    sprintn lv p
+
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
 
@@ -164,6 +167,9 @@ print_doc (EMatch e blist) =
                           doc $$ pmatch) PP.empty blist)
 
 print_doc (ELocated e _) =
+  print_doc e
+
+print_doc (EConstraint e _) =
   print_doc e
 
 

@@ -159,6 +159,7 @@ data Pattern =
   | PVar Variable Extent                          -- x @ ex
   | PTuple [Pattern]                              -- <p1, .. , pn>
   | PDatacon Datacon (Maybe Pattern)              -- datacon p
+  | PConstraint Pattern Type                      -- p :> T
   deriving Show 
 
 
@@ -189,6 +190,7 @@ data Expr =
 
 -- Unrelated
   | ELocated Expr Extent                          -- e @ ex
+  | EConstraint Expr Type                         -- e :> T
   deriving Show
 
 
@@ -298,6 +300,7 @@ instance Param Pattern where
   free_var (PDatacon _ Nothing) = []
   free_var (PDatacon _ (Just p)) = free_var p
   free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
+  free_var (PConstraint p _) = free_var p
 
   subs_var _ _ p = p
 
@@ -339,12 +342,14 @@ instance Param Expr where
   free_var (ELocated e _) =
     free_var e
 
+  free_var (EConstraint e _) =
+    free_var e
+
   free_var _ =
     []
 
   subs_var _ _ e = e
 
-print_var x = subvar 'x' x
 
 
 

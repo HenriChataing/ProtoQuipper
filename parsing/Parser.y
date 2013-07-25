@@ -23,7 +23,6 @@ import Data.List as List
   '*' { TkStar $$ }
   '.' { TkDot $$ }
   ',' { TkComma $$ }
-  ':' { TkColon $$ }
   ';' { TkSemiColon $$ }
   '!' { TkBang $$ }
   '|' { TkBar $$ }
@@ -38,10 +37,12 @@ import Data.List as List
   '}' { TkRCurlyBracket $$ }  
 
   ";;" { TkDblSemiColon $$ }
-
-  FUN { TkFun $$ }
   "->" { TkArrow $$ }
   "<-" { TkBackArrow $$ }
+  ":>" { TkSubTypeRev $$ }
+
+
+  FUN { TkFun $$ }
   LET { TkLet $$ }
   REC { TkRec $$ }
   IN { TkIn $$ }
@@ -160,7 +161,7 @@ Atom_expr :
     | '(' Expr ')'                              { $2 }
     | '<' Expr_sep_list '>'                     { locate (ETuple $2) (fromto $1 $3) }
     | '<' '>'                                   { locate EUnit (fromto $1 $2) }
-    | '(' Expr ':' Type ')'                     { locate (EConstraint $2 $4) (fromto $1 $5) }
+    | '(' Expr ":>" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 
 Expr_sep_list :
@@ -170,7 +171,7 @@ Expr_sep_list :
 
 Pattern :
       LID                                       { locate (PVar (snd $1)) (fst $1) }
-    | '(' Pattern ':' Type ')'                  { locate (PConstraint $2 $4) (fromto $1 $5) }
+    | '(' Pattern ":>" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
     | '<' Pattern_sep_list '>'                  { locate (PTuple $2) (fromto $1 $3) }
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
