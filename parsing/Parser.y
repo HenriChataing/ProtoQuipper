@@ -74,7 +74,7 @@ import Data.List as List
   UID { TkUId $$ }
 
 
-%left "->"
+%right "->"
 %nonassoc '*'
 %nonassoc '!'
 
