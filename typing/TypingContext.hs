@@ -46,9 +46,8 @@ type_of x ctx = do
     Nothing -> do
         c <- get_context
         ex <- get_location
-        case IMap.lookup x $ varcons $ namespace c of
-          Just name -> throwQ $ ProgramError $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
-          Nothing -> throwQ $ ProgramError $ "Unbound variable: " ++ subvar 'x' x ++ ": at extent " ++ show ex
+        name <- variable_name x
+        throwQ $ ProgramError $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
 
 
 -- | Given a pattern, create a type matching the pattern, and binds the term variables of the pattern

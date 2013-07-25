@@ -17,6 +17,7 @@ tokens :-
   "--".*                              ;
 
   "<:"                                { locate_token TkSubType }
+  ":>"                                { locate_token TkSubTypeRev }
   "*"                                 { locate_token TkStar }
   "."                                 { locate_token TkDot }
   ","                                 { locate_token TkComma }
@@ -39,6 +40,7 @@ tokens :-
 
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
+  builtin                             { locate_token TkBuiltin }
   circ                                { locate_token TkCirc }
   do                                  { locate_token TkDo }
   else                                { locate_token TkElse }
@@ -91,7 +93,7 @@ data Token =
   | TkLet Extent           | TkIn Extent
   | TkRev Extent           | TkType Extent
   | TkOf Extent            | TkRec Extent
-  | TkImport Extent
+  | TkImport Extent        | TkBuiltin Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent
@@ -100,6 +102,7 @@ data Token =
   | TkBang Extent          | TkArrow Extent
   | TkBackArrow Extent     | TkSubType Extent
   | TkDblSemiColon Extent  | TkDot Extent
+  | TkSubTypeRev Extent
 
   -- Delimiters
   | TkLParen Extent        | TkRParen Extent
@@ -117,7 +120,7 @@ locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> String -> Token
 locate_named_token tk p s = tk (posn_to_extent p s, s)
 
 -- | Lexing function
-mylex :: String -> String -> IO [Token]
-mylex filename contents =
+mylex :: String -> IO [Token]
+mylex contents =
   return $ alexScanTokens contents
 }

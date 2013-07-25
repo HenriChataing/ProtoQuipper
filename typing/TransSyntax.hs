@@ -539,8 +539,13 @@ translate_program proto prog = do
 
   -- Import the global variables from the dependencies
   gbls <- global_namespace
+  gates <- import_gates
 
-  t <- translate_body (S.body prog) (Map.union dcons gbls)
+  ctx <- get_context
+  set_context $ ctx { gatesid = gates }
+
+
+  t <- translate_body (S.body prog) (Map.union dcons $ Map.union gbls gates)
   if proto then
     unsugar t
   else

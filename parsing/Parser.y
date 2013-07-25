@@ -121,7 +121,8 @@ Decl_list :
 
 Decl :
       LET Pattern '=' Expr ";;"                  { DLet Nonrecursive $2 $4 }
-    | LET REC LID Pattern_list '=' Expr ";;"     { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }   
+    | LET REC LID Pattern_list '=' Expr ";;"     { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
+    | LET LID Pattern_list '=' Expr ";;"         { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
     | Expr ";;"                                  { DExpr $1 }
 
 

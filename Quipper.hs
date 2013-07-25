@@ -50,7 +50,7 @@ main = do
     case runUnify opts of
       Just set -> do
           putStrLn  $ "\x1b[1;33m" ++ ">> unification test" ++ "\x1b[0m"
-          tokens <- mylex "" set
+          tokens <- mylex set
           constraints <- return $ parse_constraints tokens
           (do
              s <- unification_test constraints

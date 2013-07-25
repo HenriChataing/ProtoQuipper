@@ -45,7 +45,7 @@ gate_context gates = do
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
-  tokens <- liftIO $ mylex file contents
+  tokens <- liftIO $ mylex contents
   mod <- return $ module_of_file file
   return $ (parse tokens) { S.mname = mod, S.filepath = file }
 
@@ -177,7 +177,7 @@ process_module opts prog = do
 -- Type inference part
 
   -- Create the initial typing context
-  typctx <- return $ IMap.empty
+  typctx <- gate_context typing_environment
   
   -- Create the initial type
   a <- new_type
