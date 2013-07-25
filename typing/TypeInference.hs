@@ -715,7 +715,7 @@ unify exact (lc, fc) = do
 
               -- EXACT :
               -- Unify the rest, and keep the atomic constraints untouched
-              (non_lcx', fc') <- unify exact (non_lcx, fcatom ++ fc)
+              (non_lcx', fc') <- unify exact (non_lcx, fc)
               return (non_lcx' ++ atomx, fc')
 
         -- Semi-composite constraints :
