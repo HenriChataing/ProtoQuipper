@@ -255,7 +255,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(1)$}
-			\UnaryInfC{$!^I \Gamma \vdash_{\{!^n \top <: T \} \cup \{1 \le I\}} 1 : T$}
+			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I\}} 1 : \,!^n\top$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$!^I\Gamma, x : T \vdash_{\mathcal{L}} t : U$}
@@ -383,7 +383,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 						\RightLabel{$(1)$}
 						\UnaryInfC{$!^I \tau\Delta \vdash 1 : \,!^0\top$ or $!^1 \top$}
 					\end{prooftree}
-					with $I = 1 \dots 1$. With the solved constraint set $\mathcal{L} = \{!^n \top <: !^{0 ~\text{or}~ 1}, ~ 1 \le I\}$,
+					with $I = 1 \dots 1$. With the solved constraint set $\mathcal{L} = \{1 \le I\}$,
 					by application of the rule $(1)$ of LL', the typing judgement
 					$!^I \tau\Delta \vdash_{\mathcal{L}} 1 : \,!^0\top$ or $!^1 \top$ holds
 					
@@ -621,9 +621,9 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					\begin{prooftree}
 						\AxiomC{}
 						\RightLabel{$(1)$}
-						\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} 1 : T$}
+						\UnaryInfC{$!^I \Delta \vdash_{\{ 1 \le I \}} 1 : \,!^n\top$}
 					\end{prooftree}
-					with $\mathcal{L} = \{ !^n\top <: T \} \cup \{ 1 \le I \}$. By hypothesis, $\sigma I = 1 \dots 1$ and $\sigma T = !^0\top$ or $!^1\top$.
+					By hypothesis, $\sigma I = 1 \dots 1$.
 					By application of $\rho_sigma$, the typing derivation is transformed into
 					\begin{prooftree}
 						\AxiomC{}
@@ -956,16 +956,26 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 	\begin{proof} By induction on the typing derivation. Since the typing system is deterministic, as well as the constraint
 		typing algorithm, the typing derivation matches the calls to ConstraintTyping. If the last typing rule used is
 		\begin{itemize}
-			\item $(ax)$ or $(1)$.
+			\item $(ax)$.
 				The output of the constraint typing algorithm is exactly the
 				set $\mathcal{L}$ as in the typing judgement, and $\mathcal{L} \vdash \mathcal{L}$ trivially holds.
+
+ 			\item $(1)$. The typing rule is
+ 				\begin{prooftree}
+					\AxiomC{}
+					\RightLabel{$(1)$}
+					\UnaryInfC{$!^I \Gamma \vdash_{\{ 1 \le I \}} 1 : \,!^n\top$}
+				\end{prooftree}
+				The output of the algorithm being $\mathcal{L} = \{1 \le I\} \cup \{ !^m\top <: \,!^n\top \}$, with the substitution
+				$\sigma = [m \mapsto n]$, the relation $\{ 1 \le I \} \vdash \sigma \mathcal{L}$ holds.
+				
 				
 			\item $(\lambda)$. The typing rule is
 				\begin{prooftree}
-						\AxiomC{$!^I \Gamma, x : T \vdash_\mathcal{L} t : U$}
-						\RightLabel{$(\lambda)$}
-						\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L} \cup \{ n \le I \}} \lambda x.t : ~ !^n(T \multimap U)$}
-					\end{prooftree}
+					\AxiomC{$!^I \Gamma, x : T \vdash_\mathcal{L} t : U$}
+					\RightLabel{$(\lambda)$}
+					\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L} \cup \{ n \le I \}} \lambda x.t : ~ !^n(T \multimap U)$}
+				\end{prooftree}
 				The algorithm makes a recursive call on $!^I \Gamma, x : \, !^q \alpha \vdash t : \, !^r\beta$, with the result $\mathcal{L'}$.
 				Following, the output of the algorithm is
 					$$\mathcal{L''} = \mathcal{L'} \cup \{p \le I \} \cup \{\, !^p (\,!^q\alpha \multimap \,!^r\beta) <: \, !^n (T \multimap U) \}$$
@@ -1184,17 +1194,17 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(1)$}
-					\UnaryInfC{$!^I\Gamma \vdash_{\mathcal{L}} 1 : T$}
+					\UnaryInfC{$!^I\Gamma \vdash_{\{1 \le I\}} 1 : \,!^n\top$}
 				\end{prooftree}
-				with $\mathcal{L} = \{ !^n \top <: T \} \cup \{1 \le I\}$
+				The condition $T <: U$ ensures that $U$ is of the form $!^m\top$.
 				By application of the rule $(1)$ of LL', the derivation
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(1)$}
-					\UnaryInfC{$!^{I'}\Delta \vdash_{\mathcal{L'}} 1 : U$}
+					\UnaryInfC{$!^{I'}\Delta \vdash_{\{ 1 \le I' \}} 1 : \,!^m\top$}
 				\end{prooftree}
-				with $\mathcal{L} = \{ !^m \top <: U \} \cup \{1 \le I'\}$.
-				Consequently, $\mathcal{L} \cup \{!^{I'} \Delta <: \,!^I \Gamma\} \cup \{T <: U\} \vdash \mathcal{L'}$ holds.
+				is valid. By transitivity, the relation
+				$\mathcal{L} \cup \{!^{I'} \Delta <: \,!^I \Gamma\} \cup \{!^n\top <: ~!^m\top\} \vdash \{ 1 \le I' \}$ holds.
 				
 			\item $(ax)$. The typing derivation is
 				\begin{prooftree}
@@ -1312,7 +1322,7 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(ax)$}
-					\UnaryInfC{$!^I \Gamma, x : T \vdash_\mathcal{L} x : $}
+					\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I\}} 1 : !^n\top$}
 				\end{prooftree}
 				holds.
 				
