@@ -57,27 +57,25 @@ main = do
              putStrLn s) `E.catch` (\(e :: QError) -> do
                                       putStrLn $ show e)
 
-      Nothing ->
-          return ()
+      Nothing -> do
+          -- Other options
+          if files == [] then do
+            putStrLn "No argument file specified"
+            putStrLn $ usageInfo header options
+          else do
+            -- For now, only the first file is kept and treated
+            -- Read and parse the file
 
-    -- Other options
-    if files == [] then do
-      putStrLn "No argument file specified"
-      putStrLn $ usageInfo header options
-    else do
-      -- For now, only the first file is kept and treated
-      -- Read and parse the file
-
-      file <- return $ List.head files
-      putStrLn $ "\x1b[1;33m" ++ ">> Quipper" ++ "\x1b[0m"
-      (do
-         (_, (v, t)) <- Q.runS (do
-           Q.set_verbose (verbose opts)
-           do_everything opts file) Q.empty_context
-         case v of
-           Just v -> putStrLn $ pprint v
-           Nothing -> return ()
-         putStrLn $ pprint t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+            file <- return $ List.head files
+            putStrLn $ "\x1b[1;33m" ++ ">> Quipper" ++ "\x1b[0m"
+            (do
+               (_, (v, t)) <- Q.runS (do
+                 Q.set_verbose (verbose opts)
+                 do_everything opts file) Q.empty_context
+               case v of
+                 Just v -> putStrLn $ pprint v
+                 Nothing -> return ()
+               putStrLn $ pprint t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
   else
     return ()
 
