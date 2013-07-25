@@ -681,6 +681,11 @@ unify exact (lc, fc) = do
       -- Filter the atomic constraints
       (atomx, natomx) <- return $ List.partition is_atomic lcx
 
+      -- The atomic constraints still convey some flag constraints
+      fcatom <- List.foldl (\rec (Subtype (TBang n _) (TBang m _)) -> do
+                              r <- rec
+                              return $ (m, n):r) (return []) atomx
+
       -- Check the next action
       case (atomx, natomx) of
 
@@ -692,18 +697,16 @@ unify exact (lc, fc) = do
               -- APPROXIMATION :
               -- Of all the variables, keep only one and replace the rest
               ((TBang n xh):rest) <- return cx
-              fc' <- List.foldl (\rec (TBang m (TVar x)) -> do 
-                                   fc <- rec
-                                   mapsto x $ xh
-                                   (_, fc') <- return $ subs_flag m n (([], fc) :: ConstraintSet)
-                                   return fc') (return fc) rest
-              unify exact (non_lcx, fc')
+              List.foldl (\rec (TBang m (TVar x)) -> do 
+                            rec
+                            mapsto x $ xh) (return ()) rest
+              unify exact (non_lcx, fcatom ++ fc)
 
             else do
 
               -- EXACT :
               -- Unify the rest, and keep the atomic constraints untouched
-              (non_lcx', fc') <- unify exact (non_lcx, fc)
+              (non_lcx', fc') <- unify exact (non_lcx, fcatom ++ fc)
               return (non_lcx' ++ atomx, fc')
 
         -- Semi-composite constraints :
@@ -731,7 +734,7 @@ unify exact (lc, fc) = do
                                   mapsto x $ no_bang rightend) (return ()) cx
 
                     -- Unify the rest
-                    unify False (non_lcx, fc)
+                    unify False (non_lcx, fcatom ++ fc)
                     
                 (_, TBang _ (TVar x)) -> do
                     -- Map everything to the left end
@@ -740,7 +743,7 @@ unify exact (lc, fc) = do
                                   mapsto x $ no_bang leftend) (return ()) cx
 
                     -- Unify the rest
-                    unify False (non_lcx, fc)
+                    unify False (non_lcx, fcatom ++ fc)
 
                 _ -> do
                     -- Map everything to the left end
@@ -753,7 +756,7 @@ unify exact (lc, fc) = do
                     register_constraints $ fst cset'
 
                     -- Unify the rest
-                    unify False $ cset' <> (non_lcx, fc)
+                    unify False $ cset' <> (non_lcx, fcatom ++ fc)
 
             else do
 
