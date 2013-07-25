@@ -7,11 +7,13 @@ Quipper
 *.o
 .*
 *.info
-doc/*.aux
-doc/*.pdf
-doc/*.gz
-doc/*.log
-doc/*.dvi
+
+*.toc
+*.aux
+*.pdf
+*.gz
+*.log
+*.dvi
 
 _build
 
