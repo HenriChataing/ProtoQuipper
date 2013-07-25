@@ -113,8 +113,8 @@ print_doc (ELet r p e f) =
 
 print_doc (ETuple elist) =
   let plist = List.map print_doc elist in
-  let slist = (punctuate comma $ List.init plist) ++ [List.last plist] in
-  char '<' <+> hsep slist <+> char '>'
+  let slist = punctuate comma plist in
+  char '<' <> hsep slist <> char '>'
 
 print_doc (EApp e f) =
   let pe = print_doc e
