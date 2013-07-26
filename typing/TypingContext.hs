@@ -88,7 +88,7 @@ bind_pattern (PTuple plist) ctx = do
   -- Generate the constraints on the flag of the tuple
   pflags <- return $ List.foldl (\fgs (TBang f _) -> (n, f):fgs) [] ptypes
 
-  return (TBang n (TTensor ptypes), ctx, cset <> ([], pflags))
+  return (TBang n (TTensor ptypes), ctx, cset <> pflags)
 
 -- While binding datacons, a new type is generated for the inner one,
 -- with the condition that it is a subtype of the type required by the data constructor

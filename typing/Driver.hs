@@ -175,7 +175,7 @@ process_module opts prog = do
   a <- new_type
 
   -- | constraint typing | --
-  constraints <- constraint_typing typctx cprog a
+  constraints <- constraint_typing typctx cprog [a]
   newlog 1 ">> Initial constraint set"
   newlog 1 $ pprint constraints ++ "\n"
 

@@ -367,6 +367,17 @@ data TypeConstraint =
 t <: u = Subtype t u
 
 
+-- | Another shortcut for writing a set of constraints T1 .. Tn <: U
+(<<:) :: [Type] -> Type -> [TypeConstraint]
+tlist <<: u = List.map (\t -> t <: u) tlist
+
+
+-- | Another shortcut for writing a set of constraints T <: U1 .. Un
+(<::) :: Type -> [Type] -> [TypeConstraint]
+t <:: ulist = List.map (\u -> t <: u) ulist
+
+
+
 -- | Flag constraints, of the form n <= m, to be interpreted as
 --    n <= 0  ==  n :=: 0
 --    1 <= n  ==  n :=: 1
@@ -382,18 +393,36 @@ type ConstraintSet =
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
--- The only purpose of this class is to overload the <> operator to be able to use it (on the left) with either constaint
+-- The only purpose of this class is to overload the <> operator to be able to use it on either constaint
 -- sets, lists of type constraints, or lists of flag constraints
-class Constraints a where
-  (<>) :: a -> ConstraintSet -> ConstraintSet
+class Constraints a b where
+  (<>) :: a -> b -> ConstraintSet
 
-instance Constraints [TypeConstraint] where
+instance Constraints [TypeConstraint] [TypeConstraint] where
+  lc <> lc' = (lc ++ lc', [])
+
+instance Constraints [TypeConstraint] [FlagConstraint] where
+  lc <> fc = (lc, fc)
+
+instance Constraints [TypeConstraint] ConstraintSet where
   lc <> (lc', fc') = (lc ++ lc', fc')
 
-instance Constraints [FlagConstraint] where
+instance Constraints [FlagConstraint] [TypeConstraint] where
+  fc <> lc = (lc, fc)
+
+instance Constraints [FlagConstraint] [FlagConstraint] where
+  fc <> fc' = ([], fc ++ fc')
+
+instance Constraints [FlagConstraint] ConstraintSet where
   fc <> (lc', fc') = (lc', fc ++ fc')
 
-instance Constraints ConstraintSet where
+instance Constraints ConstraintSet [TypeConstraint] where
+  (lc, fc) <> lc' = (lc ++ lc', fc)
+
+instance Constraints ConstraintSet [FlagConstraint] where
+  (lc, fc) <> fc' = (lc, fc ++ fc')
+
+instance Constraints ConstraintSet ConstraintSet where
   (lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
 
 
