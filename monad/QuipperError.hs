@@ -33,9 +33,10 @@ data QError =
   | WrongTypeArguments String Int Int (String, Extent)
     -- The box constructor requires a quantum data type, this error is thrown otherwise
   | BoxTypeError (String, Extent)
-    -- Variable / datacon is unbound / undefined
+    -- Variable / datacon / builtin is unbound / undefined
   | UnboundVariable String (String, Extent)
   | UnboundDatacon String (String, Extent)
+  | UndefinedBuiltin String (String, Extent)
 
 
 -- RUN TIME ERRORS
@@ -84,7 +85,8 @@ instance Show QError where
   show (BoxTypeError (f, ex)) = f ++ ":" ++ show ex ++ ": the box constructor expect a quantum data type as argument"
   show (UnboundVariable x (f, ex)) = f ++ ":" ++ show ex ++ ": unbound variable " ++ x
   show (UnboundDatacon dcon (f, ex)) = f ++ ":" ++ show ex ++ ": unbound data constructor " ++ dcon
- 
+  show (UndefinedBuiltin s (f, ex)) = f ++ ":" ++ show ex ++ ": undefined builtin value " ++ s
+
   show (NotBoolError v (f, ex)) = f ++ ":" ++ show ex ++ ": " ++ v ++ " is not of type bool"
   show (NoMatchError v (f, ex)) = f ++ ":" ++ show ex ++ ": this pattern matching is not exhaustive: the value " ++ v ++ " is not matched"
   show (NotFunctionError v (f, ex)) = f ++ ":" ++ show ex ++ ": " ++ v ++ " is not a function"

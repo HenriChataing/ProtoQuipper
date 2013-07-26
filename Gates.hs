@@ -66,17 +66,3 @@ binary_type :: Type
 ------------------
 binary_type = TCirc (TTensor [TQBit, TQBit]) (TTensor [TQBit, TQBit])
 
-----------------------------------------------
-------------- Typing environment -------------
-
--- Generation of the typing environment
-typing_environment :: [(String, Type)]
-------------------------------------
-typing_environment =
-  let init_types = [("INIT0", TCirc TUnit TQBit), ("INIT1", TCirc TUnit TQBit)] in
-  let term_types = [("TERM0", TCirc TQBit TUnit), ("TERM1", TCirc TQBit TUnit)] in
-  let unary_types = List.map (\s -> (s, unary_type)) unary_gates in
-  let binary_types = List.map (\s -> (s, binary_type)) binary_gates in
-
-  init_types ++ term_types ++ unary_types ++ binary_types
-

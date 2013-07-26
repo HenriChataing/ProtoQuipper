@@ -40,7 +40,6 @@ tokens :-
 
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
-  builtin                             { locate_token TkBuiltin }
   circ                                { locate_token TkCirc }
   do                                  { locate_token TkDo }
   else                                { locate_token TkElse }
@@ -60,11 +59,12 @@ tokens :-
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
   with                                { locate_token TkWith }
+  "#builtin"                          { locate_token TkBuiltin }
 
   $low_alpha [$alpha $digit]*         { locate_named_token TkLId }
   $up_alpha [$up_alpha $digit]*       { locate_named_token TkLId }
   $up_alpha [$alpha $digit]*          { locate_named_token TkUId }
-
+ 
 {
 
 -- | Converts alex's positions to extents
@@ -81,6 +81,7 @@ data Token =
   -- Name tokens : variables and data constructors
     TkLId (Extent, String)
   | TkUId (Extent, String)
+  | TkString (Extent, String)
 
   -- Reserved notations : list of reserved names
   | TkBool Extent          | TkQBit Extent

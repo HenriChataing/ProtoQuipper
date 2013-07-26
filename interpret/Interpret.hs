@@ -28,44 +28,6 @@ import qualified Data.List as List
 
 type Environment = IntMap Value
 
--- | Creation of the gates
--- The gates are only listed by name in the Gates module, so a value need to be created for
--- each one. Note that the gates should already have been labeled (given a unique id) during
--- the syntax translation. The assiocations will be made with those ids, rather than the gates string names
-
-gate_values :: QpState [(Int, Value)]
-gate_values = do
-  -- Creation of the init gates
-  linit0 <- gate_id "INIT0"
-  linit1 <- gate_id "INIT1"
-  init_values <- return [(linit0, VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 0 ], qOut = [0] }) (VQbit 0)),
-                         (linit1, VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 1 ], qOut = [0] }) (VQbit 0)) ]
-
-  -- Creation of the term gates
-  lterm0 <- gate_id "TERM0"
-  lterm1 <- gate_id "TERM1"
-  term_values <- return [(lterm0, VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 0 ], qOut = [0] }) VUnit),
-                         (lterm1, VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 1 ], qOut = [0] }) VUnit) ]
-
-  -- Creation of the unary gates
-  unary_values <- List.foldl (\rec s -> do
-                                r <- rec
-                                lbl <- gate_id s
-                                g <- return (lbl, VCirc (VQbit 0) (Circ { qIn = [0], gates = [ C.Unary s 0 ], qOut = [0] }) (VQbit 0))
-                                return (g:r)) (return []) unary_gates
-
-  -- Creation of the binary gates
-  binary_values <- List.foldl (\rec s -> do
-                                 r <- rec
-                                 lbl <- gate_id s
-                                 g <- return (lbl, VCirc (VTuple [VQbit 0, VQbit 1])
-                                                         (Circ { qIn = [0, 1], gates = [ C.Binary s 0 1 ], qOut = [0, 1] })
-                                                         (VTuple [VQbit 0, VQbit 1]))
-                                 return (g:r)) (return []) binary_gates
-
-  -- Return the whole
-  return $ init_values ++ term_values ++ unary_values ++ binary_values
-
 
 -- | Return fresh quantum address
 fresh_qbit :: QpState Int
@@ -403,6 +365,18 @@ interpret env (EVar x) = do
         file <- get_file
         throw $ UnboundVariable (show x) (file, ex)
 
+-- Global variables
+interpret env (EGlobal x) = do
+  case IMap.lookup x env of
+    Just v ->
+        return v
+    Nothing -> do
+        -- This kind of errors should have been eliminated during the translation to the internal syntax
+        ex <- get_location
+        file <- get_file
+        throw $ UnboundVariable (show x) (file, ex)
+
+
 -- Functions : The current context is enclosed in the function value
 interpret env (EFun p e) = do
   return (VFun env p e)
@@ -482,6 +456,12 @@ interpret env (EIf e1 e2 e3) = do
         f <- get_file
         throw $ NotBoolError (sprint v1) (f, ex)
 
+interpret env (EConstraint e _) = do
+  interpret env e
+
+interpret _ (EBuiltin s) =
+  builtin_value s
+
 
 
 -- | Main function, the only one to be called outside of the module
@@ -490,13 +470,11 @@ interpret env (EIf e1 e2 e3) = do
 run_module :: Expr -> QpState Value
 run_module e = do
   -- Create the initial evaluation context
-  gv <- gate_values
   gbls <- global_context
-  basic_environment <- return (IMap.union gbls $ IMap.fromList gv)
 
   -- Reset the circuit stack
   ctx <- get_context
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
 
-  interpret basic_environment e
+  interpret gbls e
 

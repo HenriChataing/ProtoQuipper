@@ -22,9 +22,11 @@ import Data.List ((\\))
 import qualified Data.List as List
 import Data.Sequence as Seq hiding (filter)
 import Data.Array as Array
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.IntMap as IMap
+
 
 
 -- | Samr concatenation function as (<> :: [FlagConstraint] -> ConstraintSet -> ConstraintSet), except it
@@ -510,6 +512,11 @@ constraint_typing typctx (EConstraint e (TForall _ _ cst t)) typ = do
   cset <- constraint_typing typctx e typ
   return $ [t <: typ] <> cst <> cset
 
+
+-- For builtins, get the type registered in the builtins map
+constraint_typing _ (EBuiltin s) typ = do
+  acts <- builtin_type s
+  return $ ([acts <: typ], [])
 
 
 

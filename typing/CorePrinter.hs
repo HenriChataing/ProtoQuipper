@@ -169,6 +169,9 @@ print_doc (EMatch e blist) =
 print_doc (ELocated e _) =
   print_doc e
 
+print_doc (EBuiltin s) =
+  text "#builtin" <+> text s
+
 print_doc (EConstraint e _) =
   print_doc e
 

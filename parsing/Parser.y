@@ -69,6 +69,7 @@ import Data.List as List
   OF { TkOf $$ }
  
   IMPORT { TkImport $$ }
+  BUILTIN { TkBuiltin $$ }
 
   LID { TkLId $$ }
   UID { TkUId $$ }
@@ -152,6 +153,7 @@ Atom_expr :
       TRUE                                      { locate (EBool True) $1 }
     | FALSE                                     { locate (EBool False) $1 }
     | LID                                       { locate (EVar (snd $1)) (fst $1) }
+    | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' Type ']'                          { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }

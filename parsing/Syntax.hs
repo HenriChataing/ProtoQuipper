@@ -41,6 +41,7 @@ data Program = Prog {
   body :: [Declaration]
 }
 
+
 instance Eq Program where
   (==) p1 p2 = mname p1 == mname p2
 
@@ -194,6 +195,7 @@ data Expr =
 
 -- Unrelated
   | EConstraint Expr Type          -- (e : A)
+  | EBuiltin String                -- #builtin s
   | ELocated Expr Extent           -- e @ ex
   deriving Show
 
@@ -246,4 +248,5 @@ pattern_of_expr EUnit = PUnit
 pattern_of_expr (EVar x) = PVar x
 pattern_of_expr (ETuple elist) = PTuple $ List.map pattern_of_expr elist
 pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
+
 

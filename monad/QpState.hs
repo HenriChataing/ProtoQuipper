@@ -83,10 +83,12 @@ data Context = Ctx {
   globals :: IntMap Type, 
 
 
+-- Builtin values
+  builtins :: Map String (Type, Value),
+
 -- Namespace, which contains the names of the term variables and datacons,
 -- since those have been replaced by their unique id
   namespace :: Namespace,
-
 
 -- Definition of the types
 -- Types are referenced by their name. Is recorded the number of type arguments
@@ -105,8 +107,7 @@ data Context = Ctx {
 -- the type it is prefix of
   flags :: IntMap FlagInfo,
 
--- Circuits / gates
-  gatesid :: Map String Int,
+-- Circuit stack
   circuits :: [Circuit],
 
 -- Id generation
@@ -182,6 +183,8 @@ empty_context =  Ctx {
   globals = IMap.empty, 
 
 
+-- No builtins, added later
+  builtins = Map.empty,
 
 -- The initial location is unknown, as well as the name of the code file
   filename = "*UNKNOWN*",
@@ -191,8 +194,6 @@ empty_context =  Ctx {
   types = Map.empty,
   datacons = IMap.empty,
   flags = IMap.empty,
-   
-  gatesid = Map.empty,
 
   circuits = [],
 
@@ -417,6 +418,29 @@ lookup_qualified_type (mod, n) = do
     ex <- get_location
     f <- return $ codefile (cmodule ctx)
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+
+
+-- | Lookup for the type of a builtin
+builtin_type :: String -> QpState Type
+builtin_type s = do
+  ctx <- get_context
+  case Map.lookup s $ builtins ctx of
+    Just (t, _) ->
+        return t
+    Nothing ->
+        throwQ $ ProgramError $ "Missing builtin: " ++ s
+
+
+-- | Lookup for the value of a builtin
+builtin_value :: String -> QpState Value
+builtin_value s = do
+  ctx <- get_context
+  case Map.lookup s $ builtins ctx of
+    Just (_, v) ->
+        return v
+    Nothing ->
+        throwQ $ ProgramError $ "Missing builtin: " ++ s
+
 
 
 -- | Check the state for a type name
@@ -724,18 +748,6 @@ rewrite_flags (TBang n t) = do
         
 
 
--- | Retrieves the id of a gate
-gate_id :: String -> QpState Int
-gate_id g = do
-  ctx <- get_context
-  case Map.lookup g $ gatesid ctx of
-    Just id ->
-        return id
- 
-    Nothing -> do
-        register_var g
-
-
 -- | Generates a fresh type variable (linear type)
 fresh_type :: QpState Variable
 fresh_type = do
@@ -889,5 +901,4 @@ map_type t = do
     return t
   else
     map_type t'
-
 

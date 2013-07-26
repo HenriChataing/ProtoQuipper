@@ -5,6 +5,7 @@ module TransSyntax (define_user_subtyping,
                     translate_unbound_type,
                     translate_body,
                     unsugar,
+                    import_builtins,
                     import_typedefs,
                     update_module_types) where
 
@@ -19,6 +20,8 @@ import CorePrinter
 import Syntax (RecFlag (..))
 import qualified Syntax as S
 import Printer
+import Values
+import Circuits as C
 
 import TypeInference (unfold_user_constraint, break_composite)
 
@@ -32,6 +35,54 @@ import Control.Exception
 import Data.Map as Map
 import qualified Data.List as List
 import qualified Data.IntMap as IMap
+
+-- | Generation of the builtin context
+builtin_gates :: Map String (S.Type, Value)
+builtin_gates =
+  let init = [("INIT0", (S.TCirc S.TUnit S.TQBit,
+                         VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 0 ], qOut = [0] }) (VQbit 0))),
+              ("INIT1", (S.TCirc S.TUnit S.TQBit,
+                         VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 1 ], qOut = [0] }) (VQbit 0)))] in
+
+  let term = [("TERM0", (S.TCirc S.TQBit S.TUnit,
+                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 0 ], qOut = [0] }) VUnit)),
+              ("TERM1", (S.TCirc S.TQBit S.TUnit,
+                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 1 ], qOut = [0] }) VUnit))] in
+
+  let unary = List.map (\g -> (g, (unary_type, unary_value g))) unary_gates in
+  let binary = List.map (\g -> (g, (binary_type, binary_value g))) binary_gates in
+
+  Map.fromList (init ++ term ++ unary ++ binary)
+
+-- | Generic value associated to unary gates
+unary_value :: String -> Value
+unary_value g =
+  VCirc (VQbit 0) (Circ { qIn = [0], gates = [ C.Unary g 0 ], qOut = [0] }) (VQbit 0) 
+
+-- | Generic value associated to binary gates
+binary_value :: String -> Value
+binary_value g =
+  VCirc (VTuple [VQbit 0, VQbit 1])
+        (Circ { qIn = [0, 1], gates = [ C.Binary g 0 1 ], qOut = [0, 1] })
+        (VTuple [VQbit 0, VQbit 1])
+
+
+-- | Builtin values
+-- For the moment, only the gates are builtin. Later, other values may be added
+-- The gates are only listed by name in the Gates module, so a value and type need to be created for
+-- each one. 
+import_builtins :: QpState ()
+import_builtins = do
+  mb <- Map.foldWithKey (\b (t, v) rec -> do
+                      m <- rec
+                      (t', _) <- translate_bound_type t Map.empty
+                      return $ Map.insert b (t', v) m) (return Map.empty) builtin_gates
+  ctx <- get_context
+  set_context $ ctx { builtins = mb }
+
+
+
+
 
 -- | The typing constraints  {user a <: user a'} don't make much sense as is, so they need
 -- to be converted to some constraints about the arguments, like {user a <: user a'} == {a <: a'}
@@ -537,32 +588,23 @@ translate_expression_with_label (S.ELocated e ex) label = do
   e' <- translate_expression_with_label e label
   return $ ELocated e' ex
 
+translate_expression_with_label (S.EBuiltin s) _ = do
+  -- Check the existence of the builtin value before translating it
+  ctx <- get_context
+  if Map.member s $ builtins ctx then
+    -- Ok, the builtin s exists
+    return $ EBuiltin s
+  else do
+    -- Wrong, no builtin of name s has been defined
+    ex <- get_location
+    f <- get_file
+    throwQ $ UndefinedBuiltin s (f, ex)
+
 translate_expression_with_label (S.EConstraint e t) label = do
   e' <- translate_expression_with_label e label
   (t', c) <- translate_unbound_type t
   return $ EConstraint e' (TForall [] [] c t')
 
-
-
--- Label the gates
-import_gates :: QpState (Map String Int)
-import_gates = do
-  li0 <- register_var "INIT0"
-  li1 <- register_var "INIT1"
-  ti0 <- register_var "TERM0"
-  ti1 <- register_var "TERM1"
-
-  m <- return $ Map.fromList [("INIT0", li0), ("INIT1", li1), ("TERM0", ti0), ("TERM1", ti1)]
-
-  m' <- List.foldl (\rec g -> do
-                      m <- rec
-                      id <- register_var g
-                      return $ Map.insert g id m) (return m) unary_gates
-  
-  List.foldl (\rec g -> do
-                m <- rec
-                id <- register_var g
-                return $ Map.insert g id m) (return m') binary_gates
 
 
 -- | Translate a whole program
@@ -582,13 +624,8 @@ translate_program proto prog = do
 
   -- Import the global variables from the dependencies
   gbls <- global_namespace
-  gates <- import_gates
 
-  ctx <- get_context
-  set_context $ ctx { gatesid = gates }
-
-
-  t <- translate_body (S.body prog) (Map.union dcons $ Map.union gbls gates)
+  t <- translate_body (S.body prog) (Map.union dcons gbls)
   if proto then
     unsugar t
   else

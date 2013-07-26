@@ -15,7 +15,6 @@ import CoreSyntax
 import CorePrinter
 
 import Circuits
-import Gates
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -55,4 +54,5 @@ instance PPrint Value where
 
   sprint v = pprint v
   sprintn _ v = pprint v
+
 

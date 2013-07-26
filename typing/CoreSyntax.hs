@@ -190,6 +190,7 @@ data Expr =
 
 -- Unrelated
   | ELocated Expr Extent                          -- e @ ex
+  | EBuiltin String                               -- #builtin s
   | EConstraint Expr Type                         -- e :> T
   deriving Show
 

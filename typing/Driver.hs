@@ -32,14 +32,6 @@ import Data.Map as Map
 import Data.IntMap as IMap
 import Data.Char as Char
 
--- Import the gates into the current context
-gate_context :: [(String, S.Type)] -> QpState TypingContext
-gate_context gates = do
-  List.foldl (\rec (s, t) -> do
-                ctx <- rec
-                (t', _) <- translate_bound_type t Map.empty
-                x <- gate_id s
-                bind_var x t' ctx) (return IMap.empty) gates
 
 -- | Lex and parse a file located by the given filepath
 lex_and_parse_implementation :: FilePath -> QpState S.Program
@@ -177,7 +169,7 @@ process_module opts prog = do
 -- Type inference part
 
   -- Create the initial typing context
-  typctx <- gate_context typing_environment
+  typctx <- return IMap.empty
   
   -- Create the initial type
   a <- new_type
@@ -236,6 +228,9 @@ process_module opts prog = do
 -- | DO EVERYTHING !
 do_everything :: Options -> FilePath -> QpState (Maybe Value, Type)
 do_everything opts file = do
+  -- Define the builtins
+  import_builtins
+
   -- Parse the original file
   prog <- lex_and_parse_implementation file
 
