@@ -1,5 +1,7 @@
 module TypeInference where
 
+import Prelude hiding (filter)
+
 import Classes
 import Utils
 import Localizing
@@ -16,12 +18,40 @@ import Ordering
 
 import Control.Exception as E
 
-import Data.List as List
-import Data.Sequence as Seq
+import Data.List ((\\))
+import qualified Data.List as List
+import Data.Sequence as Seq hiding (filter)
 import Data.Array as Array
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.IntMap as IMap
+
+
+-- | Samr concatenation function as (<> :: [FlagConstraint] -> ConstraintSet -> ConstraintSet), except it
+-- first filters out the trivial, useless constraints : containing -1, of the form .. < 1 or 0 < .. and so on
+-- It also directly applies the constraints 1 < n and n < 0
+filter :: [FlagConstraint] -> QpState [FlagConstraint]
+filter fc = do
+  List.foldl (\rec c -> do
+                r <- rec
+                case c of
+                  -- Useless
+                  (-1, _) -> return r
+                  (_, -1) -> return r
+                  (0, _) -> return r
+                  (_, 1) -> return r
+
+                  -- Direct
+                  (1, n) -> do
+                      set_flag n
+                      return r
+                  (n, 0) -> do
+                      unset_flag n
+                      return r
+
+                  -- Everything else
+                  _ -> return $ c:r) (return []) fc
+
 
 
 -- Build all the deriving constraints
@@ -43,7 +73,7 @@ constraint_typing typctx (ELocated e ex) t = do
 
 constraint_typing typctx EUnit t = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx
+  fconstraints <- have_duplicable_context typctx >>= filter
   
   -- Generates a referenced flag of the actual type of EUnit
   ex <- get_location
@@ -62,7 +92,7 @@ constraint_typing typctx EUnit t = do
 
 constraint_typing typctx (EBool b) t = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx
+  fconstraints <- have_duplicable_context typctx >>= filter
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
@@ -87,7 +117,7 @@ constraint_typing typctx (EVar x) u = do
   -- Have the rest of the context be duplicable
   flags <- context_annotation typctx
   flags_nx <- return $ List.deleteBy (\(x, _) (y, _) -> x == y) (x, 0) flags
-  fconstraints <- return $ List.map (\(_, f) -> (one, f)) flags_nx
+  fconstraints <- (return $ List.map (\(_, f) -> (one, f)) flags_nx) >>= filter
 
   return $ ([t <: u], fconstraints) <> cset
 
@@ -111,7 +141,7 @@ constraint_typing typctx (EGlobal x) u = do
 
 constraint_typing typctx (EBox (TForall _ _ cset a)) typ = do
   -- The context must be duplicable 
-  fconstraints <- have_duplicable_context typctx
+  fconstraints <- have_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -135,7 +165,7 @@ constraint_typing typctx (EBox (TForall _ _ cset a)) typ = do
 
 constraint_typing typctx ERev typ = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx
+  fconstraints <- have_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -160,7 +190,7 @@ constraint_typing typctx ERev typ = do
 
 constraint_typing typctx EUnbox typ = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx
+  fconstraints <- have_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -204,7 +234,7 @@ constraint_typing typctx (EApp t u) b = do
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, typctx_delta) <- sub_context disunion typctx
-  fconstraints <- have_duplicable_context typctx_delta
+  fconstraints <- have_duplicable_context typctx_delta >>= filter
   
   return $ csett <> csetu <> ([], fconstraints)
 
@@ -234,7 +264,7 @@ constraint_typing typctx (EFun p e) t = do
   csete <- constraint_typing typctx' e b
 
   -- Build the context constraints : n <= I
-  fconstraints <- return $ List.map (\(_, f) -> (n, f)) flags
+  fconstraints <- (return $ List.map (\(_, f) -> (n, f)) flags) >>= filter
 
   return $ cseta <> csete <> ([TBang n (TArrow a b) <: t], fconstraints)
 
@@ -283,7 +313,7 @@ constraint_typing typctx (ETuple elist) typ = do
   disunion <- return $ disjoint_union fvlist
 
   (_, typctx_delta) <- sub_context disunion typctx
-  fconstraints <- have_duplicable_context typctx_delta
+  fconstraints <- have_duplicable_context typctx_delta >>= filter
   
   return $ csetlist <> ([TBang p (TTensor tlist) <: typ], pcons ++ fconstraints)
 
@@ -353,7 +383,7 @@ constraint_typing typctx (ELet rec p t u) typ = do
   -- Generate the flag constraints for the intersection
   (_, typctx_delta) <- sub_context ((fvt \\ fvu) ++ (fvu \\ fvt)) typctx
   flags <- context_annotation typctx_delta
-  fconstraints <- return $ List.map (\(_, f) -> (1, f)) flags
+  fconstraints <- (return $ List.map (\(_, f) -> (1, f)) flags) >>= filter
   
   return $ csetu <> ([], fconstraints)
 
@@ -434,7 +464,7 @@ constraint_typing typctx (EMatch e blist) typ = do
   disunion <- return $ (fve \\ fvlist) ++ (fvlist \\ fve)
   (_, typctx_delta) <- sub_context disunion typctx
   flags <- context_annotation typctx_delta
-  fconstraints <- return $ List.map (\(_, f) -> (1, f)) flags
+  fconstraints <- (return $ List.map (\(_, f) -> (1, f)) flags) >>= filter
   
   return $ csete <> csetlist <> ([], fconstraints) 
 
@@ -467,7 +497,7 @@ constraint_typing typctx (EIf e f g) typ = do
   -- Generate the flag constraints for the intersection
   (_, typctx_delta) <- sub_context ((fve \\ fvfg) ++ (fvfg \\ fve)) typctx
   flags <- context_annotation typctx_delta
-  fconstraints <- return $ List.map (\(_, f) -> (1, f)) flags
+  fconstraints <- (return $ List.map (\(_, f) -> (1, f)) flags) >>= filter
   
   return $ csete <> csetf <> csetg <> ([], fconstraints)
 
