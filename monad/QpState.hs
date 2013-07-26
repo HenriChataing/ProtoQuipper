@@ -311,7 +311,7 @@ register_type typ spec = do
   set_context $ ctx { types = Map.insert typ spec $ types ctx }
 
 
--- | Return the name of the variablechopin études op 25 
+-- | Return the name of the variable 
 -- Looks in the namespace for the name of the variable n. If no match is found,
 -- a standard name x_n is produced
 variable_name :: Variable -> QpState String
@@ -323,6 +323,21 @@ variable_name x = do
 
     Nothing ->
         return $ subvar 'x' x
+
+
+-- | Return the name of the datacon
+-- Looks in the namespace for the name of the datacon d. If no match is found,
+-- a standard name D_n is produced
+datacon_name :: Variable -> QpState String
+datacon_name x = do
+  ctx <- get_context
+  case IMap.lookup x $ N.datacons (namespace ctx) of
+    Just n ->
+        return n
+
+    Nothing ->
+        return $ subvar 'D' x
+
 
 
 -- | Request for the variable x to be exported (added to the current module export list)
@@ -782,8 +797,8 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
     (Just (e, ex), _) -> do
         -- Print the expression / pattern
         pre <- case e of
-                 ActualOfE e -> return $ pprint e
-                 ActualOfP p -> return $ pprint p
+                 ActualOfE e -> pprint_expr_noref e
+                 ActualOfP p -> pprint_pattern_noref p
 
         f <- get_file
         throwQ $ DetailedTypingError prt pru pre (f, ex)
@@ -791,8 +806,8 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
     (_, Just (e, ex)) -> do
         -- Print the expression / pattern
         pre <- case e of
-                 ActualOfE e -> return $ pprint e
-                 ActualOfP p -> return $ pprint p
+                 ActualOfE e -> pprint_expr_noref e
+                 ActualOfP p -> pprint_pattern_noref p
 
         f <- get_file
         throwQ $ DetailedTypingError pru prt pre (f, ex)
@@ -812,8 +827,8 @@ throw_NonDuplicableError ref = do
   case term of
     Just (e, ex) -> do
         pre <- case e of
-                 ActualOfE e -> return $ pprint e
-                 ActualOfP p -> return $ pprint p
+                 ActualOfE e -> pprint_expr_noref e
+                 ActualOfP p -> pprint_pattern_noref p
         f <- get_file
         throwQ $ NonDuplicableError pre (f, ex)
 
@@ -901,4 +916,30 @@ map_type t = do
     return t
   else
     map_type t'
+
+
+-- | Complementary printing function for patterns and terms, that
+-- replaces the references by their original name
+pprint_pattern_noref :: Pattern -> QpState String
+pprint_pattern_noref p = do
+  nspace <- get_context >>= return . namespace
+  fvar <- return (\x -> case IMap.lookup x $ N.varcons nspace of
+                          Just n -> n
+                          Nothing -> subvar 'x' x)
+  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'D' d)
+  return $ genprint_pattern Inf p fvar fdata
+
+-- | Same as pprint_pattern_noref
+pprint_expr_noref :: Expr -> QpState String
+pprint_expr_noref e = do
+  nspace <- get_context >>= return . namespace
+  fvar <- return (\x -> case IMap.lookup x $ N.varcons nspace of
+                          Just n -> n
+                          Nothing -> subvar 'x' x)
+  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'D' d)
+  return $ genprint_expr Inf e fvar fdata
 
