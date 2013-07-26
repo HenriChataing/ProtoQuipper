@@ -93,12 +93,13 @@ instance Show QError where
   show (MatchingError p q) = "Error: can't bind the objects " ++ p ++ " and " ++ q
 
   show (TypingError ta tb) = "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
-  show (DetailedTypingError ta tb e (f, ex)) = f ++ ":" ++ show ex ++": couldn't match actual type\n" ++
-                                          "    " ++ ta ++ "\n" ++
-                                          "with expected type\n" ++
-                                          "    " ++ tb ++ "\n" ++
-                                          "in the type of\n" ++
-                                          "    " ++ e
+  show (DetailedTypingError ta tb e (f, ex)) = f ++ ":" ++ show ex ++":\n" ++
+                                          "    couldn't match actual type\n" ++
+                                          ta ++ "\n" ++
+                                          "    with expected type\n" ++
+                                          tb ++ "\n" ++
+                                          "    In the type of\n" ++
+                                          e
   show (NonDuplicableError e (f, ex)) = f ++ ":" ++ show ex ++ ": the term " ++ e ++ " is not duplicable"
 
   show (MiscError msg) = "Error: " ++ msg
