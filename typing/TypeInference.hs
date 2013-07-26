@@ -292,9 +292,6 @@ constraint_typing typctx (ETuple elist) typ = do
                          t <- new_type
                          return (t:r)) (return []) elist
 
-  -- And the flag of the tensor
-  p <- fresh_flag
-
   -- Extract the free variables of all the inner expressions
   fvlist <- List.foldr (\e rec -> do
                           r <- rec
