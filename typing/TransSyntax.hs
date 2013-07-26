@@ -23,12 +23,11 @@ import Printer
 import Values
 import Circuits as C
 
-import TypeInference (unfold_user_constraint, break_composite)
-
 import QpState
 import Modules
 
 import Gates
+import Subtyping
 
 import Control.Exception
 
@@ -479,8 +478,7 @@ translate_pattern_with_label (S.PLocated p ex) label = do
 
 translate_pattern_with_label (S.PConstraint p t) label = do
   (p', lbl) <- translate_pattern_with_label p label
-  (t', c) <- translate_unbound_type t
-  return (PConstraint p' (TForall [] [] c t'), lbl)
+  return (PConstraint p' t, lbl)
 
 
 -- | Translate an expression, given a labelling map
@@ -602,9 +600,7 @@ translate_expression_with_label (S.EBuiltin s) _ = do
 
 translate_expression_with_label (S.EConstraint e t) label = do
   e' <- translate_expression_with_label e label
-  (t', c) <- translate_unbound_type t
-  return $ EConstraint e' (TForall [] [] c t')
-
+  return $ EConstraint e' t
 
 
 -- | Translate a whole program

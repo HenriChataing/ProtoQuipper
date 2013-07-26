@@ -10,6 +10,7 @@ import Utils
 import Localizing
 
 import Syntax (RecFlag (..))
+import qualified Syntax as S
 
 import Data.List as List
 
@@ -159,7 +160,7 @@ data Pattern =
   | PVar Variable Extent                          -- x @ ex
   | PTuple [Pattern]                              -- <p1, .. , pn>
   | PDatacon Datacon (Maybe Pattern)              -- datacon p
-  | PConstraint Pattern Type                      -- p :> T
+  | PConstraint Pattern S.Type                    -- p <: T
   deriving Show 
 
 
@@ -191,7 +192,7 @@ data Expr =
 -- Unrelated
   | ELocated Expr Extent                          -- e @ ex
   | EBuiltin String                               -- #builtin s
-  | EConstraint Expr Type                         -- e :> T
+  | EConstraint Expr S.Type                       -- e <: T
   deriving Show
 
 

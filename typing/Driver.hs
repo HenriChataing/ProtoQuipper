@@ -6,7 +6,8 @@ import QuipperError
 import Options
 
 import Lexer
-import Parser
+import qualified Parser as P
+import qualified IParser as IP
 import Localizing (clear_location)
 
 import qualified Syntax as S
@@ -19,6 +20,7 @@ import Interpret
 import Values
 
 import Ordering
+import Subtyping
 import TypeInference
 
 import QpState
@@ -33,13 +35,22 @@ import Data.IntMap as IMap
 import Data.Char as Char
 
 
--- | Lex and parse a file located by the given filepath
+-- | Lex and parse the file of the given filepath (implementation)
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
   tokens <- liftIO $ mylex contents
   mod <- return $ module_of_file file
-  return $ (parse tokens) { S.mname = mod, S.filepath = file }
+  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
+
+
+-- | Lex and parse the file of the given filepath (interface)
+lex_and_parse_interface :: FilePath -> QpState S.Interface
+lex_and_parse_interface file = do
+  contents <- liftIO $ readFile file
+  tokens <- liftIO $ mylex contents
+  mod <- return $ module_of_file file
+  return $ IP.parse tokens
 
 
 -- | Find the implementation of a module in a given directory
@@ -95,6 +106,7 @@ find_interface_in_directories mod directories =
   find_in_directories mod directories ".qpi"
 
 
+
 -- | Recursively explore the dependencies of the program. It returns
 -- a map linking the modules to their parsed implementation, and a map corresponding
 -- to the dependency graph
@@ -103,23 +115,30 @@ find_interface_in_directories mod directories =
 explore_dependencies :: [String] -> S.Program -> Map String S.Program -> [S.Program] -> QpState [S.Program]
 explore_dependencies dirs prog mods sorted = do
   -- Mark the module as explored
-  mods <- return $ Map.insert (S.mname prog) prog mods
+  mods <- return $ Map.insert (S.module_name prog) prog mods
   -- Sort the dependencies
   sorted <- List.foldl (\rec m -> do
                            sorted <- rec
-                           case (Map.lookup m mods, List.find (\p -> S.mname p == m) sorted) of
+                           case (Map.lookup m mods, List.find (\p -> S.module_name p == m) sorted) of
                              -- Nothing to do
                              (Just _, Just _) ->
                                  return sorted
 
                              (Just _, Nothing) ->
                                  -- The module has already been visited : cyclic dependency
-                                 throwQ $ CyclicDependencies (S.mname prog)
+                                 throwQ $ CyclicDependencies (S.module_name prog)
 
                              -- Explore
                              _ -> do
                                  file <- find_implementation_in_directories m dirs
+                                 inter <- find_interface_in_directories m dirs
                                  p <- lex_and_parse_implementation file
+                                 p <- case inter of
+                                        Just f -> do
+                                            interface <- lex_and_parse_interface f
+                                            return $ p { S.interface = Just interface }
+                                        Nothing -> return p
+
                                  explore_dependencies dirs p mods sorted) (return sorted) (S.imports prog)
   -- Push the module on top of the list : after its dependencies
   return (prog:sorted)
@@ -145,7 +164,7 @@ process_module opts prog = do
 
 -- Configuration part
   -- Get the module name
-  mod <- return $ S.mname prog
+  mod <- return $ S.module_name prog
   f <- return $ S.filepath prog
 
   -- Set up a new module
@@ -243,7 +262,7 @@ do_everything opts file = do
                 typ <- process_module opts p
                 -- Move the module internally onto the modules stack
                 ctx <- get_context
-                set_context $ ctx { modules = (S.mname p, cmodule ctx):(modules ctx) }
+                set_context $ ctx { modules = (S.module_name p, cmodule ctx):(modules ctx) }
                 -- Return the last type
                 return typ) (return (Nothing, TBang (-1) TUnit)) deps
 -- ===================================== --

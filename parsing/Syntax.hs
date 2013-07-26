@@ -27,7 +27,7 @@ data Declaration =
 -- | Definition of a program
 data Program = Prog {
   -- Module name and file
-  mname :: String,
+  module_name :: String,
   filepath :: FilePath,
 
   -- A list of modules to import
@@ -38,12 +38,22 @@ data Program = Prog {
   typedefs :: [Typedef],
  
   -- The body of the module, can be interpreted as the main function
-  body :: [Declaration]
+  body :: [Declaration],
+
+  -- Optional interface
+  interface :: Maybe Interface
 }
 
 
+-- | Definition of an interface 'file'
+-- The list of type declarations must be a subset
+-- of the global variables of the implementation
+type Interface = [(String, Type)]
+
+
 instance Eq Program where
-  (==) p1 p2 = mname p1 == mname p2
+  (==) p1 p2 = module_name p1 == module_name p2
+
 
 
 -- | Definition of types

@@ -12,6 +12,7 @@ import Utils
 
 import Namespace
 import Modules
+import TransSyntax
 
 import Data.List as List
 import Data.Map (Map)
@@ -114,9 +115,10 @@ bind_pattern (PDatacon dcon p) ctx = do
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint an the actual type of the pattern
-bind_pattern (PConstraint p (TForall _ _ cst t)) ctx = do
+bind_pattern (PConstraint p t) ctx = do
   (typ, ctx, cset) <- bind_pattern p ctx
-  return (typ, ctx, [t <: typ] <> cst <> cset)
+  (t', cset') <- translate_unbound_type t
+  return (typ, ctx, [typ <: t'] <> cset <> cset')
 
 
 
@@ -171,9 +173,10 @@ bind_pattern_to_type (PDatacon dcon p) typ ctx = do
     _ ->
         fail "In pattern, data constructor takes no argument, when it was given one"
 
-bind_pattern_to_type (PConstraint p (TForall _ _ cst t)) typ ctx = do
+bind_pattern_to_type (PConstraint p t) typ ctx = do
   (ctx', cset) <- bind_pattern_to_type p typ ctx
-  return (ctx', [t <: typ] <> cst <> cset)
+  (t', cset') <- translate_unbound_type t
+  return (ctx', [typ <: t'] <> cset <> cset')
 
 
 bind_pattern_to_type _ _ _ = do

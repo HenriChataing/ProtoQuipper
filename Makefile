@@ -8,7 +8,7 @@ ALEX = alex
 
 MAIN = Quipper
 
-all : Parser.hs ConstraintParser.hs Lexer.hs
+all : Parser.hs ConstraintParser.hs IParser.hs Lexer.hs
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parser.hs :
@@ -25,6 +25,14 @@ ConstraintParser.hs :
 	$(HAPPY) parsing/ConstraintParser.y ; \
 	cp parsing/ConstraintParser.y _build/ ; \
 	fi
+IParser.hs :
+	if [ -e _build/IParser.y ] && diff parsing/IParser.y _build/IParser.y > /dev/null ; then \
+	echo "Ignoring IParser.y" ; \
+	else \
+	$(HAPPY) parsing/IParser.y ; \
+	cp parsing/IParser.y _build/ ; \
+	fi
+
 Lexer.hs :
 	if [ -e _build/Lexer.x ] && diff parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
 	echo "Ignoring Lexer.x" ; \

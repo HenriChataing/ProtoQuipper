@@ -87,7 +87,7 @@ import Data.List as List
 -}
 
 Program :
-     Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3, mname = "", filepath = "" } }
+     Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3, module_name = "", filepath = "" } }
 
 
 Import_list :

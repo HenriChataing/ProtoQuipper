@@ -58,6 +58,7 @@ tokens :-
   type                                { locate_token TkType }
   true                                { locate_token TkTrue }
   unbox                               { locate_token TkUnbox }
+  val                                 { locate_token TkVal }
   with                                { locate_token TkWith }
   "#builtin"                          { locate_token TkBuiltin }
 
@@ -95,6 +96,7 @@ data Token =
   | TkRev Extent           | TkType Extent
   | TkOf Extent            | TkRec Extent
   | TkImport Extent        | TkBuiltin Extent
+  | TkVal Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent
