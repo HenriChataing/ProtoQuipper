@@ -41,7 +41,7 @@ Lexer.hs :
 	cp parsing/Lexer.x _build/ ; \
 	fi
 clean :
-	rm parsing/Parser.hs parsing/Lexer.hs parsing/ConstraintParser.hs
+	rm parsing/Parser.hs parsing/Lexer.hs parsing/ConstraintParser.hs parsing/IParser.hs
 	rm _build/*
 
 distclean : clean
