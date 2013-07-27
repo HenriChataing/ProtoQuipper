@@ -252,6 +252,14 @@ do_everything opts file = do
 
   -- Parse the original file
   prog <- lex_and_parse_implementation file
+  -- Look for an interface file
+  fInter <- find_interface_in_directories (S.module_name prog) (includes opts)
+  prog <- case fInter of
+            Just f -> do
+                interface <- lex_and_parse_interface f
+                return $ prog { S.interface = Just interface }
+            Nothing ->
+                return prog
 
   -- Build the dependencies
   deps <- build_dependencies (includes opts) prog

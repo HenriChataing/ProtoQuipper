@@ -621,7 +621,7 @@ translate_program proto prog = do
   -- Import the global variables from the dependencies
   gbls <- global_namespace
 
-  t <- translate_body (S.body prog) (Map.union dcons gbls)
+  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
   if proto then
     unsugar t
   else
@@ -630,34 +630,77 @@ translate_program proto prog = do
 
 
 -- | Translate and merge the list of term declarations
-translate_body :: [S.Declaration] -> Map String Int -> QpState Expr
+translate_body :: S.Program -> [S.Declaration] -> Map String Int -> QpState Expr
 -- The general type of a file, if empty, is unit
-translate_body [] _ =
+translate_body _ [] _ =
   return EUnit
 
 -- However, if the last declaration is an expression,
 -- it becomes the return value of the evaluation
-translate_body [S.DExpr e] lbl = do
+translate_body prog [S.DExpr e] lbl = do
   translate_expression_with_label e lbl
 
 -- If an lonely expression is encountered, it is ignored
-translate_body ((S.DExpr _):rest) lbl = do
-  translate_body rest lbl
+translate_body prog ((S.DExpr _):rest) lbl = do
+  translate_body prog rest lbl
 
 -- If a variable declaration is encountered,
 -- the variables of the pattern are marked to be exported,
 -- and the "let p = e" is connected with the rest of the body
-translate_body ((S.DLet recflag p e):rest) lbl = do
+translate_body prog ((S.DLet recflag p e):rest) lbl = do
   (p', lbl') <- translate_pattern_with_label p lbl
+
   -- Export the variables of the pattern
-  List.foldl (\rec x -> do
-                rec
-                export_var x) (return ()) (free_var p')
+  p' <- export_pattern_variables prog p'
+
   -- Connect the let
   e' <- translate_expression_with_label e (if recflag == Recursive then lbl' else lbl)
-  r <- translate_body rest lbl'
+  r <- translate_body prog rest lbl'
   return (ELet recflag p' e' r)
 
+
+-- | Export the variables of a pattern. If an interface file is provided, it first checks
+-- whether the variable is part of the accessible variables :
+--        if yes, it exports the variables, and modifies the pattern to add a constraint on the type fo this variable
+--        if not, does nothing
+export_pattern_variables :: S.Program -> Pattern -> QpState Pattern
+export_pattern_variables _ PUnit =
+  return PUnit
+
+export_pattern_variables prog (PVar x ex) = do
+  case S.interface prog of
+    Just inter -> do
+        -- If an interface file is present, check the presence of the variable x
+        n <- variable_name x
+        case List.lookup n inter of
+          Just typ -> do
+              export_var x
+              return $ PConstraint (PVar x ex) typ
+
+          Nothing -> do
+              return $ PVar x ex
+
+    Nothing -> do
+        export_var x
+        return $ PVar x ex
+
+export_pattern_variables prog (PDatacon dcon Nothing) =
+  return $ PDatacon dcon Nothing
+
+export_pattern_variables prog (PDatacon dcon (Just p)) = do
+  p' <- export_pattern_variables prog p
+  return $ PDatacon dcon $ Just p'
+
+export_pattern_variables prog (PTuple plist) = do
+  plist' <- List.foldr (\p rec -> do
+                          r <- rec
+                          p' <- export_pattern_variables prog p
+                          return (p':r)) (return []) plist
+  return $ PTuple plist
+
+
+-- | All the following functions serve to translate the program implementatioin and
+-- types into the proto core, meaning without all the syntactic sugars
 
 
 -- | Transform a type A * B * C * D into A * (B * (C * D))
