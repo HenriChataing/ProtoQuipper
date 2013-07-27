@@ -1310,28 +1310,29 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 \end{lemma}
 
 \begin{prop} Let $t$ be a term, $T$ a LL' type and $\Gamma$ a context. If the return set $\mathcal{L}$ of the constraint typing
-	algorithm is solvable, then there exists a set $\mathcal{L'}$ such that $\mathcal{L} \vdash \mathcal{L'}$ and
-	the typing judgement $\Gamma \vdash_\mathcal{L'} t : T$ is valid.
+	algorithm is solvable, then for every solution $\sigma$ of $\mathcal{L}$, there exists a solved set $\mathcal{L_\sigma}$ such
+	that the typing judgement 	$\sigma\Gamma \vdash_{\mathcal{L}_\sigma} t : \sigma T$ is valid.
 	
 	\begin{proof}
-		By induction on the form of the term $t$.
+		By induction on the form of the term $t$. In each case, $\sigma$ is a solution of the set
+			$\mathcal{L} = ~\text{ConstraintTyping}\,(\Gamma \vdash t : T)$.
 		If the term is
 		\begin{itemize}
 			\item $1$, the algorithm applied to $!^I \Gamma \vdash 1 : T$ produces the set
-				$\mathcal{L} = \{ !^n\top <: T \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being solvable, the typing derivation
+				$\mathcal{L} = \{ !^n\top <: T \} \cup \{ 1 \le I \}$. $\sigma$ being a solution of $\mathcal{L}$, $\sigma T = \,!^m \top$.
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(ax)$}
-					\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I\}} 1 : !^n\top$}
+					\UnaryInfC{$\sigma !^I \Gamma \vdash_{\{1 \le \sigma I\}} 1 : \,!^m\top$}
 				\end{prooftree}
 				holds.
 				
 			\item $x$, the algorithm applied to $!^I \Gamma, x : T \vdash x : U$ produces the set
-				$\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$. $\mathcal{L}$ being solvable, the typing derivation
+				$\mathcal{L} = \{ T <: U \} \cup \{ 1 \le I \}$.
 				\begin{prooftree}
 					\AxiomC{}
 					\RightLabel{$(ax)$}
-					\UnaryInfC{$!^I \Gamma, x : T \vdash_\mathcal{L} x : U$}
+					\UnaryInfC{$\sigma!^I \Gamma, x : \sigma T \vdash_\mathcal{\sigma L} x : \sigma U$}
 				\end{prooftree}
 				holds.
 				
@@ -1345,61 +1346,64 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 				where $\alpha$ and $n$ are fresh.
 				The output of the algorithm is the set $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$, $I$ being defined as
 				the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
-				Since $\mathcal{L}$ is solvable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
-				The induction hypothesis applied twice yields the typing derivations
+				Since $\sigma$ is a solution of $\mathcal{L}$, $\sigma$ solves $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				The induction hypothesis applied twice with $\sigma$ as the solution yields the typing derivations
 					\begin{prooftree}
 						\AxiomC{$\Pi_1$}
-						\UnaryInfC{$\Gamma|_t \vdash_{\mathcal{L'}_1} t : \,!^n\alpha \multimap T$}
+						\UnaryInfC{$\sigma\Gamma|_t \vdash_{\mathcal{L_\sigma}_1} t : \,!^{\sigma(n)} \sigma(\alpha) \multimap \sigma T$}
 					\end{prooftree}
 					\begin{prooftree}
 						\AxiomC{$\Pi_2$}
-						\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L'}_2} t : \,!^n\alpha$}
+						\UnaryInfC{$\sigma \Gamma|_u \vdash_{\mathcal{L\sigma}_2} t : \,!^{\sigma(n)} \sigma(\alpha)$}
 					\end{prooftree}
-				with $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$.
+				with $\mathcal{L_\sigma}_1$ and $\mathcal{L_\sigma}_2$ solved.
 				It has been shown that $\Gamma|_t = \Gamma_1, \,!^I\Delta|_t$ and $\Gamma|_u = \Gamma_2, \,!^I\Delta|_u$.
 				The derivations $\Pi_1$ and $\Pi_2$ can be weakened to be derivations of
  						\begin{center}
  						\begin{tabular}{l}
- 							$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1 \}} t : \,!^n\alpha \multimap T$ \\
-							$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2 \}} u : !^n\alpha$
+ 							$\sigma\Gamma_1, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_1 \cup \{ 1 \le \sigma I_1 \}}
+ 								t : \,!^{\sigma(n)} \sigma(\alpha) \multimap \sigma T$ \\
+							$\sigma\Gamma_2, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_2 \cup \{ 1 \le \sigma I_2 \}}
+								u : !^{\sigma(n)} \sigma(\alpha)$
 						\end{tabular}
 						\end{center}
 				with $I_1$ and $I_2$ being the annotation of the additional bindings added to each of the derivations.
 				Clearly, $I_1 \subseteq I$ and $I_2 \subseteq I$.
 				
 				Using both derivations $\Pi_1$ and $\Pi_2$ and the typing rule $(app)$ of LL, we obtain a valid typing derivation of
-				$\Gamma \vdash_\mathcal{L'} t u : T$, with $\mathcal{L'} = \mathcal{L'}_1 \cup \mathcal{L'}_2 \cup \{ 1 \le I \}$.
+				$\sigma \Gamma \vdash_\mathcal{L_\sigma} t u : \sigma T$, with $\mathcal{L_\sigma} =
+					\mathcal{L_\sigma}_1 \cup \mathcal{L_\sigma}_2 \cup \{ 1 \le \sigma I \}$.
+					\begin{center}
+					\footnotesize
 					\begin{prooftree}
 						\AxiomC{$\Pi_1$} \noLine
-						\UnaryInfC{$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1 \}} t : \,!^n\alpha \multimap T$}
+						\UnaryInfC{$\sigma\Gamma_1, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_1 \cup \{ 1 \le \sigma I_1 \}}
+							t : \,!^{\sigma(n)} \sigma(\alpha) \multimap \sigma T$}
 						\AxiomC{$\Pi_2$} \noLine
-						\UnaryInfC{$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2 \}} t : \,!^n\alpha$}
+						\UnaryInfC{$\sigma\Gamma_2, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_2 \cup \{ 1 \le \sigma I_2 \}}
+							t : \,!^{\sigma(n)} \sigma(\alpha)$}
 						\RightLabel{$(app)$}
-						\BinaryInfC{$\Gamma \vdash_\mathcal{L'} t u : T$}
+						\BinaryInfC{$\sigma\Gamma \vdash_\mathcal{L_\sigma} t u : \sigma T$}
 					\end{prooftree}
-				The condition $\mathcal{L} \vdash \mathcal{L'}$ is respected as well.
+					\end{center}
 					
 			\item $\lambda x.t$, the algorithm makes one recursive call on $!^I \Gamma, x : \,!^n \alpha \vdash t : \,!^m\beta$, producing the
 				set $\mathcal{L}$. The output of the algorithm is then
 					$\mathcal{L^*} = \mathcal{L} \cup \{ !^p(!^n \alpha \multimap \,!^m\beta) <: T \} \cup \{p \le I\}$. Since $\mathcal{L^*}$
-					is solvable, so is $\mathcal{L}$. By the induction hypothesis, we can build a valid typing derivation $\Pi$ of the
-					typing judgement $!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L'} t : \beta$, with $\mathcal{L} \vdash \mathcal{L'}$,
-					from which we can derive, by application of the rule $(\lambda)$ :
+					is solvable, so is $\mathcal{L}$, with one solution $\alpha$. By the induction hypothesis, we can build a valid typing derivation
+					$\Pi$ of the typing judgement $\sigma!^I \Gamma, x :\, !^{\sigma(n)} \sigma(\alpha) \vdash_\mathcal{L_\sigma} t :
+						\,!^{\sigma(m)}\sigma(\beta)$,
+					with $\mathcal{L_\sigma}$ solved, from which we can derive, by application of the rule $(\lambda)$ :
 						\begin{prooftree}
 							\AxiomC{$\Pi$} \noLine
-							\UnaryInfC{$!^I \Gamma, x :\, !^n \alpha \vdash_\mathcal{L'} t : \,!^m\beta$}
+							\UnaryInfC{$\sigma!^I \Gamma, x :\, !^{\sigma(n)} \sigma(\alpha) \vdash_\mathcal{L_\sigma} t : \,!^{\sigma(m)} \sigma(\beta)$}
 							\RightLabel{$(\lambda)$}
-							\UnaryInfC{$!^I \Gamma \vdash_{\mathcal{L'} \cup \{p \le I\}} \lambda x.t :\, !^p(!^n \alpha \multimap \,!^m\beta)$}
+							\UnaryInfC{$\sigma!^I \Gamma \vdash_{\mathcal{L_\sigma} \cup \{\sigma(p) \le \sigma I\}}
+								\lambda x.t :\, !^{\sigma(p)}(!^{\sigma(n)} \sigma(\alpha) \multimap \,!^{\sigma(m)} \sigma(\beta))$}
 						\end{prooftree}
-					Using the constraint $!^p(!^n\alpha \multimap \,!^m\beta) <: T$, the application of the lemma \ref{rule-subtyping} yields
-					a set $\mathcal{L^{**}}$ such that
-						\begin{center}
-						\begin{tabular}{l}
-							$\mathcal{L'} \cup \{p \le I \} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \} \vdash \mathcal{L^{**}}$ \\
-							$!^I \Gamma \vdash_\mathcal{L^{**}} \lambda x.t : T$ is a valid typing judgement
-						\end{tabular}
-						\end{center}
-					Since $\mathcal{L} \vdash \mathcal{L'}$, it follows that $\mathcal{L^*} \vdash \mathcal{L^{**}}$.
+					Using the solved constraint $!^{\sigma(p)}(!^{\sigma(n)} \sigma(\alpha) \multimap \,!^{\sigma(m)} \sigma(\beta)) <: \sigma T$,
+					the application of the lemma \ref{rule-subtyping} yields a solved set $\mathcal{L_\sigma^*}$ such that
+					$\sigma !^I \Gamma \vdash_\mathcal{L_\sigma^*} \lambda x.t : \sigma T$ is a valid typing judgement.
 				
 			\item $\pair{t}{u}$. The algorithm applied to $\Gamma \vdash \pair{t}{u} : T$ makes two recursive calls
 					\begin{center}
@@ -1413,34 +1417,32 @@ typing rules $(\lambda_1)$ and $(\lambda_2)$ to type $\lambda$-expressions disap
 					$$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I,~ p \le n,~ p \le m \} \cup
 						\{ \,!^p(!^n\alpha \otimes \,!^m\beta) <: T \}$$
 				$I$ being defined as the annotation vector of $!^I \Delta = \Gamma |_{FV(t) \oplus FV(u)}$.
-				Since $\mathcal{L}$ is solvable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$.
+				Since $\mathcal{L}$ is solvable, so are $\mathcal{L}_1$ and $\mathcal{L}_2$, with one solution being $\sigma$.
 				The induction hypothesis applied twice, yields the typing derivations which, modified in the same way as in the application
 				case, are
 					\begin{prooftree}
 						\AxiomC{$\Pi_1$}
-						\UnaryInfC{$\Gamma_1, \,!^I\Delta \vdash_{\mathcal{L'}_1 \cup \{ 1 \le I_1\} } t : \,!^n\alpha$}
+						\UnaryInfC{$\sigma\Gamma_1, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_1 \cup \{ 1 \le \sigma I_1\} }
+							t : \,!^{\sigma(n)} \sigma(\alpha)$}
 					\end{prooftree}
 					\begin{prooftree}
 						\AxiomC{$\Pi_2$}
-						\UnaryInfC{$\Gamma_2, \,!^I\Delta \vdash_{\mathcal{L'}_2 \cup \{ 1 \le I_2\} } t : \,!^m\beta$}
+						\UnaryInfC{$\sigma\Gamma_2, \sigma!^I\Delta \vdash_{\mathcal{L_\sigma}_2 \cup \{ 1 \le \sigma I_2\} }
+							u : \,!^{\sigma(m)} \sigma(\beta)$}
 					\end{prooftree}
-				with $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$.
+				with $\mathcal{L_\sigma}_1$ and $\mathcal{L_\sigma}_2$ both solved.
 				Again, $I_1 \subseteq I$ and $I_2 \subseteq I$.
 				
 				Using both derivations $\Pi_1$ and $\Pi_2$ and the typing rule $(\otimes.I)$ of LL, we obtain a valid typing derivation of
-				$\Gamma \vdash_\mathcal{L'} \pair{t}{u} : \,!^p (!^n \alpha \otimes \,!^m\beta) $, with
-				$\mathcal{L'} = \mathcal{L'}_1 \cup \mathcal{L'}_2 \cup \{ 1 \le I, p \le n, p \le m \}$.
-				Finally, using the constraint $!^p(!^n \alpha \otimes \,!^m\beta) <: T$ and the lemma \ref{rule-subtyping}, we obtain
-				a set $\mathcal{L^*}$ such that
-					\begin{center}
-					\begin{tabular}{l}
-						$ \mathcal{L'} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \} \vdash \mathcal{L^*}$ \\
-						$ \Gamma \vdash_\mathcal{L^*} \pair{t}{u} : T$ is a valid typing judgement
-					\end{tabular}
-					\end{center}
-				Moreover, since $\mathcal{L}_1 \vdash \mathcal{L'}_1$ and $\mathcal{L}_2 \vdash \mathcal{L'}_2$, the derivation
-				$\mathcal{L} \vdash \mathcal{L'} \cup \{ \,!^p(!^n\alpha \multimap \,!^m\beta) <: T \}$ is verified.
-				Consequently, $\mathcal{L} \vdash \mathcal{L^*}$.
+					$$\sigma\Gamma \vdash_\mathcal{L\sigma}
+						\pair{t}{u} : \,!^{\sigma(p)} (!^{\sigma(n)} \sigma(\alpha) \otimes \,!^{\sigma(m)} \sigma (\beta)) $$
+			  with
+					$$\mathcal{L_\sigma} = \mathcal{L_\sigma}_1 \cup \mathcal{L_\sigma}_2 \cup
+						\{ 1 \le \sigma I, \sigma(p) \le \sigma(n), \sigma(p) \le \sigma(m) \}$$
+				The fact that $\mathcal{L_\sigma}$ is solved can be easily proved.
+				Finally, using the solved constraint $!^{\sigma(p)}(!^{\sigma(n)} \sigma(\alpha) \otimes \,!^{\sigma(m)} \sigma(\beta)) <: \sigma T$
+				and the lemma \ref{rule-subtyping}, we obtain a solved set $\mathcal{L^*}$ such that
+				$ \sigma\Gamma \vdash_\mathcal{L^*} \pair{t}{u} : \sigma T$ is a valid typing judgement.
 				
 			\item $\text{let}~ \pair{x}{y} = t ~\text{in}~ u$.
 				This case is similar to the others, only longer, this is why it will not be treated here.
