@@ -71,11 +71,13 @@ main = do
             (do
                (_, (v, t)) <- Q.runS (do
                  Q.set_verbose (verbose opts)
-                 do_everything opts file) Q.empty_context
+                 (v, t) <- do_everything opts file
+                 t <- Q.pprint_type_noref t
+                 return (v, t)) Q.empty_context
                case v of
                  Just v -> putStrLn $ pprint v
                  Nothing -> return ()
-               putStrLn $ pprint t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+               putStrLn $ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
   else
     return ()
 

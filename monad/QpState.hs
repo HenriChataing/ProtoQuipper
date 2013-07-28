@@ -943,3 +943,30 @@ pprint_expr_noref e = do
                            Nothing -> subvar 'D' d)
   return $ genprint_expr Inf e fvar fdata
 
+
+-- | Same for types, the type variables are attributed names and printed
+available_names :: [String]
+available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
+
+pprint_type_noref :: Type -> QpState String
+pprint_type_noref t = do
+  -- Printing of type variables
+  fvt <- return $ free_typ_var t
+  attr <- return $ List.zip fvt available_names
+  fvar <- return (\x -> case List.lookup x attr of
+                          Just n -> n
+                          Nothing -> subvar 'X' x)
+
+  -- Printing of flags
+  refs <- get_context >>= return . flags
+  fflag <- return (\f -> case f of
+                           1 -> "!"
+                           n | n >= 2 -> case IMap.lookup n refs of
+                                           Just fi -> case value fi of
+                                                        One -> "!"
+                                                        _ -> ""
+                                           Nothing -> ""
+                             | otherwise -> "")
+  return $ genprint_type Inf t fflag fvar
+
+

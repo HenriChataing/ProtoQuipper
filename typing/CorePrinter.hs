@@ -15,35 +15,7 @@ import Data.List as List
 -- | Type printing
 instance PPrint LinType where
   -- Print unto Lvl = n
-  sprintn _ (TVar x) = subvar 'X' x
-  sprintn _ TUnit = "T"
-  sprintn _ TBool = "bool"
-  sprintn _ TQbit = "qbit"
-  sprintn _ (TUser n app) = n ++ List.foldr (\t rec -> " " ++ pprint t ++ rec) "" app
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (TTensor (a:rest)) =
-    let dlv = decr lv in
-    (case a of
-       TBang _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
-       TBang _ (TTensor _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++
-    List.foldl (\s b -> s ++ " * " ++
-                  (case b of
-                     TBang _ (TArrow _ _) -> "(" ++ sprintn dlv b ++ ")"
-                     TBang _ (TTensor _) -> "(" ++ sprintn dlv b ++ ")"
-                     _ -> sprintn dlv b)) "" rest
-
-  sprintn lv (TArrow a b) =
-    let dlv = decr lv in
-    (case a of
-       TBang _ (TArrow _ _) -> "(" ++ sprintn dlv a ++ ")"
-       _ -> sprintn dlv a) ++ " -> " ++
-    sprintn dlv b
-
-  sprintn lv (TCirc a b) =
-    let dlv = decr lv in
-    "circ(" ++ sprintn dlv a ++ ", " ++ sprintn dlv b ++ ")"
+  sprintn lv a = genprint_lintype lv a pprint (\x -> subvar 'X' x)
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -53,24 +25,55 @@ instance PPrint LinType where
 
 
 instance PPrint Type where
-  sprintn lv (TBang f a) =
-    let pf = pprint f in
-    if List.length pf == 0 then
-      pf ++ sprintn lv a
-    else
-      pf ++ (case a of
-               (TTensor _) -> "(" ++ sprintn lv a ++ ")"
-               (TArrow _ _) -> "(" ++ sprintn lv a ++ ")"
-               _ -> sprintn lv a)
-
-  sprintn lv (TForall fv ff cset t) =
-    "forall ... : " ++ sprintn lv t
+  sprintn lv a = genprint_type lv a pprint (\x -> subvar 'X' x)
  
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
 
   -- Print unto Lvl = default
   sprint a = sprintn defaultLvl a
+
+
+-- | Pretty printing of a lintype
+genprint_lintype :: Lvl -> LinType -> (RefFlag -> String) -> (Variable -> String) -> String
+genprint_lintype _ (TVar x) _ fvar = fvar x
+genprint_lintype _ TUnit _ _ = "T"
+genprint_lintype _ TBool _ _ = "bool"
+genprint_lintype _ TQbit _ _ = "qbit"
+genprint_lintype lv (TUser n arg) fflag fvar = n ++ List.foldr (\t rec -> " " ++ genprint_type lv t fflag fvar ++ rec) "" arg
+
+genprint_lintype (Nth 0) _ _ _ = "..."
+
+genprint_lintype lv (TTensor (a:rest)) fflag fvar =
+  let dlv = decr lv in
+  (case a of
+     TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
+     TBang _ (TTensor _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
+     _ -> genprint_type dlv a fflag fvar) ++
+  List.foldl (\s b -> s ++ " * " ++
+                (case b of
+                   TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv b fflag fvar ++ ")"
+                   TBang _ (TTensor _) -> "(" ++ genprint_type dlv b fflag fvar ++ ")"
+                   _ -> genprint_type dlv b fflag fvar)) "" rest
+
+genprint_lintype lv (TArrow a b) fflag fvar =
+  let dlv = decr lv in
+  (case a of
+     TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
+     _ -> genprint_type dlv a fflag fvar) ++ " -> " ++
+  genprint_type dlv b fflag fvar
+
+genprint_lintype lv (TCirc a b) fflag fvar =
+  let dlv = decr lv in
+  "circ(" ++ genprint_type dlv a fflag fvar ++ ", " ++ genprint_type dlv b fflag fvar ++ ")"
+
+
+-- | Same with types
+genprint_type :: Lvl -> Type -> (RefFlag -> String) -> (Variable -> String) -> String
+genprint_type lv (TBang n a) fflag fvar =
+  fflag n ++ genprint_lintype (decr lv) a fflag fvar
+
+genprint_type lv (TForall _ _ _ a) fflag fvar = "forall .. , " ++ genprint_type (decr lv) a fflag fvar
 
 
 
