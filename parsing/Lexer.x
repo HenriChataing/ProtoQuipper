@@ -10,6 +10,7 @@ $low_alpha = [a-z]
 $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
 $digit = [0-9]
+$admissible = [_]
 
 tokens :-
 
@@ -62,9 +63,9 @@ tokens :-
   with                                { locate_token TkWith }
   "#builtin"                          { locate_token TkBuiltin }
 
-  $low_alpha [$alpha $digit]*         { locate_named_token TkLId }
-  $up_alpha [$up_alpha $digit]*       { locate_named_token TkLId }
-  $up_alpha [$alpha $digit]*          { locate_named_token TkUId }
+  $low_alpha [$alpha $digit $admissible]*         { locate_named_token TkLId }
+  $up_alpha [$up_alpha $digit $admissible]*       { locate_named_token TkLId }
+  $up_alpha [$alpha $digit $admissible]*          { locate_named_token TkUId }
  
 {
 
