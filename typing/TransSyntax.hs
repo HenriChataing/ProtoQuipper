@@ -51,7 +51,12 @@ builtin_gates =
   let unary = List.map (\g -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\g -> (g, (binary_type, binary_value g))) binary_gates in
 
-  Map.fromList (init ++ term ++ unary ++ binary)
+  let toffoli = ("TOFFOLI", (S.TCirc (S.TTensor [S.TQBit, S.TQBit, S.TQBit]) (S.TTensor [S.TQBit, S.TQBit, S.TQBit]),
+                             VCirc (VTuple [VQbit 0, VQbit 1, VQbit 2])
+                                   (Circ { qIn = [0, 1, 2], gates = [ C.Controlled (C.Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
+                                   (VTuple [VQbit 0, VQbit 1, VQbit 2]))) in
+
+  Map.fromList (toffoli:(init ++ term ++ unary ++ binary))
 
 -- | Generic value associated to unary gates
 unary_value :: String -> Value
