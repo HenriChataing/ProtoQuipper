@@ -22,6 +22,9 @@ defaultLvl = Nth 2
 
 -- Pretty printing
 class PPrint a where
+  -- Printing with options : the options are functions specialized in printing variables
+  genprint :: Lvl -> a -> [(Int -> String)] -> String
+
   -- Print until Lvl = n
   sprintn :: Lvl -> a -> String
   -- Shortened printing : Lvl = default

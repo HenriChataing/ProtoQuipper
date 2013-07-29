@@ -14,8 +14,44 @@ import Data.List as List
 
 -- | Type printing
 instance PPrint LinType where
+  -- Generic printing
+  -- The display of flags and type variables is specified by two option functions
+  genprint _ (TVar x) [_, fvar] = fvar x
+  genprint _ TUnit _ = "T"
+  genprint _ TBool _ = "bool"
+  genprint _ TQbit _ = "qbit"
+  genprint lv (TUser n arg) opts = n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
+
+  genprint (Nth 0) _ _ = "..."
+
+  genprint lv (TTensor (a:rest)) opts =
+    let dlv = decr lv in
+    (case a of
+       TBang _ (TArrow _ _) -> "(" ++ genprint dlv a opts ++ ")"
+       TBang _ (TTensor _) -> "(" ++ genprint dlv a opts ++ ")"
+       _ -> genprint dlv a opts) ++
+    List.foldl (\s b -> s ++ " * " ++
+                  (case b of
+                     TBang _ (TArrow _ _) -> "(" ++ genprint dlv b opts ++ ")"
+                     TBang _ (TTensor _) -> "(" ++ genprint dlv b opts ++ ")"
+                     _ -> genprint dlv b opts)) "" rest
+
+  genprint lv (TArrow a b) opts =
+    let dlv = decr lv in
+    (case a of
+       TBang _ (TArrow _ _) -> "(" ++ genprint dlv a opts ++ ")"
+       _ -> genprint dlv a opts) ++ " -> " ++
+    genprint dlv b opts
+
+  genprint lv (TCirc a b) opts =
+    let dlv = decr lv in
+    "circ(" ++ genprint dlv a opts ++ ", " ++ genprint dlv b opts ++ ")"
+
+
   -- Print unto Lvl = n
-  sprintn lv a = genprint_lintype lv a pprint (\x -> subvar 'X' x)
+  -- By default, the flags are printed using the default pprint function
+  -- and the variables are displayed as X_n where n is the variable id
+  sprintn lv a = genprint lv a [pprint, subvar 'X']
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -25,7 +61,22 @@ instance PPrint LinType where
 
 
 instance PPrint Type where
-  sprintn lv a = genprint_type lv a pprint (\x -> subvar 'X' x)
+  -- Generic printing, the options are the same as with linear types
+  genprint lv (TBang n a) opts@[fflag, _] =
+    case (fflag n, a) of
+      -- No flag
+      ("", _) -> genprint (decr lv) a opts
+       
+      -- Flag, check whether parenthesis are necessary
+      (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
+      (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
+      (f, _) -> f ++ genprint (decr lv) a opts
+
+  genprint lv (TForall _ _ _ a) opts = "forall .. , " ++ genprint (decr lv) a opts
+
+  -- Print unto Lvl = n
+  -- The default functions are the same as with linear types
+  sprintn lv a = genprint lv a [pprint, subvar 'X']
  
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -34,76 +85,31 @@ instance PPrint Type where
   sprint a = sprintn defaultLvl a
 
 
--- | Pretty printing of a lintype
-genprint_lintype :: Lvl -> LinType -> (RefFlag -> String) -> (Variable -> String) -> String
-genprint_lintype _ (TVar x) _ fvar = fvar x
-genprint_lintype _ TUnit _ _ = "T"
-genprint_lintype _ TBool _ _ = "bool"
-genprint_lintype _ TQbit _ _ = "qbit"
-genprint_lintype lv (TUser n arg) fflag fvar = n ++ List.foldr (\t rec -> " " ++ genprint_type lv t fflag fvar ++ rec) "" arg
-
-genprint_lintype (Nth 0) _ _ _ = "..."
-
-genprint_lintype lv (TTensor (a:rest)) fflag fvar =
-  let dlv = decr lv in
-  (case a of
-     TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
-     TBang _ (TTensor _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
-     _ -> genprint_type dlv a fflag fvar) ++
-  List.foldl (\s b -> s ++ " * " ++
-                (case b of
-                   TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv b fflag fvar ++ ")"
-                   TBang _ (TTensor _) -> "(" ++ genprint_type dlv b fflag fvar ++ ")"
-                   _ -> genprint_type dlv b fflag fvar)) "" rest
-
-genprint_lintype lv (TArrow a b) fflag fvar =
-  let dlv = decr lv in
-  (case a of
-     TBang _ (TArrow _ _) -> "(" ++ genprint_type dlv a fflag fvar ++ ")"
-     _ -> genprint_type dlv a fflag fvar) ++ " -> " ++
-  genprint_type dlv b fflag fvar
-
-genprint_lintype lv (TCirc a b) fflag fvar =
-  let dlv = decr lv in
-  "circ(" ++ genprint_type dlv a fflag fvar ++ ", " ++ genprint_type dlv b fflag fvar ++ ")"
-
-
--- | Same with types
-genprint_type :: Lvl -> Type -> (RefFlag -> String) -> (Variable -> String) -> String
-genprint_type lv (TBang n a) fflag fvar =
-  fflag n ++ genprint_lintype (decr lv) a fflag fvar
-
-genprint_type lv (TForall _ _ _ a) fflag fvar = "forall .. , " ++ genprint_type (decr lv) a fflag fvar
-
-
 
 
 -- | Pretty printing of a pattern
--- The depth limit is given by the level
--- The functions given as argument indicate how to deal with variables (term variables and datacons)
-genprint_pattern :: Lvl -> Pattern -> (Variable -> String) -> (Variable -> String) -> String
-genprint_pattern _ (PVar x _) fvar _ =  fvar x
-genprint_pattern _ PUnit _ _ = "<>"
-genprint_pattern (Nth 0) _ _ _= "..."
-
-genprint_pattern lv (PTuple (p:rest)) fvar fdata =
-  let dlv = decr lv in
-  "<" ++ genprint_pattern dlv p fvar fdata ++
-         List.foldl (\s q -> s ++ ", " ++ genprint_pattern dlv q fvar fdata) "" rest ++ ">"
-
-genprint_pattern lv (PDatacon dcon p) fvar fdata =
-  fdata dcon ++ case p of
-                  Just p -> "(" ++ genprint_pattern (decr lv) p fvar fdata ++ ")"
-                  Nothing -> ""
-
-genprint_pattern lv (PConstraint p _) fvar fdata =
-  sprintn lv p
-
-
-
 instance PPrint Pattern where
+  -- Generic printing
+  -- The functions given as argument indicate how to deal with variables (term variables and datacons)
+  genprint _ (PVar x _) [fvar, _] =  fvar x
+  genprint _ PUnit _ = "<>"
+  genprint (Nth 0) _ _= "..."
+
+  genprint lv (PTuple (p:rest)) opts =
+    let dlv = decr lv in
+    "<" ++ genprint dlv p opts ++
+           List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ">"
+
+  genprint lv (PDatacon dcon p) opts@[_, fdata] =
+    fdata dcon ++ case p of
+                    Just p -> "(" ++ genprint (decr lv) p opts ++ ")"
+                    Nothing -> ""
+
+  genprint lv (PConstraint p _) opts =
+    genprint lv p opts
+
    -- Print unto Lvl = n
-  sprintn lv p = genprint_pattern lv p (\x -> subvar 'x' x) (\d -> subvar 'D' d)
+  sprintn lv p = genprint lv p [subvar 'x', subvar 'D']
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -149,7 +155,7 @@ print_doc (Nth 0) _ _ _ =
 print_doc lv (ELet r p e f) fvar fdata =
   let dlv = decr lv in
   let recflag = if r == Recursive then text "rec" else empty in
-  text "let" <+> recflag <+> text (genprint_pattern dlv p fvar fdata) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
+  text "let" <+> recflag <+> text (genprint dlv p [fvar, fdata]) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
   print_doc dlv f fvar fdata
 
 print_doc lv (ETuple elist) fvar fdata =
@@ -172,7 +178,7 @@ print_doc lv (EApp e f) fvar fdata =
 
 print_doc lv (EFun p e) fvar fdata =
   let dlv = decr lv in
-  text "fun" <+> text (genprint_pattern dlv p fvar fdata) <+> text "->" $$
+  text "fun" <+> text (genprint dlv p [fvar, fdata]) <+> text "->" $$
   nest 2 (print_doc dlv e fvar fdata)
 
 print_doc lv (EIf e f g) fvar fdata =
@@ -194,7 +200,7 @@ print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (genprint_pattern dlv p fvar fdata) <+> text "->" <+> print_doc dlv e fvar fdata in
+                        let pmatch = char '|' <+> text (genprint dlv p [fvar, fdata]) <+> text "->" <+> print_doc dlv e fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
@@ -207,28 +213,33 @@ print_doc lv (EConstraint e _) fvar fdata =
   print_doc lv e fvar fdata
 
 
--- | Same as genprint_pattern
-genprint_expr :: Lvl -> Expr -> (Variable -> String) -> (Variable -> String) -> String
-genprint_expr lv e fvar fdata =
-  let doc = print_doc lv e fvar fdata in
-  PP.render doc
-
 
 instance PPrint Expr where
-  sprintn lv e = genprint_expr lv e (\x -> subvar 'x' x) (\d -> subvar 'D' d)
+  -- Generic printing
+  genprint lv e [fvar, fdata] =
+    let doc = print_doc lv e fvar fdata in
+    PP.render doc
+
+  -- Other
+  -- By default, the term variables are printed as x_n and the data constructors as D_n,
+  -- where n is the id of the variable / constructor
+  sprintn lv e = genprint lv e [subvar 'x', subvar 'D']
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
 
 
 
-
--- | Constraint printing
+-- | Subtyping constraints printing
 instance PPrint TypeConstraint where
-  pprint (Subtype t u) = pprint t ++ " <: " ++ pprint u
+  genprint lv (Subtype t u) opts =
+    genprint lv t opts ++ " <: " ++ genprint lv u opts
+
   sprintn _ c = pprint c
   sprint c = pprint c
+  pprint c = genprint Inf c [pprint, subvar 'x']
 
 
+-- | Flag constraints printing
 instance PPrint FlagConstraint where
   pprint (m, n) =
     (if m < 2 then
@@ -242,11 +253,14 @@ instance PPrint FlagConstraint where
 
   sprintn _ c = pprint c
   sprint c = pprint c
+  genprint _ c _ = pprint c
 
+
+-- | Constraint set printing
 instance PPrint ConstraintSet where
-  pprint (lcs, fcs) =
+  genprint _ (lcs, fcs) opts =
     let screenw = 120 in
-    let plcs = List.map pprint lcs in
+    let plcs = List.map (\c -> genprint Inf c opts) lcs in
     let maxw = List.maximum $ List.map List.length plcs in
     let nline = screenw `quot` (maxw + 5) in 
 
@@ -276,3 +290,5 @@ instance PPrint ConstraintSet where
 
   sprintn _ cs = pprint cs
   sprint cs = pprint cs
+  pprint cs = genprint Inf cs [pprint, subvar 'X']
+

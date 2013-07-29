@@ -198,11 +198,14 @@ data Expr =
 
 
 instance PPrint RefFlag where
+  genprint _ f _ = pprint f
+
   sprintn _ 0 = ""
   sprintn _ 1 = "!"
   sprintn _ (-1) = ""
   sprintn _ (-2) = "?"
   sprintn _ n = supervar '!' n
+
   sprint n = sprintn defaultLvl n
   pprint n = sprintn Inf n
 

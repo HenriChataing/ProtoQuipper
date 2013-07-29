@@ -929,7 +929,7 @@ pprint_pattern_noref p = do
   fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
                            Just n -> n
                            Nothing -> subvar 'D' d)
-  return $ genprint_pattern Inf p fvar fdata
+  return $ genprint Inf p [fvar, fdata]
 
 -- | Same as pprint_pattern_noref
 pprint_expr_noref :: Expr -> QpState String
@@ -941,7 +941,7 @@ pprint_expr_noref e = do
   fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
                            Just n -> n
                            Nothing -> subvar 'D' d)
-  return $ genprint_expr Inf e fvar fdata
+  return $ genprint Inf e [fvar, fdata]
 
 
 -- | Same for types, the type variables are attributed names and printed
@@ -967,6 +967,6 @@ pprint_type_noref t = do
                                                         _ -> ""
                                            Nothing -> ""
                              | otherwise -> "")
-  return $ genprint_type Inf t fflag fvar
+  return $ genprint Inf t [fflag, fvar]
 
 

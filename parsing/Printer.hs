@@ -11,6 +11,9 @@ import Data.List as List
 {- Type printing -}
 
 instance PPrint Type where
+  genprint lv t _ =
+    sprintn lv t
+
   -- Print unto Lvl = n
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
@@ -61,6 +64,9 @@ instance PPrint Type where
 {- Pattern printing -}
 
 instance PPrint Pattern where
+  genprint lv p _ =
+    sprintn lv p
+
   -- Print unto Lvl = n
   sprintn _ PUnit = "<>"
   sprintn _ (PVar x) = x
@@ -161,6 +167,7 @@ print_doc (EBuiltin s) = text "#builin" <+> text s
 print_doc (ELocated e _) = print_doc e
  
 instance PPrint Expr where
+  genprint lv e _ = sprintn lv e
   sprintn lv e = PP.render $ print_doc e
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
