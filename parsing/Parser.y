@@ -33,12 +33,11 @@ import Data.List as List
   '>' { TkRChevron $$ }
   '[' { TkLBracket $$ }
   ']' { TkRBracket $$ }
-  '{' { TkLCurlyBracket $$ }
-  '}' { TkRCurlyBracket $$ }  
 
   ";;" { TkDblSemiColon $$ }
-  "->" { TkArrow $$ }
-  "<-" { TkBackArrow $$ }
+  "->" { TkRArrow $$ }
+  "<-" { TkLArrow $$ }
+  "<-*" { TkLArrowStar $$ }
   "<:" { TkSubType $$ }
 
 
@@ -46,7 +45,6 @@ import Data.List as List
   LET { TkLet $$ }
   REC { TkRec $$ }
   IN { TkIn $$ }
-  DO { TkDo $$ }
 
   BOX { TkBox $$ }
   UNBOX { TkUnbox $$ }
@@ -90,11 +88,15 @@ Program :
      Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3, module_name = "", filepath = "" } }
 
 
+{- List of imported modules
+   Module names must begin with an upper case letter
+-}
 Import_list :
       {- empty -}                                { [] }
     | Import_list IMPORT UID                     { (snd $3):$1 }
 
 
+{- Algebraic type definitions -}
 Typedef_list :
       {- empty -}                                { [] }
     | Typedef_list Typedef                       { $2:$1 }
@@ -116,6 +118,9 @@ Var_list :
     | Var_list LID                              { $1 ++ [snd $2] }
 
 
+{- Body of the program : list
+  of term declarations, either terms
+  of let bindings -}
 Decl_list :
       {- empty -}                                { [] }
     | Decl_list Decl                             { $1 ++ [$2] }
@@ -133,21 +138,24 @@ Decl :
 Expr :
       FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | MATCH Expr WITH Matching_list              { EMatch $2 $4 }
+    | MATCH Expr WITH Matching_list              { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
     | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | LET LID Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
     | LET REC LID Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
-    | DO '{' Do_expr '}'                         { locate $3 (fromto $1 $4) }
-    | Apply_expr                                 { $1 }
+    | Seq_expr                                   { $1 }
 
-Do_expr :
-      Expr "<-" Expr ';' Do_expr                { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Expr ';' Do_expr                          { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
-    | Expr                                      { $1 }
+
+Seq_expr :
+      Apply_expr                                 { $1 }
+    | Atom_expr "<-" Apply_expr ';' Seq_expr     { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
+    | Atom_expr "<-*" Apply_expr ';' Seq_expr    { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
+    | Apply_expr ';' Seq_expr                    { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
+
 
 Apply_expr :
-      Apply_expr Atom_expr                      { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | Atom_expr                                 { $1 }
+      Apply_expr Atom_expr                       { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
+    | Atom_expr                                  { $1 }
+
 
 Atom_expr :
       TRUE                                      { locate (EBool True) $1 }

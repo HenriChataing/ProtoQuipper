@@ -27,7 +27,7 @@ import Data.List as List
   '(' { TkLParen $$ }
   ')' { TkRParen $$ }
 
-  "->" { TkArrow $$ }
+  "->" { TkRArrow $$ }
   "<:" { TkSubType $$ }
 
   VAL { TkVal $$ }

@@ -24,7 +24,7 @@ import Data.List as List
   ')' { TkRParen $$ }
   "<:" { TkSubType $$ }
   
-  ARROW { TkArrow $$ }
+  ARROW { TkRArrow $$ }
   VAR { TkLId $$ }
   CIRC { TkCirc $$ }
   BOOL { TkBool $$ }

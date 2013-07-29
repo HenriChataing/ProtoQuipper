@@ -18,7 +18,6 @@ tokens :-
   "--".*                              ;
 
   "<:"                                { locate_token TkSubType }
-  ":>"                                { locate_token TkSubTypeRev }
   "*"                                 { locate_token TkStar }
   "."                                 { locate_token TkDot }
   ","                                 { locate_token TkComma }
@@ -28,8 +27,9 @@ tokens :-
   "="                                 { locate_token TkEq }
   "!"                                 { locate_token TkBang }
   "|"                                 { locate_token TkBar }
-  "->"                                { locate_token TkArrow }
-  "<-"                                { locate_token TkBackArrow }
+  "->"                                { locate_token TkRArrow }
+  "<-"                                { locate_token TkLArrow }
+  "<-*"                               { locate_token TkLArrowStar }
   "("                                 { locate_token TkLParen } 
   ")"                                 { locate_token TkRParen }
   "<"                                 { locate_token TkLChevron }
@@ -103,10 +103,10 @@ data Token =
   | TkStar Extent          | TkBar Extent
   | TkComma Extent         | TkColon Extent
   | TkSemiColon Extent     | TkEq Extent
-  | TkBang Extent          | TkArrow Extent
-  | TkBackArrow Extent     | TkSubType Extent
+  | TkBang Extent          | TkRArrow Extent
+  | TkLArrow Extent        | TkSubType Extent
   | TkDblSemiColon Extent  | TkDot Extent
-  | TkSubTypeRev Extent
+  | TkLArrowStar Extent
 
   -- Delimiters
   | TkLParen Extent        | TkRParen Extent
