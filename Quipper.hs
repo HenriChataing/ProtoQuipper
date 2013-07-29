@@ -67,7 +67,6 @@ main = do
             -- Read and parse the file
 
             file <- return $ List.head files
-            putStrLn $ "\x1b[1;33m" ++ ">> Quipper" ++ "\x1b[0m"
             (do
                (_, (v, t)) <- Q.runS (do
                  Q.set_verbose (verbose opts)
@@ -75,9 +74,8 @@ main = do
                  t <- Q.pprint_type_noref t
                  return (v, t)) Q.empty_context
                case v of
-                 Just v -> putStrLn $ pprint v
-                 Nothing -> return ()
-               putStrLn $ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+                 Just v -> putStrLn $ (pprint v ++ " : " ++ t)
+                 Nothing -> putStrLn t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
   else
     return ()
 
