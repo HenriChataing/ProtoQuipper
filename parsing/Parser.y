@@ -74,7 +74,6 @@ import Data.List as List
 
 
 %right "->"
-%nonassoc '*'
 %nonassoc '!'
 
 %%
@@ -217,20 +216,24 @@ Matching_list :
 -}
 
 Type :
-      Tensor_list                               { locate_opt (TTensor $1) (fromto_opt (location $ List.head $1) (location $ List.last $1)) }
+      Tensor_type                               { $1 }
     | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
     | '!' Type                                  { locate_opt (TBang $2) (fromto_opt (Just $1) (location $2)) }
-    | Type_app                                  { $1 }
+
+
+Tensor_type :
+      Tensor_list                               { case $1 of
+                                                    [t] -> t
+                                                    _ -> TTensor $ List.reverse $1 }
+
+Tensor_list :
+      Type_app                                  { [$1] }
+    | Tensor_list '*' Type_app                  { $3:$1 }
 
 
 Type_app :
       Atom_type                                 { $1 }
     | Type_app Atom_type                        { TApp $1 $2 }
-
-
-Tensor_list :
-      Type '*' Type                             { [$1, $3] }
-    | Tensor_list '*' Type                      { $1 ++ [$3] }
 
 
 Atom_type :
