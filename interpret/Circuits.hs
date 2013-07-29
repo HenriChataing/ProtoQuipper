@@ -274,7 +274,8 @@ instance PPrint Circuit where
                                                           run gr) (gr, ()) gates) in
     let GrState run = (runGr >>= (\_ -> output)) in
     let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [] }) in
-    s
+    s ++ "\n"
 
   sprintn _ c = pprint c
   sprint c = pprint c
+  genprint _ c _ = pprint c

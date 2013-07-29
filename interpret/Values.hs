@@ -46,13 +46,13 @@ instance PPrint Value where
   pprint (VBool b) = if b then "true" else "false"
   pprint (VTuple (v:rest)) = "<" ++ pprint v ++ List.foldl (\s w -> s ++ ", " ++ pprint w) "" rest ++ ">"
   pprint (VCirc _ c _) = pprint c
-  pprint (VFun _ p e) = "fun " ++ pprint p ++ " -> " ++ pprint e
+  pprint (VFun _ _ _) = "<fun>"
   pprint (VDatacon datacon e) = subvar 'D' datacon ++ case e of
-                                                        Just e -> "(" ++ pprint e ++ ")"
+                                                        Just e -> " (" ++ pprint e ++ ")"
                                                         Nothing -> ""
   pprint (VUnboxed c) = "unbox (" ++ pprint c ++ ")"
 
   sprint v = pprint v
   sprintn _ v = pprint v
-
+  genprint _ v _ = pprint v
 
