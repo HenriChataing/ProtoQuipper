@@ -12,26 +12,51 @@ import Data.List as List
 unary_gates :: [String]
 ----------------------
 unary_gates =
-  [ "H", "NOT", "Y", "Z", "S", "T", "IS", "IT" ]
+  [ "GATE_H", "NOT",
+    "GATE_X", "GATE_Y", "GATE_Z",
+    "GATE_S", "GATE_S_INV",
+    "GATE_T", "GATE_T_INV",
+    "GATE_E", "GATE_E_INV",
+    "GATE_OMEGA",
+    "GATE_V", "GATE_V_INV" ]
 
 -- Attribution of the inverses
 unary_rev :: [(String, String)]
 ------------------------------
 unary_rev =
-  [ ("H", "H"),
-    ("NOT", "NOT"), ("Y", "Y"), ("Z", "Z"),
-    ("S", "IS"), ("IS", "S"),
-    ("T", "IT"), ("IT", "T") ]
+  [ ("GATE_H", "GATE_H"),
+    ("NOT", "NOT"),
+    ("GATE_X", "GATE_X"),
+    ("GATE_Y", "GATE_Y"),
+    ("GATE_Z", "GATE_Z"),
+    ("GATE_S", "GATE_S_INV"),
+    ("GATE_S_INV", "GATE_S"),
+    ("GATE_T", "GATE_T_INV"),
+    ("GATE_T_INV", "GATE_T"),
+    ("GATE_E", "GATE_E_INV"),
+    ("GATE_E_INV", "GATE_E"),
+    ("GATE_OMEGA", "GATE_OMEGA"),
+    ("GATE_V", "GATE_V_INV"),
+    ("GATE_V_INV", "GATE_V") ]
 
 -- Symbolic representation
 unary_sym :: [(String, String)]
 ------------------------------
 unary_sym =
-  [ ("H", "[H]"),
-    ("NOT", "(X)"),
-    ("Y", "[Y]"), ("Z", "[Z]"),
-    ("S", "[S]"), ("IS", "[\x0305S]"),
-    ("T", "[T]"), ("IT", "[\x0305T]") ]
+  [ ("GATE_H", "[H]"),
+    ("NOT", "(+)"),
+    ("GATE_X", "(+)"),
+    ("GATE_Y", "[Y]"),
+    ("GATE_Z", "[Z]"),
+    ("GATE_S", "[S]"),
+    ("GATE_S_INV", "[\x0305S]"),
+    ("GATE_T", "[T]"),
+    ("GATE_T_INV", "[\x0305T]"),
+    ("GATE_E", "[E]"),
+    ("GATE_E_INV", "[\x0305\&E]"),
+    ("GATE_OMEGA", "[\x03C9]"),
+    ("GATE_V", "[V]"),
+    ("GATE_V_INV", "[\x0305V]") ]
 
 -- General type for unary gates
 unary_type :: Type
@@ -45,21 +70,23 @@ unary_type = TCirc TQBit TQBit
 binary_gates :: [String]
 -----------------------
 binary_gates =
-  [ "SWAP", "CNOT" ]
+  [ "SWAP", "CNOT", "GATE_W" ]
 
 -- Attribution of the inverses
 binary_rev :: [(String, String)]
 -------------------------------
 binary_rev =
   [ ("SWAP", "SWAP"),
-    ("CNOT", "CNOT") ]
+    ("CNOT", "CNOT"),
+    ("GATE_W", "GATE_W") ]
 
 -- Symbolic representation
 binary_sym :: [(String, (String, String))]
 ---------------------------------------
 binary_sym =
   [ ("SWAP", ("-X-", "-X-")),
-    ("CNOT", ("(+)", "-*-")) ]
+    ("CNOT", ("(+)", "-*-")),
+    ("GATE_W", ("-W-", "-W-")) ]
 
 -- General type for binary gates
 binary_type :: Type
