@@ -30,6 +30,7 @@ data Gate =
   | Term Int Int
   | Unary String Int
   | Binary String Int Int
+  | Controlled Gate [Int]
     deriving Show
 
 -- Some readdressing
@@ -37,6 +38,7 @@ readdress :: Gate -> Binding -> Gate
 ------------------------------------
 readdress (Unary s q) b = Unary s (apply_binding b q)
 readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb)
+readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (apply_binding b) qlist)
 
 instance Reversible Gate where
   rev (Init q b) = Term q b
@@ -47,6 +49,7 @@ instance Reversible Gate where
   rev (Binary s qa qb) = case List.lookup s binary_rev of
                            Just s' -> Binary s' qa qb
                            Nothing -> error ("Binary gate " ++ s ++ " has no defined inverse")
+  rev (Controlled g qlist) = Controlled (rev g) qlist
 
 -- Apply a binding function to the addresses of a gate
 ---- The output is the resulting gate and a binding function from the old addresses to the new
@@ -54,12 +57,12 @@ instance Caps Gate where
   -- Normal gates
   unencap c g@(Unary _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   unencap c g@(Binary _ _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
+  unencap c (Controlled g qlist) b = (c { gates = (gates c) ++ [readdress (Controlled g qlist) b] }, b)
   -- Creation / deletion of wires
   unencap c (Term q bt) b = let q' = apply_binding b q in
     (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
   unencap c (Init q bt) b = let q' = fresh_address (qOut c) in
     (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
-
 
 -- Result of the printing
 model :: Gate -> [(Int, String)]
@@ -79,6 +82,19 @@ model (Unary s q) =
               Nothing -> error ("Unary gate " ++ s ++ " has no specified symbolic representation")
             in
   [(2 * q, sym)]
+
+model (Controlled g qlist) =
+  let pg = model g in
+  let (qmin, _) = List.minimum pg
+      (qmax, _) = List.maximum pg in
+  let (_, _, m) = List.foldl (\(qmn, qmx, mod) q ->
+                               if 2*q < qmn then
+                                 (2*q, qmx, (2*q, "-.-"):(List.map (\l -> (l, " | ")) [2*q+1 .. qmn-1] ++ mod))
+                               else if qmx < 2*q then
+                                 (qmn, 2*q, (2*q, "-.-"):(List.map (\l -> (l, " | ")) [qmx+1 .. 2*q-1] ++ mod))
+                               else
+                                 (qmn, qmx, List.map (\(l, s) -> if l == 2*q then (l, "-.-") else (l, s)) mod)) (qmin, qmax, pg) qlist in
+  m
 
 model (Init q bt) =
   [(2 * q, show bt ++ "|-")]
