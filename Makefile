@@ -1,8 +1,9 @@
 INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -imonad
+HDK_INCLUDE = $(INCLUDE:%=--optghc=%)
 
 BUILD_DIR = _build
 
-GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE) -XTypeSynonymInstances -XFlexibleInstances -XDeriveDataTypeable -XScopedTypeVariables -XMultiParamTypeClasses
+GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
 HAPPY = happy --ghc --info
 ALEX = alex
 
@@ -54,3 +55,8 @@ test : all
 
 count : clean
 	wc -l *.hs */*.hs parsing/Lexer.x parsing/Parser.y parsing/IParser.y parsing/ConstraintParser.y
+
+haddock : Parser.hs ConstraintParser.hs IParser.hs Lexer.hs
+	./haddock-doc/haddock -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html
+  
+
