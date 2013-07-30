@@ -79,7 +79,13 @@ builtin_operations =
               ("SUB", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m - n))))),
               ("MUL", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))) ] in
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
+              ("LT", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m < n))))),
+              ("GT", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m > n))))),
+              ("EQ", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))) ] in
   Map.fromList ops
 
 
