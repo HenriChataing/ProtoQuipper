@@ -193,12 +193,12 @@ process_module opts prog = do
   -- Create the initial type
   a <- new_type
 
-  -- | constraint typing | --
+  -- constraint typing
   constraints <- constraint_typing typctx cprog [a]
   newlog 1 ">> Initial constraint set"
   newlog 1 $ pprint constraints ++ "\n"
 
-  -- | Unification | --
+  -- Unification
   constraints <- break_composite True constraints
     -- For ordering purposes
   register_constraints $ fst constraints
