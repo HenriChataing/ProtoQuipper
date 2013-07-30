@@ -1,4 +1,4 @@
-INCLUDE = -iparsing -iinterpret -ityping -iexport -itypingtest -imonad
+INCLUDE =
 HDK_INCLUDE = $(INCLUDE:%=--optghc=%)
 
 BUILD_DIR = _build
@@ -13,36 +13,36 @@ all : Parser.hs ConstraintParser.hs IParser.hs Lexer.hs
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parser.hs :
-	if [ -e _build/Parser.y ] && diff parsing/Parser.y _build/Parser.y > /dev/null ; then \
+	if [ -e _build/Parser.y ] && diff Parsing/Parser.y _build/Parser.y > /dev/null ; then \
 	echo "Ignoring Parser.y" ; \
 	else \
-	$(HAPPY) parsing/Parser.y ; \
-	cp parsing/Parser.y _build/ ; \
+	$(HAPPY) Parsing/Parser.y ; \
+	cp Parsing/Parser.y _build/ ; \
 	fi
 ConstraintParser.hs :
-	if [ -e _build/ConstraintParser.y ] && diff parsing/ConstraintParser.y _build/ConstraintParser.y > /dev/null ; then \
+	if [ -e _build/ConstraintParser.y ] && diff Parsing/ConstraintParser.y _build/ConstraintParser.y > /dev/null ; then \
 	echo "Ignoring ConstraintParser.y" ; \
 	else \
-	$(HAPPY) parsing/ConstraintParser.y ; \
-	cp parsing/ConstraintParser.y _build/ ; \
+	$(HAPPY) Parsing/ConstraintParser.y ; \
+	cp Parsing/ConstraintParser.y _build/ ; \
 	fi
 IParser.hs :
-	if [ -e _build/IParser.y ] && diff parsing/IParser.y _build/IParser.y > /dev/null ; then \
+	if [ -e _build/IParser.y ] && diff Parsing/IParser.y _build/IParser.y > /dev/null ; then \
 	echo "Ignoring IParser.y" ; \
 	else \
-	$(HAPPY) parsing/IParser.y ; \
-	cp parsing/IParser.y _build/ ; \
+	$(HAPPY) Parsing/IParser.y ; \
+	cp Parsing/IParser.y _build/ ; \
 	fi
 
 Lexer.hs :
-	if [ -e _build/Lexer.x ] && diff parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
+	if [ -e _build/Lexer.x ] && diff Parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
 	echo "Ignoring Lexer.x" ; \
 	else \
-	$(ALEX) parsing/Lexer.x ; \
-	cp parsing/Lexer.x _build/ ; \
+	$(ALEX) Parsing/Lexer.x ; \
+	cp Parsing/Lexer.x _build/ ; \
 	fi
 clean :
-	rm parsing/Parser.hs parsing/Lexer.hs parsing/ConstraintParser.hs parsing/IParser.hs
+	rm Parsing/Parser.hs Parsing/Lexer.hs Parsing/ConstraintParser.hs Parsing/IParser.hs
 	rm _build/*
 
 distclean : clean
@@ -54,7 +54,7 @@ test : all
 	done
 
 count : clean
-	wc -l *.hs */*.hs parsing/Lexer.x parsing/Parser.y parsing/IParser.y parsing/ConstraintParser.y
+	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y Parsing/IParser.y Parsing/ConstraintParser.y
 
 haddock : Parser.hs ConstraintParser.hs IParser.hs Lexer.hs
 	./haddock-doc/haddock -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html

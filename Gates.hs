@@ -1,6 +1,6 @@
 module Gates where
 
-import Syntax
+import Parsing.Syntax
 
 import Data.Map as Map
 import Data.List as List

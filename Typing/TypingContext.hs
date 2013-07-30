@@ -2,17 +2,17 @@
 -- contexts. Typing context are represented as maps from term variables to types. Functions include
 -- union, partition, binding of var and patterns
 
-module TypingContext where
+module Typing.TypingContext where
 
-import CoreSyntax
-
-import QpState
-import QuipperError
 import Utils
 
-import Namespace
-import Modules
-import TransSyntax
+import Typing.CoreSyntax
+import Typing.TransSyntax
+
+import Monad.QpState
+import Monad.QuipperError
+import Monad.Namespace
+import Monad.Modules
 
 import Data.List as List
 import Data.Map (Map)

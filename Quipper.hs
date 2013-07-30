@@ -2,24 +2,25 @@
 
 module Main where
 
-import Parser
-import ConstraintParser
-import Lexer
-import QuipperError
-import qualified QpState as Q
+import Parsing.Parser
+import Parsing.ConstraintParser
+import Parsing.Lexer
+
+import Monad.QuipperError
+import qualified Monad.QpState as Q
 
 import Classes
 import Utils
 
-import Syntax
-import Printer
+import Parsing.Syntax
+import Parsing.Printer
 
-import CoreSyntax
-import TransSyntax
-import Driver
+import Typing.CoreSyntax
+import Typing.TransSyntax
+import Typing.Driver
 
-import qualified Interpret
-import Values
+import Interpret.Values
+import Interpret.Interpret
 
 import System.IO
 import System.Environment

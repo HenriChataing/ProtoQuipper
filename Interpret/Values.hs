@@ -6,15 +6,15 @@
 --      of the evaluation of the function
 --    The qbits, which weren't included in the input syntax, are added, same for circuits
 
-module Values where
+module Interpret.Values where
 
 import Classes
 import Utils
 
-import CoreSyntax
-import CorePrinter
+import Typing.CoreSyntax
+import Typing.CorePrinter
 
-import Circuits
+import Interpret.Circuits
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap

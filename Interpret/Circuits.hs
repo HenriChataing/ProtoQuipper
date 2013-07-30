@@ -1,11 +1,10 @@
-module Circuits where
+module Interpret.Circuits where
 
 import Data.List as List
 import Data.Map as Map
 
 import Classes
 import Utils
-
 import Gates
 
 -----------------------------------

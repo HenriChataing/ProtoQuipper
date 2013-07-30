@@ -1,12 +1,11 @@
 {
-module ConstraintParser where
+module Parsing.ConstraintParser where
 
 import Classes
-import Localizing
 
-import Lexer
-
-import Syntax
+import Parsing.Localizing
+import Parsing.Lexer
+import Parsing.Syntax
 
 import Data.Char
 import Data.List as List

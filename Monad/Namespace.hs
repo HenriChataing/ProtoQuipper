@@ -1,7 +1,7 @@
 -- | This module provides a structure aimed at variable consing.
 -- Specifically, it attributes a unique identification (= Int) to each variable.
 
-module Namespace where
+module Monad.Namespace where
 
 import Utils
 

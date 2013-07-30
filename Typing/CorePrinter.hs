@@ -5,13 +5,14 @@
 -- | This module provides the pretty printing functions necessary to render
 -- the types and expressions of the core syntax
 
-module CorePrinter where
+module Typing.CorePrinter where
 
 import Classes
 import Utils
 
-import Syntax (RecFlag (..))
-import CoreSyntax hiding ((<>))
+import Parsing.Syntax (RecFlag (..))
+
+import Typing.CoreSyntax hiding ((<>))
 
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List

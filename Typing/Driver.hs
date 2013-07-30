@@ -1,31 +1,31 @@
-module Driver where
+module Typing.Driver where
 
 import Classes
 import Utils
-import QuipperError
 import Options
-
-import Lexer
-import qualified Parser as P
-import qualified IParser as IP
-import Localizing (clear_location)
-
-import qualified Syntax as S
-import Printer
-import CoreSyntax
-import TransSyntax
-
 import Gates
-import Interpret
-import Values
 
-import Ordering
-import Subtyping
-import TypeInference
+import Parsing.Lexer
+import qualified Parsing.Parser as P
+import qualified Parsing.IParser as IP
+import Parsing.Localizing (clear_location)
+import qualified Parsing.Syntax as S
+import Parsing.Printer
 
-import QpState
-import TypingContext
-import Modules
+import Typing.CoreSyntax
+import Typing.TransSyntax
+
+import Interpret.Interpret
+import Interpret.Values
+
+import Typing.Ordering
+import Typing.Subtyping
+import Typing.TypeInference
+import Typing.TypingContext
+
+import Monad.QpState
+import Monad.Modules
+import Monad.QuipperError
 
 import System.Directory
 
@@ -299,6 +299,6 @@ unification_test set =
       return $ pprint constraints
   in
   do
-    (_, s) <- runS run QpState.empty_context
+    (_, s) <- runS run empty_context
     return s
 

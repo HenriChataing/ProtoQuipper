@@ -1,19 +1,20 @@
-module QpState where
+module Monad.QpState where
 
-import Localizing (Extent, extent_unknown)
 import Utils
 import Classes
-import QuipperError
 
-import Namespace (Namespace)
-import qualified Namespace as N
+import Parsing.Localizing (Extent, extent_unknown)
 
-import CoreSyntax
-import CorePrinter
-import Circuits
-import Values
+import Monad.Modules
+import Monad.QuipperError
+import Monad.Namespace (Namespace)
+import qualified Monad.Namespace as N
 
-import Modules
+import Typing.CoreSyntax
+import Typing.CorePrinter
+
+import Interpret.Circuits
+import Interpret.Values
 
 import System.IO
 import Control.Exception as E

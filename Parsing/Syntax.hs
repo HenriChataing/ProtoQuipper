@@ -1,7 +1,8 @@
-module Syntax where
+module Parsing.Syntax where
 
-import Localizing
 import Classes
+
+import Parsing.Localizing
 
 import Data.Char
 import Data.Map

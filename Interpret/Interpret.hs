@@ -1,23 +1,23 @@
-
-module Interpret (-- Only the main function is accessible
+module Interpret.Interpret (-- Only the main function is accessible
                   run_module) where
 
 import Classes
-import Localizing
-import QuipperError
 import qualified Utils
-
-import QpState
-import Modules
-
-import Syntax (RecFlag (..))
-import CoreSyntax
-import Printer
-
-import Circuits (Circuit (..), Binding)
-import qualified Circuits as C
-import Values
 import Gates
+
+import Monad.QuipperError
+import Monad.QpState
+import Monad.Modules
+
+import Parsing.Localizing
+import Parsing.Syntax (RecFlag (..))
+import Parsing.Printer
+
+import Typing.CoreSyntax
+
+import Interpret.Circuits (Circuit (..), Binding)
+import qualified Interpret.Circuits as C
+import Interpret.Values
 
 import Control.Exception
 

@@ -1,13 +1,13 @@
 {
-module IParser where
+module Parsing.IParser where
 
 import Classes
-import Localizing
-import QuipperError
 
-import Lexer
+import Monad.QuipperError
 
-import Syntax
+import Parsing.Localizing
+import Parsing.Lexer
+import Parsing.Syntax
 
 import Control.Exception
 

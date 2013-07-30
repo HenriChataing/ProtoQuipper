@@ -1,9 +1,9 @@
 -- | Provides all the printing functions of the surface syntax
-module Printer where
+module Parsing.Printer where
 
 import Classes
 
-import Syntax
+import Parsing.Syntax
 
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List

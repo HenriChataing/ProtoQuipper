@@ -1,33 +1,34 @@
-module TransSyntax (define_user_subtyping,
-                    translate_program,
-                    translate_type,
-                    translate_bound_type,
-                    translate_unbound_type,
-                    translate_body,
-                    unsugar,
-                    import_builtins,
-                    import_typedefs,
-                    update_module_types) where
+module Typing.TransSyntax (
+  define_user_subtyping,
+  translate_program,
+  translate_type,
+  translate_bound_type,
+  translate_unbound_type,
+  translate_body,
+  unsugar,
+  import_builtins,
+  import_typedefs,
+  update_module_types) where
 
 import Utils
 import Classes
-import Localizing
-import QuipperError
-
-import CoreSyntax
-import CorePrinter
-
-import Syntax (RecFlag (..))
-import qualified Syntax as S
-import Printer
-import Values
-import Circuits as C
-
-import QpState
-import Modules
-
 import Gates
-import Subtyping
+
+import Typing.CoreSyntax
+import Typing.CorePrinter
+import Typing.Subtyping
+
+import Parsing.Localizing
+import Parsing.Syntax (RecFlag (..))
+import qualified Parsing.Syntax as S
+import Parsing.Printer
+
+import Interpret.Values
+import Interpret.Circuits as C
+
+import Monad.QuipperError
+import Monad.QpState
+import Monad.Modules
 
 import Control.Exception
 

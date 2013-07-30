@@ -1,23 +1,23 @@
-module TypeInference where
+module Typing.TypeInference where
 
 import Prelude hiding (filter)
 
 import Classes
 import Utils
-import Localizing
-import QuipperError
 
-import Syntax (RecFlag (..))
-import qualified Syntax as S
-import CoreSyntax
+import Parsing.Localizing
+import Parsing.Syntax (RecFlag (..))
+import qualified Parsing.Syntax as S
 
-import QpState
-import TypingContext
-import Modules
+import Typing.CoreSyntax
+import Typing.TypingContext
+import Typing.Ordering
+import Typing.Subtyping
+import Typing.TransSyntax
 
-import Ordering
-import Subtyping
-import TransSyntax
+import Monad.QuipperError
+import Monad.QpState
+import Monad.Modules
 
 import Control.Exception as E
 

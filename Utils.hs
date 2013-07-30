@@ -1,6 +1,6 @@
 module Utils where
 
-import Localizing
+import Parsing.Localizing
 
 import System.FilePath.Posix as P
 

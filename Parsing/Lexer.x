@@ -1,7 +1,7 @@
 {
-module Lexer (Token(..), Locus(..), Extent(..), mylex) where
+module Parsing.Lexer (Token(..), Locus(..), Extent(..), mylex) where
 
-import Localizing
+import Parsing.Localizing
 }
 
 %wrapper "posn"

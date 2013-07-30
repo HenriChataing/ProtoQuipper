@@ -5,9 +5,9 @@
   from the lexing, parsing, to the type inference and interpretation of the code
 -}
 
-module QuipperError where
+module Monad.QuipperError where
 
-import Localizing
+import Parsing.Localizing
 
 import Control.Exception
 import Data.Typeable

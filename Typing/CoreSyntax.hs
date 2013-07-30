@@ -9,14 +9,14 @@
 -- the term and type variables are labelled by a unique id, which serves as reference in maps
 -- and other structures
 
-module CoreSyntax where
+module Typing.CoreSyntax where
 
 import Classes
 import Utils
-import Localizing
 
-import Syntax (RecFlag (..))
-import qualified Syntax as S
+import Parsing.Localizing
+import Parsing.Syntax (RecFlag (..))
+import qualified Parsing.Syntax as S
 
 import Data.List as List
 

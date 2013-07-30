@@ -1,14 +1,15 @@
-module Ordering where
+module Typing.Ordering where
 
 import Classes
 import Utils
-import Localizing
-import QuipperError
 
-import CoreSyntax
-import CorePrinter
+import Parsing.Localizing
 
-import QpState
+import Typing.CoreSyntax
+import Typing.CorePrinter
+
+import Monad.QpState
+import Monad.QuipperError
 
 import Data.List as List
 import Data.IntMap (IntMap)

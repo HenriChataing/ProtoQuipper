@@ -1,7 +1,7 @@
 -- | This module provides types and functions useful to deal with location in files
 -- The location is represented by an extent, which is an interval between two locii
 
-module Localizing where
+module Parsing.Localizing where
 
 
 -- | Definition of a locus as a point in a file located

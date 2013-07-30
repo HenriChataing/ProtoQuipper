@@ -1,14 +1,14 @@
 -- | Module Subtyping provides useful functions to operate on subtyping constraints
 -- and constraint sets
-module Subtyping where
+module Typing.Subtyping where
 
 import Classes
 
-import CoreSyntax
-import CorePrinter
+import Typing.CoreSyntax
+import Typing.CorePrinter
 
-import QuipperError
-import QpState
+import Monad.QuipperError
+import Monad.QpState
 
 import qualified Data.List as List
 

@@ -1,8 +1,8 @@
 -- | This module describe a data structure used to represent modules internally
-module Modules where
+module Monad.Modules where
 
-import CoreSyntax
-import Values
+import Typing.CoreSyntax
+import Interpret.Values
 
 import Data.Map (Map)
 import qualified Data.Map as Map

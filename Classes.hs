@@ -1,7 +1,7 @@
 -- This module provides several custom class definitions
 module Classes where
 
-import Localizing
+import Parsing.Localizing
 
 --------------------------------
 -- Class defining printing    --
