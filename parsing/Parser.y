@@ -40,6 +40,10 @@ import Data.List as List
   "<-*" { TkLArrowStar $$ }
   "<:" { TkSubType $$ }
 
+  INFIX0 { TkInfix0 $$ }
+  INFIX1 { TkInfix1 $$ }
+  INFIX2 { TkInfix2 $$ }
+  INFIX3 { TkInfix3 $$ }
 
   FUN { TkFun $$ }
   LET { TkLet $$ }
@@ -74,8 +78,11 @@ import Data.List as List
   UID { TkUId $$ }
   INT { TkInt $$ }
 
-
 %right "->"
+%left INFIX0
+%right INFIX1
+%left INFIX2
+%left INFIX3
 %nonassoc '!'
 
 %%
@@ -147,10 +154,22 @@ Expr :
 
 
 Seq_expr :
-      Apply_expr                                 { $1 }
-    | Atom_expr "<-" Apply_expr ';' Seq_expr     { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Atom_expr "<-*" Apply_expr ';' Seq_expr    { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
-    | Apply_expr ';' Seq_expr                    { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
+      Op_expr                                    { $1 }
+    | Atom_expr "<-" Op_expr ';' Seq_expr        { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
+    | Atom_expr "<-*" Op_expr ';' Seq_expr       { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
+    | Op_expr ';' Seq_expr                       { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
+
+
+Op_expr :
+      Op_expr Infix_op Op_expr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Apply_expr                                 { $1 }
+
+
+Infix_op :
+      INFIX0                                     { $1 }
+    | INFIX1                                     { $1 }
+    | INFIX2                                     { $1 }
+    | INFIX3                                     { $1 }
 
 
 Apply_expr :
@@ -183,6 +202,7 @@ Expr_sep_list :
 
 Pattern :
       LID                                       { locate (PVar (snd $1)) (fst $1) }
+    | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
     | '(' Pattern "<:" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
     | '<' Pattern_sep_list '>'                  { locate (PTuple $2) (fromto $1 $3) }
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }

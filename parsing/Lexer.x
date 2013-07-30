@@ -11,6 +11,11 @@ $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
 $digit = [0-9]
 $admissible = [_]
+$infix0 = ['\<' '\>' '\|' '\&' '\$']
+$infix1 = ['\@' '\^']
+$infix2 = ['\+' '\-']
+$infix3 = ['\*' '\/']
+$symbolchar = [$infix0 $infix1 $infix2 $infix3 '\%' '\.' '\:']
 
 tokens :-
 
@@ -68,7 +73,12 @@ tokens :-
   $low_alpha [$alpha $digit $admissible]*         { locate_named_token TkLId }
   $up_alpha [$up_alpha $digit $admissible]*       { locate_named_token TkLId }
   $up_alpha [$alpha $digit $admissible]*          { locate_named_token TkUId }
- 
+
+  $infix0 $symbolchar*                { locate_named_token TkInfix0 }
+  $infix1 $symbolchar*                { locate_named_token TkInfix1 } 
+  $infix2 $symbolchar*                { locate_named_token TkInfix2 } 
+  $infix3 $symbolchar*                { locate_named_token TkInfix3 } 
+
 {
 
 -- | Converts alex's positions to extents
@@ -116,6 +126,12 @@ data Token =
   | TkLChevron Extent      | TkRChevron Extent
   | TkLBracket Extent      | TkRBracket Extent
   | TkLCurlyBracket Extent | TkRCurlyBracket Extent
+
+  -- Operators
+  | TkInfix0 (Extent, String)
+  | TkInfix1 (Extent, String)
+  | TkInfix2 (Extent, String)
+  | TkInfix3 (Extent, String)
     deriving Show
 
 -- | Locate a token. The type signatures matches the one expected of lexing actions
