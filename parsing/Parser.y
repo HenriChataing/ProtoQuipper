@@ -62,6 +62,7 @@ import Data.List as List
   FALSE { TkFalse $$ }
   BOOL { TkBool $$ }
   QBIT { TkQBit $$ }
+  INTEGER { TkInteger $$ }
 
   TYPE { TkType $$ }
   OF { TkOf $$ }
@@ -71,6 +72,7 @@ import Data.List as List
 
   LID { TkLId $$ }
   UID { TkUId $$ }
+  INT { TkInt $$ }
 
 
 %right "->"
@@ -159,6 +161,7 @@ Apply_expr :
 Atom_expr :
       TRUE                                      { locate (EBool True) $1 }
     | FALSE                                     { locate (EBool False) $1 }
+    | INT                                       { locate (EInt (read $ snd $1)) (fst $1) }
     | LID                                       { locate (EVar (snd $1)) (fst $1) }
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
@@ -238,6 +241,7 @@ Type_app :
 
 Atom_type :
       BOOL                                      { locate TBool $1 }
+    | INTEGER                                   { locate TInt $1 }
     | QBIT                                      { locate TQBit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
     | UID '.' LID                               { locate (TQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }

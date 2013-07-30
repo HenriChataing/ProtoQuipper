@@ -18,6 +18,7 @@ instance PPrint LinType where
   -- The display of flags and type variables is specified by two option functions
   genprint _ (TVar x) [_, fvar] = fvar x
   genprint _ TUnit _ = "T"
+  genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
   genprint _ TQbit _ = "qbit"
   genprint lv (TUser n arg) opts = n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
@@ -129,6 +130,9 @@ print_doc _ EUnit _ _ =
 
 print_doc _ (EBool b) _ _ = 
   if b then text "true" else text "false"
+
+print_doc _ (EInt n) _ _ =
+  text $ show n
 
 print_doc _ (EVar x) fvar _ = text $ fvar x
 

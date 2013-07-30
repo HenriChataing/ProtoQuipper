@@ -77,6 +77,7 @@ data Type =
 -- Sum types : bool and generic type instanciation
   | TApp Type Type            -- T a
   | TBool                     -- bool
+  | TInt                      -- int
 
 -- Unrelated
   | TLocated Type Extent      -- A @ ex
@@ -105,6 +106,7 @@ instance Eq Type where
   (==) (TQualified m x) (TQualified m' x') = m == m' && x == x'
   (==) TUnit TUnit = True
   (==) TBool TBool = True
+  (==) TInt TInt = True
   (==) TQBit TQBit = True
   (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
@@ -197,6 +199,7 @@ data Expr =
   | EMatch Expr [(Pattern, Expr)]  -- match e with (x1 -> f1 | x2 -> f2 | ... | xn -> fn)
   | EIf Expr Expr Expr             -- if e then f else g
   | EBool Bool                     -- true / false
+  | EInt Int                       -- integer
 
 -- Circuit construction
   | EBox Type                      -- box[A]

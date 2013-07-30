@@ -97,6 +97,7 @@ data LinType =
 
 -- Sum types
   | TBool                      -- bool
+  | TInt                       -- int
   | TUser String [Type]        -- user type, parametrized over the variables a1 .. an
 
 -- Quantum related types
@@ -180,6 +181,7 @@ data Expr =
 
 -- Custom union types
   | EBool Bool                                    -- True / False
+  | EInt Int                                      -- integer
   | EIf Expr Expr Expr                            -- if e then f else g
   | EDatacon Datacon (Maybe Expr)                 -- datacon  - the argument is optinal, as datacons are considered values
   | EMatch Expr [(Pattern, Expr)]                 -- match e with (x1 -> f1 | .. |  xn -> fn)
@@ -235,6 +237,7 @@ instance KType LinType where
   subs_typ_var a b (TVar x) | x == a = b
                         | otherwise = TVar x
   subs_typ_var _ _ TUnit = TUnit
+  subs_typ_var _ _ TInt = TInt
   subs_typ_var _ _ TBool = TBool
   subs_typ_var _ _ TQbit = TQbit
   subs_typ_var a b (TUser n args) = TUser n $ List.map (subs_typ_var a b) args
@@ -281,6 +284,7 @@ instance Eq LinType where
   (==) TUnit TUnit = True
   (==) TBool TBool = True
   (==) TQbit TQbit = True
+  (==) TInt TInt = True
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
   (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')

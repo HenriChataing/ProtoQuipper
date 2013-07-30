@@ -867,6 +867,9 @@ map_lintype_step TUnit = do
 map_lintype_step TBool = do
   return TBool
 
+map_lintype_step TInt = do
+  return TInt
+
 map_lintype_step TQbit = do
   return TQbit
 

@@ -24,9 +24,11 @@ import qualified Data.List as List
 -- | Type declaration of values
 data Value =
     VFun (IntMap Value) Pattern Expr     -- fun p -> e (in the context env)
+  | VBuiltin (Value -> Value)            -- builtin function
   | VTuple [Value]                       -- <v1, .. , vn>
   | VCirc Value Circuit Value            -- (t, c, u)
   | VBool Bool                           -- true / false
+  | VInt Int                             -- integer
   | VBox Type                            -- box [T]
   | VUnbox                               -- unbox
   | VUnboxed Value                       -- unbox (t, c, u)
@@ -34,7 +36,6 @@ data Value =
   | VDatacon Datacon (Maybe Value)       -- datacon e
   | VRev                                 -- rev
   | VQbit Int                            -- Quantum addresses
-  deriving Show
 
 
 -- | Values are declared instances of PPrint
@@ -42,8 +43,10 @@ instance PPrint Value where
   pprint VUnit = "<>"
   pprint VRev = "rev"
   pprint VUnbox = "unbox"
+  pprint (VBuiltin _) = "<fun>"
   pprint (VQbit q) = subvar 'q' q
   pprint (VBool b) = if b then "true" else "false"
+  pprint (VInt n) = show n
   pprint (VTuple (v:rest)) = "<" ++ pprint v ++ List.foldl (\s w -> s ++ ", " ++ pprint w) "" rest ++ ">"
   pprint (VCirc _ c _) = pprint c
   pprint (VFun _ _ _) = "<fun>"

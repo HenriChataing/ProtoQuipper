@@ -17,6 +17,7 @@ instance PPrint Type where
   -- Print unto Lvl = n
   sprintn _ TUnit = "T"
   sprintn _ TBool = "bool"
+  sprintn _ TInt = "int"
   sprintn _ TQBit = "qbit"
   sprintn _ (TVar x) = x
   sprintn _ (TQualified m x) = m ++ "." ++ x
@@ -106,6 +107,7 @@ print_doc ERev = text "rev"
 print_doc EUnbox = text "unbox"
 print_doc (EBox a) = text "box" <> brackets (text $ pprint a)
 print_doc (EBool b) = if b then text "true" else text "false"
+print_doc (EInt n) = text $ show n
 
 print_doc (ELet r p e f) =
   let pf = print_doc f

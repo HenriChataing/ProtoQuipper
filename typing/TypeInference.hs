@@ -121,6 +121,25 @@ constraint_typing typctx (EBool b) cst = do
   return $ (TBang n TBool <:: cst) <> fconstraints
 
 
+-- | Int typing rule
+--
+-- --------------------------------
+--  !I G |- Int : !n int  [{1 <= I}]
+-- 
+
+constraint_typing typctx (EInt p) cst = do
+  -- The context must be duplicable
+  fconstraints <- have_duplicable_context typctx >>= filter
+
+  -- Generates a referenced flag of the actual type of EBool
+  ex <- get_location
+  n <- fresh_flag_with_value Any
+  specify_expression n $ ActualOfE (EInt p)
+  specify_location n ex
+
+  return $ (TBang n TInt <:: cst) <> fconstraints
+
+
 -- | Axiom typing rule
 --
 -- ---------------------
@@ -544,6 +563,9 @@ model_of_lin TUnit = do
 
 model_of_lin TBool = do
   return TBool
+
+model_of_lin TInt = do
+  return TInt
 
 model_of_lin TQbit = do
   return TQbit

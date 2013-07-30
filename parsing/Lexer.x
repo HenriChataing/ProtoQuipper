@@ -49,6 +49,7 @@ tokens :-
   if                                  { locate_token TkIf }
   import                              { locate_token TkImport }
   in                                  { locate_token TkIn }
+  int                                 { locate_token TkInteger }
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
   of                                  { locate_token TkOf }
@@ -63,6 +64,7 @@ tokens :-
   with                                { locate_token TkWith }
   "#builtin"                          { locate_token TkBuiltin }
 
+  $digit+                                         { locate_named_token TkInt }
   $low_alpha [$alpha $digit $admissible]*         { locate_named_token TkLId }
   $up_alpha [$up_alpha $digit $admissible]*       { locate_named_token TkLId }
   $up_alpha [$alpha $digit $admissible]*          { locate_named_token TkUId }
@@ -84,6 +86,7 @@ data Token =
     TkLId (Extent, String)
   | TkUId (Extent, String)
   | TkString (Extent, String)
+  | TkInt (Extent, String)
 
   -- Reserved notations : list of reserved names
   | TkBool Extent          | TkQBit Extent
@@ -97,7 +100,7 @@ data Token =
   | TkRev Extent           | TkType Extent
   | TkOf Extent            | TkRec Extent
   | TkImport Extent        | TkBuiltin Extent
-  | TkVal Extent
+  | TkVal Extent           | TkInteger Extent
 
   -- Punctuation marks, and other symbols
   | TkStar Extent          | TkBar Extent

@@ -284,6 +284,10 @@ do_application env f x =
         -- Evaluation of the body of the function
         interpret ev body
 
+    -- Builtin application
+    (VBuiltin bf, _) -> do
+        return $ bf x
+
     -- Circuit unboxing
     (VUnbox, _) -> do
         return $ VUnboxed x
@@ -339,6 +343,10 @@ interpret _ EUnit = do
 -- Booleans
 interpret _ (EBool b) = do
   return (VBool b)
+
+-- Integers
+interpret _ (EInt n) = do
+  return (VInt n)
 
 -- Constructors
 interpret _ EUnbox = do

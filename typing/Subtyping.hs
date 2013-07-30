@@ -66,6 +66,11 @@ break_composite bu ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
   break_composite bu (lc, fc)
 
 
+-- Int against int : removed
+break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt)):lc, fc) = do
+  break_composite bu (lc, fc)
+
+
 -- Qbit against QBit : removed
 break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
   -- Make sure the qbit type is not banged

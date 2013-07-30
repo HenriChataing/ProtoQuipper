@@ -35,7 +35,7 @@ import Data.Map as Map
 import qualified Data.List as List
 import qualified Data.IntMap as IMap
 
--- | Generation of the builtin context
+-- | Generation of the builtin context : gates
 builtin_gates :: Map String (S.Type, Value)
 builtin_gates =
   let init = [("INIT0", (S.TCirc S.TUnit S.TQBit,
@@ -71,6 +71,19 @@ binary_value g =
         (VTuple [VQbit 0, VQbit 1])
 
 
+-- | Generation of the builtin context : integer operations
+builtin_operations :: Map String (S.Type, Value)
+builtin_operations =
+  let ops = [ ("ADD", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m + n))))),
+              ("SUB", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m - n))))),
+              ("MUL", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))) ] in
+  Map.fromList ops
+
+
+
 -- | Builtin values
 -- For the moment, only the gates are builtin. Later, other values may be added
 -- The gates are only listed by name in the Gates module, so a value and type need to be created for
@@ -80,7 +93,7 @@ import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do
                       m <- rec
                       (t', _) <- translate_bound_type t Map.empty
-                      return $ Map.insert b (t', v) m) (return Map.empty) builtin_gates
+                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
   ctx <- get_context
   set_context $ ctx { builtins = mb }
 
@@ -320,6 +333,9 @@ translate_type S.TUnit [] m = do
 translate_type S.TBool [] m = do
   return (TBang anyflag TBool, emptyset, fst m)
 
+translate_type S.TInt [] m = do
+  return (TBang anyflag TInt, emptyset, fst m)
+
 translate_type S.TQBit [] m = do
   return (TBang zero TQbit, emptyset, fst m)
 
@@ -493,6 +509,9 @@ translate_expression_with_label S.EUnit _ = do
 
 translate_expression_with_label (S.EBool b) _ = do
   return (EBool b)
+
+translate_expression_with_label (S.EInt n) _ = do
+  return (EInt n)
 
 translate_expression_with_label (S.EVar x) label = do
   case Map.lookup x label of
@@ -737,6 +756,9 @@ unfold_tensors_in_lintype (TTensor tlist) = do
 unfold_tensors_in_lintype TBool =
   return TBool
 
+unfold_tensors_in_lintype TInt =
+  return TInt
+
 unfold_tensors_in_lintype TQbit =
   return TQbit
 
@@ -902,6 +924,9 @@ unsugar (ELet r p e f) = do
 
 unsugar (EBool b) = do
   return $ EBool b
+
+unsugar (EInt n) = do
+  return $ EInt n
 
 unsugar (EIf e f g) = do
   e' <- unsugar e
