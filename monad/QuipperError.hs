@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 {-
    This module provides a data type sampling the errors thrown during the execution of the program,
   from the lexing, parsing, to the type inference and interpretation of the code

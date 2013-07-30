@@ -1,3 +1,9 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
+
 -- | Definition of an internal syntax, which consideraly modifies the grammar of types
 -- so as to facilitate the working of the type inference algorithm. For more efficiency, all
 -- the term and type variables are labelled by a unique id, which serves as reference in maps
