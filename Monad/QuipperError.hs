@@ -31,6 +31,8 @@ data QError =
 
     -- Parsing error : a same kind of error is used to describe all syntax errors
   | ParsingError String
+    -- Parsing error : unexpected end of file
+  | ErrorEndOfFile
     -- A type constructor expect a certain number of arguments n, and is given m /= n instead
   | WrongTypeArguments String Int Int (String, Extent)
     -- The box constructor requires a quantum data type, this error is thrown otherwise
@@ -80,6 +82,7 @@ instance Show QError where
   show (LexicalError (f, ex)) = f ++ ":" ++ show ex ++ ": unknown token"
 
   show (ParsingError tk) = "Parsing error: on token " ++ tk
+  show ErrorEndOfFile = "Error: unexpected end of file"
   show (WrongTypeArguments typ exp act (f, ex)) =
     f ++ ":" ++ show ex ++
     if exp == 0 then     ": the type " ++ typ ++ " expects no arguments, but has been given " ++ show act
