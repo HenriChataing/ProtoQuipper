@@ -174,6 +174,7 @@ Infix_op :
     | INFIX1                                     { $1 }
     | INFIX2                                     { $1 }
     | INFIX3                                     { $1 }
+    | '*'                                        { ($1, "*") }
 
 
 Apply_expr :
