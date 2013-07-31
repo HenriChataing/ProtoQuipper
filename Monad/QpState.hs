@@ -791,8 +791,8 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
   termm <- referenced_expression m
 
   -- Print the types t and u
-  prt <- return $ pprint t
-  pru <- return $ pprint u
+  prt <- pprint_type_noref t
+  pru <- pprint_type_noref u
 
   -- See what information we have
   case (termn, termm) of
