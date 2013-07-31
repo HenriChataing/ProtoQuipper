@@ -2,6 +2,7 @@ module Monad.QpState where
 
 import Utils
 import Classes
+import Builtins
 
 import Parsing.Localizing (Extent, extent_unknown)
 

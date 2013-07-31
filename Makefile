@@ -11,7 +11,7 @@ MAIN = Quipper
 
 GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
   Parsing/Lexer.hs Parsing/Parser.hs
-SOURCE_MODULES = Classes.hs Gates.hs Interpret/Circuits.hs		\
+SOURCE_MODULES = Classes.hs Builtins.hs Interpret/Circuits.hs		\
   Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs		\
   Monad/Namespace.hs Monad/QpState.hs Monad/QuipperError.hs		\
   Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
@@ -53,6 +53,7 @@ Parsing/Lexer.hs :
 	$(ALEX) Parsing/Lexer.x ; \
 	cp Parsing/Lexer.x _build/ ; \
 	fi
+
 clean :
 	rm $(GENERATED_MODULES)
 	rm _build/*/* _build/*.y _build/*.x

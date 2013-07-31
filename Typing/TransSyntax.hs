@@ -12,7 +12,7 @@ module Typing.TransSyntax (
 
 import Utils
 import Classes
-import Gates
+import Builtins
 
 import Typing.CoreSyntax
 import Typing.CorePrinter
@@ -35,76 +35,6 @@ import Control.Exception
 import Data.Map as Map
 import qualified Data.List as List
 import qualified Data.IntMap as IMap
-
--- | Generation of the builtin context : gates
-builtin_gates :: Map String (S.Type, Value)
-builtin_gates =
-  let init = [("INIT0", (S.TCirc S.TUnit S.TQBit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 0 ], qOut = [0] }) (VQbit 0))),
-              ("INIT1", (S.TCirc S.TUnit S.TQBit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ C.Init 0 1 ], qOut = [0] }) (VQbit 0)))] in
-
-  let term = [("TERM0", (S.TCirc S.TQBit S.TUnit,
-                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 0 ], qOut = [0] }) VUnit)),
-              ("TERM1", (S.TCirc S.TQBit S.TUnit,
-                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ C.Term 0 1 ], qOut = [0] }) VUnit))] in
-
-  let unary = List.map (\g -> (g, (unary_type, unary_value g))) unary_gates in
-  let binary = List.map (\g -> (g, (binary_type, binary_value g))) binary_gates in
-
-  let toffoli = ("TOFFOLI", (S.TCirc (S.TTensor [S.TQBit, S.TQBit, S.TQBit]) (S.TTensor [S.TQBit, S.TQBit, S.TQBit]),
-                             VCirc (VTuple [VQbit 0, VQbit 1, VQbit 2])
-                                   (Circ { qIn = [0, 1, 2], gates = [ C.Controlled (C.Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
-                                   (VTuple [VQbit 0, VQbit 1, VQbit 2]))) in
-
-  Map.fromList (toffoli:(init ++ term ++ unary ++ binary))
-
--- | Generic value associated to unary gates
-unary_value :: String -> Value
-unary_value g =
-  VCirc (VQbit 0) (Circ { qIn = [0], gates = [ C.Unary g 0 ], qOut = [0] }) (VQbit 0) 
-
--- | Generic value associated to binary gates
-binary_value :: String -> Value
-binary_value g =
-  VCirc (VTuple [VQbit 0, VQbit 1])
-        (Circ { qIn = [0, 1], gates = [ C.Binary g 0 1 ], qOut = [0, 1] })
-        (VTuple [VQbit 0, VQbit 1])
-
-
--- | Generation of the builtin context : integer operations
-builtin_operations :: Map String (S.Type, Value)
-builtin_operations =
-  let ops = [ ("ADD", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m + n))))),
-              ("SUB", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m - n))))),
-              ("MUL", (S.TArrow S.TInt (S.TArrow S.TInt S.TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
-              ("LT", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m < n))))),
-              ("GT", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m > n))))),
-              ("EQ", (S.TArrow S.TInt (S.TArrow S.TInt S.TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))) ] in
-  Map.fromList ops
-
-
-
--- | Builtin values
--- For the moment, only the gates are builtin. Later, other values may be added
--- The gates are only listed by name in the Gates module, so a value and type need to be created for
--- each one. 
-import_builtins :: QpState ()
-import_builtins = do
-  mb <- Map.foldWithKey (\b (t, v) rec -> do
-                      m <- rec
-                      (t', _) <- translate_bound_type t Map.empty
-                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
-  ctx <- get_context
-  set_context $ ctx { builtins = mb }
-
-
 
 
 
@@ -327,6 +257,19 @@ update_module_types = do
   ctx <- get_context
   set_context $ ctx { cmodule = cmod' }
 
+
+-- | Builtin values
+-- For the moment, only the gates are builtin. Later, other values may be added
+-- The gates are only listed by name in the Gates module, so a value and type need to be created for
+-- each one. 
+import_builtins :: QpState ()
+import_builtins = do
+  mb <- Map.foldWithKey (\b (t, v) rec -> do
+                      m <- rec
+                      (t', _) <- translate_bound_type t Map.empty
+                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
+  ctx <- get_context
+  set_context $ ctx { builtins = mb }
 
 
 -- | Translate a type, given a labelling.

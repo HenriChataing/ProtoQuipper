@@ -3,7 +3,7 @@ module Typing.Driver where
 import Classes
 import Utils
 import Options
-import Gates
+import Builtins
 
 import Parsing.Lexer
 import qualified Parsing.Parser as P

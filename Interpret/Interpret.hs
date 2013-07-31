@@ -3,7 +3,6 @@ module Interpret.Interpret (-- Only the main function is accessible
 
 import Classes
 import qualified Utils
-import Gates
 
 import Monad.QuipperError
 import Monad.QpState
