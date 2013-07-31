@@ -65,10 +65,12 @@ builtin_operations :: Map String (Type, Value)
 builtin_operations =
   let ops = [ ("ADD", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m + n))))),
-              ("B", (TArrow TInt (TArrow TInt TInt),
+              ("SUB", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m - n))))),
               ("MUL", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
+              ("DIV", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `quot` n))))),
               ("LT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m < n))))),
               ("GT", (TArrow TInt (TArrow TInt TBool),
