@@ -130,6 +130,7 @@ Decl_list :
 Decl :
       LET Pattern '=' Expr ";;"                  { DLet Nonrecursive $2 $4 }
     | LET REC LID Pattern_list '=' Expr ";;"     { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
+    | LET REC '(' Infix_op ')' Pattern_list '=' Expr ";;"  { DLet Recursive (PVar (snd $4)) (List.foldr EFun $8 $6) }
     | LET LID Pattern_list '=' Expr ";;"         { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
     | Expr ";;"                                  { DExpr $1 }
 
@@ -276,6 +277,6 @@ Atom_type :
 
 {
 parseError :: [Token] -> a
-parseError [] = throw $ ParsingError "Unknown"
+parseError [] = throw $ ErrorEndOfFile
 parseError tokens = throw $ ParsingError (show $ head tokens)
 } 
