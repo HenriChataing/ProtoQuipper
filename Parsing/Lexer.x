@@ -146,10 +146,10 @@ data Token =
   | TkRCurlyBracket Extent -- ^ }
 
   -- Operators
-  | TkInfix0 (Extent, String)
-  | TkInfix1 (Extent, String)
-  | TkInfix2 (Extent, String)
-  | TkInfix3 (Extent, String)
+  | TkInfix0 (Extent, String)   -- ^ All operators starting with ['<' '>' | '&' '$'], and ending with any sequence of special characters
+  | TkInfix1 (Extent, String)   -- ^ All operators starting with [\@ '^']
+  | TkInfix2 (Extent, String)   -- ^ All operators starting with ['+' '-']
+  | TkInfix3 (Extent, String)   -- ^ All operators starting with ['*' '/']
     deriving Show
 
 -- | Locate a token. The type signatures matches the one expected of lexing actions.

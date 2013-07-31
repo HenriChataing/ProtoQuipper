@@ -234,12 +234,11 @@ Matching_list :
     | Matching_list '|' Matching                { $1 ++ [$3] }
 
 
-{- Definition of types :
-   Types are divided in the following categories :
-     Type (all)
-     Type application
-     Tensor Type
-     Atom type
+{- Definition of types : organized as
+     Type
+     Tensor_type
+     Type_app
+     Atom_type
 -}
 
 Type :
