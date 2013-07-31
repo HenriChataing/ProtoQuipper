@@ -354,7 +354,7 @@ constraint_typing typctx (ETuple elist) cst = do
   return $ csetlist <> (TBang p (TTensor tlist) <:: cst) <> pcons <> fconstraints
 
 
--- Tensor elim typing rule
+-- Tensor elim typing rule, generalized to work with any kind of pattern
 --
 --     G1, !ID |- t : !n<a, b>  [L]    G2, !ID, x : !na, y : !nb |- u : T  [L']
 --   -----------------------------------------------------------------------------
@@ -402,14 +402,30 @@ constraint_typing typctx (ELet rec p t u) cst = do
   endtype <- get_context >>= return . type_id
   endflag <- get_context >>= return . flag_id
  
+  -- Unify the constraints produced by the typing of t (exact unification)
+  cs <- return $ cseta <> csett
+  cs <- break_composite True cs  -- Break the composite constraints
+  register_constraints $ fst cs  -- Initialize the variable ordering
+  csett' <- unify True cs        -- Unify
+
+  -- Map the context typctx_fvu
+  typctx_fvu <- IMap.foldWithKey (\x a rec -> do
+                                    m <- rec
+                                    a' <- map_type a
+                                    return $ IMap.insert x a' m) (return IMap.empty) typctx_fvu
+
+
   -- Generalize the types of the pattern (= polymorphism)
   typctx_fvu' <- IMap.foldWithKey (\x a rec -> do
                                      typctxu <- rec
-                                     gena <- return $ TForall [limflag .. endflag-1] [limtype .. endtype-1] (cseta <> csett) a
+                                     a' <- map_type a
+                                     gena <- return $ TForall [limflag .. endflag-1] [limtype .. endtype-1] csett' a'
+
                                      -- Update the global variables
                                      ctx <- get_context
                                      cm <- get_module
                                      set_context $ ctx { cmodule = cm { global_types = IMap.update (\_ -> Just $ gena) x (global_types cm) } }
+
                                      -- Update the typing context of u
                                      return $ IMap.update (\_ -> Just $ gena) x typctxu) (return typctx_fvu') typctx_p
  
