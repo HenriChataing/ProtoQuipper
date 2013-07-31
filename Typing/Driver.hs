@@ -229,7 +229,8 @@ process_module opts prog = do
   List.foldl (\rec (x, a) -> do
                 rec
                 n <- variable_name x
-                newlog 0 $ n ++ " :: " ++ pprint a) (return ()) exp
+                p <- pprint_type_noref a
+                newlog 0 $ n ++ " :: " ++ p) (return ()) exp
   newlog 0 "<<\n"
  
   -- Run the module
