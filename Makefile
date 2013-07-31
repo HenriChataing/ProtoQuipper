@@ -24,39 +24,21 @@ MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 all : $(MODULES)
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
-Parsing/Parser.hs :
-	if [ -e _build/Parser.y ] && diff Parsing/Parser.y _build/Parser.y > /dev/null ; then \
-	echo "Ignoring Parser.y" ; \
-	else \
-	$(HAPPY) Parsing/Parser.y ; \
-	cp Parsing/Parser.y _build/ ; \
-	fi
-Parsing/ConstraintParser.hs :
-	if [ -e _build/ConstraintParser.y ] && diff Parsing/ConstraintParser.y _build/ConstraintParser.y > /dev/null ; then \
-	echo "Ignoring ConstraintParser.y" ; \
-	else \
-	$(HAPPY) Parsing/ConstraintParser.y ; \
-	cp Parsing/ConstraintParser.y _build/ ; \
-	fi
-Parsing/IParser.hs :
-	if [ -e _build/IParser.y ] && diff Parsing/IParser.y _build/IParser.y > /dev/null ; then \
-	echo "Ignoring IParser.y" ; \
-	else \
-	$(HAPPY) Parsing/IParser.y ; \
-	cp Parsing/IParser.y _build/ ; \
-	fi
+Parsing/Parser.hs : Parsing/Parser.y
+	$(HAPPY) Parsing/Parser.y
 
-Parsing/Lexer.hs :
-	if [ -e _build/Lexer.x ] && diff Parsing/Lexer.x _build/Lexer.x > /dev/null ; then \
-	echo "Ignoring Lexer.x" ; \
-	else \
-	$(ALEX) Parsing/Lexer.x ; \
-	cp Parsing/Lexer.x _build/ ; \
-	fi
+Parsing/ConstraintParser.hs : Parsing/ConstraintParser.y
+	$(HAPPY) Parsing/ConstraintParser.y
+
+Parsing/IParser.hs : Parsing/IParser.y
+	$(HAPPY) Parsing/IParser.y
+
+Parsing/Lexer.hs : Parsing/Lexer.x
+	$(ALEX) Parsing/Lexer.x
 
 clean :
 	rm $(GENERATED_MODULES)
-	rm _build/*/* _build/*.y _build/*.x
+	rm _build/*/*
 	rm -rf haddock-doc
 
 distclean : clean
