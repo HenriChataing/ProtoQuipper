@@ -39,8 +39,6 @@ tokens :-
   "<-*"                               { locate_token TkLArrowStar }
   "("                                 { locate_token TkLParen } 
   ")"                                 { locate_token TkRParen }
-  "<"                                 { locate_token TkLChevron }
-  ">"                                 { locate_token TkRChevron }
   "["                                 { locate_token TkLBracket }
   "]"                                 { locate_token TkRBracket }
   "{"                                 { locate_token TkLCurlyBracket }
@@ -142,8 +140,6 @@ data Token =
   -- Delimiters
   | TkLParen Extent        -- ^ (
   | TkRParen Extent        -- ^ )
-  | TkLChevron Extent      -- ^ <
-  | TkRChevron Extent      -- ^ \>
   | TkLBracket Extent      -- ^ \[
   | TkRBracket Extent      -- ^ ]
   | TkLCurlyBracket Extent -- ^ {
