@@ -112,19 +112,20 @@ find_interface_in_directories mod directories =
 -- to the dependency graph
 -- It proceeds to sort topologically the dependencies at the same time, using an in-depth exploration of the graph
 -- Note that the return list is reversed, with the 'oldest' module first
-explore_dependencies :: [String] -> S.Program -> Map String S.Program -> [S.Program] -> QpState [S.Program]
-explore_dependencies dirs prog mods sorted = do
+explore_dependencies :: [String] -> S.Program -> [String] -> [S.Program] -> QpState ([S.Program], [String])
+explore_dependencies dirs prog explored sorted = do
   -- Mark the module as explored
-  mods <- return $ Map.insert (S.module_name prog) prog mods
+  explored <- return $ (S.module_name prog):explored
   -- Sort the dependencies
-  sorted <- List.foldl (\rec m -> do
-                           sorted <- rec
-                           case (Map.lookup m mods, List.find (\p -> S.module_name p == m) sorted) of
-                             -- Nothing to do
-                             (Just _, Just _) ->
-                                 return sorted
+  (s,ex) <- List.foldl (\rec m -> do
+                           (sorted, exp) <- rec
+                           case (List.elem m exp, List.find (\p -> S.module_name p == m) sorted) of
+                             -- Ok
+                             (True, Just _) ->
+                                 return (sorted, exp)
 
-                             (Just _, Nothing) ->
+                             -- Not ok
+                             (True, Nothing) ->
                                  -- The module has already been visited : cyclic dependency
                                  throwQ $ CyclicDependencies (S.module_name prog)
 
@@ -139,9 +140,9 @@ explore_dependencies dirs prog mods sorted = do
                                             return $ p { S.interface = Just interface }
                                         Nothing -> return p
 
-                                 explore_dependencies dirs p mods sorted) (return sorted) (S.imports prog)
+                                 explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)
   -- Push the module on top of the list : after its dependencies
-  return (prog:sorted)
+  return (prog:s, ex)
 
 
 -- | Sort the dependencies of file in a topological fashion
@@ -152,7 +153,7 @@ explore_dependencies dirs prog mods sorted = do
 --      - (as a corollary) the main module is placed last
 build_dependencies :: [String] -> S.Program -> QpState [S.Program]
 build_dependencies dirs main = do
-  deps <- explore_dependencies dirs main (Map.empty) []
+  (deps, _) <- explore_dependencies dirs main [] []
   return $ List.reverse deps
 
 
