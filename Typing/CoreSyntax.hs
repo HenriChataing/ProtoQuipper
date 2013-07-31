@@ -273,6 +273,7 @@ instance KType LinType where
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
+  free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
   free_flag (TBang n t) = n:(free_flag t)
