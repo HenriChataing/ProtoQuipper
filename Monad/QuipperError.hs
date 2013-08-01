@@ -1,16 +1,15 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-{-
-   This module provides a data type sampling the errors thrown during the execution of the program,
-  from the lexing, parsing, to the type inference and interpretation of the code
--}
-
+-- | This module provides a data type sampling the errors thrown during the execution of the program,
+--  from the lexing, parsing, to the type inference and interpretation of the code
 module Monad.QuipperError where
 
 import Parsing.Localizing
 
 import Control.Exception
 import Data.Typeable
+
+import Data.List as List
 
 data QError =
 
@@ -61,6 +60,8 @@ data QError =
   | DetailedTypingError String String String (String, Extent)       -- Typing error : actual vs expected in type of expr at extent ex
     -- A non duplicable term (eg of type qbit), has been used in a non linear fashion
   | NonDuplicableError String (String, Extent)
+    -- Trying to build an infinite type
+  | InfiniteTypeError String [String] String (String, Extent)
 
 -- MISC
 
@@ -106,6 +107,11 @@ instance Show QError where
                                           "    In the type of\n" ++
                                           e
   show (NonDuplicableError e (f, ex)) = f ++ ":" ++ show ex ++ ": the term " ++ e ++ " is not duplicable"
+  show (InfiniteTypeError t clist e (f, ex)) = f ++ ":" ++ show ex ++ ":\n" ++
+                                          "    couldn't build the infinite type\n" ++
+                                          t ++ "\n" ++ List.concat (List.map (\c -> c ++ "\n") clist) ++
+                                          "    In the type of\n" ++
+                                          e
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg

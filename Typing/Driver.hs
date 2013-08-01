@@ -202,7 +202,6 @@ process_module opts prog = do
   -- Unification
   constraints <- break_composite True constraints
     -- For ordering purposes
-  register_constraints $ fst constraints
   constraints <- unify (not $ approximations opts) constraints
   newlog 1 ">> Unified constraint set"
   newlog 1 $ pprint constraints ++ "\n"
@@ -284,6 +283,8 @@ do_everything opts file = do
 unification_test :: [(S.Type, S.Type)] -> IO String
 unification_test set =
   let run = do
+      set_verbose 2
+
       -- Translate the types in the internal syntax
       (constraints, _) <- List.foldl (\rec (t, u) -> do
                                         (r, lbl) <- rec
@@ -291,11 +292,14 @@ unification_test set =
                                         (u', csetu, lblu) <- translate_type u [] (lblt, False)
                                         return ([t' <: u'] <> csett <> csetu <> r, lblu)) (return (emptyset, Map.empty)) set
 
+      newlog 1 $ pprint constraints
+
       -- Run the unification algorithm
       constraints <- break_composite True constraints
 
+      newlog 1 $ pprint constraints
+
       -- Unification
-      register_constraints $ fst constraints
       constraints <- unify True constraints
 
       return $ pprint constraints

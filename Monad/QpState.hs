@@ -103,11 +103,6 @@ data Context = Ctx {
   flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
   qbit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
      
--- Variable ordering
-  cmap :: IntMap Int,                                 -- ^ During variable ordering, variables are grouped in age classes. This map associates each to its age class.
-  relations :: [(Int, Int)],                          -- ^ Define the partial relation between age classes (or clusters).
-  clusters :: IntMap [Type],                          -- ^ Gives the contents of each age cluster / class.
-
 -- Substitution from type variable to types
   mappings :: Map.Map Variable LinType                -- ^ The result of the unification.
 }
@@ -181,10 +176,6 @@ empty_context =  Ctx {
   flags = IMap.empty,
 
   circuits = [],
-
-  relations = [],
-  clusters = IMap.empty,
-  cmap = IMap.empty,
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
@@ -849,6 +840,29 @@ throw_NonDuplicableError ref = do
         f <- get_file
         throwQ $ NonDuplicableError "(Unknown)" (f, extent_unknown)
 
+
+-- | Throw an infinite type error.
+throw_InfiniteTypeError :: Type -> [TypeConstraint] -> QpState a
+throw_InfiniteTypeError t@(TBang ref _) loop = do
+  -- Print the constraints
+  ploop <- return $ List.map pprint loop
+  prt <- return $ pprint t
+
+  -- Referenced expression / location
+  term <- referenced_expression ref
+
+  -- See what information we have
+  case term of
+    Just (e, ex) -> do
+        pre <- case e of
+                 ActualOfE e -> pprint_expr_noref e
+                 ActualOfP p -> pprint_pattern_noref p
+        f <- get_file
+        throwQ $ InfiniteTypeError prt ploop pre (f, ex)
+
+    Nothing -> do
+        f <- get_file
+        throwQ $ InfiniteTypeError prt ploop "(Unknown)" (f, extent_unknown)
 
 
 -- =============================== --
