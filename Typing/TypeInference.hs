@@ -58,10 +58,10 @@ filter fc = do
 
 
 
--- Build all the deriving constraints
+-- | Build the constraint typing derivation.
 -- Instead of having only one expected type, a list is given that collects all the type constraints written by
 -- the programmer.
--- For example, writing the expression  (e :> T) set a constraint on the actual type of the expression e, saying it
+-- For example, writing the expression  (e <: T) set a constraint on the actual type of the expression e, saying it
 -- must be a subtype of T.
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
@@ -76,7 +76,7 @@ constraint_typing typctx (ELocated e ex) cst = do
 -- For builtins, get the type registered in the builtins map
 constraint_typing typctx (EBuiltin s) cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   acts <- builtin_type s
   return $ (acts <:: cst) <> fconstraints
@@ -91,7 +91,7 @@ constraint_typing typctx (EBuiltin s) cst = do
 
 constraint_typing typctx EUnit cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
   
   -- Generates a referenced flag of the actual type of EUnit
   ex <- get_location
@@ -110,7 +110,7 @@ constraint_typing typctx EUnit cst = do
 
 constraint_typing typctx (EBool b) cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
@@ -129,7 +129,7 @@ constraint_typing typctx (EBool b) cst = do
 
 constraint_typing typctx (EInt p) cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
@@ -178,7 +178,7 @@ constraint_typing typctx (EGlobal x) cst = do
 
 constraint_typing typctx (EBox (TForall _ _ cset a)) cst = do
   -- The context must be duplicable 
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -202,7 +202,7 @@ constraint_typing typctx (EBox (TForall _ _ cset a)) cst = do
 
 constraint_typing typctx ERev cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -227,7 +227,7 @@ constraint_typing typctx ERev cst = do
 
 constraint_typing typctx EUnbox cst = do
   -- The context must be duplicable
-  fconstraints <- have_duplicable_context typctx >>= filter
+  fconstraints <- force_duplicable_context typctx >>= filter
 
   -- Flag reference
   ex <- get_location
@@ -273,7 +273,7 @@ constraint_typing typctx (EApp t u) cst = do
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, typctx_delta) <- sub_context disunion typctx
-  fconstraints <- have_duplicable_context typctx_delta >>= filter
+  fconstraints <- force_duplicable_context typctx_delta >>= filter
   
   return $ csett <> csetu <> fconstraints
 
@@ -296,11 +296,11 @@ constraint_typing typctx (EFun p e) cst = do
   flags <- context_annotation typctx
   
   -- Bind p in the current context - this returns the type a of the argument of the abstraction
-  (a, typctx', cseta) <- bind_pattern p typctx
+  (a, typctx_p, cseta) <- bind_pattern p
   b <- new_type
 
   -- Type the expression e
-  csete <- constraint_typing typctx' e [b]
+  csete <- constraint_typing (IMap.union typctx_p typctx) e [b]
 
   -- Build the context constraints : n <= I
   fconstraints <- (return $ List.map (\(_, f) -> (n, f)) flags) >>= filter
@@ -349,7 +349,7 @@ constraint_typing typctx (ETuple elist) cst = do
   disunion <- return $ disjoint_union fvlist
 
   (_, typctx_delta) <- sub_context disunion typctx
-  fconstraints <- have_duplicable_context typctx_delta >>= filter
+  fconstraints <- force_duplicable_context typctx_delta >>= filter
   
   return $ csetlist <> (TBang p (TTensor tlist) <:: cst) <> pcons <> fconstraints
 
@@ -384,10 +384,8 @@ constraint_typing typctx (ELet rec p t u) cst = do
   limflag <- get_context >>= return . flag_id
 
   -- Create the type of the pattern
-  (a, typctx_fvu', cseta) <- bind_pattern p typctx_fvu
+  (a, typctx_p, cseta) <- bind_pattern p
 
-  -- Isolate the bindings issued by the pattern in typctx_fvu
-  (typctx_p, _) <- sub_context (free_var p) typctx_fvu'
   -- Type t with this type
   csett <- case rec of
              Recursive -> do
@@ -416,26 +414,27 @@ constraint_typing typctx (ELet rec p t u) cst = do
 
 
   -- Generalize the types of the pattern (= polymorphism)
-  typctx_fvu' <- IMap.foldWithKey (\x a rec -> do
-                                     typctxu <- rec
-                                     a' <- map_type a
-                                     gena <- return $ TForall [limflag .. endflag-1] [limtype .. endtype-1] csett' a'
+  typctx_p <- IMap.foldWithKey (\x a rec -> do
+                                  ctx <- rec
+                                  a' <- map_type a
+                                  gena <- return $ TForall [limflag .. endflag-1] [limtype .. endtype-1] csett' a'
 
-                                     -- Update the global variables
-                                     ctx <- get_context
-                                     cm <- get_module
-                                     set_context $ ctx { cmodule = cm { global_types = IMap.update (\_ -> Just $ gena) x (global_types cm) } }
+                                  -- Update the global variables
+                                  update_global_type x gena
 
-                                     -- Update the typing context of u
-                                     return $ IMap.update (\_ -> Just $ gena) x typctxu) (return typctx_fvu') typctx_p
+                                  -- Update the typing context of u
+                                  return $ IMap.insert x gena ctx) (return IMap.empty) typctx_p
+
+  -- Insert the bindings of p in the typing context of u
+  typctx_fvu <- return $ IMap.union typctx_p typctx_fvu
  
   -- Type u
   -- The constraints on the type of the let are transfered to the type of u
-  csetu <- constraint_typing typctx_fvu' u cst
+  csetu <- constraint_typing typctx_fvu u cst
   
   -- Generate the flag constraints for the intersection
   (_, typctx_delta) <- sub_context ((fvt \\ fvu) ++ (fvu \\ fvt)) typctx
-  fconstraints <- have_duplicable_context typctx_delta >>= filter
+  fconstraints <- force_duplicable_context typctx_delta >>= filter
   
   return $ csetu <> fconstraints
 
@@ -507,9 +506,9 @@ constraint_typing typctx (EMatch e blist) cst = do
   (typctx_fvlist, _) <- sub_context fvlist typctx
   csetlist <- List.foldl (\rec (p, f) -> do
                             cset <- rec
-                            (b, typctx_fvlist', csetb) <- bind_pattern p typctx_fvlist
+                            (b, typctx_p, csetb) <- bind_pattern p
 
-                            cset' <- constraint_typing typctx_fvlist' f cst
+                            cset' <- constraint_typing (IMap.union typctx_p typctx_fvlist) f cst
                             return $ cset <> csetb <> cset' <> [b <: a]) (return emptyset) blist
 
   -- Generate the flag constraints for the intersection

@@ -1,3 +1,5 @@
+-- | This module contains the definition of the state monad used throughout the parsing, interpretation, typing, and more
+-- generally all the processes working with the core syntax.
 module Monad.QpState where
 
 import Utils
@@ -34,15 +36,14 @@ import Data.Sequence as Seq
 
 -- | Implementation of a logger. Logs can be given different priorities, depending on their importance.
 -- The verbose control then discards any log whose priority is lower than the control. The logs are printed
--- to a channel, which can be, for example, stdout, stderr, any file writing channel
-
+-- to a channel, which can be, for example, stdout, stderr, any file writing channel.
 data Logfile = Logfile {
   channel :: Handle,
   verbose :: Int
 }
 
 
--- | Enter a log with a given priority level
+-- | Enter a log with a given priority level.
 write_log :: Logfile -> Int -> String -> IO ()
 write_log logfile lvl s = do
   w <- hIsWritable $ channel logfile
@@ -68,64 +69,47 @@ write_log logfile lvl s = do
 data Context = Ctx {
 
 -- Log file  
-  logfile :: Logfile,
+  logfile :: Logfile,                                 -- ^ Log file currently in use.
 
--- File name and location in the file
-  filename :: String,
-  location :: Extent,
+-- Variable naming
+  namespace :: Namespace,                             -- ^ Remembers the original names of the term variables (replaced by unique ids during the translation to the core syntax)
 
+-- Location
+  filename :: String,                                 -- ^ Path to the implementation of the module being processed.
+  location :: Extent,                                 -- ^ Extent of the expression / type / pattern being studied.
 
--- All stuff to support module imports
-  -- List of processed modules
-  modules :: [(String, Module)],
-  -- Current module
-  cmodule :: Module,
- 
-  -- Global variables (imported from other modules)
-  globals :: IntMap Type, 
+-- Module related fields
+  modules :: [(String, Module)],                      -- ^ The list of processed modules.
+  cmodule :: Module,                                  -- ^ Definition of the current module.
 
+-- Helpers of the typing / interpretation 
+  builtins :: Map String (Type, Value),               -- ^ A certain number of functions / values are predefined and typed, those are put
+                                                      -- in the builtins field, available to both typing and interpretation.
+  types :: Map String Typespec,                       -- ^ Contains all the definition of both the imported types and the types defined in the current module.
+  datacons :: IntMap Type,                            -- ^ The dataconstructors are considered as values, and so can be typed individually. This map contains
+                                                      -- their type, as written in the type definition.
+  globals :: IntMap Type,                             -- ^ Typing context correponding to the global variables imported from other modules.
 
--- Builtin values
-  builtins :: Map String (Type, Value),
-
--- Namespace, which contains the names of the term variables and datacons,
--- since those have been replaced by their unique id
-  namespace :: Namespace,
-
--- Definition of the types
--- Types are referenced by their name. Is recorded the number of type arguments
--- needed by any type
-  types :: Map String Typespec,
-
--- Definition of the data constructors
--- The definition includes the name of the data type, and the expected type
--- This helps typing the constructor as :  datacon :: type -> usertype
---                                   or :  datacon :: usertype
--- depending on whether the constructor takes an argument or not
-  datacons :: IntMap Type,
-
--- Information relevant to the flags
--- This includes the value of the flag, as well as the expression typed by
--- the type it is prefix of
-  flags :: IntMap FlagInfo,
+-- Information relevant to flags
+  flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
+                                                      -- also about the type itself, for example the expression it is type of. Such information is useful to send
+                                                      -- unambigous error messages when the type inference fails.
 
 -- Circuit stack
-  circuits :: [Circuit],
+  circuits :: [Circuit],                              -- ^ Stack of circuit used by the interpreter.
 
 -- Id generation
-  type_id :: Int, 
-  flag_id :: Int,
-  qbit_id :: Int,
+  type_id :: Int,                                     -- ^ Used to generate fresh type variables.
+  flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
+  qbit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
      
 -- Variable ordering
--- Variables are grouped into clusters of variables sharing the same age    
-  relations :: [(Int, Int)],
-  clusters :: IntMap [Type],  -- Age clusters definition
-  cmap :: IntMap Int,  -- Map variables to age clusters
-
+  cmap :: IntMap Int,                                 -- ^ During variable ordering, variables are grouped in age classes. This map associates each to its age class.
+  relations :: [(Int, Int)],                          -- ^ Define the partial relation between age classes (or clusters).
+  clusters :: IntMap [Type],                          -- ^ Gives the contents of each age cluster / class.
 
 -- Substitution from type variable to types
-  mappings :: Map.Map Variable LinType
+  mappings :: Map.Map Variable LinType                -- ^ The result of the unification.
 }
 
 
@@ -144,14 +128,14 @@ instance Monad QpState where
                                     runS st' ctx') }
 
 
--- | Throw an error
+-- | Throws an exception of type QError (exceptions specific to quipper).
 throwQ :: QError -> QpState a
 throwQ e =
   QpState { runS = (\ctx -> E.throw e) }
 
 
--- | Catch any error thrown in a certain computation, running a continuation in case
--- an error has been caught
+-- | Catches any error thrown in a certain computation, running a continuation in case
+-- an error has been caught.
 catchQ :: QpState a -> (QError -> QpState a) -> QpState a
 catchQ st c =
   QpState { runS = (\ctx ->
@@ -159,7 +143,7 @@ catchQ st c =
                                                  runS (c e) ctx)) }
 
 
--- | Relay actions from the IO monad to the QpState monad
+-- | Relays actions from the IO monad to the QpState monad.
 liftIO :: IO a -> QpState a
 liftIO x = QpState { runS = (\ctx -> do
                                x' <- x
@@ -167,7 +151,8 @@ liftIO x = QpState { runS = (\ctx -> do
 
 
 
--- | The initial context, free of every thing, gates and others
+-- | The initial context. Except from the logfile, set to print on the standard output (stdout), with the lowest verbose level (block everything),
+-- everything is set to empty / 0 / [].
 empty_context :: Context
 empty_context =  Ctx {
 -- The logfile is initialized to print on the standard output, with the lowest verbose level possible
@@ -178,12 +163,10 @@ empty_context =  Ctx {
 
 -- No modules
   modules = [],
--- Current module is dummy
   cmodule = dummy_module,
  
 -- No global variables
   globals = IMap.empty, 
-
 
 -- No builtins, added later
   builtins = Map.empty,
@@ -212,33 +195,33 @@ empty_context =  Ctx {
 
 
 
--- | Returns the state context
+-- | Returns the state context.
 get_context :: QpState Context
 get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
 
 
--- | Set the state context
+-- | Sets the state context.
 set_context :: Context -> QpState ()
 set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
 
--- | Change the level of verbosity
+
+-- | Changes the level of verbosity.
 set_verbose :: Int -> QpState ()
 set_verbose v = do
   ctx <- get_context
   set_context $ ctx { logfile = (logfile ctx) { verbose = v } }
 
 
--- | Enter a new log entry
+-- | Enters a new log entry.
 newlog :: Int -> String -> QpState ()
 newlog lvl entry = do
   ctx <- get_context
   liftIO $ write_log (logfile ctx) lvl entry
 
 
--- | Flush the log file, and the concatenation of the logs previously in
--- the log file
+-- | Flushes the log file.
 flush_logs :: QpState ()
 flush_logs = do
   ctx <- get_context
@@ -247,38 +230,36 @@ flush_logs = do
 
 
 
--- | The set location marker
+-- | Sets the location marker.
 set_location :: Extent -> QpState ()
 set_location ex = do
   ctx <- get_context
   set_context $ ctx { location = ex }
 
 
--- | Return the current location marker
+-- | Returns the current location marker.
 get_location :: QpState Extent
 get_location =
   get_context >>= return . location
 
 
--- | Change the input file
+-- | Changes the input file.
 set_file :: String -> QpState ()
 set_file fname = do
   ctx <- get_context
   set_context $ ctx { filename = fname }
 
 
--- | Returns the current input file
+-- | Returns the current input file.
 get_file :: QpState String
 get_file =
   get_context >>= return . filename
 
 
-get_module :: QpState Module
-get_module =
-  get_context >>= return . cmodule
 
 
--- | Access to the name space : variable registration
+-- | Registers a variable in the namespace. A new id is generated, bound to
+-- the given variable, and returned.
 register_var :: String -> QpState Int
 register_var x = do
   ctx <- get_context
@@ -287,17 +268,8 @@ register_var x = do
   return id
 
 
--- | Create a dummy variable from a new id n, registered under the name x_n
-dummy_var :: QpState Int
-dummy_var = do
-  ctx <- get_context
-  (id, nspace) <- return $ N.dummy_var (namespace ctx)
-  set_context $ ctx { namespace = nspace }
-  return id
-
-
--- | Access to the name space : variable registration
--- The datacon registration also records the type of the datacon in the field datacons
+-- | Same as register_var, registers a data constructor. Note that the variable and datacon
+-- ids may overlap, as they are generated from a different source.
 register_datacon :: String -> Type -> QpState Int
 register_datacon dcon dtype = do
   ctx <- get_context
@@ -306,16 +278,17 @@ register_datacon dcon dtype = do
   return id
 
 
--- | resgister the definition of a type
-register_type :: String -> Typespec -> QpState ()
-register_type typ spec = do
+-- | Creates a dummy variable from a new id n, registered under the name x_n.
+dummy_var :: QpState Int
+dummy_var = do
   ctx <- get_context
-  set_context $ ctx { types = Map.insert typ spec $ types ctx }
+  (id, nspace) <- return $ N.dummy_var (namespace ctx)
+  set_context $ ctx { namespace = nspace }
+  return id
 
 
--- | Return the name of the variable 
--- Looks in the namespace for the name of the variable n. If no match is found,
--- a standard name x_n is produced
+-- | Retrieves the name of the given variable. If no match is found in
+-- the namespace, a standard name x_n is produced.
 variable_name :: Variable -> QpState String
 variable_name x = do
   ctx <- get_context
@@ -327,9 +300,8 @@ variable_name x = do
         return $ subvar 'x' x
 
 
--- | Return the name of the datacon
--- Looks in the namespace for the name of the datacon d. If no match is found,
--- a standard name D_n is produced
+-- | Retrives the name of the given data constructor. Again, if no match is found in
+-- the namespace, a standard name D_n is produced.
 datacon_name :: Variable -> QpState String
 datacon_name x = do
   ctx <- get_context
@@ -342,21 +314,86 @@ datacon_name x = do
 
 
 
--- | Request for the variable x to be exported (added to the current module export list)
+
+-- | Returns the current module.
+get_module :: QpState Module
+get_module =
+  get_context >>= return . cmodule
+
+
+-- | Sets the current module.
+set_module :: Module -> QpState ()
+set_module m = do
+  ctx <- get_context
+  set_context $ ctx { cmodule = m }
+
+
+-- | Request for a variable to be exported (added to the current module export list).
+-- New entries are added in the definition of the current module in the ids, types and vars maps.
+-- Note that the type is initialized with the default value 'T', and the value with the default '()'.
 export_var :: Variable -> QpState ()
 export_var x = do
-  ctx <- get_context
   -- Current module
-  cm <- return $ cmodule ctx
+  cm <- get_module
   -- Name of the variable
   name <- variable_name x
 
-  set_context $ ctx { cmodule = cm { global_ids = Map.insert name x $ global_ids cm,
-                                     global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm,
-                                     global_vars = IMap.insert x VUnit $ global_vars cm } }
+  set_module $ cm { global_ids = Map.insert name x $ global_ids cm,
+                    global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm,
+                    global_vars = IMap.insert x VUnit $ global_vars cm }
 
 
--- | Import the global variables and types from the module dependencies in the globals field
+-- | Updates the type of a global variable from the current module.
+update_global_type :: Variable -> Type -> QpState ()
+update_global_type x t = do
+  m <- get_module
+  set_module $ m { global_types = IMap.update (\_ -> Just t) x $ global_types m }
+
+
+-- | Creates the initializer of the interpretation : creates an evaluation context in which
+-- all the global variables from the module dependencies have been inserted, associated with their
+-- respective value.
+global_context :: QpState (IntMap Value)
+global_context = do
+  ctx <- get_context
+  cmod <- get_module
+  List.foldl (\rec m -> do
+                ectx <- rec
+                case List.lookup m $ modules ctx of
+                  Just m ->
+                      return $ IMap.union (global_vars m) ectx
+
+                  Nothing ->
+                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return IMap.empty) $ dependencies cmod
+
+
+-- | Create the initializer of the translation into internal syntax : returns the namespace in which
+-- all the global variables from the module dependencies have inserted, associated with their respective
+-- inferred type.
+global_namespace :: QpState (Map String Variable)
+global_namespace = do
+  ctx <- get_context
+  cmod <- get_module
+  List.foldl (\rec m -> do
+                nsp <- rec
+                case List.lookup m $ modules ctx of
+                  Just m ->
+                      return $ Map.union (global_ids m) nsp
+
+                  Nothing ->
+                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return Map.empty) $ dependencies cmod
+
+
+
+
+-- | Registers the definition of a type.
+register_type :: String -> Typespec -> QpState ()
+register_type typ spec = do
+  ctx <- get_context
+  set_context $ ctx { types = Map.insert typ spec $ types ctx }
+
+
+-- | Imports the global variables and types from the module dependencies in the globals field.
 import_globals :: QpState ()
 import_globals = do
   ctx <- get_context
@@ -373,7 +410,7 @@ import_globals = do
   set_context $ ctx { globals = gvs, types = gts }
 
 
--- | Lookup the type of a global variable
+-- | Looks up the type of a global variable.
 type_of_global :: Variable -> QpState Type
 type_of_global x = do
   ctx <- get_context
@@ -385,7 +422,8 @@ type_of_global x = do
         throwQ $ ProgramError $ "undefined global variable " ++ n
 
 
--- | Look up variable in a specific module (typically used with a qualified variable)
+-- | Looks up a variable in a specific module (typically used with a qualified variable).
+-- The input pair is (Module, Var name).
 lookup_qualified_var :: (String, String) -> QpState Variable
 lookup_qualified_var (mod, n) = do
   ctx <- get_context
@@ -411,7 +449,8 @@ lookup_qualified_var (mod, n) = do
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
 
--- | Look up a type from a specific module (typically used with a qualified variable)
+-- | Looks up a type from a specific module (typically used with a qualified type name).
+-- The input name is (Module, Type name).
 lookup_qualified_type :: (String, String) -> QpState Typespec
 lookup_qualified_type (mod, n) = do
   ctx <- get_context
@@ -437,7 +476,7 @@ lookup_qualified_type (mod, n) = do
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
 
--- | Lookup for the type of a builtin
+-- | Looks up the type of a builtin object.
 builtin_type :: String -> QpState Type
 builtin_type s = do
   ctx <- get_context
@@ -448,7 +487,7 @@ builtin_type s = do
         throwQ $ ProgramError $ "Missing builtin: " ++ s
 
 
--- | Lookup for the value of a builtin
+-- | Looks up the value of a builtin object.
 builtin_value :: String -> QpState Value
 builtin_value s = do
   ctx <- get_context
@@ -459,49 +498,14 @@ builtin_value s = do
         throwQ $ ProgramError $ "Missing builtin: " ++ s
 
 
-
--- | Check the state for a type name
+-- | Checks whether the input string corresponds to a (algebraic) type name.
 exist_type :: String -> QpState Bool
 exist_type typename = do
   ctx <- get_context
   return $ Map.member typename $ types ctx
 
 
--- | Create the initializer of the translation into internal syntax : create a namescape including
--- all the global variables from the module dependencies. 
-global_namespace :: QpState (Map String Variable)
-global_namespace = do
-  ctx <- get_context
-  cmod <- get_module
-  List.foldl (\rec m -> do
-                nsp <- rec
-                case List.lookup m $ modules ctx of
-                  Just m ->
-                      return $ Map.union (global_ids m) nsp
-
-                  Nothing ->
-                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return Map.empty) $ dependencies cmod
-
-
-
--- | Create the initializer of the interpretation : create an evaluation context including
--- all the global variables from the module dependencies
-global_context :: QpState (IntMap Value)
-global_context = do
-  ctx <- get_context
-  cmod <- get_module
-  List.foldl (\rec m -> do
-                ectx <- rec
-                case List.lookup m $ modules ctx of
-                  Just m ->
-                      return $ IMap.union (global_vars m) ectx
-
-                  Nothing ->
-                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return IMap.empty) $ dependencies cmod
-
-
-
--- | Retrieves the definition of a type
+-- | Retrieves the definition of a type.
 type_spec :: String -> QpState Typespec
 type_spec typ = do
   ctx <- get_context
@@ -513,7 +517,7 @@ type_spec typ = do
         throwQ $ ProgramError $ "Missing the definition of the type: " ++ typ
 
 
--- | Retrieves the definition of a datacon
+-- | Retrieves the definition of a datacon.
 datacon_def :: Int -> QpState Type
 datacon_def id = do
   ctx <- get_context
@@ -529,26 +533,8 @@ datacon_def id = do
 
 
 
--- | Access to the information held by flags
--- Return the current value of a flag given by its reference
-flag_value :: RefFlag -> QpState FlagValue
-flag_value ref =
-  case ref of
-    (-1) -> return Any
-    0 -> return Zero
-    1 -> return One
-    _ -> do
-        ctx <- get_context
-        case IMap.lookup ref $ flags ctx of
-          Just info ->
-              return $ value info
-
-          Nothing ->
-              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
-
-
--- | Access to the information held by a flag
--- Return the expresson, if any, typed by the associated type, and its location
+-- | Access to the information held by a flag.
+-- Return the expression, if any, typed by the associated type, and its location
 referenced_expression :: RefFlag -> QpState (Maybe (TypeOf, Extent))
 referenced_expression ref = do
   ctx <- get_context
@@ -565,22 +551,41 @@ referenced_expression ref = do
         return $ Nothing
 
 
--- | Specify the expression typed by the associated type of an flag
+-- | Specifies the expression typed by the associated type of an flag.
 specify_expression :: RefFlag -> TypeOf -> QpState ()
 specify_expression ref typof = do
   ctx <- get_context
   set_context $ ctx { flags = IMap.update (\info -> Just $ info { typeof = Just typof }) ref $ flags ctx }
 
 
--- | Specify the expression typed by the associated type of an flag
+-- | Specifies the expression typed by the associated type of an flag.
 specify_location :: RefFlag -> Extent -> QpState ()
 specify_location ref loc = do
   ctx <- get_context
   set_context $ ctx { flags = IMap.update (\info -> Just $ info { elocation = Just loc }) ref $ flags ctx }
 
 
--- | Set the value of the flag to one
--- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = Zero)
+-- | Access to the information held by flags.
+-- Returns the current value of a flag given by its reference.
+flag_value :: RefFlag -> QpState FlagValue
+flag_value ref =
+  case ref of
+    (-1) -> return Any
+    0 -> return Zero
+    1 -> return One
+    _ -> do
+        ctx <- get_context
+        case IMap.lookup ref $ flags ctx of
+          Just info ->
+              return $ value info
+
+          Nothing ->
+              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+
+
+
+-- | Set the value of the flag to one.
+-- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = Zero).
 set_flag :: RefFlag-> QpState ()
 set_flag ref = do
   case ref of
@@ -605,8 +610,8 @@ set_flag ref = do
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 
--- | Set the value of the flag to zero
--- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = One)
+-- | Set the value of the flag to zero.
+-- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = One).
 unset_flag :: RefFlag -> QpState ()
 unset_flag ref = do
   case ref of
@@ -631,8 +636,8 @@ unset_flag ref = do
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
 
--- | Generates a new flag reference, and add its accompying binding in the flags map
--- The flag is initially set to Unknown, with no expression or location
+-- | Generates a new flag reference, and add its accompying binding in the flags map.
+-- The flag is initially set to Unknown, with no expression or location.
 fresh_flag :: QpState RefFlag
 fresh_flag = do
   ctx <- get_context
@@ -642,8 +647,8 @@ fresh_flag = do
   return id 
 
 
--- | Generates a new flag reference, and add its accompying binding in the flags map
--- The value of the new flag is set to the specified one, but it is still un-located
+-- | Generates a new flag reference, and add its accompying binding in the flags map.
+-- The value of the new flag is set to the specified one, but it is still un-located.
 fresh_flag_with_value :: FlagValue -> QpState RefFlag
 fresh_flag_with_value v = do
   ctx <- get_context
@@ -653,8 +658,8 @@ fresh_flag_with_value v = do
   return id 
 
 
--- | Create a new flag reference, initialized with the information
--- referenced by the argument flag
+-- | Creates a new flag reference, initialized with the information
+-- referenced by the argument flag.
 duplicate_flag :: RefFlag -> QpState RefFlag
 duplicate_flag ref = do
   case ref of
@@ -673,8 +678,11 @@ duplicate_flag ref = do
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
--- | Generic type instanciation
--- New variables are produced for every generalized over, and substitute the old ones in the type and the constraints
+
+
+
+-- | Generic type instanciation.
+-- New variables are produced for every one generalized over, and substituted to the old ones in the type and the constraints.
 instanciate_scheme :: [RefFlag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
 instanciate_scheme refs vars cset typ = do
   -- Replace the flag references by new ones
@@ -694,7 +702,7 @@ instanciate_scheme refs vars cset typ = do
                 return (typ', cset')) (return (typ', cset')) vars
 
 
--- | If the type is generic, then it instanciates the typing scheme, else it just returns the type
+-- | If the type is generic, then it instanciates the typing scheme, else it just returns the type.
 instanciate :: Type -> QpState (Type, ConstraintSet)
 instanciate (TForall refs vars cset typ) =
   instanciate_scheme refs vars cset typ
@@ -703,11 +711,11 @@ instanciate typ =
   return (typ, emptyset)
 
 
--- | Replaces all the flag references by their actual value :
+-- | Replaces in linear types all the flag references by their actual value :
 --     0 if no flag
 --     1 of one
 --     -1 of any
---     -2 if unknown
+--     -2 if unknown.
 rewrite_flags_in_lintype :: LinType -> QpState LinType
 rewrite_flags_in_lintype (TArrow t u) = do
   t' <- rewrite_flags t
@@ -741,7 +749,7 @@ rewrite_flags_in_lintype t =
   return t
 
 
--- | Replaces all the flag references by their actual value :
+-- | Replaces in types all the flag references by their actual value :
 --     0 if no flag
 --     1 of one
 --     -1 of any
@@ -765,7 +773,8 @@ rewrite_flags (TBang n t) = do
         
 
 
--- | Generates a fresh type variable (linear type)
+
+-- | Generates a fresh type variable (linear type).
 fresh_type :: QpState Variable
 fresh_type = do
   ctx <- get_context
@@ -773,7 +782,8 @@ fresh_type = do
   set_context $ ctx { type_id = id + 1 }
   return id
 
--- | Generates a type of the form !n a, where n and a are fresh flag reference and type variable
+
+-- | Generates a type of the form !n a, where n and a are fresh flag reference and type variable.
 new_type :: QpState Type
 new_type = do
   x <- fresh_type
@@ -782,8 +792,9 @@ new_type = do
 
 
 
--- | Throw a typing error, based on the reference flags of the faulty types
--- The return type can be anything, since an exception will be thrown in any case
+
+-- | Throws a typing error, based on the reference flags of the faulty types.
+-- The return type can be anything, since an exception will be thrown in any case.
 throw_TypingError :: Type -> Type -> QpState a
 throw_TypingError t@(TBang n _) u@(TBang m _) = do
   -- Retrieve the location / expression of the types
@@ -819,7 +830,7 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
       throwQ $ TypingError prt pru
 
 
--- | Throw a duplicable error, based on the faulty reference flags
+-- | Throw a duplicability error, based on the faulty reference flag.
 throw_NonDuplicableError :: RefFlag -> QpState a
 throw_NonDuplicableError ref = do
   -- Referenced expression / location
