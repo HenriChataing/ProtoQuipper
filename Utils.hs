@@ -1,3 +1,5 @@
+-- | This module contains some useful string manipulation functions, such as functions to change the position of
+-- characters to superscript or subscript ..
 module Utils where
 
 import Parsing.Localizing
@@ -9,17 +11,15 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List as List
 
--- | String manipulation functions | --
 
-
--- | Convert a digit to subscript character
+-- | Converts a digit to the subscript equivalent character.
 subdigit :: Int -> Char
  -- 8320 is decimal for 2080 -- Subscript digits are \x2080 .. \x2089
 subdigit d = toEnum (8320 + d)
 
 
--- | Subscripts a string
--- Only the digits are transposed to superscript
+-- | Converts a string to subscript. Note that only the digits are
+-- transposed to superscript (the tables are not complete).
 subscript :: String -> String
 subscript = List.map (\c -> if isDigit c then
                               subdigit (digitToInt c)
@@ -27,7 +27,7 @@ subscript = List.map (\c -> if isDigit c then
                               c)
 
 
--- Convert a digit to superscript character
+-- | Converts a digit to the equivalent superscript character.
 superdigit :: Int -> Char
 superdigit d = toEnum (case List.lookup d [(0, 8304), (1, 0185),
                                            (2, 0178), (3, 0179),
@@ -38,7 +38,7 @@ superdigit d = toEnum (case List.lookup d [(0, 8304), (1, 0185),
                        Nothing -> error "Function superdigit applies to digits only")
 
 
--- | Superscripts a string
+-- | Same as subscript, converts a string to superscript, but only the digits.
 superscript :: String -> String
 superscript = List.map (\c -> if isDigit c then
                                 superdigit (digitToInt c)
@@ -47,38 +47,36 @@ superscript = List.map (\c -> if isDigit c then
 
 
 -- | Prints a variable, represented by its unique id, as X^n, where X is a character symbol
--- and n the id
+-- and n the id.
 supervar :: Char -> Int -> String
 supervar x n =
   x:(superscript $ show n)
 
 
 -- | Prints a variable, represented by its unique id, as X_n, where X is a character symbol
--- and n the id
+-- and n the id.
 subvar :: Char -> Int -> String
 subvar x n =
   x:(subscript $ show n)
 
 
--- | Return the name of the module coded in file f
+-- | Return the name of the module encoded by the file f.
 module_of_file :: FilePath -> String
 module_of_file f =
   let (init:body) = (P.dropExtension . P.takeFileName) f in
   (Char.toUpper init):body
 
------------------------------------------
------- Manipulation of bindings ---------
 
--- Binding application
+-- | Apply a binding function, described as a list of pairs x |-> y, to an integer.
+-- The function behaves as the identity if the variable is not mapped.
 apply_binding :: [(Int, Int)] -> Int -> Int
------------------------------------
 apply_binding b a =
   case List.lookup a b of
   Just a' -> a'
   Nothing -> a
 
 
--- Perform the disjoint union of the list of sets
+-- | Performs the disjoint union of a list of sets.
 disjoint_union :: Eq a => [[a]] -> [a]
 disjoint_union [] = []
 disjoint_union (l:restl) =

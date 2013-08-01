@@ -197,10 +197,11 @@ force_duplicable_context ctx = do
                                   (TForall _ _ _ (TBang f _)) -> (one, f):ann) [] ctx
 
 
--- | Performs the union of two typing contexts.
-merge_contexts :: TypingContext -> TypingContext -> QpState TypingContext
-merge_contexts ctx0 ctx1 = do
-  return $ IMap.union ctx0 ctx1
+-- | Performs the union of two typing contexts. The <+> operator respect the order of the arguments
+-- when calling IMap.union.
+(<+>) :: TypingContext -> TypingContext -> TypingContext
+ctx0 <+> ctx1 =
+  IMap.union ctx0 ctx1
 
 
 -- | Splits the context according to a boolean function. The elements (keys) for which the function returns
