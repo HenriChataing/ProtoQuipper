@@ -1,5 +1,6 @@
 INCLUDE =
 HDK_INCLUDE = $(INCLUDE:%=--optghc=%)
+HADDOCK := haddock
 
 BUILD_DIR = _build
 
@@ -37,12 +38,12 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 	$(ALEX) Parsing/Lexer.x
 
 clean :
-	rm $(GENERATED_MODULES)
-	rm _build/*/*
+	rm -f $(GENERATED_MODULES)
+	rm -f _build/*/*
 	rm -rf haddock-doc
 
 distclean : clean
-	rm $(MAIN)
+	rm -f $(MAIN)
 
 test : all
 	for file in test/*.qi; \
@@ -59,7 +60,7 @@ count : clean
 haddock : haddock-documentation haddock-html-sources
 
 haddock-documentation : $(MODULES)
-	haddock -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html
+	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html
 
 haddock-html-sources : $(MODULES:%.hs=haddock-doc/src/%.html)
 
@@ -71,4 +72,4 @@ haddock-doc/src/%.html: %.hs
 # Building documentation without source code links.
 
 haddock-tmp : $(MODULES)
-	haddock -o haddock-doc -h $(HDK_INCLUDE) $(MAIN)
+	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN)
