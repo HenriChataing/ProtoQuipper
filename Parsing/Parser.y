@@ -133,6 +133,7 @@ Decl :
     | LET REC LID Pattern_list '=' Expr ";;"     { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
     | LET REC '(' Infix_op ')' Pattern_list '=' Expr ";;"  { DLet Recursive (PVar (snd $4)) (List.foldr EFun $8 $6) }
     | LET LID Pattern_list '=' Expr ";;"         { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
+    | LET '(' Infix_op ')' Pattern_list '=' Expr ";;"      { DLet Nonrecursive (PVar (snd $3)) (List.foldr EFun $7 $5) }
     | Expr ";;"                                  { DExpr $1 }
 
 
