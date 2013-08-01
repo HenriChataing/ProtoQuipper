@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | Main module, which contains the main function that patches everything together.
 module Main where
 
 import Parsing.Parser
@@ -30,8 +31,8 @@ import Options
 
 import Data.List as List
 
-----------------------------------------------
-
+-- | Main function. Parses the command line arguments, and acts accordingly.
+main :: IO ()
 main = do
   -- Parse program options
   argv <- getArgs

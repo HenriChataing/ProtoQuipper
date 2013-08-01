@@ -1,54 +1,67 @@
--- This module provides several custom class definitions
+-- | This module defines several custom classes.
 module Classes where
 
 import Parsing.Localizing
 
---------------------------------
--- Class defining printing    --
--- functions                  --
 
--- Recursion level (depth of tree)
-data Lvl = Nth Int | Inf
+-- | Recursion level (depth of tree). Used to limit the display
+-- of terms, types and patterns to a certain depth in the syntax tree.
+data Lvl =
+    Nth Int      -- ^ Deth n.
+  | Inf          -- ^ Infinite depth (print everything).
+
+
+-- | Increases the recursion level.
 incr :: Lvl -> Lvl
 incr (Nth n) = Nth (n+1)
 incr Inf = Inf
 
+
+-- | Decreases the recursion level.
 decr :: Lvl -> Lvl
 decr (Nth n) = Nth (n-1)
 decr Inf = Inf
 
--- Default printing level
+
+-- | Default level, set at 2.
+defaultLvl :: Lvl
 defaultLvl = Nth 2
 
--- Pretty printing
+
+-- | Objects implementing  several pretty printing functions.
 class PPrint a where
-  -- Printing with options : the options are functions specialized in printing variables
+  -- | Printing with options : the options are printing functions specific to variables. For example
+  -- the variable of id n can either be represented as x_n, or by its actual name.
   genprint :: Lvl -> a -> [(Int -> String)] -> String
 
-  -- Print until Lvl = n
+  -- | Print until Lvl = n.
   sprintn :: Lvl -> a -> String
-  -- Shortened printing : Lvl = default
+
+  -- | Print until the default level.
   sprint  :: a -> String
-  -- Pretty printing : Lvl = +oo
+
+  -- | Print everything/
   pprint :: a -> String
 
---------------------------------
--- Class of objects with type --
--- annotations                --
 
+
+-- | Objects that can include type constraints. Typically patterns and expressions.
 class Constraint a where
+  -- | Remove all the type constraint annotations.
   drop_constraints :: a -> a
 
----------------------------------
--- Class of reversible objects --
 
+-- | Objects that implement a reverse function.
 class Reversible a where
+  -- | Reverse.
   rev :: a -> a
 
------------------------------------
--- Class of parametrized objects --
 
+-- | Objects parametrized over some integer variable.
 class Param a where
+  -- | List all the free variables.
   free_var :: a -> [Int]
+  
+  -- | Replace a free variable by another one.
   subs_var :: Int -> Int -> a -> a
 

@@ -1,26 +1,30 @@
+-- | Defines the program options.
 module Options where
 
 import System.Console.GetOpt
 
 import qualified Data.List as List
 
+-- | Definition of the record type carrying the options.
 data Options = Options {
-  showHelp :: Bool,
-  showVersion :: Bool,
-  verbose :: Int, 
+  showHelp :: Bool,                -- ^ Display the help screen.
+  showVersion :: Bool,             -- ^ Display the version number.
+  verbose :: Int,                  -- ^ Set the verbose level.
 
-  withConstraints :: Bool,
-  approximations :: Bool,
-  workWithProto :: Bool,
+  approximations :: Bool,          -- ^ If the unifier should make approximations.
+  workWithProto :: Bool,           -- ^ Unsugar the code.
 
-  includes :: [FilePath],
+  includes :: [FilePath],          -- ^ Add a ditrectory to the list of includes.
  
-  runUnify :: Maybe String,
-  runInterpret :: Bool,
-  outputFile :: Maybe String
+  runUnify :: Maybe String,        -- ^ Run a unification test on the constraint set given as argument.
+  runInterpret :: Bool             -- ^ Run the code.
 } deriving Show
 
-defaultOptions = Options {
+
+-- | Default set of options. By default, quipper only runs the type inference algorithm,
+-- with no approximations during the unification, and no include directories.
+default_options :: Options
+default_options = Options {
   -- General options
   showHelp = False,
   showVersion = False,
@@ -30,23 +34,18 @@ defaultOptions = Options {
   includes = [],
 
   -- Typing options
-    -- Make use of the typing constraints  (e :: T)
-  withConstraints = False,
-    -- Authorize approximations in unification
   approximations = False,
-    -- Remove ALL syntactic sugars, giving raw proto quipper code
   workWithProto = False,
 
   -- Actions
-    -- Run the unification algorithm on a chosen set of constraints
   runUnify = Nothing,
-    -- Run the interpret
-  runInterpret = False,
-
-  -- Output specification
-  outputFile = Nothing
+  runInterpret = False
 }
 
+
+-- | Link the actual command line options to modifications of
+-- the option state. 
+options :: [OptDescr (Options -> Options)]
 options =
   [ Option ['h'] ["help"] (NoArg (\opts -> opts { showHelp = True }))
       "Display this screen",
@@ -61,25 +60,30 @@ options =
       "Include a directory",
     Option ['r'] ["run"] (NoArg (\opts -> opts { runInterpret = True }))
       "Run the interpret",
-    Option []    ["constr"] (NoArg (\opts -> opts { withConstraints = True }))
-      "Make use of typing constraints (e :: T)",
     Option []    ["approx"] (NoArg (\opts -> opts { approximations = True }))
       "Authorize approximations in unfication algorithm",
     Option []    ["proto"] (NoArg (\opts -> opts { workWithProto = True }))
       "Remove all syntactic sugars",
     Option ['u'] ["unify"] (ReqArg (\s opts -> opts { runUnify = Just s }) "SET")
-      "Run the unification algorithm on the constraint set SET",
-    Option ['o'] [] (ReqArg (\f opts -> opts { outputFile = Just f }) "FILE")
-      "Redirect the output to the file FILE"
+      "Run the unification algorithm on the constraint set SET"
   ]
 
+
+-- | The header of the help screen.
+header :: String
 header = "Usage : Quipper [OPTION..] [file]"
+
+
+-- | The version number.
+version :: String
 version = "Proto Quipper - v0.1"
 
+
+-- | Parses a list of string options, and returns the resulting option state.
+-- Initially, the options are set to the default_option state.
 parseOpts :: [String] -> IO (Options, [String])
------------------------------------------------
 parseOpts argv =
   case getOpt Permute options argv of
-    (o, n, []) -> return $ (List.foldl (flip id) defaultOptions o, n)
+    (o, n, []) -> return $ (List.foldl (flip id) default_options o, n)
     (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
 
