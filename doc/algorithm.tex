@@ -742,92 +742,81 @@ The rule for typing circuits is omitted, as the term will not be generally used 
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(rev)$}
-			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} rev : ~!^1 (!^1Circ(T, U) \multimap~ !^1Circ(U, T)$}
+		\UnaryInfC{$!^1 \Gamma \vdash rev : ~!^1 (!^1Circ(T, U) \multimap~ !^1Circ(U, T))$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(unbox)$}
-		\UnaryInfC{$!^I\Gamma \vdash_{\{1 \le I\}} unbox : ~!^1(!^1Circ(T, U) \multimap~ !^n(T \multimap U))$}
+		\UnaryInfC{$!^1\Gamma \vdash unbox : ~!^1 (!^1Circ(T, U) \multimap~ !^1(T \multimap U))$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(box)$}
-		\UnaryInfC{$!^I\Gamma \vdash_\varnothing box^T : ~!^1(!^1(T \multimap U) \multimap~ !^1Circ (T, U))$}
+		\UnaryInfC{$!^1\Gamma \vdash box^T : ~!^1(!^1(T \multimap U) \multimap~ !^1Circ (T, U))$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(\texttt{True})$}
-			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} \texttt{True} : ~!^n bool$}
+			\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 bool$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
 		\RightLabel{$(\texttt{False})$}
-			\UnaryInfC{$!^I \Gamma \vdash_{\{1 \le I \}} \texttt{False} : ~!^n bool$}
+			\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 bool$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, ~!^I\Delta \vdash_\mathcal{L} t : ~!^nbool$}
-		\AxiomC{$\Gamma_2, ~!^I\Delta \vdash_\mathcal{L'} u : T$}
-		\noLine
-		\UnaryInfC{$\Gamma_2, ~!^I\Delta \vdash_\mathcal{L''} v : T$}
+		\AxiomC{$\Gamma_1, ~!^1\Delta \vdash t : ~!^0 bool$}
+		\AxiomC{$\Gamma_2, ~!^1\Delta \vdash u : T$}		\noLine
+		\UnaryInfC{$\Gamma_2, ~!^1\Delta \vdash v : T$}
 		\RightLabel{$(if)$}
-		\BinaryInfC{$\Gamma_1, \Gamma_2, !^I\Delta \vdash_{\mathcal{L} \cup \mathcal{L'} \cup \mathcal{L''} \cup \{1 \le I\}}
-			\text{if}~ t ~\text{then}~ u ~\text{else}~ v : T$}
+		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T$}
 	\end{prooftree}
 \end{defn}
 
-\subsection{Algorithms}
-
-\begin{defn}{Constraint typing}
-	The following cases are added to the constraint typing algorithm :
-	\begin{itemize}
-		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash \texttt{True} ~|~ \texttt{False} : T ~) = $ \\
-		  \begin{tabular}{l}
-		  	let $n$ be fresh \\
-				output $\{ !^n bool <: T \} \cup \{ 1 \le I \}$
-		  \end{tabular}
-		
-		\item $\text{ConstraintTyping} ~ (~ \Gamma \vdash \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T ~) = $ \\
-			\begin{tabular}{l}
-				let $n$ be fresh \\
-				let $\mathcal{L} = ~ \text{ConstraintTyping} ~ (~ \Gamma|_t \vdash t : \, !^nbool ~)$ \\
-				let $\mathcal{L'} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_{u, v} \vdash u : T)$ \\
-				let $\mathcal{L''} = ~ \text{ConstraintTyping} ~ ( ~ \Gamma|_{u, v} \vdash v : T)$ \\
-				let $!^I\Delta = \Gamma ~ \backslash ~ (FV(t) \oplus FV(u), FV(v))$ \\
-				output $\mathcal{L \cup L' \cup L''} \cup \{ 1 \le I \}$
-			\end{tabular}
-
-		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash rev : T ~) = $ \\
-		  \begin{tabular}{l}
-		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
-				output $\{ \,!^1 (!^1Circ (!^n\alpha, ~!^m\beta) \multimap ~!^1Circ (!^n\beta, ~!^m\alpha)) <: T \} \cup \{ 1 \le I \}$
-		  \end{tabular}
-		  
-		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash unbox : T ~) = $ \\
-		  \begin{tabular}{l}
-		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
-				output $\{ \,!^1 (!^1Circ (!^n\alpha, ~!^m\beta) \multimap ~!^1(!^n\alpha \multimap ~!^m\beta)) <: T \} \cup \{ 1 \le I \}$
-		  \end{tabular}
-
-		\item $\text{ConstraintTyping} ~ (~ !^I \Delta \vdash box : T ~) = $ \\
-		  \begin{tabular}{l}
-		  	let $\alpha, \beta$ be fresh type variables and $n, m$ fresh flags \\
-				output $\{!^1(!^n\alpha \multimap ~!^m\beta) \multimap \,!^1Circ (!^n\alpha, ~!^m\beta)) <: T \} \cup \{ 1 \le I \}$
-		  \end{tabular}
-	\end{itemize}
+\begin{defn}{\bf Constraint typing} The following constraint typing rules are added to the definition of the constraint typing relation.
+	\begin{prooftree}
+	  \AxiomC{$\alpha, \beta, n, m \notin \Gamma, T$} \noLine
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 Circ(!^n\beta, \,!^m\alpha)) \prec: T\}$}
+		\RightLabel{$(rev)$}
+		\UnaryInfC{$!^I \Gamma \vdash_\mathcal{L} rev : T ~|_{\{\alpha, \beta, m, n\}}$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\alpha, \beta, n, m \notin \Gamma, T$} \noLine
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 (!^n\alpha \multimap \,!^m\beta)) \prec: T\}$}
+		\RightLabel{$(unbox)$}
+		\UnaryInfC{$!^I\Gamma \vdash_\mathcal{L} unbox : T ~|_{\{\alpha, \beta, m, n\}}$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\alpha, n \notin \Gamma, T, U$} \noLine
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1(!^1(T \multimap \,!^n\alpha) \multimap~ !^1 Circ (T, !^n\alpha)) \prec: U\}$}
+		\RightLabel{$(box)$}
+		\UnaryInfC{$!^I\Gamma \vdash box^T : U ~|_{\{\alpha, n\}}$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
+		\RightLabel{$(\texttt{True})$}
+			\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
+		\RightLabel{$(\texttt{False})$}
+			\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
+	\end{prooftree}
+	\begin{prooftree}
+		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : ~!^0 bool ~|_{\chi_1}$} \noLine
+		\UnaryInfC{$\Gamma|_{u, v} \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}	 \noLine
+		\UnaryInfC{$\Gamma|_{u, v} \vdash_{\mathcal{L}_3} v : T ~|_{\chi_3}$}
+		\AxiomC{$\chi_1$, $\chi_2$, $\chi_3$ mutually disjoint} \noLine
+		\UnaryInfC{$\Gamma \backslash_{t \oplus (u,v)} = \,!^I \Delta$} \noLine
+		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \mathcal{L}_3 \cup \{ 1 \le I \}$}
+		\RightLabel{$(if)$}
+		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T ~|_{\chi_1 \cup \chi_2 \cup \chi_3}$}
+	\end{prooftree}
 \end{defn}
 
 \begin{defn}{Unification}
 	The unification algorithm does not in the principle. The only additions are the new types $qbit$, $bool$ which behave the same
 	as $\top$ ; and the new connective $Circ$ comparable to $\multimap$ and $\otimes$.
-\end{defn}
-
-\begin{defn}{Linearity check} Neither the constraint typing algorithm nor the unification actively enforces the linearity of the qbit type.
-	This means a linearity check has to be performed after the typing and the unification. The risk would be to reject
-	perfectly typeable terms, which use qbits in a linear way, because of an approximative typing. However, it has been proved that
-	the unification, as well as the constraint typing, always give all the solutions. This means that if the unification states that
-	a type must be duplicable, so it is. Then, during the linearity check, if a type $!^1 qbit$ is encountered, this means the term is
-	certainly not typeable, else there is a solution that type the said term with $!^0 qbit$.
-
 \end{defn}
 
 \end{document}
