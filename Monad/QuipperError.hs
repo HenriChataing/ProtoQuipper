@@ -55,13 +55,10 @@ data QError =
  
 -- TYPING ERRORS
 
-    -- Typing errors : thrown during the unification 
-  | TypingError String String                                       -- Typing error
-  | DetailedTypingError String String String (String, Extent)       -- Typing error : actual vs expected in type of expr at extent ex
-    -- A non duplicable term (eg of type qbit), has been used in a non linear fashion
-  | NonDuplicableError String (String, Extent)
-    -- Trying to build an infinite type
-  | InfiniteTypeError String [String] String (String, Extent)
+  | TypingError String String                                                             -- ^ Typing error, but missing detailed information. The goal is to have as few of them as possible.
+  | DetailedTypingError String String (Maybe String) String (String, Extent)              -- ^ Typing error : actual type .. vs expected type .. in the type .. in type of .. at extent ..
+  | NonDuplicableError String (String, Extent)                                            -- ^ A non duplicable term (eg of type qbit), has been used in a non linear fashion
+  | InfiniteTypeError String [String] (Maybe String) String (String, Extent)              -- ^ Trying to build an infinite type
 
 -- MISC
 
@@ -99,19 +96,35 @@ instance Show QError where
   show (MatchingError p q) = "Error: can't bind the objects " ++ p ++ " and " ++ q
 
   show (TypingError ta tb) = "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
-  show (DetailedTypingError ta tb e (f, ex)) = f ++ ":" ++ show ex ++":\n" ++
-                                          "    couldn't match actual type\n" ++
-                                          ta ++ "\n" ++
-                                          "    with expected type\n" ++
-                                          tb ++ "\n" ++
-                                          "    In the type of\n" ++
-                                          e
+
+  show (DetailedTypingError ta tb mt e (f, ex)) =
+    f ++ ":" ++ show ex ++":\n" ++
+    "    Couldn't match actual type\n" ++
+    ta ++ "\n" ++
+    "    with expected type\n" ++
+    tb ++ "\n" ++
+    (case mt of
+       Just typ ->
+           "    In the type\n" ++
+           typ ++ "\n"
+       Nothing ->
+           "") ++
+    "    In the type of\n" ++
+    e
+
   show (NonDuplicableError e (f, ex)) = f ++ ":" ++ show ex ++ ": the term " ++ e ++ " is not duplicable"
-  show (InfiniteTypeError t clist e (f, ex)) = f ++ ":" ++ show ex ++ ":\n" ++
-                                          "    couldn't build the infinite type\n" ++
-                                          t ++ "\n" ++ List.concat (List.map (\c -> c ++ "\n") clist) ++
-                                          "    In the type of\n" ++
-                                          e
+  show (InfiniteTypeError t clist mt e (f, ex)) =
+    f ++ ":" ++ show ex ++ ":\n" ++
+    "    Couldn't build the infinite type\n" ++
+    t ++ "\n" ++ List.concat (List.map (\c -> c ++ "\n") clist) ++
+    (case mt of
+       Just typ ->
+           "    In the type\n" ++
+           typ ++ "\n"
+       Nothing ->
+           "") ++
+    "    In the type of\n" ++
+    e
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg

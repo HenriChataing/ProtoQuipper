@@ -246,20 +246,29 @@ check_cyclic c explored poset = do
         prt <- return $ genprint Inf infinite [fflag, fvar]
 
         -- Referenced expression / location
-        term <- referenced_expression n 
+        inf <- debug_information n 
 
         -- See what information we have
-        case term of
-          Just (e, ex) -> do
+        case inf of
+          Just (e, ex, typ) -> do
+              -- Print the expression
               pre <- case e of
                        ActualOfE e -> pprint_expr_noref e
                        ActualOfP p -> pprint_pattern_noref p
-              f <- get_file
-              throwQ $ InfiniteTypeError prt ploop pre (f, ex)
+              -- Print the original type
+              mprt <- case typ of
+                        Just typ -> do
+                            p <- pprint_type_noref typ
+                            return $ Just p
+                        Nothing ->
+                            return Nothing
 
-          Nothing -> do
               f <- get_file
-              throwQ $ InfiniteTypeError prt ploop "(Unknown)" (f, extent_unknown)
+              throwQ $ InfiniteTypeError prt ploop mprt pre (f, ex)
+
+          _ -> do
+              f <- get_file
+              throwQ $ InfiniteTypeError prt ploop Nothing "(Unknown)" (f, extent_unknown)
 
 
 

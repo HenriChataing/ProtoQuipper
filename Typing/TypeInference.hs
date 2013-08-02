@@ -569,62 +569,60 @@ constraint_typing gamma (EConstraint e t) cst = do
 
 
 
--------------------------------------- UNIFICATION ----------------------
 
--- Instanciation of model types
-  -- The bang annotations of the model are ignored
-model_of_lin :: LinType -> QpState LinType
-model_of :: Type -> QpState Type
-map_to_model :: Type -> Type -> QpState LinType
--------------------------------------------------------------------------
-model_of_lin TUnit = do
+
+
+-- | Duplicate the input linear type, and replaces every type variable of flag reference
+-- by a newly generated one.
+duplicate_lintype :: LinType -> QpState LinType
+duplicate_lintype TUnit = do
   return TUnit
 
-model_of_lin TBool = do
-  return TBool
-
-model_of_lin TInt = do
-  return TInt
-
-model_of_lin TQbit = do
-  return TQbit
-
-model_of_lin (TArrow t u) = do
-  t' <- model_of t
-  u' <- model_of u
+duplicate_lintype (TArrow t u) = do
+  t' <- duplicate_type t
+  u' <- duplicate_type u
   return (TArrow t' u')
 
-model_of_lin (TTensor tlist) = do
+duplicate_lintype (TTensor tlist) = do
   tlist' <- List.foldr (\t rec -> do
-                          r <- rec
-                          t' <- model_of t
-                          return (t':r)) (return []) tlist
+                          rc <- rec
+                          t' <- duplicate_type t
+                          return (t':rc)) (return []) tlist
   return (TTensor tlist')
 
-model_of_lin (TUser n args) = do
+duplicate_lintype (TUser n args) = do
   args' <- List.foldr (\a rec -> do
-                         r <- rec
-                         a' <- model_of a
-                         return (a':r)) (return []) args
+                         rc <- rec
+                         a' <- duplicate_type a
+                         return (a':rc)) (return []) args
   return (TUser n args')
 
-model_of_lin (TVar _) = do
+duplicate_lintype (TVar _) = do
   x <- fresh_type
   return (TVar x)
 
-model_of_lin (TCirc t u) = do
-  t' <- model_of t
-  u' <- model_of u
+duplicate_lintype (TCirc t u) = do
+  t' <- duplicate_type t
+  u' <- duplicate_type u
   return (TCirc t' u')
 
-model_of (TBang _ t) = do
+-- Remaining cases : bool int qbit
+duplicate_lintype typ = do
+  return typ
+
+
+-- | Duplicate the input linear type, and replaces every type variable of flag reference
+-- by a newly generated one.
+duplicate_type :: Type -> QpState Type
+duplicate_type (TBang _ t) = do
   n <- fresh_flag
-  t' <- model_of_lin t
+  t' <- duplicate_lintype t
   return $ TBang n t'
 
--------------
-map_to_model (TBang _ (TVar x)) (TBang _ t) = do
-  t' <- model_of_lin t
+
+-- | Creates a duplicated version of a type, and map the argument type variable to it.
+map_to_duplicate (TBang r (TVar x)) (TBang _ t) = do
+  t' <- duplicate_lintype t
   mapsto x t'
   return t'
 
@@ -667,7 +665,7 @@ unify_with_poset exact poset (lc, fc) = do
     -- Check the next action
     case (atomx, natomx) of
 
-      -- No semi-composite constraints : trivial solution with x1 = .. = xn,  unify the rest
+      -- No semi-composite constraints : trivial solution with x1 = .. = xn (approx) or do nothing (exact),  unify the rest
       (atomx, []) -> do
 
           if not exact then do
@@ -748,7 +746,7 @@ unify_with_poset exact poset (lc, fc) = do
             -- Map the youngest variables each to a new specimen of the model
             List.foldl (\rec x -> do
                           rec
-                          _ <- map_to_model x model
+                          _ <- map_to_duplicate x model
                           return ()) (return ()) cx
 
             -- Rewrite and reduce the atomic constraints

@@ -57,27 +57,33 @@ data FlagValue =
   | Any       -- Any flag value, typically the flag prefix of circ, bool, unit
 
 
--- | Information relevant to a flag
+-- | Information relevant to a flag.
 data FlagInfo = FInfo {
 -- The value 
   value :: FlagValue,
 
--- Information concerning the maybe associated expression
-  typeof :: Maybe TypeOf,
-
--- Location of the expression
-  elocation :: Maybe Extent
+-- Debug information.
+-- The first element is the expression it is type of, the second the location of the said expression,
+-- the third the original type (it is subtree of).
+  debug :: Maybe (TypeOf, Extent, Maybe Type)
 }
 
 
--- | Describe a type
--- A type can fit into several categories : it can be the actual type of a pattern / expr, or
--- the expected type of a pattern / expr
+-- | Description a type as the actual type of an expression / pattern.
 data TypeOf =
 -- Actual type
     ActualOfE Expr
   | ActualOfP Pattern
   deriving Show
+
+
+-- | Access to the debug information of an optional FlagInfo.
+mDebug :: Maybe FlagInfo -> Maybe (TypeOf, Extent, Maybe Type)
+mDebug inf =
+  case inf of
+    Just inf -> debug inf
+    Nothing -> Nothing
+
 
 
 

@@ -86,7 +86,12 @@ break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite bu ((Subtype (TBang n (TArrow t u)) (TBang m (TArrow t' u'))):lc, fc) = do
+break_composite bu ((Subtype arw@(TBang n (TArrow t u)) arw'@(TBang m (TArrow t' u'))):lc, fc) = do
+  -- Import the information
+  t `subtree` arw
+  u `subtree` arw
+  t' `subtree` arw'
+  u' `subtree` arw'
   break_composite bu ((Subtype t' t):(Subtype u u'):lc, (m, n):fc)
  
 
@@ -94,9 +99,13 @@ break_composite bu ((Subtype (TBang n (TArrow t u)) (TBang m (TArrow t' u'))):lc
   -- T * U <: T' * U'
 -- Into
   -- T <: T' && U <: U'
-break_composite bu ((Subtype (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))):lc, fc) = do
+break_composite bu ((Subtype ot@(TBang p (TTensor tlist)) ot'@(TBang q (TTensor tlist'))):lc, fc) = do
   if List.length tlist == List.length tlist' then do
     comp <- return $ List.map (\(t, u) -> t <: u) $ List.zip tlist tlist'
+    List.foldl (\rec (Subtype t u) -> do
+                  rec
+                  t `subtree` ot
+                  u `subtree` ot') (return ()) comp
     break_composite bu $ (comp, [(q, p)]) <> (lc, fc)
 
   else do
@@ -126,7 +135,11 @@ break_composite bu ((Subtype (TBang n (TUser utyp arg)) (TBang m (TUser utyp' ar
 -- Into
   -- T' <: T && U <: U'
 -- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
-break_composite bu ((Subtype (TBang _ (TCirc t u)) (TBang _ (TCirc t' u'))):lc, fc) = do
+break_composite bu ((Subtype typ@(TBang _ (TCirc t u)) typ'@(TBang _ (TCirc t' u'))):lc, fc) = do
+  t `subtree` typ
+  u `subtree` typ
+  t' `subtree` typ'
+  u' `subtree` typ'
   break_composite bu ((Subtype t' t):(Subtype u u'):lc, fc)
 
 
