@@ -48,13 +48,6 @@ break_composite :: Bool -> ConstraintSet -> QpState ConstraintSet
 -- Nothing to do
 break_composite bu ([], lc) = return ([], lc)
 
--- With location
-break_composite bu ((Subtype (TBang n (TLocated t _)) u):lc, fc) = do
-  break_composite bu ((Subtype (TBang n t) u):lc, fc)
-
-break_composite bu ((Subtype t (TBang n (TLocated u _))):lc, fc) = do
-  break_composite bu ((Subtype t (TBang n u)):lc, fc)
-
 
 -- Unit against unit : removed
 break_composite bu ((Subtype (TBang _ TUnit) (TBang _ TUnit)):lc, fc) = do

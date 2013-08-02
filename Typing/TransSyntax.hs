@@ -726,10 +726,6 @@ unfold_tensors_in_lintype (TUser typename arg) = do
                         return $ a':r) (return []) arg
   return $ TUser typename arg'
 
-unfold_tensors_in_lintype (TLocated a ex) = do
-  a' <- unfold_tensors_in_lintype a
-  return $ TLocated a' ex
-
 
 -- | Same for types
 unfold_tensors :: Type -> QpState Type

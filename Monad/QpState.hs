@@ -773,10 +773,6 @@ rewrite_flags_in_lintype (TUser n args) = do
                          return (a':r)) (return []) args
   return (TUser n args')
 
-rewrite_flags_in_lintype (TLocated t ex) = do
-  set_location ex
-  rewrite_flags_in_lintype t
-
 rewrite_flags_in_lintype t =
   return t
 

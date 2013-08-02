@@ -7,8 +7,7 @@
 -- | Definition of an internal syntax, which consideraly modifies the grammar of types
 -- so as to facilitate the working of the type inference algorithm. For more efficiency, all
 -- the term and type variables are labelled by a unique id, which serves as reference in maps
--- and other structures
-
+-- and other structures.
 module Typing.CoreSyntax where
 
 import Classes
@@ -21,59 +20,61 @@ import qualified Parsing.Syntax as S
 import Data.List as List
 
 
--- | Variable is a synonym for Int, which is the type of type variables, as well as term variables
+-- | Variable is a synonym for Int, which is the type of type variables, as well as term variables.
 type Variable = Int
 
 
--- | Referenced flags represent references to fla values. A few values are reserved :
---     0 : is the flag equal to zero (meaning not duplicable)
---     1 : is the flag equal to one (meaning duplicable)
+-- | Referenced flags represent references to flag values. A few values are reserved :
+--     0 : is the flag equal to zero (meaning not duplicable),
+--     1 : is the flag equal to one (meaning duplicable), 
 --     -1 : can be either zero or one, for example with types like bool or unit,
 --          implicitely equal to !bool and !unit. Typically, the flag constraints
---          where the left or right hand side is -1 are dropped
---     any other value is a flag reference
+--          where the left or right hand side is -1 are dropped.
+--     Any other value is a flag reference.
 type RefFlag = Int
 
 
--- | The flag 1
+-- | The flag 1.
 one :: RefFlag
 one = 1
 
--- | The flag 0
+-- | The flag 0.
 zero :: RefFlag 
 zero = 0
 
--- | The flag with any value
+-- | The flag with any value.
 anyflag :: RefFlag
 anyflag = -1
 
 
--- | Respresent the value a flag can take. Initially, all flags are set to Unknown, except
--- for some imposed to zero or one by the typing rules
+-- | Represent the value a flag can take. Initially, all flags are set to Unknown, except
+-- for some imposed to zero or one by the typing rules.
 data FlagValue =
-    Unknown   -- The value of the flag has not yet be decided
-  | One       -- The value 1
-  | Zero      -- The value 0
-  | Any       -- Any flag value, typically the flag prefix of circ, bool, unit
+    Unknown   -- ^ The value of the flag has not yet be decided.
+  | One       -- ^ The value 1.
+  | Zero      -- ^ The value 0.
+  | Any       -- ^ Any flag value, typically the flag prefix of circ, bool, unit.
 
 
--- | Information relevant to a flag.
-data FlagInfo = FInfo {
--- The value 
-  value :: FlagValue,
+-- | Information relevant to a flag. This contains the flag value, some debug
+-- information used to throw detailed exceptions. Eventually, it will also contain
+-- various things such as : reversability, control ..
+data FlagInfo = FInfo { 
+  value :: FlagValue,                              -- ^ The value of the flag
 
--- Debug information.
--- The first element is the expression it is type of, the second the location of the said expression,
--- the third the original type (it is subtree of).
-  debug :: Maybe (TypeOf, Extent, Maybe Type)
+  debug :: Maybe (TypeOf, Extent, Maybe Type)      -- ^ Debug information. The first element is the expression it is type of,
+                                                   -- the second the location of the said expression, the third the original type (it is subtree of).
+                                                   -- The third one may be used for example on lists : if an eexpression has type 'list int', but
+                                                   -- but wad expected of type 'list bool', the typing error will be produced on the types 'int' and 'bool', which
+                                                   -- renders it difficult to locate the real error. In this case, the original type will be 'list int'  and the produced
+                                                   -- error : 'couldn't unify the type actual 'int' with the expected type 'bool', in the type 'list int'....
 }
 
 
 -- | Description a type as the actual type of an expression / pattern.
 data TypeOf =
--- Actual type
-    ActualOfE Expr
-  | ActualOfP Pattern
+    ActualOfE Expr           -- ^ It is the actual type of the expression e
+  | ActualOfP Pattern        -- ^ It is the actual type of the pattern p
   deriving Show
 
 
@@ -89,60 +90,56 @@ mDebug inf =
 
 -- | The definition of types distinguishes between linear types (never duplicable) and types,
 -- the latter annotated by a exponential flag. The grammar makes it so that the types are annotated
--- every where with flags, to make it simpler for the type inference algorithm
--- The division may need to be reviewed in regard of certain type constants like bool,
---  unit, qbit ; flag annotation are unecessary for those constants since bool and unit
---  are automatically duplicable, and qbit can never be such
---
---  Another division would be
---     LinType : TTensor, TArrow
---     Type : TVar, TQbit, TUnit, TCirc (duplicable as well), TBang
-
+-- every where with flags, to make it simpler for the type inference algorithm. Here is the definition
+-- of linear types, which can never be duplicable.
 data LinType =
 -- Basic types
-    TVar Variable              -- a
-  | TArrow Type Type           -- a -> b
+    TVar Variable              -- ^ a
+  | TArrow Type Type           -- ^ T -> U
 
 -- Tensor types
-  | TUnit                      -- 1
-  | TTensor [Type]             -- a1 * .. * an
+  | TUnit                      -- ^ ()
+  | TTensor [Type]             -- ^ (T1 * .. * Tn)
 
 -- Sum types
-  | TBool                      -- bool
-  | TInt                       -- int
-  | TUser String [Type]        -- user type, parametrized over the variables a1 .. an
+  | TBool                      -- ^ bool
+  | TInt                       -- ^ int
+  | TUser String [Type]        -- ^ Algebraic type, parametrized over the variables a1 .. an.
 
 -- Quantum related types
-  | TQbit                      -- qbit
-  | TCirc Type Type            -- circ (a, b)
-
--- Unrelated
-  | TLocated LinType Extent    -- t @ ex
-  deriving Show
+  | TQbit                      -- ^ qbit
+  | TCirc Type Type            -- ^ circ (T, U)
+  deriving (Show, Eq)
 
 
--- | As stated above, type are annotated by flags
+-- | As stated above, type are annotated by flags. The data type also include typing schemes, used
+-- for polymorphism.
 data Type =
-    TBang RefFlag LinType          -- !n a
-  | TForall [RefFlag] [Variable] ConstraintSet Type        -- type parametrized over the variables a1 .. an, the flags f1 .. fk, all satisfying the constraints L
+    TBang RefFlag LinType                                  -- ^ !n A
+  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A typing scheme : a type is parametrized over the type variables a1 .. an and
+                                                           -- the flags f1 .. fk, which must satisfy the constraints of L.
   deriving Show
 
 
--- | Remove the flag annotation from a type, returning a linear type
+-- | Remove the flag annotation from a type, returning a linear type.
 no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
--- | Specification of a user type
+-- | Specification of a user type.
 data Typespec = Spec {
-  args :: Int,                                  -- The number of arguments
-  unfolded :: ([Type], [Type]),                 -- The unfolded defintion : on the left the arguments, on the right the unfolded type
-  subtype :: ([Type], [Type], [TypeConstraint]) -- The result of breaking the constraint {user args <: user args'}
+  args :: Int,                                             -- ^ The number of type arguments required.
+
+  unfolded :: ([Type], [Type]),                            -- ^ The unfolded defintion of the type, with on the left the type arguments, and on the right the unfolded type
+                                                           -- as T1 + .. + Tk where T1 .. Tk are the types of the data constructors.
+
+  subtype :: ([Type], [Type], [TypeConstraint])            -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+                                                           -- is automatically inferred during the translation to the core syntax.
 }
 
 
 
--- | Like variables (term and type), datacons are attributed unique ids, which serve to represent them
+-- | Like variables (term and type), datacons are attributed unique ids.
 type Datacon = Int
 
 
@@ -165,49 +162,48 @@ type Datacon = Int
 --                                     e
 --                                (and desugared again)
 --
--- Most of the locations are dropped, only the one useful to locate variables are kept
---
-
 data Pattern =
-    PUnit                                         -- <>
-  | PVar Variable                                 -- x @ ex
-  | PTuple [Pattern]                              -- <p1, .. , pn>
-  | PDatacon Datacon (Maybe Pattern)              -- datacon p
-  | PConstraint Pattern S.Type                    -- p <: T
-  | PLocated Pattern Extent                       -- Located expressions.
+    PUnit                                         -- ^ ()
+  | PVar Variable                                 -- ^ x
+  | PTuple [Pattern]                              -- ^ (p1, .. , pn)
+  | PDatacon Datacon (Maybe Pattern)              -- ^ Datacon p
+  | PLocated Pattern Extent                       -- ^ Located patterns.
+  | PConstraint Pattern S.Type                    -- ^ (p <: T)
   deriving Show 
 
 
 
--- | Definition of the core expressions
+-- | Definition of the core expressions. The core syntax introduces global variables, imported from the dependency modules.
+-- Since the global variables are suposed to be duplicable, it was not necessary to overload the typing context with
+-- more variables that would are duplicable anyway.
 data Expr =
 -- STLC
-    EVar Variable                                 -- x
-  | EGlobal Variable                              -- global variable from the imported modules
-  | EFun Pattern Expr                             -- fun p -> t
-  | EApp Expr Expr                                -- t u
+    EVar Variable                                 -- ^ x
+  | EGlobal Variable                              -- ^ Global variable from the imported modules.
+  | EFun Pattern Expr                             -- ^ fun p -> t
+  | EApp Expr Expr                                -- ^ t u
 
 -- Introduction of the tensor
-  | EUnit                                         -- <>
-  | ETuple [Expr]                                 -- <t1, .. , tn>
-  | ELet RecFlag Pattern Expr Expr                -- let [rec] p = e in f
+  | EUnit                                         -- ^ ()
+  | ETuple [Expr]                                 -- ^ (t1, .. , tn)
+  | ELet RecFlag Pattern Expr Expr                -- ^ let [rec] p = e in f
 
 -- Custom union types
-  | EBool Bool                                    -- True / False
-  | EInt Int                                      -- integer
-  | EIf Expr Expr Expr                            -- if e then f else g
-  | EDatacon Datacon (Maybe Expr)                 -- datacon  - the argument is optinal, as datacons are considered values
-  | EMatch Expr [(Pattern, Expr)]                 -- match e with (x1 -> f1 | .. |  xn -> fn)
+  | EBool Bool                                    -- ^ True / False
+  | EInt Int                                      -- ^ Integers.
+  | EIf Expr Expr Expr                            -- ^ if e then f else g
+  | EDatacon Datacon (Maybe Expr)                 -- ^ Datacon e. The argument may or may not be given, the datacons are considered are manipulated as values.
+  | EMatch Expr [(Pattern, Expr)]                 -- ^ match e with (p1 -> f1 | .. | pn -> fn)
 
 -- Quantum rules
-  | EBox Type                                     -- box[T]
-  | EUnbox                                        -- unbox t
-  | ERev                                          -- rev
+  | EBox Type                                     -- ^ box[T]
+  | EUnbox                                        -- ^ unbox
+  | ERev                                          -- ^ rev
 
 -- Unrelated
-  | ELocated Expr Extent                          -- e @ ex
-  | EBuiltin String                               -- #builtin s
-  | EConstraint Expr S.Type                       -- e <: T
+  | ELocated Expr Extent                          -- ^ Located expressions.
+  | EBuiltin String                               -- ^ #builtin s
+  | EConstraint Expr S.Type                       -- ^ (e <: T)
   deriving Show
 
 
@@ -225,16 +221,15 @@ instance PPrint RefFlag where
   pprint n = sprintn Inf n
 
 
--- | The class of objects of 'kind' type. The only two members are
--- LinType and Type. This classe serves to overload the functions
--- below
+-- | The class of objects of 'kind' type. This includes, of course, the two LinType and Type, but also
+-- everything that contains types : TypeConstraint, ConstraintSet, [TypeConstraint] ...
+-- The only purpose of this class is to overload the functions listed below.
 class KType a where
-  free_typ_var :: a -> [Int]
-  subs_typ_var :: Int -> LinType -> a -> a
+  free_typ_var :: a -> [Int]                       -- ^ Returns the list of free type variables.
+  subs_typ_var :: Int -> LinType -> a -> a         -- ^ Substitutes a type variable by a linear type.
   
-  free_flag :: a -> [Int]
-  subs_flag :: Int -> Int -> a -> a
-
+  free_flag :: a -> [Int]                          -- ^ Returns the list of flag references.
+  subs_flag :: Int -> Int -> a -> a                -- ^ Substitutes a flag reference by another one.
 
 
 instance KType LinType where
@@ -243,7 +238,6 @@ instance KType LinType where
   free_typ_var (TArrow t u) = List.union (free_typ_var t) (free_typ_var u)
   free_typ_var (TCirc t u) = List.union (free_typ_var t) (free_typ_var u)
   free_typ_var (TUser _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
-  free_typ_var (TLocated t _) = free_typ_var t
   free_typ_var _ = []
 
 
@@ -257,7 +251,6 @@ instance KType LinType where
   subs_typ_var a b (TArrow t u) = TArrow (subs_typ_var a b t) (subs_typ_var a b u)
   subs_typ_var a b (TTensor tlist) = TTensor $ List.map (subs_typ_var a b) tlist
   subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
-  subs_typ_var a b (TLocated t ex) = TLocated (subs_typ_var a b t) ex
 
 
   free_flag (TVar x) = [x]
@@ -265,7 +258,6 @@ instance KType LinType where
   free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
   free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
   free_flag (TUser _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
-  free_flag (TLocated t _) = free_flag t
   free_flag _ = []
 
 
@@ -273,7 +265,6 @@ instance KType LinType where
   subs_flag n m (TArrow t u) = TArrow (subs_flag n m t) (subs_flag n m u)
   subs_flag n m (TTensor tlist) = TTensor $ List.map (subs_flag n m) tlist
   subs_flag n m (TCirc t u) = TCirc (subs_flag n m t) (subs_flag n m u)
-  subs_flag n m (TLocated t ex) = TLocated (subs_flag n m t) ex
   subs_flag _ _ t = t
 
 
@@ -293,26 +284,14 @@ instance KType Type where
 
 
 
-instance Eq LinType where
-  (==) (TVar x) (TVar y) = x == y
-  (==) TUnit TUnit = True
-  (==) TBool TBool = True
-  (==) TQbit TQbit = True
-  (==) TInt TInt = True
-  (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
-  (==) (TArrow t u) (TArrow t' u') = (t == t') && (u == u')
-  (==) (TCirc t u) (TCirc t' u') = (t == t') && (u == u')
-  (==) (TUser n arg) (TUser n' arg') = (n == n') && (arg == arg')
-  (==) _ _ = False
-
 
 -- | This instance can't be just obtained by deriving Eq in the definition
--- of Type, because of alpha equivalence in the polymorphic types
+-- of Type, because of alpha equivalence in the polymorphic types.
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
   -- Normally, the alpha equivalence would have to be checked. However, it may
   -- be useless as : this function is never used, the generic instance is always the same, never
-  -- changed
+  -- changed.
   (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
 
 
@@ -379,23 +358,23 @@ instance Param Expr where
 
 -- | The subtyping relation <: operates on both linear types and types
 -- However, only constraints on types are kept, since it is the kind of constraints generated by the
--- constraint typing algorithm
+-- constraint typing algorithm, and it is also useful to have the flag references at hand.
 data TypeConstraint =
-    Subtype Type Type
-  deriving Show
+    Subtype Type Type   -- ^ A sub-typing constraint T <: U
+  deriving (Show, Eq)
 
 
--- | Shortcut operator for writing sub-typing constraints
+-- | Shortcut operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
 t <: u = Subtype t u
 
 
--- | Another shortcut for writing a set of constraints T1 .. Tn <: U
+-- | Another shortcut for writing a set of constraints T1 .. Tn <: U.
 (<<:) :: [Type] -> Type -> [TypeConstraint]
 tlist <<: u = List.map (\t -> t <: u) tlist
 
 
--- | Another shortcut for writing a set of constraints T <: U1 .. Un
+-- | Another shortcut for writing a set of constraints T <: U1 .. Un.
 (<::) :: Type -> [Type] -> [TypeConstraint]
 t <:: ulist = List.map (\u -> t <: u) ulist
 
@@ -405,21 +384,20 @@ t <:: ulist = List.map (\u -> t <: u) ulist
 --    n <= 0  ==  n :=: 0
 --    1 <= n  ==  n :=: 1
 --    m <= n  ==  m = 1 => n = 1
--- However, the constraints n <= 0 and 1 <= m are immediately applied to the reference, or eliminated
 type FlagConstraint =
   (RefFlag, RefFlag)
 
 
--- | A constraint set contains both subtyping and flag constraints
+-- | A constraint set contains both subtyping and flag constraints.
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
 -- The only purpose of this class is to overload the <> operator to be able to use it on either constaint
--- sets, lists of type constraints, or lists of flag constraints
+-- sets, lists of type constraints, or lists of flag constraints.
 class Constraints a b where
-  (<>) :: a -> b -> ConstraintSet
+  (<>) :: a -> b -> ConstraintSet        -- ^ Concatenation of two constraint sets. This function doesn't check for duplicates.
 
 instance Constraints [TypeConstraint] [TypeConstraint] where
   lc <> lc' = (lc ++ lc', [])
@@ -449,18 +427,18 @@ instance Constraints ConstraintSet ConstraintSet where
   (lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
 
 
--- | Empty constraint set
+-- | Empty constraint set.
 emptyset :: ConstraintSet
 emptyset = ([], [])
 
 
--- | Returns true iff the constraint is of the form T <: T,
+-- | Returns true iff the constraint is of the form T <: T.
 is_trivial :: TypeConstraint -> Bool
 is_trivial (Subtype a b) = a == b
 
 
 -- | Returns true iff the constraint T <: U is atomic, meaning
--- T and U are both of the form !na where a is a type variable
+-- T and U are both of the form !na where a is a type variable.
 is_atomic :: TypeConstraint -> Bool
 is_atomic (Subtype (TBang _ (TVar _)) (TBang _ (TVar _))) = True
 is_atomic _ = False
@@ -468,14 +446,14 @@ is_atomic _ = False
 
 -- | Returns true iff the constraint T <: U is composite, meaning
 -- it can be reduced by application of one or more of the subtyping
--- relations
+-- relations.
 is_composite :: TypeConstraint -> Bool
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
 
 -- | Returns true iff the constraint T <: U is semi composite, meaning
 -- it is not atomic, and either T or U is of the form !na, making it not
--- composite
+-- composite.
 is_semi_composite :: TypeConstraint -> Bool
 is_semi_composite (Subtype t u) =
   case (t, u) of
@@ -485,7 +463,7 @@ is_semi_composite (Subtype t u) =
     _ -> False
 
 
--- | Returns true iff the constraint is of the form  user n a <: user n a'
+-- | Returns true iff the constraint is of the form  user n a <: user n a'.
 is_user :: TypeConstraint -> Bool
 is_user (Subtype t u) =
   case (t, u) of
@@ -495,7 +473,6 @@ is_user (Subtype t u) =
 -- | Check whether all the constraints of a list have the same property of being right / left sided, ie :
 --    - of the form a <: T : left-sided
 --    - of the from T <: a : right-sided
---
 --  The function is_right_sided returns true if all the constraints are right sided
 --               is_left_sided returns true if all the constraints are left sided
 --               is_one_sided returns true if either is_left_sided or is_right_sided is true
@@ -509,6 +486,7 @@ is_one_sided ((Subtype t u):cset) =
     _ -> False
 
 
+-- | Checks whether all the type constraints of a list are left sided or not.
 is_left_sided :: [TypeConstraint] -> Bool
 is_left_sided [] = True
 is_left_sided ((Subtype (TBang _ (TVar _)) _):cset) =
@@ -516,6 +494,7 @@ is_left_sided ((Subtype (TBang _ (TVar _)) _):cset) =
 is_left_sided _ = False
 
 
+-- | Checks whether all the type constraints of a list are right sided or not.
 is_right_sided :: [TypeConstraint] -> Bool
 is_right_sided [] = True
 is_right_sided ((Subtype _ (TBang _ (TVar _))):cset) =
@@ -528,8 +507,6 @@ is_right_sided _ = False
 --
 --  The result is used in the unification algorithm : if the constraints can be linked, the approximation
 --    { T <: a <: b <: U }  <=>  a :=: b :=: T, { T <: U } can be made
---  (Since if a solution of the approximation can be found, it is also a solution of the initial set, and conversely)
---
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_constraints l =
   case List.find (\c -> case c of
@@ -550,7 +527,7 @@ chain_constraints l =
 
 
 -- | Try linking the constraints, starting from the left, and progressing by adding constraints
--- on the right
+-- on the right.
 chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
@@ -567,7 +544,7 @@ chain_left_to_right chain endvar l =
 
 
 -- | Try linking the constraints, starting from the right, and progressing by adding constraints
--- on the left
+-- on the left.
 chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
@@ -584,7 +561,7 @@ chain_right_to_left chain endvar l =
 
 
 
--- | Type constraints are also of a kind ktype
+-- | Type constraints are also of a kind ktype.
 instance KType TypeConstraint where
   free_typ_var (Subtype t u) = List.union (free_typ_var t) (free_typ_var u)
   subs_typ_var a b (Subtype t u) = Subtype (subs_typ_var a b t) (subs_typ_var a b u)
@@ -593,7 +570,7 @@ instance KType TypeConstraint where
   subs_flag n m (Subtype t u) = Subtype (subs_flag n m t) (subs_flag n m u)
 
 
--- | .. as are constraint sets
+-- | .. as are constraint sets.
 instance KType ConstraintSet where
   free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
   subs_typ_var a b (lc, fc) = (List.map (subs_typ_var a b) lc, fc)
@@ -611,13 +588,9 @@ instance KType ConstraintSet where
     (lc', fc')
 
 
-instance Eq TypeConstraint where
-  (==) (Subtype t u) (Subtype t' u') = t == t' && u == u'
-
-
 -- | Generalize a type, associated with constraints, over its free variables and flags
 -- The free variables of the type are those as are superior than or equal to lim type/flag
--- elsewhere
+-- elsewhere.
 generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> Type
 generalize_type typ (limtype, limflag) cset =
   -- Free variables and flags of the type
