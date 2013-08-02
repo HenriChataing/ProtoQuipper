@@ -104,7 +104,7 @@ data Context = Ctx {
   qbit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
      
 -- Substitution from type variable to types
-  mappings :: Map.Map Variable LinType                -- ^ The result of the unification.
+  mappings :: IntMap LinType                          -- ^ The result of the unification : a mapping from type variables to linear types.
 }
 
 
@@ -181,7 +181,7 @@ empty_context =  Ctx {
   type_id = 0,
   qbit_id = 0,
       
-  mappings = Map.empty
+  mappings = IMap.empty
 }
 
 
@@ -744,9 +744,9 @@ instanciate typ =
 
 
 -- | Replaces in linear types all the flag references by their actual value :
---     0 if no flag
---     1 of one
---     -1 of any
+--     0 if no flag,
+--     1 of one,
+--     -1 of any,
 --     -2 if unknown.
 rewrite_flags_in_lintype :: LinType -> QpState LinType
 rewrite_flags_in_lintype (TArrow t u) = do
@@ -782,10 +782,10 @@ rewrite_flags_in_lintype t =
 
 
 -- | Replaces in types all the flag references by their actual value :
---     0 if no flag
---     1 of one
---     -1 of any
---     -2 if unknown
+--     0 if no flag,
+--     1 of one,
+--     -1 of any,
+--     -2 if unknown.
 rewrite_flags :: Type -> QpState Type
 rewrite_flags (TBang n t) = do
   t' <- rewrite_flags_in_lintype t
@@ -806,7 +806,7 @@ rewrite_flags (TBang n t) = do
 
 
 
--- | Generates a fresh type variable (linear type).
+-- | Generates a fresh type variable.
 fresh_type :: QpState Variable
 fresh_type = do
   ctx <- get_context
@@ -876,7 +876,7 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
       throwQ $ TypingError prt pru
 
 
--- | Throw a duplicability error, based on the faulty reference flag.
+-- | Throw a duplicable error, based on the faulty reference flag.
 throw_NonDuplicableError :: RefFlag -> QpState a
 throw_NonDuplicableError ref = do
   -- Referenced expression / location
@@ -885,6 +885,7 @@ throw_NonDuplicableError ref = do
   -- See what information we have
   case inf of
     Just (e, ex, typ) -> do
+        -- Print the expression
         pre <- case e of
                  ActualOfE e -> pprint_expr_noref e
                  ActualOfP p -> pprint_pattern_noref p
@@ -896,91 +897,79 @@ throw_NonDuplicableError ref = do
         throwQ $ NonDuplicableError "(Unknown)" (f, extent_unknown)
 
 
--- =============================== --
--- ========= Substitution ======== --
 
--- Insert a new mapping in the substitution
+
+-- | Inserts a new mapping x |-> t in the substitution, where x is a type variable and t a linear type.
 mapsto :: Variable -> LinType -> QpState ()
--- Find the type a variable is mapped to
+mapsto x t = do
+  ctx <- get_context
+  set_context $ ctx { mappings = IMap.insert x t $ mappings ctx }
+
+
+-- | Looks for a mapping of the argument variable. The function never fails, as of no mapping
+-- is found for x, the linear type 'x' is returned.
 appmap :: Variable -> QpState LinType
--- Output the list of mappings
-mapping_list :: QpState [(Int, LinType)]
--- Apply the mappings to a type
-map_type_step :: Type -> QpState Type
-map_lintype_step :: LinType -> QpState LinType
-map_type :: Type -> QpState Type
--------------------------------------------------
-mapsto x t = QpState (\ctx -> return (ctx { mappings = Map.insert x t $ mappings ctx }, ()))
+appmap x = do
+  ctx <- get_context
+  case IMap.lookup x $ mappings ctx of
+    Just t -> return t
+    Nothing -> return $ TVar x
 
-appmap x = QpState (\ctx -> return (ctx, case Map.lookup x $ mappings ctx of
-                                         Just t -> t
-                                         _ -> TVar x))
 
-mapping_list =
-  QpState (\ctx -> return (ctx, Map.assocs $ mappings ctx))
-
-map_lintype_step TUnit = do
-  return TUnit
-
-map_lintype_step TBool = do
-  return TBool
-
-map_lintype_step TInt = do
-  return TInt
-
-map_lintype_step TQbit = do
-  return TQbit
-
-map_lintype_step (TVar x) = do
+-- | Recursively applies the mappings recorded in the current state to a linear type.
+map_lintype :: LinType -> QpState LinType
+map_lintype (TVar x) = do
   t <- appmap x
   case t of
-    (TVar y) | y == x -> return (TVar x)
-             | otherwise -> return t
-    _ -> return t
+    -- If the value of x has been changed, reapply the mapping function, else returns the original type.
+    TVar y | y /= x -> map_lintype (TVar y)
+           | otherwise -> return (TVar x)
+    t -> map_lintype t
 
-map_lintype_step (TArrow t u) = do
-  t' <- map_type_step t
-  u' <- map_type_step u
+map_lintype (TArrow t u) = do
+  t' <- map_type t
+  u' <- map_type u
   return (TArrow t' u')
 
-map_lintype_step (TTensor tlist) = do
+map_lintype (TTensor tlist) = do
   tlist' <- List.foldr (\t rec -> do
                           r <- rec
-                          t' <- map_type_step t
+                          t' <- map_type t
                           return (t':r)) (return []) tlist
   return (TTensor tlist')
 
-map_lintype_step (TCirc t u) = do
-  t' <- map_type_step t
-  u' <- map_type_step u
+map_lintype (TCirc t u) = do
+  t' <- map_type t
+  u' <- map_type u
   return (TCirc t' u')
 
-map_lintype_step (TUser typename arg) = do
+map_lintype (TUser typename arg) = do
   arg' <- List.foldr (\a rec -> do
                         r <- rec
-                        a' <- map_type_step a
+                        a' <- map_type a
                         return (a':r)) (return []) arg
   return (TUser typename arg')
 
+-- The remainging linear types are unit bool qbit and int, and mapped to themselves.
+map_lintype typ = do
+  return typ
 
-map_type_step (TBang f t) = do
-  t' <- map_lintype_step t
+
+-- | Recursively applies the mappings recorded in the current state to a linear type.
+map_type :: Type -> QpState Type
+map_type (TBang f t) = do
+  t' <- map_lintype t
   return $ TBang f t'
 
-map_type_step (TForall fv ff cset typ) = do
-  typ' <- map_type_step typ
+map_type (TForall fv ff cset typ) = do
+  typ' <- map_type typ
   return $ TForall fv ff cset typ'
 
-map_type t = do
-  t' <- map_type_step t
-  if t == t' then
-    return t
-  else
-    map_type t'
+
 
 
 -- | Complementary printing function for patterns and terms, that
--- replaces the references by their original name
+-- replaces the references by their original name.
 pprint_pattern_noref :: Pattern -> QpState String
 pprint_pattern_noref p = do
   nspace <- get_context >>= return . namespace
@@ -992,7 +981,8 @@ pprint_pattern_noref p = do
                            Nothing -> subvar 'D' d)
   return $ genprint Inf p [fvar, fdata]
 
--- | Same as pprint_pattern_noref
+
+-- | Same as pprint_pattern_noref.
 pprint_expr_noref :: Expr -> QpState String
 pprint_expr_noref e = do
   nspace <- get_context >>= return . namespace
@@ -1005,10 +995,13 @@ pprint_expr_noref e = do
   return $ genprint Inf e [fvar, fdata]
 
 
--- | Same for types, the type variables are attributed names and printed
+-- | List of names, to be used to represent type variables.
 available_names :: [String]
 available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
 
+
+-- | The type variables are attributed random names before being printed, and the flags are
+-- printed with their actual value : only if the flag is set will it be displayed as '!', else it will appear as ''.
 pprint_type_noref :: Type -> QpState String
 pprint_type_noref t = do
   -- Printing of type variables
