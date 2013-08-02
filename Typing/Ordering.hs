@@ -1,17 +1,12 @@
--- |  This module (Ordering) is dedicated to finding the minimum of the poset formed
---  by the type variables, where the relation is given by the typing constraints.
---
---  As a reminder, for every constraint :
---
---    a <: b, the relation a = b is added
---    a <: T or T <: a, a relation a < b is added for every b free type variable of T
---
+-- | This module (Ordering) is dedicated to finding the minimum of the poset formed
+-- by the type variables, where the relation is given by the typing constraints.
+-- As a reminder, for every constraint :
+--   a <: b, the relation Age (a) = Age(b) is added, and for every constraint
+--   a <: T or T <: a, a relation Age (a) < Age (b) is added for every b free type variable of T.
 -- Variables are later organized in clusters (= classes) of variables with the same age,
--- and the relations between variables are changed into relations between the assiciated
--- clusters.
--- The algorithm for finding the youngest cluster has a complexity O (n + m) where m is the number
+-- and the relations between variables are changed into relations between the associated
+-- clusters. The algorithm for finding the youngest cluster has a complexity O (n + m) where m is the number
 -- of relations defined.
---
 module Typing.Ordering where
 
 import Classes
@@ -83,7 +78,7 @@ cluster_contents c poset =
         fail $ "Cluster " ++ show c ++ " lacks an accompying definition"
 
 
--- | Returns the list of older clusters.
+-- | Returns the list of younger clusters, according to the partial relation.
 cluster_relations :: Cluster -> Poset -> [(Cluster, TypeConstraint)]
 cluster_relations c poset =
   case IMap.lookup c $ relations poset of
