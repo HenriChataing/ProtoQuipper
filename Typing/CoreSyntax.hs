@@ -170,10 +170,11 @@ type Datacon = Int
 
 data Pattern =
     PUnit                                         -- <>
-  | PVar Variable Extent                          -- x @ ex
+  | PVar Variable                                 -- x @ ex
   | PTuple [Pattern]                              -- <p1, .. , pn>
   | PDatacon Datacon (Maybe Pattern)              -- datacon p
   | PConstraint Pattern S.Type                    -- p <: T
+  | PLocated Pattern Extent                       -- Located expressions.
   deriving Show 
 
 
@@ -318,11 +319,12 @@ instance Eq Type where
 
 instance Param Pattern where
   free_var PUnit = []
-  free_var (PVar x _) = [x]
+  free_var (PVar x) = [x]
   free_var (PDatacon _ Nothing) = []
   free_var (PDatacon _ (Just p)) = free_var p
   free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
   free_var (PConstraint p _) = free_var p
+  free_var (PLocated p _) = free_var p
 
   subs_var _ _ p = p
 

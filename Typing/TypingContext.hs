@@ -58,14 +58,20 @@ bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
 -- Unit value
 bind_pattern PUnit = do
-  -- The flag doesn't need to be a reference, and can have any value
-  return (TBang anyflag TUnit, IMap.empty, emptyset)
+  -- Build a reference flag
+  n <- fresh_flag
+  ex <- get_location
+  specify_location n ex
+  specify_expression n (ActualOfP PUnit)
+
+  return (TBang n TUnit, IMap.empty, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x
-bind_pattern (PVar x ex) = do
+bind_pattern (PVar x) = do
   -- Create a new type, add some information to the flag
   a@(TBang n _) <- new_type
-  specify_expression n $ ActualOfP (PVar x ex)
+  ex <- get_location
+  specify_expression n $ ActualOfP (PVar x)
   specify_location n ex
 
   -- The binding is returned in a singleton map, and no constraints are generated
@@ -75,6 +81,9 @@ bind_pattern (PVar x ex) = do
 bind_pattern (PTuple plist) = do
   -- The flag in front of the tensor type : !p (a1 * .. * an)
   p <- fresh_flag
+  ex <- get_location
+  specify_location p ex
+  specify_expression p (ActualOfP $ PTuple plist)
 
   -- Bind the patterns of the tuple
   (ptypes, ctx, cset) <- List.foldr (\p rec -> do
@@ -96,20 +105,28 @@ bind_pattern (PDatacon dcon p) = do
   
   -- Instanciate the type
   (typ, cset) <- instanciate dtype
+  ex <- get_location
   
   -- Check the arguments
   case (typ, p) of
-    (TBang _ (TArrow t u), Just p) -> do
+    (TBang _ (TArrow t u@(TBang n _)), Just p) -> do
         -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
         (ctx, cset') <- bind_pattern_to_type p t
+        specify_location n ex
+        specify_expression n (ActualOfP $ PDatacon dcon $ Just p)
         return (u, ctx, cset <> cset')
 
-    (_, Nothing) ->
+    (TBang n _, Nothing) -> do
         -- No binding
+        specify_location n ex
+        specify_expression n (ActualOfP $ PDatacon dcon Nothing)
         return (typ, IMap.empty, cset)
 
-    _ ->
-        fail "In pattern, data constructor takes no argument, when it was given one"
+    _ -> do
+        ex <- get_location
+        f <- get_file
+        ndcon <- datacon_name dcon
+        throwQ $ WrongDataArguments ndcon (f, ex)
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint on the actual type of the pattern
@@ -118,6 +135,12 @@ bind_pattern (PConstraint p t) = do
   (t', cset') <- translate_unbound_type t
   return (typ, ctx, [typ <: t'] <> cset' <> cset)
 
+-- Relay the location
+bind_pattern (PLocated p ex) = do
+  set_location ex
+  bind_pattern p
+
+
 
 
 -- | This function does the same as bind_pattern, expect that it attempts to use the expected
@@ -125,10 +148,11 @@ bind_pattern (PConstraint p t) = do
 -- the data constructor except its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this one.
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
-bind_pattern_to_type (PVar x ex) t@(TBang n _) = do
+bind_pattern_to_type (PVar x) t@(TBang n _) = do
   -- Add some information about the variable to the flag
+  ex <- get_location
   specify_location n ex
-  specify_expression n (ActualOfP $ PVar x ex)
+  specify_expression n (ActualOfP $ PVar x)
 
   return (IMap.singleton x t, emptyset)
 
@@ -140,8 +164,21 @@ bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
 -- make the lengths match, and then bind individually each pattern of the tuple to the
 -- corresponding type.
 bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
-  if List.length plist /= List.length tlist then
-    fail "Unequal pattern / tuple"
+  if List.length plist /= List.length tlist then do
+    -- Typing error
+    
+    -- Build and actual type : a1 * .. * an
+    act <- List.foldr (\_ rec -> do
+                         r <- rec
+                         a <- new_type
+                         return $ a:r) (return []) plist
+    ex <- get_location
+    m <- fresh_flag
+    specify_location m ex
+    specify_expression m (ActualOfP $ PTuple plist)
+   
+    -- Throw the typing error 
+    throw_TypingError (TBang m $ TTensor act) (TBang n $ TTensor tlist)
 
   else do
     ptlist <- return $ List.zip plist tlist
@@ -166,8 +203,12 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
     (_, Nothing) ->
         return (IMap.empty, [dtype' <: typ] <> cset)
 
-    _ ->
-        fail "In pattern, data constructor takes no argument, when it was given one"
+    _ -> do
+        ex <- get_location
+        f <- get_file
+        ndcon <- datacon_name dcon
+        throwQ $ WrongDataArguments ndcon (f, ex)
+
 
 -- Same as with the function bind_pattern
 bind_pattern_to_type (PConstraint p t) typ = do
@@ -175,9 +216,16 @@ bind_pattern_to_type (PConstraint p t) typ = do
   (t', cset') <- translate_unbound_type t
   return (ctx, [typ <: t'] <> cset <> cset')
 
+-- With location
+bind_pattern_to_type (PLocated p ex) t = do
+  set_location ex
+  bind_pattern_to_type p t
+
 -- Any other case is a tying error
-bind_pattern_to_type _ _ = do
-  fail "Unmatching pattern / type"
+bind_pattern_to_type p t = do
+  -- Build the actual type of p
+  (a, _, _) <- bind_pattern p
+  throw_TypingError a t
 
 
 

@@ -97,7 +97,7 @@ instance PPrint Type where
 instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
-  genprint _ (PVar x _) [fvar, _] =  fvar x
+  genprint _ (PVar x) [fvar, _] =  fvar x
   genprint _ PUnit _ = "()"
   genprint (Nth 0) _ _= "..."
 
@@ -112,6 +112,9 @@ instance PPrint Pattern where
                     Nothing -> ""
 
   genprint lv (PConstraint p _) opts =
+    genprint lv p opts
+
+  genprint lv (PLocated p _) opts =
     genprint lv p opts
 
    -- Print unto Lvl = n

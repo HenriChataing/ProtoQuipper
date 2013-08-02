@@ -416,8 +416,7 @@ translate_pattern_with_label S.PUnit label = do
 
 translate_pattern_with_label (S.PVar x) label = do
   id <- register_var x
-  ex <- get_location
-  return (PVar id ex, Map.insert x id label)
+  return (PVar id, Map.insert x id label)
 
 translate_pattern_with_label (S.PTuple plist) label = do
   (plist', lbl) <- List.foldr (\p rec -> do
@@ -443,8 +442,8 @@ translate_pattern_with_label (S.PDatacon datacon p) label = do
         throw $ UnboundDatacon datacon (f, ex)
 
 translate_pattern_with_label (S.PLocated p ex) label = do
-  set_location ex
-  translate_pattern_with_label p label
+  (p', lbl) <- translate_pattern_with_label p label
+  return (PLocated p' ex, lbl)
 
 
 translate_pattern_with_label (S.PConstraint p t) label = do
@@ -641,7 +640,10 @@ export_pattern_variables :: S.Program -> Pattern -> QpState Pattern
 export_pattern_variables _ PUnit =
   return PUnit
 
-export_pattern_variables prog (PVar x ex) = do
+export_pattern_variables prog (PLocated p _) =
+  export_pattern_variables prog p
+
+export_pattern_variables prog (PVar x) = do
   case S.interface prog of
     Just inter -> do
         -- If an interface file is present, check the presence of the variable x
@@ -649,14 +651,14 @@ export_pattern_variables prog (PVar x ex) = do
         case List.lookup n inter of
           Just typ -> do
               export_var x
-              return $ PConstraint (PVar x ex) typ
+              return $ PConstraint (PVar x) typ
 
           Nothing -> do
-              return $ PVar x ex
+              return $ PVar x
 
     Nothing -> do
         export_var x
-        return $ PVar x ex
+        return $ PVar x
 
 export_pattern_variables prog (PDatacon dcon Nothing) =
   return $ PDatacon dcon Nothing
@@ -739,12 +741,14 @@ unfold_tensors (TBang n a) = do
 
 -- | Transform a pattern <a, b, c, d> into <a, <b, <c, d>>>
 unfold_tuples :: Pattern -> Pattern
+unfold_tuples (PLocated p ex) =
+  PLocated (unfold_tuples p) ex
 
 unfold_tuples PUnit =
   PUnit
 
-unfold_tuples (PVar x ex) =
-  (PVar x ex)
+unfold_tuples (PVar x) =
+  (PVar x)
 
 unfold_tuples (PDatacon dcon Nothing) =
   (PDatacon dcon Nothing)
@@ -781,7 +785,7 @@ unsugar (EFun p e) = do
    -- Check whether the expression is already unsugared or not
   case p of
     -- The pattern is only one variable : do nothing
-    PVar _ _ -> do
+    PVar _ -> do
       e' <- unsugar e
       return $ EFun p e'
 
@@ -789,7 +793,7 @@ unsugar (EFun p e) = do
     _ -> do
       x <- dummy_var
       e' <- unsugar $ ELet Nonrecursive p (EVar x) e
-      return $ EFun (PVar x extent_unknown) e'
+      return $ EFun (PVar x) e'
 
 unsugar (EApp e f) = do
   e' <- unsugar e
@@ -828,31 +832,31 @@ unsugar (ELet r p e f) = do
 
     -- If the pattern is one variable, do nothing
     -- The let binding can't be removed because of let-polymorphism
-    PVar _ _ -> do
+    PVar _ -> do
         f' <- unsugar f
         return $ ELet r p' e' f'
 
     -- If the pattern is a pair of variables, this is the case of tensor elimination
-    PTuple [PVar _ _, PVar _ _] -> do
+    PTuple [PVar _, PVar _] -> do
         f' <- unsugar f
         return $ ELet r p' e' f'
 
     -- If one of the elements of the pattern is not a variable, unsugar
-    PTuple [PVar x ex, q] -> do
+    PTuple [PVar x, q] -> do
         y <- dummy_var
         f' <- unsugar $ ELet r q (EVar y) f
-        return $ ELet r (PTuple [PVar x ex, PVar y extent_unknown]) e' f'
+        return $ ELet r (PTuple [PVar x, PVar y]) e' f'
 
-    PTuple [p, PVar x ex] -> do
+    PTuple [p, PVar x] -> do
         y <- dummy_var
         f' <- unsugar $ ELet r p (EVar y) f
-        return $ ELet r (PTuple [PVar y extent_unknown, PVar x ex]) e' f'
+        return $ ELet r (PTuple [PVar y, PVar x]) e' f'
 
     PTuple [p, q] -> do
         x <- dummy_var
         y <- dummy_var
         f' <- unsugar $ ELet r p (EVar x) (ELet r q (EVar y) f)
-        return $ ELet Nonrecursive (PTuple [PVar x extent_unknown, PVar y extent_unknown]) e' f'
+        return $ ELet Nonrecursive (PTuple [PVar x, PVar y]) e' f'
 
     -- If the pattern is a datacon, unsugar by adding a pattern matching
     PDatacon dcon Nothing -> do
@@ -861,14 +865,14 @@ unsugar (ELet r p e f) = do
 
     PDatacon dcon (Just p) -> do
         case p of
-          PVar x ex -> do
+          PVar x -> do
               f' <- unsugar f
               return $ EMatch e' [(PDatacon dcon $ Just p, f')]
 
           _ -> do
               x <- dummy_var
               f' <- unsugar (ELet Nonrecursive p (EVar x) f)
-              return $ EMatch e' [(PDatacon dcon $ Just (PVar x extent_unknown), f')]
+              return $ EMatch e' [(PDatacon dcon $ Just (PVar x), f')]
 
     _ -> return $ ELet r p e f
 
@@ -903,7 +907,7 @@ unsugar (EMatch e blist) = do
                             PDatacon dcon (Just p) -> do
                                 x <- dummy_var
                                 f' <- unsugar $ ELet Nonrecursive p (EVar x) f
-                                return $ (PDatacon dcon $ Just (PVar x extent_unknown), f'):r) (return []) blist
+                                return $ (PDatacon dcon $ Just (PVar x), f'):r) (return []) blist
 
                             -- The other cases are ignored for now, as syntactic equlity hasn't been developped yet
   return $ EMatch e' blist'

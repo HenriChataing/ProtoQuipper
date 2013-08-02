@@ -65,6 +65,8 @@ data QError =
                                                                                           -- locate the variable inside of a larger type, and the last string is the expression in which the error
                                                                                           -- occured, the rest is location information.
 
+  | WrongDataArguments String (String, Extent)                                            -- ^ Thrown when a data constructor expecting no arguments is given one.
+
 -- MISC
 
   | MiscError String                                                                      -- ^ Misc errors. The argument is an error message.
@@ -158,6 +160,9 @@ instance Show QError where
            "") ++
     "    In the type of\n" ++
     e
+
+  show (WrongDataArguments dcon (f, ex)) =
+    f ++ ":" ++ show ex ++ ": the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg
