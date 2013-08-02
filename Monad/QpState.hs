@@ -197,7 +197,6 @@ set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
 
-
 -- | Changes the level of verbosity.
 set_verbose :: Int -> QpState ()
 set_verbose v = do
@@ -839,30 +838,6 @@ throw_NonDuplicableError ref = do
     Nothing -> do
         f <- get_file
         throwQ $ NonDuplicableError "(Unknown)" (f, extent_unknown)
-
-
--- | Throw an infinite type error.
-throw_InfiniteTypeError :: Type -> [TypeConstraint] -> QpState a
-throw_InfiniteTypeError t@(TBang ref _) loop = do
-  -- Print the constraints
-  ploop <- return $ List.map pprint loop
-  prt <- return $ pprint t
-
-  -- Referenced expression / location
-  term <- referenced_expression ref
-
-  -- See what information we have
-  case term of
-    Just (e, ex) -> do
-        pre <- case e of
-                 ActualOfE e -> pprint_expr_noref e
-                 ActualOfP p -> pprint_pattern_noref p
-        f <- get_file
-        throwQ $ InfiniteTypeError prt ploop pre (f, ex)
-
-    Nothing -> do
-        f <- get_file
-        throwQ $ InfiniteTypeError prt ploop "(Unknown)" (f, extent_unknown)
 
 
 -- =============================== --

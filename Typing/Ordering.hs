@@ -208,7 +208,7 @@ find_minimum c explored poset = do
     -- Relations found. Follow only the first one, as it can only ends on either a minimum or a cyclic dependency.
     (c', cst):_ -> do
         -- Check for cyclic dependencies
-        check_cyclic c' ((cst, c):explored)
+        check_cyclic c' ((cst, c):explored) poset
         -- Continue
         find_minimum c' ((cst, c):explored) poset
 
@@ -216,8 +216,8 @@ find_minimum c explored poset = do
 
 -- | Function used exclusively in the find_minimum function. It checks whether a cluster appears in the list of explored vertices.
 -- If it does, an error message is generated that traces the cycle using the list of dependencies, if not, it returns ().
-check_cyclic :: Cluster -> [(TypeConstraint, Cluster)] -> QpState ()
-check_cyclic c explored = do
+check_cyclic :: Cluster -> [(TypeConstraint, Cluster)] -> Poset -> QpState ()
+check_cyclic c explored poset = do
   case List.span (\(_, c') -> c /= c') explored of
     -- Ok
     (_, []) -> do
@@ -228,11 +228,44 @@ check_cyclic c explored = do
         -- Put all the constraints one after the other
         cloop <- return $ List.map fst loop ++ [cst]
         -- Identify the infinite type
-        infinite <- case cst of
-                      Subtype t@(TBang _ (TVar _)) _ -> return t
-                      Subtype _ t@(TBang _ (TVar _)) -> return t
-        -- Throw an infinite type error
-        throw_InfiniteTypeError infinite cloop
+        (n, infinite) <- case cst of
+                           Subtype t@(TBang n (TVar _)) _ -> return (n, t)
+                           Subtype _ t@(TBang n (TVar _)) -> return (n, t)
+
+        -- Printing flags
+        refs <- get_context >>= return . flags
+        fflag <- return (\f -> case f of
+                                 1 -> "!"
+                                 n | n >= 2 -> case IMap.lookup n refs of
+                                                 Just fi -> case value fi of
+                                                              One -> "!"
+                                                              _ -> ""
+                                                 Nothing -> ""
+                                   | otherwise -> "")
+        -- Printing variables : print the cluster instead
+        fvar <- return (\x -> case IMap.lookup x $ cmap poset of
+                                Just c -> subvar 'a' c
+                                Nothing -> subvar 'x' x)
+
+        ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar]) cloop
+        prt <- return $ genprint Inf infinite [fflag, fvar]
+
+        -- Referenced expression / location
+        term <- referenced_expression n 
+
+        -- See what information we have
+        case term of
+          Just (e, ex) -> do
+              pre <- case e of
+                       ActualOfE e -> pprint_expr_noref e
+                       ActualOfP p -> pprint_pattern_noref p
+              f <- get_file
+              throwQ $ InfiniteTypeError prt ploop pre (f, ex)
+
+          Nothing -> do
+              f <- get_file
+              throwQ $ InfiniteTypeError prt ploop "(Unknown)" (f, extent_unknown)
+
 
 
 
