@@ -201,7 +201,6 @@ process_module opts prog = do
 
   -- Unification
   constraints <- break_composite True constraints
-    -- For ordering purposes
   constraints <- unify (not $ approximations opts) constraints
   newlog 1 ">> Unified constraint set"
   newlog 1 $ pprint constraints ++ "\n"
@@ -210,9 +209,6 @@ process_module opts prog = do
   inferred <- map_type a
   newlog 1 $ ">> Inferred type : " ++ pprint inferred
 
-  -- Solve the remaining flag constraints,
-  -- and apply the result to the inferred type to get the final answer
-  solve_annotation $ snd constraints
   inferred <- rewrite_flags inferred
   newlog 1 $ ">> Inferred type, references removed : " ++  pprint inferred ++ "\n"
 
@@ -291,17 +287,14 @@ unification_test set =
                                         (t', csett, lblt) <- translate_type t [] (lbl, False)
                                         (u', csetu, lblu) <- translate_type u [] (lblt, False)
                                         return ([t' <: u'] <> csett <> csetu <> r, lblu)) (return (emptyset, Map.empty)) set
-
       newlog 1 $ pprint constraints
 
       -- Run the unification algorithm
       constraints <- break_composite True constraints
-
       newlog 1 $ pprint constraints
 
       -- Unification
       constraints <- unify True constraints
-
       return $ pprint constraints
   in
   do

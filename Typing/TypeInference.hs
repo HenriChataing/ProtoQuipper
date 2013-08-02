@@ -805,31 +805,36 @@ unify_with_poset exact poset (lc, fc) = do
 
 -- | Type unification. Applies the function unfify_with_poset on a poset freshly created with the constraints
 -- of the provided set. The boolean flag is the same as the argument of unify_with_poset.
-unify :: Bool -> ConstraintSet -> QpState ConstraintSet
-unify exact cset = do
+unify_types :: Bool -> ConstraintSet -> QpState ConstraintSet
+unify_types exact cset = do
   poset <- return $ register_constraints (fst cset) empty_poset
   unify_with_poset exact poset cset
 
 
--- | Recursively applies the flag constraints until no deduction can be drewn
-apply_constraints :: [FlagConstraint] -> QpState (Bool, [FlagConstraint])
------------------------------------------------------------------------------------------------------------
-apply_constraints [] = do
+
+
+
+-- | Part of the flag unification. Looks for flag constraints of the form 1 <= n or n <= 0, and applies their consequences
+-- to the involved references. The boolean in the return value is needed for the termination, and indicates whether changes have been made.
+-- The function is recursively applied until stability of the set.
+apply_flag_constraints :: [FlagConstraint] -> QpState (Bool, [FlagConstraint])
+apply_flag_constraints [] = do
   return (False, [])
 
-apply_constraints (c:cc) = do
+apply_flag_constraints (c:cc) = do
   case c of
     (1, 0) -> do
+        -- This case is annoying because it relays absolutely no information about the whereabouts of the error.
         fail "Absurd constraint 1 <= 0"
 
     (n, 0) -> do
         unset_flag n
-        (_, cc') <- apply_constraints cc
+        (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
     (1, m) -> do
         set_flag m
-        (_, cc') <- apply_constraints cc
+        (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
     (m, n) -> do
@@ -837,46 +842,58 @@ apply_constraints (c:cc) = do
         vn <- flag_value n
         case (vm, vm) of
           (One, Zero) -> do
-              fail "Absurd constraint 1 <= 0"
+              -- The error could have been thrown with either reference.
+              throw_NonDuplicableError m
 
           (Unknown, Zero) -> do
               unset_flag m
-              (_, cc') <- apply_constraints cc
+              (_, cc') <- apply_flag_constraints cc
               return (True, cc')
  
           (One, Unknown) -> do
               set_flag n
-              (_, cc') <- apply_constraints cc
+              (_, cc') <- apply_flag_constraints cc
               return (True, cc')
 
           (Unknown, Unknown) -> do
-              (b, cc') <- apply_constraints cc
-              return (b, c:cc')
+              -- With no information, the constraint is kept aside while the rest of the set is being solved,
+              -- then added back to the result.
+              (b, cc') <- apply_flag_constraints cc
+              if b then
+                apply_flag_constraints (c:cc')
+              else
+                return (False, c:cc')
 
+          -- The remaining cases correspond to trivial constraints that can be discarded.
           _ -> do
-              apply_constraints cc
+              apply_flag_constraints cc
 
 
-solve_constraints :: [FlagConstraint] -> QpState [FlagConstraint]
------------------------------------------------------------------------------------------------------
-solve_constraints fc = do
-  (b, fc') <- apply_constraints fc
-  if b then
-    solve_constraints fc'
-  else
-    return fc'
-
-
--- Solve the constraint set
-solve_annotation :: [FlagConstraint] -> QpState ()
-----------------------------------------------------------------
-solve_annotation fc = do
+-- | Flag unification. The function first filters out the trivial constraints, before 'applying' the constraints of
+-- the form 1 <= n, n <= 0. At the end of the flag unification, only constraints of the form n <= m remain, where n and m
+-- both don't have a value.
+unify_flags :: [FlagConstraint] -> QpState [FlagConstraint]
+unify_flags fc = do
 
   -- Elimination of trivial constraints f <= 1 and 0 <= f, -1 <= f and f <= -1
   fc' <- return $ List.filter (\(m, n) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
 
   -- Application of the constraints 1 <= f and f <= 0
-  fc'' <- solve_constraints fc'
+  (_, fc'') <- apply_flag_constraints fc'
+  return fc''
 
-  return ()
+
+-- | Whole unification : applies first the type unification, then the flag unification on the resulting flag constraints.
+-- The boolean flag is passed as argument of unify_flags.
+unify :: Bool -> ConstraintSet -> QpState ConstraintSet
+unify exact cset = do
+  -- Type unification
+  (lc', fc') <- unify_types exact cset
+
+  -- Flag unification
+  fc'' <- unify_flags fc'
+
+  -- Result
+  return (lc', fc')
+
 
