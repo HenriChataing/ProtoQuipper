@@ -391,14 +391,15 @@ constraint_typing gamma (ELet rec p t u) cst = do
              Nonrecursive -> do
                  -- If not recursive, do nothing
                  constraint_typing gamma_t t [a]
-
-  -- Last of the free variables of t
-  endtype <- get_context >>= return . type_id
-  endflag <- get_context >>= return . flag_id
  
   -- Unify the constraints produced by the typing of t (exact unification)
   cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
   csett <- unify True cs                       -- Unify
+
+  -- Last of the free variables of t - to be place after the unification, since
+  -- the algorithm produces new variables that also have to be generic.
+  endtype <- get_context >>= return . type_id
+  endflag <- get_context >>= return . flag_id
 
   -- Apply the substitution produced by the unification of csett to the context gamma_u
   gamma_u <- IMap.foldWithKey (\x a rec -> do
