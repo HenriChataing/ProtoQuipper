@@ -98,13 +98,13 @@ instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
   genprint _ (PVar x _) [fvar, _] =  fvar x
-  genprint _ PUnit _ = "<>"
+  genprint _ PUnit _ = "()"
   genprint (Nth 0) _ _= "..."
 
   genprint lv (PTuple (p:rest)) opts =
     let dlv = decr lv in
-    "<" ++ genprint dlv p opts ++
-           List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ">"
+    "(" ++ genprint dlv p opts ++
+           List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ")"
 
   genprint lv (PDatacon dcon p) opts@[_, fdata] =
     fdata dcon ++ case p of
@@ -131,7 +131,7 @@ instance PPrint Pattern where
 -- describing the behavior of the printer when encountering variables and datacons
 print_doc :: Lvl -> Expr -> (Variable -> String) -> (Variable -> String) -> Doc
 print_doc _ EUnit _ _ =
-  text "<>"
+  text "()"
 
 print_doc _ (EBool b) _ _ = 
   if b then text "true" else text "false"
@@ -171,7 +171,7 @@ print_doc lv (ETuple elist) fvar fdata =
   let dlv = decr lv in
   let plist = List.map (\e -> print_doc dlv e fvar fdata) elist in
   let slist = punctuate comma plist in
-  char '<' <> hsep slist <> char '>'
+  char '(' <> hsep slist <> char ')'
 
 print_doc lv (EApp e f) fvar fdata =
   let dlv = decr lv in
@@ -209,7 +209,7 @@ print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (genprint dlv p [fvar, fdata]) <+> text "->" <+> print_doc dlv e fvar fdata in
+                        let pmatch = char '|' <+> text (genprint dlv p [fvar, fdata]) <+> text "->" <+> print_doc dlv f fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
