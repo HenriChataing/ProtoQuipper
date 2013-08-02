@@ -125,9 +125,15 @@ explore_dependencies dirs prog explored sorted = do
                                  return (sorted, exp)
 
                              -- Not ok
-                             (True, Nothing) ->
+                             (True, Nothing) -> do
                                  -- The module has already been visited : cyclic dependency
-                                 throwQ $ CyclicDependencies (S.module_name prog)
+                                 -- Build the loop : by removing the already sorted modules,
+                                 -- and spliting the explored list at the first visit of this module.
+                                 flush_logs
+                                 inloop <- return $ explored List.\\ (List.map S.module_name sorted)
+                                 (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
+
+                                 throwQ $ CyclicDependencies m (List.reverse (m:loop))
 
                              -- Explore
                              _ -> do
