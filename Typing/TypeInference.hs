@@ -572,7 +572,7 @@ constraint_typing gamma (EConstraint e t) cst = do
 
 
 
--- | Duplicate the input linear type, and replaces every type variable of flag reference
+-- | Duplicate the input linear type, and replacing every type variable or flag reference
 -- by a newly generated one.
 duplicate_lintype :: LinType -> QpState LinType
 duplicate_lintype TUnit = do
@@ -611,7 +611,7 @@ duplicate_lintype typ = do
   return typ
 
 
--- | Duplicate the input linear type, and replaces every type variable of flag reference
+-- | Duplicate the input type, replacing every type variable or flag reference
 -- by a newly generated one.
 duplicate_type :: Type -> QpState Type
 duplicate_type (TBang _ t) = do
@@ -621,6 +621,8 @@ duplicate_type (TBang _ t) = do
 
 
 -- | Creates a duplicated version of a type, and map the argument type variable to it.
+-- The first type is assumed to be of the form !n x where x is a type variable.
+map_to_duplicate :: Type -> Type -> QpState LinType
 map_to_duplicate (TBang r (TVar x)) (TBang _ t) = do
   t' <- duplicate_lintype t
   mapsto x t'
@@ -801,8 +803,8 @@ unify_with_poset exact poset (lc, fc) = do
               -}
 
 
--- | UNIFICATION. Applies the function unfify_with_poset on a poset freshly created with the constraints
--- of the provided set. The boolean flag is the sale as with unify_with_poset.
+-- | Type unification. Applies the function unfify_with_poset on a poset freshly created with the constraints
+-- of the provided set. The boolean flag is the same as the argument of unify_with_poset.
 unify :: Bool -> ConstraintSet -> QpState ConstraintSet
 unify exact cset = do
   poset <- return $ register_constraints (fst cset) empty_poset
