@@ -56,6 +56,18 @@ type_of x ctx = do
 -- or constraints coming from the instanciation of some type (eg with data constructors).
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
+-- Joker : the joker must have a duplicable type, since
+-- the value is discarded. No binding is generated.
+bind_pattern PJoker = do
+  a@(TBang n _) <- new_type
+  -- The set flag to n (duplicable value)
+  ex <- get_location
+  specify_location n ex
+  specify_expression n $ ActualOfP PJoker
+  set_flag n
+
+  return (a, IMap.empty, emptyset)
+
 -- Unit value
 bind_pattern PUnit = do
   -- Build a reference flag
@@ -148,6 +160,17 @@ bind_pattern (PLocated p ex) = do
 -- the data constructor except its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this one.
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
+-- The joker can be bound to any type, as long as it is duplicable.
+bind_pattern_to_type PJoker a@(TBang n _) = do
+  -- Add information to the flag
+  ex <- get_location
+  specify_location n ex
+  specify_expression n $ ActualOfP PJoker
+
+  -- Set the flag to one, and return
+  set_flag n
+  return (IMap.empty, emptyset)
+
 bind_pattern_to_type (PVar x) t@(TBang n _) = do
   -- Add some information about the variable to the flag
   ex <- get_location

@@ -38,6 +38,7 @@ import Data.List as List
   "<-" { TkLArrow $$ }
   "<-*" { TkLArrowStar $$ }
   "<:" { TkSubType $$ }
+  "_" { TkJoker $$ }
 
   INFIX0 { TkInfix0 $$ }
   INFIX1 { TkInfix1 $$ }
@@ -209,7 +210,8 @@ Expr_sep_list :
 
 
 Pattern :
-      LID                                       { locate (PVar (snd $1)) (fst $1) }
+      "_"                                       { locate PJoker $1 }
+    | LID                                       { locate (PVar (snd $1)) (fst $1) }
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
     | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }

@@ -24,6 +24,7 @@ tokens :-
   $white+                             ;
   "--".*                              ;
 
+  "_"                                 { locate_token TkJoker }
   "<:"                                { locate_token TkSubType }
   "*"                                 { locate_token TkStar }
   "."                                 { locate_token TkDot }
@@ -123,6 +124,7 @@ data Token =
   | TkBuiltin Extent       -- ^ \#builtin.
 
   -- Punctuation marks, and other symbols
+  | TkJoker Extent         -- ^ _
   | TkStar Extent          -- ^ \*
   | TkBar Extent           -- ^ |
   | TkComma Extent         -- ^ ,

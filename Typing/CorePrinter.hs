@@ -99,6 +99,7 @@ instance PPrint Pattern where
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
   genprint _ (PVar x) [fvar, _] =  fvar x
   genprint _ PUnit _ = "()"
+  genprint _ PJoker _ = "_"
   genprint (Nth 0) _ _= "..."
 
   genprint lv (PTuple (p:rest)) opts =

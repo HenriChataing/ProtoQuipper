@@ -414,6 +414,9 @@ translate_pattern_with_label :: S.Pattern -> Map String Int -> QpState (Pattern,
 translate_pattern_with_label S.PUnit label = do
   return (PUnit, label)
 
+translate_pattern_with_label S.PJoker label = do
+  return (PJoker, label)
+
 translate_pattern_with_label (S.PVar x) label = do
   id <- register_var x
   return (PVar id, Map.insert x id label)

@@ -147,7 +147,8 @@ instance Located Type where
 
 -- | Definition of patterns.
 data Pattern =
-    PUnit                                -- ^ ()
+    PJoker                               -- ^ _ (any value, causes no bindings)
+  | PUnit                                -- ^ ()
   | PVar String                          -- ^ x
   | PTuple [Pattern]                     -- ^ (x1, .., xn). By construction, n must be >= 2.
   | PDatacon Datacon (Maybe Pattern)     -- ^ Datacon p

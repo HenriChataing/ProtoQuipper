@@ -69,6 +69,7 @@ instance PPrint Pattern where
     sprintn lv p
 
   -- Print unto Lvl = n
+  sprintn _ PJoker = "_"
   sprintn _ PUnit = "<>"
   sprintn _ (PVar x) = x
   sprintn (Nth 0) _ = "..."

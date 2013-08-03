@@ -54,7 +54,7 @@ data FlagValue =
   | One       -- ^ The value 1.
   | Zero      -- ^ The value 0.
   | Any       -- ^ Any flag value, typically the flag prefix of circ, bool, unit.
-
+  deriving Show
 
 -- | Information relevant to a flag. This contains the flag value, some debug
 -- information used to throw detailed exceptions. Eventually, it will also contain
@@ -163,7 +163,8 @@ type Datacon = Int
 --                                (and desugared again)
 --
 data Pattern =
-    PUnit                                         -- ^ ()
+    PJoker                                        -- ^ _
+  | PUnit                                         -- ^ ()
   | PVar Variable                                 -- ^ x
   | PTuple [Pattern]                              -- ^ (p1, .. , pn)
   | PDatacon Datacon (Maybe Pattern)              -- ^ Datacon p
@@ -297,13 +298,13 @@ instance Eq Type where
 
 
 instance Param Pattern where
-  free_var PUnit = []
   free_var (PVar x) = [x]
   free_var (PDatacon _ Nothing) = []
   free_var (PDatacon _ (Just p)) = free_var p
   free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
   free_var (PConstraint p _) = free_var p
   free_var (PLocated p _) = free_var p
+  free_var _ = []
 
   subs_var _ _ p = p
 
