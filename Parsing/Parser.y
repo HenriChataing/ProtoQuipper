@@ -250,7 +250,6 @@ Matching_list :
 Type :
       Tensor_type                               { $1 }
     | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
-    | '!' Type                                  { locate_opt (TBang $2) (fromto_opt (Just $1) (location $2)) }
 
 
 Tensor_type :
@@ -270,6 +269,7 @@ Type_app :
 
 Atom_type :
       BOOL                                      { locate TBool $1 }
+    | '!' Atom_type                             { locate_opt (bang $2) (fromto_opt (Just $1) (location $2)) }
     | INTEGER                                   { locate TInt $1 }
     | QBIT                                      { locate TQBit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
