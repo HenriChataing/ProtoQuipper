@@ -70,6 +70,7 @@ fresh_address l = (maximum l) + 1
 data Gate =
     Init Int Int            -- ^ The initializers  0|-  and  1|-  are treated as gates.
   | Term Int Int            -- ^ Same thing : gates  -|0  and  -|1.
+  | Phase Int Int           -- ^ The phase gate, with a rotation by 2 Pi / n.
   | Unary String Int        -- ^ Unary gates. The first argument is the gate name, one of the list unary_gates defined above.
   | Binary String Int Int   -- ^ Binary gates. The first argument is the gate name, one of the list binary_gates.
   | Controlled Gate [Int]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear.
@@ -78,6 +79,7 @@ data Gate =
 
 -- | Readdressing of a gate : more specifically, applies the provided binding to the input and output of the gate.
 readdress :: Gate -> Binding -> Gate
+readdress (Phase n q) b = Phase n (apply_binding b q)
 readdress (Unary s q) b = Unary s (apply_binding b q)
 readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb)
 readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (apply_binding b) qlist)
@@ -90,7 +92,8 @@ instance Reversible Gate where
   rev (Init q b) = Term q b
   rev (Term q b) = Init q b
 
-  -- 
+  -- Othe gates
+  rev (Phase n q) = Phase (-n) q
   rev (Unary s q) = case List.lookup s unary_gates of
                       Just (s', _) -> Unary s' q
                       Nothing -> error $ "Undefined unary gate " ++ s
@@ -107,6 +110,7 @@ instance Reversible Gate where
 -- to be appended, and then the gate is added to the list of gates of the circuit. 
 instance Caps Gate where
   -- Normal gates
+  unencap c g@(Phase _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   unencap c g@(Unary _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   unencap c g@(Binary _ _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
   unencap c (Controlled g qlist) b = (c { gates = (gates c) ++ [readdress (Controlled g qlist) b] }, b)
@@ -138,6 +142,9 @@ model (Unary s q) =
               Nothing -> error $ "Undefined unary gate " ++ s
             in
   [(2 * q, sym)]
+
+model (Phase n q) =
+  [(2 * q, "[R]")]
 
 model (Controlled g qlist) =
   let pg = model g in

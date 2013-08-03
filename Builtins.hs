@@ -46,6 +46,15 @@ builtin_gates =
               ("TERM1", (TCirc TQBit TUnit,
                          VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit))] in
 
+  let phase = [("PHASE", (TArrow TInt unary_type,
+                          VBuiltin (\(VInt n) -> VCirc (VQbit 0)
+                                                       (Circ { qIn = [0], gates = [ Phase n 0 ], qOut = [0] })
+                                                       (VQbit 0)))),
+               ("CONTROL_PHASE", (TArrow TInt binary_type,
+                                  VBuiltin (\(VInt n) -> VCirc (VTuple [VQbit 0, VQbit 1])
+                                                               (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [1] ], qOut = [0, 1] })
+                                                               (VTuple [VQbit 0, VQbit 1])))) ] in
+
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
@@ -54,7 +63,7 @@ builtin_gates =
                                    (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
                                    (VTuple [VQbit 0, VQbit 1, VQbit 2]))) in
 
-  Map.fromList (toffoli:(init ++ term ++ unary ++ binary))
+  Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ binary))
 
 
 
@@ -76,6 +85,8 @@ builtin_operations =
               ("GT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m > n))))),
               ("EQ", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))) ] in
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))),
+              ("POW", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))) ] in
   Map.fromList ops
 
