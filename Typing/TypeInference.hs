@@ -497,25 +497,24 @@ constraint_typing gamma (EMatch e blist) cst = do
                           r <- rec
                           fv <- return $ free_var f \\ free_var p
                           return $ List.union fv r) (return []) blist
-  
-  -- Create the type of the expression e, and type e
-  a <- new_type
-  (gamma_e, _) <- sub_context fve gamma
-  csete <- constraint_typing gamma_e e [a]
 
   -- Type each of the bindings
   (gamma_bl, _) <- sub_context fvlist gamma
-  csetlist <- List.foldl (\rec (p, f) -> do
-                            cset <- rec
-                            -- Bind the pattern p
-                            (b, gamma_p, csetp) <- bind_pattern p
+  (alist, csetlist) <- List.foldr (\(p, f) rec -> do
+                                     (ar, cset) <- rec
+                                     -- Bind the pattern p
+                                     (a, gamma_p, csetp) <- bind_pattern p
 
-                            -- Type the associated expression, with the same constraints cst as the original expression
-                            -- Refer to the case of 'if' for more clarity.
-                            csetf <- constraint_typing (gamma_p <+> gamma_bl) f cst
+                                     -- Type the associated expression, with the same constraints cst as the original expression
+                                     -- Refer to the case of 'if' for more clarity.
+                                     csetf <- constraint_typing (gamma_p <+> gamma_bl) f cst
 
-                            -- The type of the pattern must be subtype of the type of the expression e
-                            return $ cset <> csetp <> csetf <> [b <: a]) (return emptyset) blist
+                                     -- The type of the expression e must be a subtype of the type of the pattern must
+                                     return $ (a:ar, csetp <> csetf <> cset)) (return ([], emptyset)) blist
+
+  -- Type e as a subtype of all the pattern types
+  (gamma_e, _) <- sub_context fve gamma
+  csete <- constraint_typing gamma_e e alist
 
   -- Generate the flag constraints for the intersection
   disunion <- return $ disjoint_union [fve, fvlist]
@@ -841,7 +840,7 @@ apply_flag_constraints (c:cc) = do
     (m, n) -> do
         vm <- flag_value m
         vn <- flag_value n
-        case (vm, vm) of
+        case (vm, vn) of
           (One, Zero) -> do
               -- The error could have been thrown with either reference.
               throw_NonDuplicableError m
@@ -895,6 +894,6 @@ unify exact cset = do
   fc'' <- unify_flags fc'
 
   -- Result
-  return (lc', fc')
+  return (lc', fc'')
 
 
