@@ -214,8 +214,7 @@ import_typedefs proto typedefs = do
                                              (dtype', dtype'', cset) <- case dtype of
                                                                  -- If the constructor takes no argument
                                                                  Nothing -> do
-                                                                     n <- fresh_flag 
-                                                                     return (TBang n (TUser typename args'), TBang n TUnit, emptyset)
+                                                                     return (TBang anyflag (TUser typename args'), TBang anyflag TUnit, emptyset)
 
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
@@ -231,7 +230,7 @@ import_typedefs proto typedefs = do
                                              -- Generalize the type of the constructor over the free variables and flags
                                              -- Those variables must also respect the constraints from the construction of the type
                                              (fv, ff) <- return (free_typ_var dtype', free_flag dtype')
-                                             dtype' <- return $ TForall fv ff cset dtype'
+                                             dtype' <- return $ TForall ff fv cset dtype'
 
                                              -- Register the datacon
                                              id <- register_datacon dcon dtype'

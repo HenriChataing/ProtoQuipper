@@ -118,7 +118,7 @@ bind_pattern (PDatacon dcon p) = do
   -- Instanciate the type
   (typ, cset) <- instanciate dtype
   ex <- get_location
-  
+
   -- Check the arguments
   case (typ, p) of
     (TBang _ (TArrow t u@(TBang n _)), Just p) -> do
