@@ -843,6 +843,7 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
         -- Print the original type
         mprt <- case typ of
                   Just typ -> do
+                      typ <- map_type typ
                       p <- pprint_type_noref typ
                       return $ Just p
                   Nothing ->
