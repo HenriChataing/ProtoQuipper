@@ -121,6 +121,9 @@ bind_pattern (PLocated p ex) v env = do
   set_location ex
   bind_pattern p v env
 
+bind_pattern (PConstraint p _) v env = do
+  bind_pattern p v env
+
 bind_pattern (PVar x) v env = do
   -- If the var is global, update the module definition
   cm <- get_module
@@ -157,12 +160,15 @@ bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
     throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
 
 bind_pattern p v _ = do
-  throw $ MatchingError (sprint p) (sprint v)
+  throw $ MatchingError (show p) (sprint v)
 
 
 -- | Try matching a pattern and a value. Return True if the value matches, else False
 match_value :: Pattern -> Value -> Bool
 match_value (PLocated p _) v =
+  match_value p v
+
+match_value (PConstraint p _) v =
   match_value p v
 
 match_value (PVar _) _  =
