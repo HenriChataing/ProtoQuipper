@@ -78,7 +78,9 @@ instance PPrint Type where
       (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
       (f, _) -> f ++ genprint (decr lv) a opts
 
-  genprint lv (TForall _ _ _ a) opts = "forall .. , " ++ genprint (decr lv) a opts
+  genprint lv (TForall ff fv cst a) opts =
+    "forall [" ++ show (List.length ff) ++ "] [" ++ show (List.length fv) ++ "], [" ++ show (List.length $ fst cst) ++ "," ++ show (List.length $ snd cst) ++ "] => " ++
+     genprint (decr lv) a opts
 
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
