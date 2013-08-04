@@ -173,6 +173,24 @@ data Pattern =
   deriving Show 
 
 
+instance Located Pattern where
+  location _ = Nothing
+  locate p _ = p
+  locate_opt p _ = p
+
+  clear_location (PLocated p _) = clear_location p
+  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
+  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
+  clear_location (PConstraint p t) = PConstraint (clear_location p) t
+  clear_location p = p
+
+instance Constraint Pattern where
+  drop_constraints (PConstraint p _) = drop_constraints p
+  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
+  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
+  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
+  drop_constraints p = p
+
 
 -- | Definition of the core expressions. The core syntax introduces global variables, imported from the dependency modules.
 -- Since the global variables are suposed to be duplicable, it was not necessary to overload the typing context with
