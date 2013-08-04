@@ -1,3 +1,5 @@
+-- | This module contains the definition of some builtin operations that are made available in quipper
+-- codes. This includes all the basic gates, listed bealow ; and some integers operations and comparisons.
 module Builtins where
 
 import Parsing.Syntax
