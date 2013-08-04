@@ -1,0 +1,79 @@
+-- -- LIST MODULE -- --
+-- Defines the type of lists, and provides basic
+-- list manipulation
+
+import Core
+
+-- Type of lists
+type list a =
+    Nil
+  | Cons of a * list a
+
+let nil = Nil ;;
+
+
+-- UNSAFE OPERATIONS
+
+let head (Cons (top, rest)) = top ;;
+
+let tail (Cons (tail, rest)) = tail ;;
+
+let rec last l =
+  match l with
+    Cons (x, Nil) -> x
+  | Cons (a, l) -> last l
+;;
+
+let rec (@) l n =
+  if n < 1 then
+    head l
+  else
+    (tail l) @ (n - 1)
+;;
+
+-- SAFE OPERATIONS
+
+let rec sf_last l =
+  match l with
+    Cons (x, Nil) -> (x, Nil)
+  | Cons (q, l) -> let (x, l) = sf_last l in
+                   (x, Cons (q, l))
+;;
+
+let rec map f l =
+  match l with
+    Nil -> Nil
+  | Cons (a, l) -> Cons (f a, map f l)
+;;
+
+let rec foldl f init l =
+  match l with
+    Nil -> init
+  | Cons (a, l) -> foldl f (f init a) l
+;;
+
+let rec foldr f l init =
+  match l with
+    Nil -> init
+  | Cons (a, l) -> let a = foldr f l init in
+                   f a
+;;
+
+let rec (++) l0 l1 =
+  match (l0, l1) with
+    (Nil, l) -> l
+  | (l, Nil) -> l
+  | (Cons (top, rest), l) -> let l = rest ++ l in
+                             Cons (top, l)
+;;
+
+let reverse l =
+  let rec reverse_acc acc l =
+    match l with
+      Nil -> acc
+    | Cons (top, rest) -> reverse_acc (Cons (top, acc)) rest
+  in
+
+  reverse_acc Nil l
+;;
+

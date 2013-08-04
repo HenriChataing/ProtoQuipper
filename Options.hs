@@ -31,7 +31,7 @@ default_options = Options {
   verbose = -1,
   
   -- Include directories
-  includes = [],
+  includes = ["qlib/"],
 
   -- Typing options
   approximations = False,

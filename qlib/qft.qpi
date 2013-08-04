@@ -1,0 +1,3 @@
+-- -- QUANTUM FOURIER TRANSFORM -- --
+
+val qft <: list qbit -> list qbit

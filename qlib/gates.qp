@@ -1,0 +1,52 @@
+-- -- GATES MODULE -- --
+-- Provides the definition of the gate operations
+-- All the gates are aplied the unbox operator, which
+-- gives the type T -> U rather than Circ (T, U), making
+-- them readily available.
+
+-- INIT AND TERM
+let init0 = unbox (#builtin INIT0) ;;
+let init1 = unbox (#builtin INIT1) ;;
+
+let term0 = unbox (#builtin TERM0) ;;
+let term1 = unbox (#builtin TERM1) ;;
+
+let qinit b = if b then
+                init1 ()
+              else
+                init0 ()
+;;
+
+let qterm b q = if b then
+                  term1 q
+                else
+                  term0 q
+;;
+
+-- UNARY
+let hadamard = unbox (#builtin GATE_H) ;;
+let not = unbox (#builtin NOT) ;;
+
+let gateOmega = unbox (#builtin GATE_OMEGA) ;;
+let gateE = unbox (#builtin GATE_E) ;;
+let gateEInv = unbox (#builtin GATE_E_INV) ;;
+
+let gateX = unbox (#builtin GATE_X) ;;
+let gateY = unbox (#builtin GATE_Y) ;;
+let gateZ = unbox (#builtin GATE_Z) ;;
+
+let gateT = unbox (#builtin GATE_T) ;;
+let gateTInv = unbox (#builtin GATE_T_INV) ;;
+let gateS = unbox (#builtin GATE_S) ;;
+let gateSInv = unbox (#builtin GATE_S_INV) ;;
+
+let phase n = unbox (#builtin PHASE n) ;;
+let cphase n = unbox (#builtin CONTROL_PHASE n) ;;
+
+-- BINARY
+let cnot = unbox (#builtin CNOT) ;;
+let gateW = unbox (#builtin GATE_W) ;;
+
+-- TRINARY
+let toffoli = #builtin TOFFOLI ;;
+

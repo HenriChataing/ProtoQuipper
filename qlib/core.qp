@@ -1,0 +1,17 @@
+-- -- CORE MODULE -- --
+-- Contains all the basic integers and boolean operations
+
+-- INTEGER OPERATIONS
+let (+) = #builtin ADD ;;
+let (-) = #builtin SUB ;;
+let (*) = #builtin MUL ;;
+let (/) = #builtin DIV ;;
+let (^) = #builtin POW ;;
+
+let (<) = #builtin LT ;;
+let (>) = #builtin GT ;;
+
+
+-- BOOLEAN OPERATIONS
+let (&&) = fun b0 b1 -> if b0 then b1 else false ;;
+let (||) = fun b0 b1 -> if b0 then true else b1 ;;
