@@ -79,7 +79,7 @@ main = do
                  return (v, t)) Q.empty_context
                case v of
                  Just v -> putStrLn $ (pprint v ++ " : " ++ t)
-                 Nothing -> putStrLn t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+                 Nothing -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
   else
     return ()
 
