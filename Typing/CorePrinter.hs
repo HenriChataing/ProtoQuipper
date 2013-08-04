@@ -1,10 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-
 -- | This module provides the pretty printing functions necessary to render
--- the types and expressions of the core syntax
-
+-- the types and expressions of the core syntax.
 module Typing.CorePrinter where
 
 import Classes
@@ -17,12 +15,13 @@ import Typing.CoreSyntax hiding ((<>))
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
--- | Type printing
+-- | Linear type printing. The generic function genprint paramtrizes the printing
+-- over the display of flags and type variables.
 instance PPrint LinType where
   -- Generic printing
   -- The display of flags and type variables is specified by two option functions
   genprint _ (TVar x) [_, fvar] = fvar x
-  genprint _ TUnit _ = "T"
+  genprint _ TUnit _ = "()"
   genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
   genprint _ TQbit _ = "qbit"
@@ -66,6 +65,8 @@ instance PPrint LinType where
   sprint a = sprintn defaultLvl a
 
 
+-- | Type printing. The genric function genprint parametrizes the printing over
+-- the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
   genprint lv (TBang n a) opts@[fflag, _] =
@@ -95,7 +96,8 @@ instance PPrint Type where
 
 
 
--- | Pretty printing of a pattern
+-- | Pattern printing. The function genprint paramtrizes the printing over the display of data constructors and term
+-- variables.
 instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
@@ -132,9 +134,9 @@ instance PPrint Pattern where
 
 
 
--- | Print an expression as a pp document
+-- | Print an expression as a pp document.
 -- Similarly to patterns, this expression is parametrized by two functions
--- describing the behavior of the printer when encountering variables and datacons
+-- giving the display of term variables and data constructors.
 print_doc :: Lvl -> Expr -> (Variable -> String) -> (Variable -> String) -> Doc
 print_doc _ EUnit _ _ =
   text "()"
@@ -229,6 +231,8 @@ print_doc lv (EConstraint e _) fvar fdata =
 
 
 
+-- | Expression printing. The function genprint generalizes the display of term
+-- variables and data constructors.
 instance PPrint Expr where
   -- Generic printing
   genprint lv e [fvar, fdata] =
@@ -244,7 +248,7 @@ instance PPrint Expr where
 
 
 
--- | Subtyping constraints printing
+-- | Subtyping constraints printing.
 instance PPrint TypeConstraint where
   genprint lv (Subtype t u) opts =
     genprint lv t opts ++ " <: " ++ genprint lv u opts
@@ -254,7 +258,7 @@ instance PPrint TypeConstraint where
   pprint c = genprint Inf c [pprint, subvar 'x']
 
 
--- | Flag constraints printing
+-- | Flag constraints printing. Genprint can't be parametrized.
 instance PPrint FlagConstraint where
   pprint (m, n) =
     (if m < 2 then
@@ -271,7 +275,8 @@ instance PPrint FlagConstraint where
   genprint _ c _ = pprint c
 
 
--- | Constraint set printing
+-- | Constraint set printing. The function genprint behaves the same as the one from the PPrint instance
+-- declaration of types and linear types.
 instance PPrint ConstraintSet where
   genprint _ (lcs, fcs) opts =
     let screenw = 120 in
