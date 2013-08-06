@@ -126,6 +126,19 @@ no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
+-- | Checks whether a linear type uses algebraic data types.
+is_user_lintype :: LinType -> Bool
+is_user_lintype (TUser _ _) = True
+is_user_lintype (TCirc t u) = is_user_type t || is_user_type u
+is_user_lintype (TTensor tlist) = List.or $ List.map is_user_type tlist
+is_user_lintype _ = False
+
+
+-- | Checks whether a type uses algebraic fata types.
+is_user_type :: Type -> Bool
+is_user_type (TBang _ a) = is_user_lintype a
+
+
 
 -- | Specification of a user type.
 data Typespec = Spec {

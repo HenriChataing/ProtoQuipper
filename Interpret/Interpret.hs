@@ -313,20 +313,30 @@ do_application env f x =
         -- Produces the return value by readdressing the output of the circuit
         readdress u' b'
 
+    -- Unboxed unbuilt circuit : build a new circuit, or rather directly apply the boxed function f to t
+    (VUnboxed (VSumCirc f), t) -> do
+        do_application env f t
+
     -- Circuit boxing
     (VBox typ, _) -> do
-        -- Creation of a new specimen of type type, with qbits ranging from 0, 1 .. to n,
-        -- n the number of qbits in the type typ
-        reset_qbits
-        s <- spec typ
-        -- Open a new circuit, initialized with the quantum addresses of the specimen
-        ql <- extract s
-        open_box ql
-        -- Build the circuit by applying the function argument to the specimen
-        s' <- do_application env x s
-        -- Close the box, and return the corresponding circuit
-        c <- close_box
-        return (VCirc s c s')
+        -- If the type is classical, the circuit is readily built
+        if not $ is_user_type typ then do
+          -- Creation of a new specimen of type type, with qbits ranging from 0, 1 .. to n,
+          -- n the number of qbits in the type typ
+          reset_qbits
+          s <- spec typ
+          -- Open a new circuit, initialized with the quantum addresses of the specimen
+          ql <- extract s
+          open_box ql
+          -- Build the circuit by applying the function argument to the specimen
+          s' <- do_application env x s
+          -- Close the box, and return the corresponding circuit
+          c <- close_box
+          return (VCirc s c s')
+ 
+        -- If not, the construction is delayed till use of the box.
+        else do
+          return (VSumCirc x)
 
     (VDatacon dcon Nothing, _) ->
         return $ VDatacon dcon $ Just x
