@@ -1,4 +1,4 @@
--- | This module describe a data structure used to represent modules internally
+-- | This module describe a data structure used to represent modules internally.
 module Monad.Modules where
 
 import Typing.CoreSyntax
@@ -10,14 +10,14 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
 
--- | Internal representation of a module
+-- | Internal representation of a module.
 data Module = Mod {
   -- Module name, and path to code file
-  mname :: String,
-  codefile :: FilePath,
+  mname :: String,          -- ^ Module name.
+  codefile :: FilePath,     -- ^ Path to implementation file.
 
   -- Module dependencies
-  dependencies :: [String],
+  dependencies :: [String], -- ^ list of module dependencies.
 
   -- Specifications of the module types
   typespecs :: Map String Typespec,
