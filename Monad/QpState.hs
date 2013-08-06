@@ -963,6 +963,44 @@ map_type (TForall fv ff cset typ) = do
   return $ TForall fv ff cset typ'
 
 
+-- | Checks wheter a linear type is a quantum data type or not.
+is_qdata_lintype :: LinType -> QpState Bool
+is_qdata_lintype TQbit =
+  return True
+
+is_qdata_lintype TUnit =
+  return True
+
+is_qdata_lintype (TTensor tlist) =
+  List.foldl (\rec t -> do
+                b <- rec
+                if b then
+                  is_qdata_type t
+                else
+                  return False) (return True) tlist
+
+is_qdata_lintype (TUser typename args) = do
+  spec <- type_spec typename
+  case qdatatype spec of
+    True ->
+        List.foldl (\rec t -> do
+                      b <- rec
+                      if b then
+                        is_qdata_type t
+                      else
+                        return False) (return True) args
+    False ->
+        return False
+
+is_qdata_lintype _ =
+  return False
+
+
+-- | Checks whether a type is a quantum data type or not.
+is_qdata_type :: Type -> QpState Bool
+is_qdata_type (TBang _ a) =
+  is_qdata_lintype a
+
 
 
 -- | Complementary printing function for patterns and terms, that

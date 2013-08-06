@@ -126,12 +126,17 @@ no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
+
 -- | Specification of a user type.
 data Typespec = Spec {
   args :: Int,                                             -- ^ The number of type arguments required.
 
-  unfolded :: ([Type], [Type]),                            -- ^ The unfolded defintion of the type, with on the left the type arguments, and on the right the unfolded type
-                                                           -- as T1 + .. + Tk where T1 .. Tk are the types of the data constructors.
+  bound :: Bool,                                           -- ^ Indicates whether the type admit a finite subtree.
+  qdatatype :: Bool,                                       -- ^ Is a quantum data type. Note that this flag is subject to change depending on the value of the type arguments.
+
+  unfolded :: ([Type], [(Datacon, Bool, Type)]),           -- ^ The unfolded defintion of the type, with on the left the type arguments, on the right the unfolded type :
+                                                           -- a list of tuples (Dk, bk, Tk) where Dk is the name of the datacon, bk indicates whether the type contains any
+                                                           -- algebraic types, Tk is the type of the data constructor.
 
   subtype :: ([Type], [Type], [TypeConstraint])            -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                            -- is automatically inferred during the translation to the core syntax.

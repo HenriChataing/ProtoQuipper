@@ -100,11 +100,11 @@ instance Show QError where
 
   show (WrongTypeArguments typ exp act (f, ex)) =
     f ++ ":" ++ show ex ++
-    if exp == 0 then     ": the type " ++ typ ++ " expects no arguments, but has been given " ++ show act
-    else                 ": the type " ++ typ ++ " expects " ++ show exp ++ " arguments, but has been given " ++ show act
+    if exp == 0 then     ": the type '" ++ typ ++ "' expects no arguments, but has been given " ++ show act
+    else                 ": the type '" ++ typ ++ "' expects " ++ show exp ++ " arguments, but has been given " ++ show act
 
   show (BoxTypeError typ (f, ex)) =
-    f ++ ":" ++ show ex ++ ": the box constructor, which expects a quantum data type as argument,  has been called on " ++ typ
+    f ++ ":" ++ show ex ++ ": in the box constructor: the type '" ++ typ ++ "' is not quantum"
 
   show (UnboundVariable x (f, ex)) =
     f ++ ":" ++ show ex ++ ": unbound variable " ++ x
