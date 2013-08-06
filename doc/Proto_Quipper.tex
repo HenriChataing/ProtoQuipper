@@ -1,190 +1,10 @@
 \documentclass{article}
 
-% ----------------------------------------------------------------------
-% Packages:
-
-\usepackage{amssymb}          % Usual AMS packages.
-\usepackage{amsmath}
-\usepackage{amsthm}
-\usepackage{proof}            % For proof trees.
-\usepackage{mdframed}         % To box figures.
-\usepackage[]{nohyperref}     % Like hyperref (allows referencing 
-                              % of sub-lemmas) but without the hyperlinks.
-\input{Qcircuit}              % To draw quantum circuits.
-
-% ----------------------------------------------------------------------
-% Margins: An environment to locally change the margins.
-
-\newenvironment{changemargin}[2]{%
-\begin{list}{}{%
-\setlength{\topsep}{0pt}%
-\setlength{\leftmargin}{#1}%
-\setlength{\rightmargin}{#2}%
-\setlength{\listparindent}{\parindent}%
-\setlength{\itemindent}{\parindent}%
-\setlength{\parsep}{\parskip}%
-}%
-\item[]}{\end{list}}
-
-% ----------------------------------------------------------------------
-% Theorem definitions:
-%
-% theorem, lemma, proposition, corollary, definition, example, 
-% examples, openproblem, principle, remark, remarks, convention, 
-% notation
-%
-% All are numbered by default. Get unnumbered versions by un-lemma etc.
-
-\newcounter{n-lemma}
-\newtheorem{n-lema}[n-lemma]{Lemma}
-\newtheorem{n-proposition}[n-lemma]{Proposition}
-\newtheorem{n-theorem}[n-lemma]{Theorem}
-\newtheorem{n-principle}[n-lemma]{Principle}
-\newtheorem{n-corollary}{Corollary} 
-\newtheorem*{un-lemma}{Lemma}
-\newtheorem*{un-theorem}{Theorem}
-\newtheorem*{un-proposition}{Proposition}
-\newtheorem*{un-corollary}{Corollary} 
-\newtheorem*{un-principle}{Principle}
-
-\theoremstyle{definition}
-\newtheorem{n-definition}[n-lemma]{Definition}
-\newtheorem{n-assumption}[n-lemma]{Assumption}
-\newtheorem{n-openproblem}[n-lemma]{Open Problem}
-\newtheorem*{un-definition}{Definition}
-\newtheorem*{un-assumption}{Assumption}
-\newtheorem*{un-openproblem}{Open Problem}
-
-\theoremstyle{remark}
-\newtheorem{n-example}[n-lemma]{Example}
-\newtheorem{n-examples}[n-lemma]{Example}
-\newtheorem{n-remark}[n-lemma]{Remark}
-\newtheorem{n-notation}[n-lemma]{Notation}
-\newtheorem{n-remarks}[n-lemma]{Remarks}
-\newtheorem{n-convention}[n-lemma]{Convention}
-\newtheorem*{un-example}{Example}
-\newtheorem*{un-examples}{Examples}
-\newtheorem*{un-remark}{Remark}
-\newtheorem*{un-remarks}{Remarks}
-\newtheorem*{un-convention}{Convention}
-
-\newenvironment{theorem}{\begin{n-theorem}}{\end{n-theorem}}
-\newenvironment{lemma}{\begin{n-lema}}{\end{n-lema}}
-\newenvironment{proposition}{\begin{n-proposition}}{\end{n-proposition}}
-\newenvironment{corollary}{\begin{n-corollary}}{\end{n-corollary}}
-\newenvironment{definition}{\begin{n-definition}}{\end{n-definition}}
-\newenvironment{example}{\begin{n-example}}{\end{n-example}}
-\newenvironment{examples}{\begin{n-examples}}{\end{n-examples}}
-\newenvironment{openproblem}{\begin{n-openproblem}}{\end{n-openproblem}}
-\newenvironment{principle}{\begin{n-principle}}{\end{n-principle}}
-\newenvironment{remark}{\begin{n-remark}}{\end{n-remark}}
-\newenvironment{remarks}{\begin{n-remarks}}{\end{n-remarks}}
-\newenvironment{convention}{\begin{n-convention}}{\end{n-convention}}
-\newenvironment{notation}{\begin{n-notation}}{\end{n-notation}}
-
-% ----------------------------------------------------------------------
-% Proofs.
-\newenvironment{proofof}[1]                     % loose proofs
-        {\begin{trivlist}\item[]{\it Proof of #1:\hspace{.5em}}\rm}
-        {\end{trivlist}}
-\newenvironment{proofsketch}                    % proof sketch
-        {\begin{trivlist}\item[]{\it Proof sketch:\hspace{.5em}}\rm}
-        {\end{trivlist}}
-
-% ----------------------------------------------------------------------
-% Set and category notation.
-\newcommand{\Cc}{{\bf C}}
-\newcommand{\Dd}{{\bf D}}
-\newcommand{\abs}[1]{|{#1}|}                  % |A|: underlying set.
-\newcommand{\homof}[2]{\textrm{hom}_{#1}(#2)} % hom set \homof{C}{A,B} = C(A,B).
-\renewcommand{\hom}[1]{\homof{}{#1}}          % hom set \hom{A,B}      =  (A,B).
-\newcommand{\obj}[1]{|#1|}                    % |C|: objects of a cat.
-\newcommand{\seq}{\subseteq}    
-\newcommand{\such}{\,\,|\,\,}                 % in sets {x|...}.
-\newcommand{\cp}{\circ}                       % composition.
-\newcommand{\id}{{\textrm{\rm id}}}           % identity.
-\newcommand{\from}{\colon}                    % F\from A\ii B = F:A->B.
-\newcommand{\ii}{\rightarrow}                 % functions f:a->b (alternative: \to).
-\newcommand{\iii}{\longrightarrow}
-\newcommand{\pii}{\rightharpoonup}            % partial function f:a-`b.
-\newcommand{\adjoint}{\dashv}                 % F\adjoint G: F is left adjoint.
-\newcommand{\iso}{\cong}                      % isomorph ~=.
-\newcommand{\family}[2]{(#1)_{#2}}            % (X_n)_J or {X_n|J}..
-\newcommand{\rest}[1]{|_{#1}}                 % restriction S|A.
-\newcommand{\atuple}[1]{\langle#1\rangle}     % <a,b,c...>.
-\newcommand{\rtuple}[1]{(#1)}                 % round tuple    (a,b,c...).
-\newcommand{\tuple}{\rtuple}
-\newcommand{\p}{\atuple}                      % <a,b>
-\newcommand{\copair}[1]{[#1]}                 % [a,b]
-\newcommand{\s}[1]{\{#1\}}                    % {a,b}
-\newcommand{\ms}[1]{\{| #1 |\}}               % {|a,b|}
-\newcommand{\es}{\emptyset}                   % empty set
-\newcommand{\defeq}{:=}                       % := or =_{def}
-\renewcommand{\iff}{\Leftarrow\!\!\!\Rightarrow}
-\newcommand{\defiff}{\mathrel{{:}{\iff}}}     % :<=> or <=>_{def}
-\newcommand{\pow}{{\mathscr{P}}}
-\newcommand{\catarrow}{\xrightarrow}          % extensible arrow for cat notation
-\newcommand{\da}{^\dagger}
-\newcommand{\dada}{^{\dagger\dagger}}
-\newcommand{\x}{\tensor}
-\newcommand{\+}{\oplus}
-
-% ----------------------------------------------------------------------
-% particular categories and sets
-\usepackage{mathrsfs}                      % special script style \mathscr{S} for \Set
-\newcommand{\Set}{\mathscr{S}}             % Cat of Sets
-\newcommand{\N}{\mathbb{N}}                % Nat'l numbers AMS fonts
-\newcommand{\Z}{\mathbb{Z}}                % Integers AMS fonts
-\newcommand{\R}{{\mathbb{R}}}              % Reals
-\newcommand{\C}{{\mathbb{C}}}              % Complex
-{\makeatletter                             % Cat of finite-dim Hilbert spaces
-\gdef\alphalabels{\def\theenumi{\@alph\c@enumi}\def\labelenumi{(\theenumi)}}}
-\newcommand{\FinHilb}{\textrm{\bf FinHilb}}
-
-% ----------------------------------------------------------------------
-% Spacing and notes.
-\newcommand{\sep}{\hspace{2em}} 
-\newcommand{\ssep}{\hspace{1em}} 
-\newcommand{\todo}[1]{[#1]\marginpar{\mbox{\Huge !}}}
-\newcommand{\toask}[1]{[#1]\marginpar{\mbox{\Huge ?}}}
-
-% ----------------------------------------------------------------------
-% Special symbols.
-\newcommand{\entails}{\vdash}                     % turnstile
-\newcommand{\semm}[1]{[\![#1]\!]}                 % semantic brackets
-\newcommand{\sem}[2]{\semm{#1}_{#2}}              % semantic brackets with subscript
-\newcommand{\sems}[2]{\semm{#1}^{#2}}             % semantic brackets w/ superscript
-\newcommand{\semp}{\sem{\,\,\,}{}}                % \sem prototype
-\newcommand{\eqbyrule}[1]{\stackrel{#1}{=}}       % annotated =
-\newcommand{\FV}{{\rm FV}}                        % free variables
-\newcommand{\downdeal}{{\downarrow}}              % downdeal
-\newcommand{\updeal}{{\uparrow}}                  % updeal
-\newcommand{\chk}{\raisebox{.2em}{\tiny$\surd$}}  % check in case distinctions
-\newcommand{\ih}{{\rm (IH)}}                      % ind. hyp.
-\newcommand{\tensor}{\otimes}
-\newcommand{\bk}{\discretionary{}{}{}}            % optional break
-\newcommand{\loli}{\multimap}                     % linear implication
-
-% ----------------------------------------------------------------------
-% BNF.
-\newcommand{\bnf}{::=}                                   % ::= in bnf
-\newcommand{\bor}{\ \ \rule[-.75ex]{.01in}{2.75ex}\ \ }  % | in bnf
-
-% ----------------------------------------------------------------------
-% Prettier symbols.
-\renewcommand{\leq}{\leqslant}          
-\renewcommand{\geq}{\geqslant}  
-
-% ----------------------------------------------------------------------
-% Quipper specifics. 
-\newcommand{\spec}{\mathtt{Spec}}                % Specification of a type
-\newcommand{\true}{\mathtt{True}}                % Boolean: True
-\newcommand{\false}{\mathtt{False}}              % Boolean: False
-\newcommand{\binding}{\mathfrak{b}}              % Arbitrary binding
+\input{Proto_Quipper.sty}
 
 % ----------------------------------------------------------------------
 % General Information.
-\title{\textbf{Proto-Quipper 0.2}}
+\title{\textbf{Report on Proto-Quipper 0.1}}
 \date{}
 \author{}
 
@@ -193,13 +13,6 @@
 \begin{document} 
 
 \maketitle
-
-\begin{abstract}
-These notes contain an extension of Proto-Quipper 0.1 with a new 
-modality $R$ accounting for reversibility. As a result, it is no longer 
-the case that all circuits are reversible. The proofs of type safety 
-were carried through without any problems.
-\end{abstract}
 
 \noindent\hrulefill
 \tableofcontents
@@ -1780,6 +1593,8 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   \end{itemize}
 \end{enumerate}
 \end{proof}
+
+\input{algorithm.tex}
 
 \end{document}
 

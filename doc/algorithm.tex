@@ -1,69 +1,3 @@
-\title{ Rapport de stage de recherche }
-\author{ Henri Chataing }
-\date{\today}
-
-\documentclass[9pt]{article}
-
-% -------------------------------------------------------
-% Packages
-
-\usepackage{amsthm}
-\usepackage{amsmath}
-\usepackage{amssymb}
-
-\usepackage{geometry}
-\usepackage{mdframed}
-\usepackage{bussproofs}
-\usepackage[utf8]{inputenc}
-\usepackage[]{hyperref}
-
-\input{Qcircuit}
-
-% -------------------------------------------------------
-% Theorems
-
-\theoremstyle{plain}
-\newtheorem{thm}{Theorem}[section] % reset theorem numbering for each chapter
-
-\theoremstyle{definition}
-\newtheorem{defn}{Definition}[subsection] % definition numbers are dependent on theorem numbers
-\newtheorem{exmp}{Example}[section] % same for example numbers
-\newtheorem{prop}{Proposition}[section]
-\newtheorem{lemma}{Lemma}[section]
-\newtheorem*{coro}{Corollary}
-
-\theoremstyle{remark}
-\newtheorem*{remark}{Remark}
-
-% -------------------------------------------------------
-% Notations
-
-\def\bang{\,!\,}
-\newcommand{\pair}[2]{\langle #1, #2 \rangle}
-\newcommand{\letin}[3]{\text{let}~ #1 = #2 ~\text{in}~ #3}
-\newcommand{\ifthenelse}[3]{\text{if}~ #1 ~\text{then}~ #2 ~\text{else}~ #3}
-\newcommand{\nbang}[1]{\,!^{#1}}
-
-\def\true{\texttt{True}}
-\def\false{\texttt{False}}
-\def\type{\texttt{Type}}
-\def\qdatatype{\texttt{QDataType}}
-\def\qdata{\texttt{QData}}
-\def\spec{\texttt{Spec}}
-
-\def\binding{\mathfrak{b}}
-
-\def\lset{\mathcal{L}}
-\def\qset{\mathcal{Q}}
-\def\vset{\mathcal{V}}
-\def\cset{\mathcal{C}}
-\def\fset{\mathcal{F}}
-\def\pset{\mathcal{P}}
-
-\begin{document}
-
-\tableofcontents
-\newpage
 
 \section{Type inference}
 
@@ -1176,5 +1110,3 @@ You may have noted that, also the circuits $(t, C, a)$ have been included in the
 constraint typing relation rules were specified. The reason for this is that the type inference algorithm is designed to infer the
 types of the terms coded by a programmer. However, the constructor $(t, C, a)$ has never been intended to be directly accessible.
 More specifically, the programmer can access a built-in collection of basic gate circuits, whose type is already known at compile time.
-
-\end{document}

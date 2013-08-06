@@ -15,5 +15,7 @@ Quipper
 *.log
 *.dvi
 *.ps
+*.out
+*.texwatch.lock
 _build
 haddock-doc
