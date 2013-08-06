@@ -1,0 +1,1785 @@
+\documentclass{article}
+
+% ----------------------------------------------------------------------
+% Packages:
+
+\usepackage{amssymb}          % Usual AMS packages.
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{proof}            % For proof trees.
+\usepackage{mdframed}         % To box figures.
+\usepackage[]{nohyperref}     % Like hyperref (allows referencing 
+                              % of sub-lemmas) but without the hyperlinks.
+\input{Qcircuit}              % To draw quantum circuits.
+
+% ----------------------------------------------------------------------
+% Margins: An environment to locally change the margins.
+
+\newenvironment{changemargin}[2]{%
+\begin{list}{}{%
+\setlength{\topsep}{0pt}%
+\setlength{\leftmargin}{#1}%
+\setlength{\rightmargin}{#2}%
+\setlength{\listparindent}{\parindent}%
+\setlength{\itemindent}{\parindent}%
+\setlength{\parsep}{\parskip}%
+}%
+\item[]}{\end{list}}
+
+% ----------------------------------------------------------------------
+% Theorem definitions:
+%
+% theorem, lemma, proposition, corollary, definition, example, 
+% examples, openproblem, principle, remark, remarks, convention, 
+% notation
+%
+% All are numbered by default. Get unnumbered versions by un-lemma etc.
+
+\newcounter{n-lemma}
+\newtheorem{n-lema}[n-lemma]{Lemma}
+\newtheorem{n-proposition}[n-lemma]{Proposition}
+\newtheorem{n-theorem}[n-lemma]{Theorem}
+\newtheorem{n-principle}[n-lemma]{Principle}
+\newtheorem{n-corollary}{Corollary} 
+\newtheorem*{un-lemma}{Lemma}
+\newtheorem*{un-theorem}{Theorem}
+\newtheorem*{un-proposition}{Proposition}
+\newtheorem*{un-corollary}{Corollary} 
+\newtheorem*{un-principle}{Principle}
+
+\theoremstyle{definition}
+\newtheorem{n-definition}[n-lemma]{Definition}
+\newtheorem{n-assumption}[n-lemma]{Assumption}
+\newtheorem{n-openproblem}[n-lemma]{Open Problem}
+\newtheorem*{un-definition}{Definition}
+\newtheorem*{un-assumption}{Assumption}
+\newtheorem*{un-openproblem}{Open Problem}
+
+\theoremstyle{remark}
+\newtheorem{n-example}[n-lemma]{Example}
+\newtheorem{n-examples}[n-lemma]{Example}
+\newtheorem{n-remark}[n-lemma]{Remark}
+\newtheorem{n-notation}[n-lemma]{Notation}
+\newtheorem{n-remarks}[n-lemma]{Remarks}
+\newtheorem{n-convention}[n-lemma]{Convention}
+\newtheorem*{un-example}{Example}
+\newtheorem*{un-examples}{Examples}
+\newtheorem*{un-remark}{Remark}
+\newtheorem*{un-remarks}{Remarks}
+\newtheorem*{un-convention}{Convention}
+
+\newenvironment{theorem}{\begin{n-theorem}}{\end{n-theorem}}
+\newenvironment{lemma}{\begin{n-lema}}{\end{n-lema}}
+\newenvironment{proposition}{\begin{n-proposition}}{\end{n-proposition}}
+\newenvironment{corollary}{\begin{n-corollary}}{\end{n-corollary}}
+\newenvironment{definition}{\begin{n-definition}}{\end{n-definition}}
+\newenvironment{example}{\begin{n-example}}{\end{n-example}}
+\newenvironment{examples}{\begin{n-examples}}{\end{n-examples}}
+\newenvironment{openproblem}{\begin{n-openproblem}}{\end{n-openproblem}}
+\newenvironment{principle}{\begin{n-principle}}{\end{n-principle}}
+\newenvironment{remark}{\begin{n-remark}}{\end{n-remark}}
+\newenvironment{remarks}{\begin{n-remarks}}{\end{n-remarks}}
+\newenvironment{convention}{\begin{n-convention}}{\end{n-convention}}
+\newenvironment{notation}{\begin{n-notation}}{\end{n-notation}}
+
+% ----------------------------------------------------------------------
+% Proofs.
+\newenvironment{proofof}[1]                     % loose proofs
+        {\begin{trivlist}\item[]{\it Proof of #1:\hspace{.5em}}\rm}
+        {\end{trivlist}}
+\newenvironment{proofsketch}                    % proof sketch
+        {\begin{trivlist}\item[]{\it Proof sketch:\hspace{.5em}}\rm}
+        {\end{trivlist}}
+
+% ----------------------------------------------------------------------
+% Set and category notation.
+\newcommand{\Cc}{{\bf C}}
+\newcommand{\Dd}{{\bf D}}
+\newcommand{\abs}[1]{|{#1}|}                  % |A|: underlying set.
+\newcommand{\homof}[2]{\textrm{hom}_{#1}(#2)} % hom set \homof{C}{A,B} = C(A,B).
+\renewcommand{\hom}[1]{\homof{}{#1}}          % hom set \hom{A,B}      =  (A,B).
+\newcommand{\obj}[1]{|#1|}                    % |C|: objects of a cat.
+\newcommand{\seq}{\subseteq}    
+\newcommand{\such}{\,\,|\,\,}                 % in sets {x|...}.
+\newcommand{\cp}{\circ}                       % composition.
+\newcommand{\id}{{\textrm{\rm id}}}           % identity.
+\newcommand{\from}{\colon}                    % F\from A\ii B = F:A->B.
+\newcommand{\ii}{\rightarrow}                 % functions f:a->b (alternative: \to).
+\newcommand{\iii}{\longrightarrow}
+\newcommand{\pii}{\rightharpoonup}            % partial function f:a-`b.
+\newcommand{\adjoint}{\dashv}                 % F\adjoint G: F is left adjoint.
+\newcommand{\iso}{\cong}                      % isomorph ~=.
+\newcommand{\family}[2]{(#1)_{#2}}            % (X_n)_J or {X_n|J}..
+\newcommand{\rest}[1]{|_{#1}}                 % restriction S|A.
+\newcommand{\atuple}[1]{\langle#1\rangle}     % <a,b,c...>.
+\newcommand{\rtuple}[1]{(#1)}                 % round tuple    (a,b,c...).
+\newcommand{\tuple}{\rtuple}
+\newcommand{\p}{\atuple}                      % <a,b>
+\newcommand{\copair}[1]{[#1]}                 % [a,b]
+\newcommand{\s}[1]{\{#1\}}                    % {a,b}
+\newcommand{\ms}[1]{\{| #1 |\}}               % {|a,b|}
+\newcommand{\es}{\emptyset}                   % empty set
+\newcommand{\defeq}{:=}                       % := or =_{def}
+\renewcommand{\iff}{\Leftarrow\!\!\!\Rightarrow}
+\newcommand{\defiff}{\mathrel{{:}{\iff}}}     % :<=> or <=>_{def}
+\newcommand{\pow}{{\mathscr{P}}}
+\newcommand{\catarrow}{\xrightarrow}          % extensible arrow for cat notation
+\newcommand{\da}{^\dagger}
+\newcommand{\dada}{^{\dagger\dagger}}
+\newcommand{\x}{\tensor}
+\newcommand{\+}{\oplus}
+
+% ----------------------------------------------------------------------
+% particular categories and sets
+\usepackage{mathrsfs}                      % special script style \mathscr{S} for \Set
+\newcommand{\Set}{\mathscr{S}}             % Cat of Sets
+\newcommand{\N}{\mathbb{N}}                % Nat'l numbers AMS fonts
+\newcommand{\Z}{\mathbb{Z}}                % Integers AMS fonts
+\newcommand{\R}{{\mathbb{R}}}              % Reals
+\newcommand{\C}{{\mathbb{C}}}              % Complex
+{\makeatletter                             % Cat of finite-dim Hilbert spaces
+\gdef\alphalabels{\def\theenumi{\@alph\c@enumi}\def\labelenumi{(\theenumi)}}}
+\newcommand{\FinHilb}{\textrm{\bf FinHilb}}
+
+% ----------------------------------------------------------------------
+% Spacing and notes.
+\newcommand{\sep}{\hspace{2em}} 
+\newcommand{\ssep}{\hspace{1em}} 
+\newcommand{\todo}[1]{[#1]\marginpar{\mbox{\Huge !}}}
+\newcommand{\toask}[1]{[#1]\marginpar{\mbox{\Huge ?}}}
+
+% ----------------------------------------------------------------------
+% Special symbols.
+\newcommand{\entails}{\vdash}                     % turnstile
+\newcommand{\semm}[1]{[\![#1]\!]}                 % semantic brackets
+\newcommand{\sem}[2]{\semm{#1}_{#2}}              % semantic brackets with subscript
+\newcommand{\sems}[2]{\semm{#1}^{#2}}             % semantic brackets w/ superscript
+\newcommand{\semp}{\sem{\,\,\,}{}}                % \sem prototype
+\newcommand{\eqbyrule}[1]{\stackrel{#1}{=}}       % annotated =
+\newcommand{\FV}{{\rm FV}}                        % free variables
+\newcommand{\downdeal}{{\downarrow}}              % downdeal
+\newcommand{\updeal}{{\uparrow}}                  % updeal
+\newcommand{\chk}{\raisebox{.2em}{\tiny$\surd$}}  % check in case distinctions
+\newcommand{\ih}{{\rm (IH)}}                      % ind. hyp.
+\newcommand{\tensor}{\otimes}
+\newcommand{\bk}{\discretionary{}{}{}}            % optional break
+\newcommand{\loli}{\multimap}                     % linear implication
+
+% ----------------------------------------------------------------------
+% BNF.
+\newcommand{\bnf}{::=}                                   % ::= in bnf
+\newcommand{\bor}{\ \ \rule[-.75ex]{.01in}{2.75ex}\ \ }  % | in bnf
+
+% ----------------------------------------------------------------------
+% Prettier symbols.
+\renewcommand{\leq}{\leqslant}          
+\renewcommand{\geq}{\geqslant}  
+
+% ----------------------------------------------------------------------
+% Quipper specifics. 
+\newcommand{\spec}{\mathtt{Spec}}                % Specification of a type
+\newcommand{\true}{\mathtt{True}}                % Boolean: True
+\newcommand{\false}{\mathtt{False}}              % Boolean: False
+\newcommand{\binding}{\mathfrak{b}}              % Arbitrary binding
+
+% ----------------------------------------------------------------------
+% General Information.
+\title{\textbf{Proto-Quipper 0.2}}
+\date{}
+\author{}
+
+
+% ----------------------------------------------------------------------
+\begin{document} 
+
+\maketitle
+
+\begin{abstract}
+These notes contain an extension of Proto-Quipper 0.1 with a new 
+modality $R$ accounting for reversibility. As a result, it is no longer 
+the case that all circuits are reversible. The proofs of type safety 
+were carried through without any problems.
+\end{abstract}
+
+\noindent\hrulefill
+\tableofcontents
+
+\
+
+\noindent\hrulefill
+
+
+\section{Introduction}
+
+\textbf{Quipper} is an \emph{embedded language}. This means, roughly, that Quipper 
+consists of definitions made within a \emph{host language}: \textbf{Haskell}. 
+One consequence of this situation, is that Quipper inherits Haskell's type system. 
+This is not ideal because Haskell's type system lacks features that are 
+desirable for quantum computing. One important such property is linearity. 
+However, we can hope that this situation is only temporary. In the long run, 
+Quipper could move from an embedded to a \emph{stand alone} language, with a 
+dedicated linear type system.
+
+\textbf{Proto-Quipper} is a first step towards this goal. The idea behind the 
+development of Proto-Quipper is to reconstruct Quipper piece by piece, starting 
+with a core language and extending it progressively. These notes represent a first 
+attempt at defining the core language. Consequently, we have focused on defining 
+a linearly typed language with the ability to generate, and act on, quantum circuits.  
+
+Proto-Quipper is based on the \textbf{Quantum Lambda Calculus} (QLC). In the QLC, 
+the reduction relation is defined on \emph{closures}. A closure is essentially a 
+pair $[C,t]$ consisting of a term $t$ and a \emph{quantum state} $C$. The state is 
+a unit vector in a complex Hilbert space and $t$ is a term whose free variables are 
+linked to the qubits composing $C$. The quantum state is held in a 
+\emph{quantum device} which is capable of performing certain operations (applying 
+unitaries, measuring qubits,\ldots). The reduction in the QLC is then defined as a 
+probabilistic rewrite procedure on these closures. Typically, the reduction will be 
+classical until a redex involving a quantum constant is reached. At this point, 
+the quantum device will be instructed to perform the appropriate quantum operation. 
+For example: ``Apply a Hadamard gate to qubit number 3". 
+
+The reduction in Proto-Quipper will similarly be defined on closures. However, a 
+closure $[C,t]$ will now consist of a term $t$ and a \emph{circuit state} $C$. This 
+state represents the circuit being currently built. Instead of having a quantum device 
+capable of performing quantum operations, we will therefore assume that we have a 
+\emph{circuit constructor} capable or performing certain circuit building operations 
+(appending gates,\ldots). The reduction will then be defined as a non-probabilistic rewrite 
+procedure on closures. As in the QLC, some redexes will affect the state by sending 
+instructions to the circuit constructor. For example: ``Append a Hadamard gate to 
+wire number 3".
+
+
+\section{The Language}
+
+\begin{definition} 
+The \emph{types} of Proto-Quipper are defined by:
+\begin{center}
+\begin{tabular}{rl}
+$\mathtt{Type}~A,B~\bnf$ & $ qubit \bor 1 \bor Bool \bor A\tensor B \bor A\loli B 
+\bor !A \bor Circ (T,U).$\\
+\end{tabular}
+\end{center}
+Among the types, we single out the subset of \emph{QData types}:
+\begin{center}
+\begin{tabular}{rcl}
+$\mathtt{QDataType}~T,U$ & $\bnf$ & $qubit \bor 1 \bor T \tensor U.$
+\end{tabular}
+\end{center}
+\end{definition}
+
+The types $1,Bool, A\x B, A\loli B$ and $!A$ are intended to have their usual 
+meaning, i.e., as in linear logic. In particular, $!A$ is the set of 
+\emph{duplicable} or \emph{reusable} elements of type $A$. We will 
+sometimes write $!^nA$, with $n\in\N$, to mean: 
+\[
+\underbrace{!\ldots !}_{n} A.
+\]
+
+The elements of $qubit$ are (quantum) wire identifiers. The QData types are 
+circuit endpoints, which consist of tuples of wire identifiers. The type 
+$Circ(T,U)$ is the set of all circuits having $T$-type input and $U$-type 
+output. 
+
+\begin{definition}
+Assume three countable sets: a set $\mathcal{V}$ of \emph{variables}, a set 
+$\mathcal{Q}$ of \emph{quantum addresses} and a set $\mathcal{C}$ of 
+\emph{circuit constants}. The \emph{terms} of Proto-Quipper are defined by:
+\begin{center}
+\begin{tabular}{rcl}
+$\mathtt{Term}~a,b,c$ & $\bnf$ & $x \bor q \bor (t,C,a) \bor \true \bor \false 
+  \bor \p{a,b} \bor * \bor$ \\[0.05in]
+& & $ab \bor \lambda x.a \bor box^T \bor unbox \bor rev \bor $\\[0.05in]
+& & $if ~a~ then ~b~ else ~c \bor let ~\atuple{x,y}=a~ in ~b.$
+\end{tabular}
+\end{center}
+Among the terms, we single out the subset of \emph{QData terms}:
+\begin{center}
+\begin{tabular}{rcl}
+$\mathtt{QDataTerm}~t,u$ & $\bnf$ & $q \bor * \bor \atuple{t,u}.$
+\end{tabular}
+\end{center}
+Moreover, we assume that $\mathcal{C}$ is equipped with two functions 
+$In,Out\from \mathcal{C}\to\mathcal{P}_f(\mathcal{Q})$ and that $\mathcal{Q}$ 
+is well-ordered.
+\end{definition}
+
+Again, the meaning of most terms is intended to be the usual one, i.e., as in any typed 
+lambda calculi. For example, $\lambda x.a$ is the function which assigns $a$ to $x$. 
+For the remaining terms we have:
+\begin{itemize}
+  \item $q$ is a wire identifier,
+  \item $(t,C,a)$ is a circuit with $t$ as an input and $a$ as an output,
+  \item $box^T$ is a constant used to turn a circuit-producing function into a circuit,
+  \item $unbox$ is a constant used to turn a circuit into a circuit-producing function and
+  \item $rev$ is a constant used to reverse circuits.
+\end{itemize}
+
+Note that the term $box^T$ depends on the type $T$. This \emph{Church-style} typing of the 
+language is the reason why types were introduced before terms. Note also that in the above 
+syntax, $box^T$, $unbox$ and $rev$ are terms in their own right. In earlier versions of 
+these notes, they were term constructors. The current presentation  was chosen because it 
+allows for a more concise presentation of the operational semantics. Finally, remark that 
+in a term like $(t,C,a)$, $t$ is a QData term but $a$ isn't. The type system to 
+be introduced later will guarantee that even though $a$ is not yet a QData term 
+it will eventually reduce to one.
+
+The \emph{values} are the terms whose execution is finished.
+
+\begin{definition}
+The \emph{Values} of Proto-Quipper are defined by:
+\begin{center}
+\begin{tabular}{rcl}
+$\mathtt{Value}$ $v,w$ & $\bnf$ & $x \bor q \bor (t,C,u) \bor \true \bor \false 
+\bor \atuple{v,w} \bor$ \\
+& & $* \bor \lambda x.a  \bor box^T \bor unbox \bor rev.$
+\end{tabular}
+\end{center}
+\end{definition}
+
+The notational conventions used throughout these notes are:
+\begin{itemize}
+  \item $x,y,z,\ldots$ for variables,
+  \item $q_1,q_2,q_3,\ldots$ for quantum addresses,
+  \item $C,D,\ldots$ for circuit constants,
+  \item $A,B,\ldots$ for types,
+  \item $a,b,c,\ldots$ for terms,
+  \item $S,T,U,\ldots$ for QData types,
+  \item $s,t,u,\ldots$ for QData terms and
+  \item $v,w,\ldots$ for values.
+\end{itemize}
+Additions to these conventions will be provided throughout.
+
+
+\section{Operations on Types and Terms}
+
+We now introduce some useful operations on types and terms. 
+
+\begin{definition}
+The set of \emph{free variables} of a term $a$, written $FV(a)$, 
+is defined inductively as follows:
+\begin{itemize}
+  \item $FV(x)=\s{x}$,
+  \item $FV(\atuple{a,b})=FV(a)\cup FV(b)$,
+  \item $FV(ab)=FV(a)\cup FV(b)$,
+  \item $FV(\lambda x.a)=FV(a)\setminus\s{x}$,
+  \item $FV(if ~a~ then ~b~ else ~c) = FV(a) \cup FV(b) \cup FV(c)$,
+  \item $FV(let ~\atuple{x,y}=a ~in~ b)= FV(a)\cup (FV(b)\setminus \s{x,y})$,
+  \item $FV((t,C,a))= FV(a)$ and
+  \item $FV(a)=\emptyset$ in all remaining cases.
+\end{itemize}
+\end{definition}
+
+The above definition of free variable extends the usual one. Note that the 
+free variables of a term of the form $(t,C,a)$ are the free variables of $a$. This
+is justified since no variables ever appear in the QData term $t$. The notions 
+of $\alpha$-equivalence, capture-avoiding substitution, etc. are defined in 
+a straightforward manner. By analogy with the free variables of a term, we 
+introduce a notion of \emph{quantum address of term}.
+
+\begin{definition}
+The set of \emph{quantum addresses} of a term $a$, written $FQ(a)$, is defined 
+inductively as follows:
+\begin{itemize}
+  \item $FQ(q)=\s{q}$,
+  \item $FQ(\atuple{a,b})=FQ(a)\cup FQ(b)$,
+  \item $FQ(ab)=FQ(a)\cup FQ(b)$,
+  \item $FQ(\lambda x.a)=FQ(a)$,
+  \item $FQ(if ~a~ then ~b~ else ~c) = FQ(a) \cup FQ(b) \cup FQ(c)$,
+  \item $FQ(let ~\atuple{x,y}=a ~in~ b)= FQ(a)\cup FQ(b)$ and
+  \item $FQ(a)=\emptyset$ in all remaining cases.
+\end{itemize}
+\end{definition}
+
+Remark that $FQ((t,C,a))=\emptyset$. This reflects the idea that the quantum 
+addresses appearing in $t$ and $a$ are ``bound" in $(t,C,a)$. 
+
+To append circuits, we will need to be able to express the way in which wires should 
+be connected. For this, we use the notion of a \emph{binding}.
+
+\begin{definition}
+A \emph{binding} is a bijection $\mathcal{Q}\to \mathcal{Q}$.
+\end{definition}
+
+% For now it is simply more convenient to have binding be bijections.
+% In fact they could be functions and additional conditions could
+% be added elsewhere.
+
+Adding to the list of notational conventions above, we will write $\binding$ for an 
+arbitrary binding. 
+
+\begin{definition}
+If $a$ is a term with $FQ(a)=\s{q_1,\ldots,q_n}$ and $\mathfrak{b}$ is a binding, 
+then $\mathfrak{b}(a)$ is the following term:
+\[
+\mathfrak{b}(a)= a[\mathfrak{b}(q_1)/q_1,\ldots ,\mathfrak{b}(q_n)/q_n].
+\]
+\end{definition}
+
+\begin{definition}
+The partial function $bind: \mathtt{QDataTerm}^2\to \pow (\mathcal{Q}^2)$ is 
+defined recursively as follows:
+\[
+bind (t,u)= \left\{
+  \begin{array}{ll}
+    \emptyset & \mbox{if}~~ t=u=*, \\
+    \s{(q_1,q_2)} & \mbox{if}~~ t=q_1 \mbox{ and } u=q_2, \\        
+    bind (t_1,u_1) \cup bind (t_2,u_2) & \mbox{if}~~ t=\atuple{t_1,t_2} \mbox{ and } 
+                                                     u=\atuple{u_1,u_2}, \\
+    \mbox{undefined} & \mbox{in all remaining cases.}
+  \end{array}
+\right.
+\]
+\end{definition}
+
+\begin{remark}
+\label{bind_extension}
+If $t$ and $u$ are QData terms for which $bind$ is defined, we can extend $bind(t,u)$ to a 
+binding $\binding$ by setting $\binding (q_1) = q_2$ if $\tuple{q_1,q_2}\in bind (t,u)$ 
+and $\binding (q_1) = q_1$ otherwise.
+\end{remark}
+
+\begin{definition}
+Let $T$ be a QData type and $X$ be a proper subset of $\mathcal{Q}$. An \emph{$X$-specimen} 
+for $T$ is QData term written $\spec_X(T)$ defined by induction as follows:
+\begin{itemize}
+  \item $\spec_X(1)=*$,
+  \item $\spec_X(qubit)=q$ where $q$ is the smallest quantum index of $\mathcal{Q}\setminus X$,
+  \item $\spec_X(T\tensor U)=\atuple{t,u}$ where $t=\spec_X(T)$ and $u=\spec_{X\cup FQ(t)}(U)$.  
+\end{itemize}
+\end{definition}
+
+% The definition of specimen uses the fact that $\mathcal{Q}$ is well-ordered.
+
+Informally, an $X$-specimen for $T$ is a QData term $t$ that is 
+``fresh" with respect to the quantum addresses appearing in $X$.
+If $X$ is clear, we simply write $\spec (T)$.
+
+
+\section{The Type System}
+
+\begin{definition}
+The \emph{subtyping relation} $<:$ is the smallest relation on types satisfying 
+the rules given in figure~\hyperref[subtyping_congruences]{\ref*{subtyping_congruences}}.
+\end{definition}
+
+\begin{figure}[!ht]
+\begin{mdframed}
+\[
+  \infer[]{nqubit <: qubit}{}
+~~~~
+  \infer[]{1 <: 1}{}
+~~~~
+  \infer[]{Bool <: Bool}{}
+\]
+\[
+  \infer[]{ (A_1\tensor A_2) <:  (B_1 \tensor B_2)}{A_1<:B_1~~A_2<:B_2}
+~~~~
+  \infer[]{ (A'\loli B) <: (A\loli B')}{A<:A'~~B<:B'}
+\]
+\[
+  \infer[]{ Circ(A', B) <:  Circ(A, B')}{A<:A'~~B<:B'}
+\]
+\[
+  \infer[]{ !^nA <: !^mB}{
+    A<:B
+    &
+    (m=0)\vee (n\geq 1)
+  }
+\]
+% A not as nice version of the subtping rules:
+%
+%\[
+%  \infer[]{!^nqubit <: !^mqubit}{}
+%~~~~
+%  \infer[]{!^n1 <: !^m1}{}
+%~~~~
+%  \infer[]{!^nBool <: !^mBool}{}
+%\]
+%\[
+%  \infer[]{!^n (A_1\tensor A_2) <: !^m (B_1 \tensor B_2)}{A_1<:B_1~~A_2<:B_2}
+%~~~~
+%  \infer[]{!^n (A'\loli B) <: !^m (A\loli B')}{A<:A'~~B<:B'}
+%\]
+%\[
+%  \infer[.]{!^n Circ(A', B) <: !^m Circ(A, B')}{A<:A'~~B<:B'}
+%\]
+\end{mdframed}
+\caption{Subtyping rules.}
+\label{subtyping_congruences}
+\end{figure}
+
+
+\begin{remark}
+\label{equiv_subtype_arithm}
+The following are equivalent:
+\begin{itemize}
+  \item $(m=0)\wedge (n\geq 1)$,
+  \item $(m\geq 1) \implies (n\geq 1)$.
+\end{itemize}
+\end{remark}
+
+\begin{remark}
+\label{subtyping_shape}
+If $A<:B$ then:
+\begin{enumerate}
+  \item if $A\in\s{qubit, 1, Bool}$, then $A=B$;
+  \item if $A=A_1\x A_2$, then $B=B_1\x B_2$, 
+  $A_1<:B_1$ and $A_2<:B_2$;
+  \item if $A=A_1\loli A_2$, then $B=B_1\loli B_2$, 
+  $B_1<:A_1$ and $A_2<:B_2$;
+  \item if $A=Circ(A_1, A_2)$, then $B=Circ(B_1,B_2)$, 
+  $B_1<:A_1$ and $A_2<:B_2$;
+  \item if $B=!B'$, then $A=!A'$ and $A'<:B'$; \label{subtype_bang}
+  \item if $A$ is not of the form $!A'$, then $B$ is not 
+  of the form $!B'$.
+\end{enumerate}
+\end{remark}
+
+\begin{proposition}
+The subtyping relation is reflexive and transitive.
+\end{proposition}
+
+\begin{proof}~
+\begin{description}
+  \item[Reflexivity] We show that for every type $A$ it is the case 
+  that $A<:A$ by induction on $A$. If $A$ is one of the base types, 
+  then the result holds by application of the corresponding subtyping
+  rule. If $A$ is composite type, the result holds by induction.
+  \item[Transitivity] We show that for all types $A,B,C$, if $A<:B$ 
+  and $B<:C$, then $A<:C$. Let $\pi$ and $\pi'$ be the derivations of
+  $A<:B$ and $B<:C$ respectively. We prove the result by induction on 
+  $\pi$. If $\pi$ is of height 1, then $A$ is one of the base types 
+  and $A=B$. By remark, this implies that $A=B=C$ and we can 
+  conclude by applying the appropriate base rule. If $\pi$ is of 
+  height $n>1$ and the last rule of $\pi$ is $\x$, then $A=A_1\x A_2$,
+  $B=B_1\x B_2$, $A_1<: B_1$ and $A_2<: B_2$. By remark, this implies 
+  that $C=C_1\x C_2$. The last rule of $\pi'$ must therefore have been 
+  $\x$ and we have $B_1<: C_1$ and $B_2 <: C_2$. By the induction 
+  hypothesis, we get $A_1<: C_1$ and $A_2<: C_2$ and we can conclude 
+  by applying $\x$. The $\loli$ and $Circ$ cases are treated similarly. 
+  If the last rule of $\pi$ is $!$
+\end{description}
+\end{proof}
+
+\begin{definition}
+A \emph{typing context} is a finite set $\s{x_1:A_1,\ldots,x_n:A_n}$ of 
+pairs of a variable and a type, such that no variable occurs more than 
+once. A \emph{quantum context} is a finite set of quantum variables.
+The expressions of the form $x:A$ in a typing context are called 
+\emph{type declarations}.	
+\end{definition}
+
+We write $\Gamma$ or $\Delta$ for a typing context and $Q$ for a quantum 
+context. If $\Gamma =\s{x_1:A_1,\ldots,x_n:A_n}$ is a typing context, then 
+$|\Gamma|=\s{x_1,\ldots,x_n}$, $\Gamma (x_i)=A_i$ and we write $!\Gamma$ 
+if $\Gamma(x_i)=!A_i'$ for every $i$. The union of two contexts 
+$|\Gamma|\cap  |\Gamma'|=\emptyset$ is denoted by $\Gamma,\Gamma'$, and 
+similarly for quantum contexts. Finally, we extend the subtyping relation 
+to typing contexts as follows: $\Gamma <: \Gamma'$ if, and only if, 
+$|\Gamma | = |\Gamma'|$ and $\Gamma (x_i)<: \Gamma' (x_i)$ for every 
+$i$.
+
+\begin{definition}
+Let $T,U$ be QData types and $m,n\in\N$. For each of the constants, $box^T$, 
+$unbox$ and $rev$ we introduce a type as follows:
+\begin{itemize}
+  \item $A_{box^T}(T,U,n)=!(T\loli U)\loli !^nCirc(T,U)$,
+  \item $A_{unbox}(T,U,n)=Circ(T,U)\loli !^n(T\loli U)$ and
+  \item $A_{rev}(T,U,n)=Circ(T,U) \loli !^nCirc(U,T)$.
+\end{itemize}
+\end{definition}
+
+\begin{definition}
+A \emph{typing judgment} is an expression of the form:
+\[
+\Gamma ; Q \entails a:A
+\] 
+where $\Gamma$ is a typing context, $Q$ is a quantum context, 
+$a$ is a term and $A$ is a type. A typing judgment is \emph{valid} if it can 
+be inferred from the rules given in figure~\hyperref[typing_rules]{\ref*{typing_rules}}. 
+In the rule $(cst_c)$, $c$ ranges over the set $\s{box^T, unbox, rev}$.
+\end{definition}
+
+Note that in the typing judgements of Proto-Quipper, quantum addresses and variables are kept 
+separate. As a result, we don't have to specify that $q:qubit$ for every quantum address 
+$q$ since the typing rules implicitly enforce this. However, when Proto-Quipper will be 
+equipped with the ability to manipulate quantum \emph{and} classical wires, the type of a 
+wire might have to be explicitly stated.
+
+% Another reason for this is because in the reduction rule for
+% (t,c,u) we need to be able to construct, e.g., t in a context
+% that is empty but for the quantum addresses appearing in t.
+
+\begin{figure}[!ht]
+\begin{mdframed}
+\[
+\infer[(ax_c)]{!\Delta, x:A;\emptyset\entails x:B}{
+  A<:B
+}
+~~~~
+\infer[(ax_q)]{!\Delta;\s{q}\entails q:qubit}{
+} 
+\]
+\[
+\infer[(cst_c)]{!\Delta;\emptyset \entails c:B}{
+  A_{c}(T,U,n)<:B
+} 
+~~~~
+\infer[(unit)]{!\Delta;\emptyset\entails *:!^n 1}{
+}
+\]
+\[
+\infer[(\lambda_1)]{\Gamma;Q\entails \lambda x.b:A\loli B}{
+  \Gamma,x:A;Q \entails b:B
+}
+~~~~
+\infer[(\lambda_2)]{!\Delta;\emptyset \entails \lambda x.b:~!^{n+1}(A\loli B)}{
+  !\Delta, x:A;\emptyset \entails b:B
+}
+\]
+\[
+\infer[(app)]{\Gamma_1,\Gamma_2, !\Delta;Q_1,Q_2\entails ca:B}{
+  \Gamma_1, !\Delta;Q_1\entails c:A\loli B 
+  &
+  \Gamma_2, !\Delta ;Q_2\entails a:A 
+}
+\]
+\[
+\infer[(\x\mbox{-i})]{\Gamma_1,\Gamma_2, !\Delta;Q_1,Q_2\entails \atuple{a,b}:!^n(A\x B)}{
+  \Gamma_1, !\Delta;Q_1\entails a:!^nA 
+  &
+  \Gamma_2, !\Delta ;Q_2\entails b:!^nB
+}
+\]
+% Note that in fact the \x intro rule could have equivalently been written with
+% a:!^nA b:!^mB and (a,b):!^o(A\x B) where o=min {n,m}
+% Indeed the rules are equivalent via the type isomorphism !!A~!A and the 
+% subtyping relation !A<:A. The moral here is that a pair is as 
+% reusable as its least reusable component.
+\[
+\infer[(\x\mbox{-e})]{\Gamma_1,\Gamma_2, !\Delta;Q_1,Q_2\entails let ~\atuple{x,y}=b~in~a:A}{
+  \Gamma_1, !\Delta;Q_1\entails b:!^n(B_1\x B_2) 
+  &
+  \Gamma_2, !\Delta, x:!^nB_1, y:!^nB_2 ;Q_2\entails a:A
+}
+\]
+\[
+\infer[(\top)]{!\Delta;\emptyset\entails \true:!^n Bool}{
+} 
+~~~~
+\infer[(\bot)]{!\Delta;\emptyset\entails \false:!^n Bool}{
+}
+\]
+\[
+\infer[(if)]{\Gamma_1,\Gamma_2, !\Delta;Q_1,Q_2\entails if ~b~ then ~a_1~ else ~a_2:A}{
+  \Gamma_1, !\Delta;Q_1\entails b:Bool 
+  &
+  \Gamma_2, !\Delta;Q_2 \entails a_1:A ~~~ \Gamma_2, !\Delta;Q_2 \entails a_2:A
+}
+\]
+\[
+\infer[(circ)]{!\Delta;\emptyset \entails (t,C,a):!^nCirc(T,U)}{
+  \emptyset ; Q_1\entails t:T 
+  &
+  !\Delta ; Q_2\entails a:U 
+  &
+  In(C)=Q_1 
+  &
+  Out(C)=Q_2
+}
+\]
+\end{mdframed}
+\caption{Typing rules.}
+\label{typing_rules}
+\end{figure}
+
+In the current type system, any circuit can be reversed. 
+This is because the present version of Proto-Quipper does not 
+make a distinction between reversible and irreversible circuits. 
+Of course, this will have to be modified to accommodate non-reversible 
+gates such as measurements.
+
+
+\section{Properties of the Type System}
+
+We record some properties of the type system, including 
+the important \emph{Substitution Lemma}. Note that the typing 
+rules enforce a \emph{strict} linearity on variables and quantum addresses. 
+In particular, if a quantum address appears in the quantum context of a 
+valid typing judgement for a term $a$, then it must belong to the 
+quantum addresses of $a$.
+
+\begin{lemma}~
+\label{prop_type_syst}
+\begin{enumerate}
+  \item If $\Gamma; Q \entails a:A$ is valid, 
+  then $Q=FQ(a)$.\label{q_context}
+  \item If $\Gamma,x:B;Q \entails a:A$ is valid, 
+  and $x\notin FV(a)$, then $\Gamma;Q \entails a:A$ is valid.\label{unused_var}
+  \item If $\Gamma; Q \entails a:A$ is valid, 
+  then $\Gamma, !\Delta ; Q \entails a:A$ is valid.\label{weakening}
+  \item If $\Gamma ; Q \entails a:A$ is valid, $\Delta <: \Gamma$
+  and $A<:B$, then $\Delta ; Q \entails a:B$ is valid.\label{subtype}
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+By induction on the corresponding typing derivation.
+\end{proof}
+
+\begin{lemma}
+\label{specimen}
+If $T$ is a QData type and $X\subset \mathcal{Q}$, then 
+$FQ(t)\entails \spec_X(T):T$ is valid.
+\end{lemma}
+
+\begin{proof}
+We prove the Lemma by induction on $T$.
+  \begin{itemize}
+    \item If $T=1$, then $\spec_X(T)=*$ and we can use the $(unit)$ rule.
+    \item If $T=qubit$, then $\spec_X(T)=q$ for some quantum address $q$ and we can 
+          use the $(ax_q)$ rule.
+    \item If $T=T_1\x T_2$, then $\spec_X(T)=\p{t_1,t_2}$ where $t_1=\spec_X(T_1)$ 
+          and $u=\spec_{X\cup FQ(t_1)}(T_2)$. By the induction hypothesis, both 
+          $FQ(t_1)\entails t_1:T_1$ and $FQ(t_2)\entails t_2:T_2$ are valid typing 
+          judgements. We can therefore conclude by applying the $(\tensor\mbox{-i})$ rule.
+  \end{itemize}
+\end{proof}
+
+\begin{lemma}
+\label{binding_judgement}
+If $\Gamma;Q \entails a:A$ is valid and $\mathfrak{b}$ is a 
+binding, then $\Gamma;\binding (Q) \entails \binding(a):A$ is valid.
+\end{lemma}
+
+\begin{proof}
+By induction on the typing derivation of $\Gamma;Q \entails a:A$.
+\end{proof}
+
+\begin{lemma}
+\label{context_value}
+If $v\in\mathtt{Val}$ and $\Gamma,!\Delta;Q \entails v:!A$ is valid, 
+then $\Gamma=Q=\emptyset$.
+\end{lemma}
+
+\begin{proof}
+By induction on the typing derivation of $\Gamma,!\Delta;Q \entails v:!A$. For 
+the $(ax_c)$ case, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}.\ref*{subtype_bang}}.
+\end{proof}
+
+\begin{lemma}
+\emph{(Substitution)}
+\label{substitution}
+If $v\in\mathtt{Val}$ and both $\Gamma',!\Delta;Q' \entails v:B$ and 
+$\Gamma,!\Delta,x:B;Q \entails a:A$ are valid typing judgements, 
+then $\Gamma,\Gamma',!\Delta;Q,Q' \entails a[v/x]:A$ is also valid.
+\end{lemma}
+
+\begin{proof}
+Let $\pi_1$ and $\pi_2$ be the typing derivations  of 
+$\Gamma,!\Delta,x:B;Q \entails a:A$ and  $\Gamma',!\Delta;Q' \entails v:B$ 
+respectively. We prove the Lemma by induction on $\pi_1$.
+\begin{itemize}
+ \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=x$, then $\pi_1$ is
+ \[
+   \infer[(ax_c)]{!\Delta, x:B;\emptyset\entails x:A}{
+     B<:A
+   }
+ \]
+ with $\Gamma=Q=\emptyset$. Then $a[v/x]=v$ and can conclude by applying 
+ Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}} to $\pi_2$.
+ \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=y\neq x$, then 
+ $\pi_1$ is
+ \[
+   \infer[(ax_c)]{!\Delta, x:!B',y:A';\emptyset\entails y:A}{
+     A'<:A
+   }
+ \]
+ with $B=!B'$, $Q=\emptyset$ and $\Gamma =\s{y:A'}$ or $\Gamma=\emptyset$ 
+ depending on whether or not $A'$ is duplicable. Therefore $v$ is a value of 
+ type $!B'$ and by Lemma~\hyperref[context_value]{\ref*{context_value}}, 
+ we know that $\Gamma'=Q'=\emptyset$. Since $a[v/x]=y$ and $x\notin FV(y)$ 
+ we can conclude by applying
+ Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} to $\pi_1$.
+ \item If the last rule of $\pi_1$ is one of $(ax_q)$, $(cst_c)$, 
+ $(unit)$, $(\top)$ and $(\bot)$, and $a$ is the corresponding constant, 
+ then $x\notin FV(a)$ and  $x$ must be declared of some type $!B'$.
+ We can therefore reason as in the previous case. 
+ \item If the last rule of $\pi_1$ is $(\lambda_1)$ and $a=\lambda y.b$, then $\pi_1$ is
+  \[
+   \infer[(\lambda_1)]{\Gamma,!\Delta,x:B;Q\entails \lambda y.b:A_1\loli A_2}{
+     \deduce[]{\Gamma, !\Delta,x:B,y:A_1;Q \entails b:A_2}{
+       \vdots
+     }
+   }
+ \]
+ with $A=A_1\loli A_2$. By the induction hypothesis, 
+ $\Gamma, \Gamma',!\Delta,y:A_1;Q,Q' \entails b[v/x]:A_2$ is valid and we can conclude
+ by applying $(\lambda_1)$.
+ \item If the last rule of $\pi_1$ is $(\lambda_2)$ and $a=\lambda y.b$, 
+ then $\pi_1$ is
+ \[
+  \infer[(\lambda_2)]{!\Delta, x:!B';\emptyset \entails \lambda y.b:~!^{n+1}(A_1\loli A_2)}{
+    \deduce[]{!\Delta, x:!B',y:A_1;\emptyset \entails b:A_2}{
+      \vdots
+    }
+  }
+ \]
+ with $A=!^{n+1}(A_1\loli A_2)$ and $B=!B'$. Hence $v$ is a value of type $!B'$ and  
+ by Lemma~\hyperref[context_value]{\ref*{context_value}}, we know that
+ $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
+ $!\Delta,y:A_1;\emptyset \entails b[v/x]:A_2$ is valid and we can conclude
+ by applying $(\lambda_2)$.
+ \item If the last rule of $\pi_1$ is $(app)$, and $a=ca'$, then $\pi_1$ can 
+ be of one of three forms depending on $B$. If $B$ is duplicable, then $\pi_1$ is
+ \[
+ \infer[(app)]{\Gamma_1,\Gamma_2,!\Delta,x:!B';Q_1,Q_2\entails ca':A}{
+    \deduce[]{\Gamma_1, x:!B',!\Delta;Q_1\entails c:A'\loli A}{
+      \vdots
+    }
+    &
+    \deduce[]{\Gamma_2, x:!B',!\Delta ;Q_2\entails a':A' }{
+      \vdots
+    }
+ }
+ \]
+ with $B=!B'$. Using 
+ Lemma~\hyperref[context_value]{\ref*{context_value}} again, we 
+ know that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore 
+ implies that $\Gamma_1,!\Delta;Q_1\entails c[v/x]:A'\loli A$ and 
+ $\Gamma_2,!\Delta ;Q_2\entails a'[v/x]:A'$ are valid and we can conclude 
+ by applying $(app)$. If, instead, $B$ is non-duplicable, then the declaration 
+ $x:B$ can only appear in one branch of the derivation. This means that $\pi_1$ 
+ is either 
+  \[
+ \infer[(app)]{\Gamma_1,\Gamma_2,!\Delta,x:B;Q_1,Q_2\entails ca':A}{
+    \deduce[]{\Gamma_1, x:B,!\Delta;Q_1\entails c:A'\loli A}{
+      \vdots
+    }
+    &
+    \deduce[]{\Gamma_2, !\Delta ;Q_2\entails a':A'}{
+      \vdots
+    }     
+ }
+ \]
+ or
+  \[
+ \infer[(app).]{\Gamma_1,\Gamma_2,!\Delta,x:B;Q_1,Q_2\entails ca':A}{
+    \deduce[]{\Gamma_1, !\Delta;Q_1\entails c:A'\loli A}{ 
+      \vdots
+    }
+    &
+    \deduce[]{\Gamma_2, x:B,!\Delta ;Q_2\entails a':A'}{
+      \vdots
+    }     
+ }
+ \]
+ In the first case, the induction hypothesis implies that 
+ $\Gamma_1,\Gamma' !\Delta;Q_1,Q'\entails c[v/x]:A'\loli A$ is valid and 
+ we can conclude by $(app)$. The second case is treated analogously.
+ \item If the last rule of $\pi_1$ is on of $(\x\mbox{-i})$, $(\x\mbox{-e})$ 
+ and $(if)$, and $a$ is the corresponding term, then we can reason as above
+ by considering in turn the case where $B$ is duplicable and the case where
+ $B$ is non-duplicable.
+ \item If the last rule of $\pi_1$ is $(circ)$, and $a=(t,C,a')$, then 
+ $\pi_1$ is
+ \[
+ \infer[(circ)]{!\Delta,x:!B';\emptyset \entails (t,\mathbf{c},a'):!^nCirc(T,U)}{
+    \deduce[]{\emptyset ; Q_1\entails t:T}{
+      \vdots
+    }    
+    &
+    \deduce[]{!\Delta,x:!B' ; Q_2\entails a':U}{
+      \vdots
+    }     
+    &
+    In(C)=Q_1 
+    &
+    Out(C)=Q_2
+ }
+ \]
+ with $A=!^nCirc(T,U)$ and $B=!B'$ for some types $T$, $U$ and $B'$. Using  
+ Lemma~\hyperref[context_value]{\ref*{context_value}} again, we know 
+ that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
+ $!\Gamma; Q_2\entails a'[v/x]:U$ is valid and we can conclude
+ by applying $(circ)$.
+\end{itemize}
+\end{proof}
+
+\section{Circuit Constructors}
+
+As mentioned in the introduction, the reduction relation for 
+Proto-Quipper is defined in the presence of a \emph{circuit
+constructor}. This is a device capable of 
+performing certain basic circuit building operations. It is 
+not necessary to have a detailed description of the inner 
+workings of this device. In fact, all that is required for 
+the definition of Quipper's operational semantics is the 
+existence of some primitive operations. These are wrapped 
+in a structure that we take to axiomatize circuit constructors. 
+
+\begin{definition}
+\label{circuit_constructor}
+A \emph{circuit constructor} consists of a pair of countable sets $\atuple{Q,S}$ 
+together with the following maps:
+\begin{itemize}
+  \item $\mathtt{New}\from \pow_f(Q) \to S$,
+  \item $\mathtt{In}\from S\to \pow_f(Q)$,
+  \item $\mathtt{Out}\from S\to \pow_f(Q)$,
+  \item $\mathtt{Rev}\from S \to S$,
+  \item $\mathtt{Encap}\from S \to  S$,
+  \item $\mathtt{Unencap}\from S\times S\times Q^Q \to S \times Q^Q$ and
+\end{itemize}
+verifying the following conditions:
+\begin{enumerate}
+  \item $\mathtt{Rev}\circ\mathtt{Rev}=1_S$,
+  \item $\mathtt{In}\circ\mathtt{Rev}= \mathtt{Out}$ and 
+        $\mathtt{Out}\circ\mathtt{Rev}= \mathtt{In}$\label{in_out_rev},
+  \item $\mathtt{In}\circ\mathtt{New} =1_{\mathcal{P}_f(\mathcal{Q})}$,
+  \item $\mathtt{In}\circ \mathtt{Encap} =\mathtt{In}$ and $\mathtt{Out}\circ \mathtt{Encap} =\mathtt{Out}$,
+  \item $\mathtt{In}\circ\pi_1\circ\mathtt{Unencap}=\mathtt{In}\circ\pi_1$,\label{Unencap_In}
+  \item if $\mathtt{Unencap} (C,D,\binding)=(C',\binding')$ then $b$ and $b'$ are bijective and\label{Unencap_cond}
+    \begin{enumerate}
+      \item $\binding[\mathtt{In}(D)]\subseteq \mathtt{Out} (C)$,\label{Unencap_cond_1}
+      \item $\binding'[\mathtt{Out}(D)]\subseteq\mathtt{Out}(C')$ and\label{Unencap_cond_2}
+      \item $\mathtt{Out}(C')=\binding'(\mathtt{Out}(D)),(\mathtt{Out}(C)\setminus\binding^{-1}(\mathtt{In}(D)))$.\label{Unencap_cond_3}
+    \end{enumerate}
+\end{enumerate}
+\end{definition}
+
+If $\p{Q,S}$ is a circuit constructor, we call \emph{circuit states} 
+the elements of $S$ and \emph{wire identifiers} the elements of $Q$. 
+
+The functions that equip a constructor represent operations on 
+circuits. The definition of circuit used by a particular 
+constructor needn't be specified here. However, it can be helpful 
+to keep in mind the usual representation of quantum circuits when 
+thinking about constructors. For example, one can think of 
+$\mathtt{New}(q_1,q_2,q_3)$ as the circuit given in figure~\hyperref[rep_new]{\ref*{rep_new}}.
+
+\begin{figure}[!ht]
+\[
+\mbox{
+\Qcircuit @C=1em @R=2.7em {
+& \qw & \ustick{q_1} \qw & \qw & \qw \\
+& \qw & \ustick{q_2} \qw & \qw & \qw \\
+& \qw & \ustick{q_3} \qw & \qw & \qw 
+}
+}
+\]
+\caption{A representation of $\mathtt{New}\s{q_1,q_2,q_3}$.}
+\label{rep_new}
+\end{figure}
+
+The $\mathtt{Unencap}$ function can similarly be explained in terms of 
+the usual graphical language for circuits. It inputs two circuit states, 
+say $C$ and $D$, together with a map $\binding\from Q\to Q$ and returns 
+a new circuit $C'$ together with a new map $\binding'$. $C'$ can be 
+seen as the composition of $C$ and $D$ along $\binding$. An illustration of 
+this process is given in figure~\hyperref[rep_unencap]{\ref*{rep_unencap}}. 
+The function $\binding$ is used to specify along which wires to compose $C$ 
+and $D$ while the function $\binding'$ updates the wire names post-composition.
+
+\begin{figure}[!ht]
+\[
+\mbox{
+\Qcircuit @C=.5em @R=2.7em {
+& & & & & 
+     & & & & & & \push{\binding} & & &
+     & & & 
+     & & & & & & \push{\binding'} & & & \\
+&\qw &\ustick{q_1}\qw &\qw &\qw &\multigate{4}{~~~C~~~} 
+     &\qw &\qw &\ustick{q_1}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{q_1'}\qw
+     &\qw &\qw &\multigate{2}{~~~D~~~} 
+     &\qw &\qw &\ustick{p_1}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{p_1'}\qw \\
+&\qw &\ustick{q_2}\qw &\qw &\qw &\ghost{~~~C~~~}       
+     &\qw &\qw &\ustick{q_2}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{q_2'}\qw
+     &\qw &\qw &\ghost{~~~D~~~} 
+     &\qw &\qw &\ustick{p_2}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{p_2'}\qw \\     
+&\qw &\ustick{q_3}\qw &\qw &\qw &\ghost{~~~C~~~}        
+     &\qw &\qw &\ustick{q_3}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{q_3'}\qw
+     &\qw &\qw &\ghost{~~~D~~~} 
+     &\qw &\qw &\ustick{p_3}\qw &\qw &\qw &\qw &\qw &\qw &\ustick{p_3'}\qw \\     
+&\qw &\ustick{q_4}\qw &\qw &\qw &\ghost{~~~C~~~}       
+     &\qw &\qw &\ustick{q_4}\qw &\qw &\qw &\qw &\qw &\qw &\qw
+     &\qw &\qw &\qw 
+     &\qw &\qw &\qw &\qw &\qw &\qw &\qw &\qw &\ustick{q_4}\qw \\     
+&\qw &\ustick{q_5}\qw &\qw &\qw &\ghost{~~~C~~~}     
+     &\qw &\qw &\ustick{q_5}\qw &\qw &\qw &\qw &\qw &\qw &\qw
+     &\qw &\qw &\qw 
+     &\qw &\qw &\qw &\qw &\qw &\qw &\qw &\qw &\ustick{q_5}\qw     
+     \gategroup{2}{3}{6}{8}{3.3em}{--}
+     \gategroup{2}{16}{4}{20}{3.3em}{--}     
+     \gategroup{2}{23}{5}{24}{4.5em}{^\}}     
+     \gategroup{2}{11}{5}{13}{4.5em}{^\}}     
+}}
+\]
+\caption{A representation of $\mathtt{Unencap} (C,D,\binding)$.}
+\label{rep_unencap}
+\end{figure}
+
+Note that a gate, is a (very basic) circuit.
+The operation of appending a gate to a circuit is therefore subsumed 
+by the more general operation of composing circuits. This is why no 
+primitive gate-appending operations are specified. Of course, a 
+``usable" circuit constructor would come equipped with circuit 
+states for each element of some chosen universal gate set.
+
+The function $\mathtt{Encap}$ stores a circuit for later use.
+We also say that it \emph{boxes} that circuit. The remaining functions 
+are relatively straightforward. The function $\mathtt{In}$ 
+(resp. $\mathtt{Out}$) returns the identifiers of the input 
+(resp. output) wires of a circuit, while $\mathtt{Rev}$ reverses 
+a circuit. 
+
+Proto-Quipper's quantum addresses and circuit constants are supposed 
+to be the syntactic representatives of a circuit constructor's wire 
+identifiers. This idea is formalized in the following definition.
+
+\begin{definition}
+A circuit constructor $\atuple{Q,S}$ is \emph{adequate} if it can 
+be equipped with bijections $\mathtt{Address}\from \mathcal{Q} \to Q$ 
+and $\mathtt{Name}\from \mathcal{C} \to S$ such that:
+\[In=\mathtt{Address}' \circ\mathtt{In}\circ \mathtt{Name} 
+~\mbox{ and }~ 
+Out=\mathtt{Address}'\circ\mathtt{Out}\circ \mathtt{Name}
+\]
+where $\mathtt{Address}'$ denotes the lifting of $\mathtt{Address}$ 
+from $\mathcal{Q}$ to $\mathcal{P}(\mathcal{Q})$.
+\end{definition}
+
+\begin{remark}
+\label{structure-transfer}
+The existence of the bijections $\mathtt{Address}$ and $\mathtt{Name}$ has 
+the following consequences:
+\begin{itemize}
+  \item $\mathcal{C}$ can be equipped with an involution:
+\[
+(.)^{-1} = \mathtt{Name}\circ \mathtt{rev} \circ \mathtt{Name}^{-1}
+           \from \mathcal{C}\to\mathcal{C}
+\]
+such that $In(C^{-1})=Out(C)$ and 
+$Out(C^{-1})=In(C)$.
+  \item If $\binding$ is a binding obtained from QData terms $t,u$ in the 
+  way described in remark~\hyperref{bind_extension}, we can use it to define the 
+  following map (which we call by the same name):
+\[
+\binding = \mathtt{Address}\circ \binding\circ \mathtt{Address}^{-1}\from Q\to Q
+\]
+\end{itemize}
+
+In what follows, we work under the simplifying assumptions that $\mathcal{Q}=Q$, 
+$\mathtt{Address}=1_Q$ and $\mathtt{Encap}=1_Q$.
+\end{remark}
+
+
+\section{Operational Semantics}
+
+We are now in a position to define Proto-Quipper's operational 
+semantics.
+
+\begin{definition}
+Let $\atuple{Q,S}$ be an adequate circuit constructor. A 
+\emph{closure} is a pair $[C,a]$ where $C\in S$, $a$ is a 
+term and $FQ(t)\subseteq\mathtt{Out}(C)$. 
+\end{definition}
+
+% We require $FQ(t)\subseteq\mathtt{Out}(C)$ and not $FQ(t)=\mathtt{Out}(C)$
+% because the reduction is defined by induction on the terms. For
+% example, to reduce a pair, one must first reduce the left component
+% in the context of the current circuit. If we required an equality 
+% we couldn't simply do this.
+
+\begin{definition}
+The \emph{one-step reduction relation}, written $\to$, is defined 
+on closures by the rules given in tables~\hyperref[cong_rules]{\ref*{cong_rules}}, 
+\hyperref[classical_rules]{\ref*{classical_rules}} 
+and \hyperref[circ_gen_rules]{\ref*{circ_gen_rules}}. 
+In the $(box)$ rule, the $C,v$ in $\spec_{C,v}$ stands for $In(C),Out(C),FQ(v)$.
+The \emph{reduction relation}, 
+written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
+\end{definition}
+
+\begin{figure}[!ht]
+\begin{mdframed}
+\[
+  \infer[(fun)]{[C,ab]\to[C',a'b]}{
+    [C,a]\to[C',a']
+  }
+~~~~~~
+  \infer[(arg)]{[C,vb]\to [C',vb']}{
+    [C,b]\to [C',b']
+  }
+\]
+\[
+  \infer[(right)]{[C,\langle a,b\rangle]\to [C',\langle a,b'\rangle]}{
+    [C,b]\to [C',b']
+  }
+~~~~~~
+  \infer[(left)]{[C,\langle a,v\rangle]\to [C',\langle a',v\rangle]}{
+    [C,a]\to [C',a']
+  }
+\]
+\[
+  \infer[(let)]{[C,let ~ \langle x,y \rangle = a ~in~ b]\to 
+                [C', let ~ \langle x,y \rangle = a' ~in~ b]}{
+    [C,a]\to [C',a']
+  }
+\]
+\[
+  \infer[(cond)]{[C, if ~a~ then ~b~ else ~c~]\to [C', if ~a'~ then ~b~ else ~c~]}{
+    [C,a]\to [C',a']
+  }
+\]
+\[
+  \infer[(circ)]{[C, (t,D,a)]\to [C, (t,D',a')]}{
+    [D,a]\to [D',a']
+  }
+\]
+\end{mdframed}
+\caption{The congruence rules.}
+\label{cong_rules}
+\end{figure}
+
+\begin{figure}[!ht]
+\begin{mdframed}
+\[
+  \infer[(\beta)]{[C,(\lambda x.a)v]\to [C, a[v/x]]}{}
+\]
+\[
+  \infer[(pair)]{[C,let ~\atuple{x,y}=\atuple{v,w}~ in ~a]\to[C,a[v/x,w/y]]}{}
+\]
+\[
+  \infer[(if\mbox{-}\mathtt{F})]{[C,if ~\mathtt{False}~ then ~a~ else ~b] \to [C, b]}{}
+\]
+\[
+  \infer[(if\mbox{-}\mathtt{T})]{[C,if ~\mathtt{True}~ then ~a~ else ~b] \to [C, a]}{}
+\]
+\end{mdframed}
+\caption{The classical rules.}
+\label{classical_rules}
+\end{figure}
+
+\begin{figure}[!ht]
+\begin{mdframed}
+\[
+  \infer[(box)]{[C,box^T(v)]\to [C,(t,D,a)]}{
+    \spec_{C,v}(T)=t
+    &
+    [\mathtt{new}(FQ(t)), vt] \to [D,a]
+  }
+\]
+\[
+  \infer[(unbox)]{[C,(unbox~(u,D,u'))v]\to [C',\binding'(u')]}{
+    bind(v,u)=\binding 
+    &
+    \mathtt{Unencap}(C,D,\binding) = (C',\binding') 
+  }
+\]
+\[
+  \infer[(rev)]{[C,rev (t,C,t')]\to [C,(t',C^{-1},t)]}{}
+\]
+\end{mdframed}
+\caption{The circuit generating rules.}
+\label{circ_gen_rules}
+\end{figure}
+
+The classical reduction rules and the congruence rules (minus $(circ)$) are standard. They 
+describe the usual call-by-value reduction strategy. The $(rev)$ rule is 
+straightforward. We briefly discuss the remaining rules. The $(box)$ rule is 
+to be understood as follows. Start by generating a specimen of type $T$. Then 
+apply the function $v$ on the input $t$ in the context of an empty circuit of 
+the appropriate arity. Note that while this computation is taking place, the 
+state $C$ is not accessible. By the $(circ)$ congruence rule, this computation will 
+continue until a value is reached, i.e., a term of the form $(t,D,t')$. At this point, 
+the construction of $C$ can resume. Remark that it was necessary to know the type 
+$T$ in order to generate the appropriate specimen. This explains the choice of a 
+Church-style typing of the language. The $(unbox)$ rule will first generate a binding 
+from $v$ and the input $u$ of $D$. Then, it will compose $C$ and $D$ along that 
+binding and update the names of the wire identifiers appearing in $u'$ 
+according to $\binding'$.
+
+The inductive nature of the reduction rule explains why closures are not
+required to satisfy $FQ(a)=\mathtt{Out}(C)$. The requirement that 
+$FQ(a)\subseteq \mathtt{Out}(C)$ is justified by the idea that a term should 
+not affect a wire outside of $C$. But if we also asked for the opposite 
+inclusion, it wouldn't be possible to define an inductive reduction in a 
+straightforward way. For example, the reduction of a pair is done 
+component-wise: to reduce $\p{a,b}$ one first reduces $b$. The simplest way 
+to express this in terms of closures is to carry the whole circuit state along. 
+This implies that if both $a$ and $b$ contain wire identifiers, then the 
+equality $FQ(a)=\mathtt{Out}(C)$ cannot be satisfied.
+
+Proto-Quipper's reduction is non-probabilistic, in the sense that the right member of 
+any reduction rule is a unique closure. This property might be modified 
+in later versions of the language if a notion of \emph{dynamic lifting} is added. The 
+following proposition establishes that Proto-Quipper's reduction is  
+\emph{deterministic}.
+
+>From now on, we always assume an adequate circuit constructor.
+
+\begin{proposition}
+\label{determinicity}
+If $[C,a]$ is a closure, then at most one reduction rule applies
+to it.
+\end{proposition}
+
+\begin{proof}
+By case distinction on $a$.
+\end{proof}
+
+
+\section{Type Safety}
+
+To establish that Proto-Quipper is a \emph{type safe} language, we must prove that 
+it enjoys two properties: \emph{Subject Reduction} and \emph{Progress}. The first 
+property guarantees that the type of a term is stable under reduction. As a 
+corollary, it also proves that if a term is well-typed, then it never reduces to 
+an ill-typed term. The second property shows that a well-typed term never reaches 
+an ``error state", which is a closure $[C,t]$ to which no reduction rule applies 
+but such that $t\notin \mathtt{Val}$. 
+
+The reduction relation is defined on closures but the typing rules apply to terms. 
+We therefore start by extending the notions of typing judgement and validity to 
+closures.
+
+\begin{definition}
+A \emph{typed closure} is an expression of the form:
+\[
+\Gamma;Q\entails [C,a]:A,(Q'|Q'')
+\]
+where $\mathtt{In}(C)=Q'$ and $\mathtt{Out}(C)=Q,Q''$. It is 
+\emph{valid} if $\Gamma;Q\entails a:A$ is a valid 
+typing judgement.
+\end{definition}
+
+\subsection{Subject Reduction}
+
+\begin{lemma}
+\label{Inwires}
+If $[C,a]\to[C',a']$ then $\mathtt{In}(C)=\mathtt{In}(C')$.
+\end{lemma}
+
+\begin{proof}
+By case distinction on the rule used in the reduction $[C,a]\to[C',a']$. 
+In all but the $(unbox)$ case, the result follows either from the induction 
+hypothesis or from the fact that $C=C'$. In the $(unbox)$ case, use 
+Definition~\hyperref[Unencap_In]{\ref*{circuit_constructor}.\ref*{Unencap_In}}.
+\end{proof}
+
+\begin{proposition}
+\label{subject_red_one_step}
+If $\Gamma;FQ(a)\entails [C,a]:A,(Q'|Q'')$ is valid typed closure 
+and $[C,a]\to [C',a']$, then $\Gamma;FQ(a')\entails [C',a']:A,(Q'|Q'')$ is 
+a valid typed closure.
+\end{proposition}
+
+\begin{proof}
+We prove the proposition by induction on the derivation of the reduction 
+ $[C,a]\to[C',a']$. In each case, we start by reconstructing 
+the unique typing derivation $\pi$ of $\Gamma;FQ(a)\entails a:A$ and we use 
+it to prove that $\Gamma;FQ(a')\entails [C',a']:A,(Q'|Q'')$ is valid. 
+By Lemma~\hyperref[Inwires]{\ref*{Inwires}} we never need to 
+verify that $\mathtt{In}(C')=Q'$ so that in each case we only 
+need to show:
+\begin{itemize}
+  \item $\mathtt{Out}(C')=FQ(a'),Q''$ and
+  \item $\Gamma;FQ(a')\entails a':A$ is valid.
+\end{itemize}
+Throughout the proof, we write $IH(\pi)$ to denote the proof obtained by applying 
+the induction hypothesis to $\pi$.
+
+\begin{description}
+\item[Congruence rules:] These rules are treated uniformly. We illustrate the 
+$(fun)$ and $(circ)$ cases.
+\begin{itemize}
+  \item $(fun)$: the reduction rule is
+  \[
+    \infer[]{[C,cb]\to[C',c'b]}{
+      [C,c]\to[C',c']
+    }
+  \]
+  with $a=cb$ and $a'=c'b$. The typing derivation $\pi$ is therefore
+  \[
+    \infer[]{\Gamma_1,\Gamma_2, !\Delta;FQ(c),FQ(b)\entails cb:A}{
+      \deduce[]{\Gamma_1, !\Delta;FQ(c)\entails c:B\loli A}{
+        \vdots~\pi_1
+      } 
+      &
+      \deduce[]{\Gamma_2, !\Delta ;FQ(b)\entails b:B}{
+        \vdots~\pi_2
+      } 
+    }
+  \]
+  and $\Gamma_1,\Gamma_2;FQ(c),FQ(b)\entails [C, cb],(Q'|Q'')$ is valid.
+  It follows that $\Gamma_1, !\Delta;FQ(c)\entails [C,c]:B\loli A,(Q'|FQ(b),Q'')$ 
+  is valid and, by the induction hypothesis, this implies that 
+  $\Gamma_1, !\Delta;FQ(c')\entails [C',c']:B\loli A,(Q'|FQ(b),Q'')$ is also valid.
+  In particular, it follows that $\mathtt{Out}(C')=FQ(c'),FQ(b),Q''$. This, 
+  together with the following typing derivation,
+  \[
+    \infer[]{\Gamma_1,\Gamma_2, !\Delta;FQ(c'),FQ(b)\entails c'b:A}{
+      \deduce[]{\Gamma_1, !\Delta;FQ(c')\entails c':B\loli A}{
+        \vdots~IH(\pi_1)
+      } 
+      &
+      \deduce[]{\Gamma_2, !\Delta ;FQ(b)\entails b:B}{
+        \vdots~\pi_2
+      } 
+    }
+  \]  
+  shows that $\Gamma_1,\Gamma_2, !\Delta;FQ(c'),FQ(b)\entails c'b:A,(Q',Q'')$ 
+  is valid.
+  \item $(circ)$: the reduction rule is
+  \[
+    \infer[(circ)]{[C, (t,D,b)]\to [C, (t,D',b')]}{
+      [D,b]\to [D',b']
+    }
+  \]  
+  with $a=(t,D,b)$ and $a'=(t,D',b')$. The typing derivation $\pi$ is therefore
+  \[
+  \infer[]{!\Delta;\emptyset\entails (t,D,b):!^nCirc(T,U)}{
+    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+      \vdots~\pi_1
+    } 
+    &
+    \deduce[]{!\Delta ; FQ(b)\entails b:U}{
+      \vdots~\pi_2
+    }
+    &
+    \deduce[]{In(D)=FQ(t)}{
+      Out(D)=FQ(b)
+    }
+  }
+  \]  
+  and $!\Delta ; \emptyset \entails [C,(t,D,b)]:!^nCirc(T,U),(Q'|Q'')$ is valid. 
+  Disregarding $\pi_1$, it follows from the assumptions in the above rule 
+  that $!\Delta ; FQ(b)\entails [D,b]:U, (FQ(t)|\emptyset)$ is valid and, 
+  by the induction hypothesis, this implies that 
+  $!\Delta,FQ(b')\entails [D',b']:U,(FQ(t)|\emptyset)$ is also valid.
+  This, together with the following typing derivation,
+  \[
+  \infer[.]{!\Delta;\emptyset\entails (t,D,b'):!^nCirc(T,U)}{
+    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+      \vdots~\pi_1
+    } 
+    &
+    \deduce[]{!\Delta ; FQ(b')\entails b':U}{
+      \vdots~IH(\pi_2)
+    }
+    &
+    \deduce[]{In(D')=FQ(t)}{
+      Out(D')=FQ(b')
+    }
+  }  
+  \]
+  shows that $!\Delta;\emptyset\entails [C,(t,D',b')] :!^nCirc(T,U),(Q'|Q'')$ 
+  is valid.
+\end{itemize}
+\item[Classical rules:] These rules are also treated uniformly, we illustrate 
+the $(\beta)$ case.
+\begin{itemize}
+  \item $(\beta)$: the reduction rule is
+  \[
+    \infer[(\beta)]{[C,(\lambda x.b)v]\to [C, b[v/x]]}{}
+  \]  
+  with $a=(\lambda x.b)v$ and $a'=b[v/x]$. The typing derivation $\pi$ is 
+  therefore
+  \[
+    \infer[]{\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails (\lambda x.b)v:A}{
+      \infer[]{\Gamma_1,!\Delta;FQ(b)\entails \lambda x.b:B\loli A}{
+        \deduce[]{\Gamma_1,!\Delta,x:B;FQ(b) \entails b:A}{
+          \vdots~\pi_1
+        }
+      }
+      &
+      \deduce[]{\Gamma_2,!\Delta;FQ(v)\entails v:B}{
+        \vdots~\pi_2
+      }      
+    }
+  \]  
+  and $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails (\lambda x.b)v:A,(Q'|Q'')$ 
+  is valid. By Lemma~\hyperref[substitution]{\ref*{substitution}}, 
+  $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails b[v/x]:A$ is a valid typing 
+  judgement which implies that 
+  $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails [C,b[v/x]]:A,(Q'|Q'')$ is a valid
+  typed closure.
+\end{itemize}
+\item[Circuit generating rules:] These rules represent the most interesting cases. 
+We treat them individually.
+\begin{itemize}
+  \item $(box)$: the reduction rule is
+  \[
+  \infer[]{[C,box^T(v)]\to [C,(t,D,b)]}{
+    \spec(T)=t
+    &
+    [\mathtt{new}(FQ(t)), vt] \to [D,b]
+  }
+  \]
+  with $a=box^T(v)$ and $a'=(t,D,b)$. Since $v$ is a value, we know by  
+  Lemma~\hyperref[context_value]{\ref*{context_value}} that the typing 
+  derivation $\pi$ is
+  \[
+  \infer[]{!\Delta;\emptyset\entails box^T(v):!^nCirc(T,U)}{
+    \infer[]{!\Delta;\emptyset \entails box^T:!(T\loli U)\loli !^nCirc(T,U)}{
+    }   
+    &
+    \deduce[]{!\Delta ;\emptyset\entails v:!(T\loli U)}{
+     \vdots ~\pi_1
+    }
+  }
+  \]
+  and $!\Delta;\emptyset\entails box^T(v):!^nCirc(T,U),(Q'|Q'')$ is valid.
+  By Lemma~\hyperref[specimen]{\ref*{specimen}}, there exists 
+  a typing derivation $\pi_2$ of $FQ(t)\entails t:T$ and applying 
+  Lemma~\hyperref[weakening]{\ref*{prop_type_syst}.\ref*{weakening}} yields a typing 
+  derivation $\pi_2'$ of $!\Delta;FQ(t)\entails t:T$. 
+  Applying Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}}
+  to $\pi_1$ we get a derivation $\pi_1'$ of $!\Delta ;\emptyset\entails v:T\loli U$.
+  We can therefore construct the following derivation:
+  \[
+  \infer[]{!\Delta;FQ(t)\entails vt : U}{
+    \deduce[]{!\Delta ;\emptyset\entails v:T\loli U}{
+      \vdots ~\pi_1'
+    }
+    &
+    \deduce[]{!\Delta;FQ(t)\entails t:T}{
+      \vdots ~\pi_2'
+    }
+  }
+  \]
+  Moreover, $FQ(t)=\mathtt{Out}(\mathtt{New}(FQ(t)))=\mathtt{In}(\mathtt{New}(FQ(t)))$. 
+  Therefore $!\Delta;FQ(t)\entails [\mathtt{New}(FQ(t)),vt]:U,(FQ(t)|\emptyset)$ is a 
+  valid typed closure. By the induction hypothesis, this implies that 
+  $!\Delta;FQ(b)\entails [D,b]:U,(FQ(t)|\emptyset)$ is also valid.
+  In particular, this means that $\mathtt{In}(D)=FQ(t)$, $\mathtt{Out}(D)=FQ(b)$ 
+  and there exists a typing derivation $\pi_3$ of $!\Delta;FQ(b)\entails b:U$.
+  We can therefore construct the following typing derivation:
+  \[
+  \infer[.]{!\Delta;\emptyset \entails (t,D,b):!^nCirc(T,U)}{
+    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+      \vdots~\pi_2
+    }
+    &
+    \deduce[]{!\Delta ; FQ(b)\entails b:U}{
+      \vdots~\pi_3
+    } 
+    &
+    \deduce[]{In(D)=FQ(t) }{
+      Out(D)=FQ(b)
+    }
+  }
+  \]  
+  Hence $!\Delta ;\emptyset \entails (t,D,b):!^nCirc(T,U) (Q'|Q'')$ is valid.
+  \item $(unbox)$ the reduction rule is
+  \[
+    \infer[(unbox)]{[C,(unbox~(t,D,t'))v]\to [C',\binding'(t')]}{
+      bind(v,t)=\binding 
+      &
+      \mathtt{Unencap}(C,D,\binding) = (C',\binding') 
+    }
+  \]
+  with $a=(unbox~(t,D,t'))v$ and $a'=\binding'(t')$. Since $v$ is a value of 
+  QData type, we know by 
+  Lemma~\hyperref[context_value]{\ref*{context_value}}
+  that the typing derivation $\pi$ is 
+  \begin{changemargin}{-4.8cm}{-1cm}
+  \[
+  \infer[]{!\Delta; FQ(v)\entails (unbox~(t,D,t'))v :U}{
+    \infer[]{!\Delta;\emptyset\entails unbox(t,D,t'):T\loli U}{
+      \infer[]{!\Delta;\emptyset \entails unbox:Circ(T,U)\loli (T\loli U)}{
+      }   
+      &
+      \infer[]{!\Delta ;\emptyset\entails (t,D,t'):Circ(T,U)}{
+        \deduce[]{FQ(t)\entails t:T}{
+          \vdots ~\pi_1
+        }
+        &
+        \deduce[]{!\Delta;FQ(t')\entails t':U}{
+          \vdots ~\pi_2     
+        }
+        &
+        \deduce[]{In(D)=FQ(t)}{
+          Out(D)=FQ(t')
+        }
+      }
+    }
+    &
+    \infer[]{!\Delta ; FQ(v)\entails v:T}{
+      \vdots~\pi_3
+    }
+  }
+  \]
+  \end{changemargin}
+  and $!\Delta; FQ(v)\entails (unbox~(t,D,t'))v :U,(Q'|Q'')$ 
+  is valid. By applying
+  Lemma~\hyperref[binding_judgement]{\ref*{binding_judgement}} 
+  to $\pi_2$ we get a typing derivation $\pi_2'$ of 
+  $!\Delta;FQ(\binding(t'))\entails \binding(t'):U$.
+  Now note that by 
+  Definition~\hyperref[Unencap_cond_3]{\ref*{circuit_constructor}.\ref*{Unencap_cond_3}} 
+  we have:
+  \[
+  \begin{array}{rcl}
+  \mathtt{Out}(C') & = & \binding(\mathtt{Out}(D)), (\mathtt{Out}(C)\setminus\binding^{-1}(\mathtt{In}(D))) \\
+                   & = & \binding(FQ(t')) , ((Q'',FQ(v))\setminus \binding^{-1}(FQ(t))) \\
+                   & = & FQ(\binding(t')) , ((Q'',FQ(v))\setminus FQ(v)) \\
+                   & = & FQ(\binding(t')),Q''.                   
+  \end{array}
+  \]
+  Hence $!\Delta; FQ(\binding(t'))\entails \binding(t') :U,(Q'|Q'')$  is valid.
+  \item $(rev)$ the reduction rule is
+  \[
+    \infer[(rev)]{[C,rev (t,D,t')]\to [C,(t',D^{-1},t)]}{}
+  \]
+  with $a=rev(t,D,t')$ and $a'=(t',D^{-1},t)$. The typing derivation $\pi$ 
+  is therefore
+  \begin{changemargin}{-2.7cm}{-1cm}
+  \[
+  \infer[]{!\Delta;\emptyset\entails rev(t,D,t'):!^nCirc(U,T)}{
+    \infer[]{!\Delta;\emptyset \entails rev:Circ(T,U)\loli !^nCirc(U,T)}{
+    }   
+    &
+    \infer[]{!\Delta ;\emptyset\entails (t,D,t'):Circ(T,U)}{
+      \deduce[]{FQ(t)\entails t:T}{
+        \vdots ~\pi_1
+      }
+      &
+      \deduce[]{!\Delta;FQ(t')\entails t':U}{
+        \vdots ~\pi_2     
+      }
+      &
+      \deduce[]{In(D)=FQ(t)}{
+        Out(D)=FQ(t')
+      }
+    }
+  }
+  \]
+  \end{changemargin}
+  and $!\Delta;\emptyset\entails rev(t,D,t'):!^nCirc(T,U),(Q'|Q'')$ is 
+  valid. Now note that since $t'$ is a QData term, it contains no variables. 
+  Applying Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} 
+  to $\pi_2$ repeatedly we therefore get a derivation $\pi_2'$ of 
+  $FQ(t')\entails t':U$. Moreover, by applying
+  Lemma~\hyperref[weakening]{\ref*{prop_type_syst}.\ref*{weakening}} to $\pi_1$ 
+  we get a typing derivation $\pi_1'$ of $!\Delta ,FQ(t)\entails t:T$.
+  Since, by 
+  Remark~\hyperref[structure-transfer]{\ref*{structure-transfer}}, 
+  we have $Out(D^{-1})=In(D)=t$ and $In(D^{-1})=Out(D)=t'$, we can construct 
+  the following typing derivation:
+  \[
+  \infer[]{!\Delta ;\emptyset\entails (t',D^{-1},t):Circ(U,T)}{
+    \deduce[]{FQ(t')\entails t':U}{
+      \vdots ~\pi_2'
+    }
+    &
+    \deduce[]{!\Delta;FQ(t)\entails t:T}{
+      \vdots ~\pi_1'     
+    }
+    &
+    \deduce[]{In(D^{-1})=FQ(t')}{
+      Out(D^{-1})=FQ(t')
+    }
+  }  
+  \]
+  Hence $!\Delta;\emptyset\entails (t',D,t):!^nCirc(T,U),(Q'|Q'')$ 
+  is valid.    
+\end{itemize}
+\end{description}
+\end{proof}
+
+\begin{corollary}
+\emph{(Subject Reduction)}
+If $\Gamma;FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure 
+and $[C,a]\to^* [C',a']$, then $\Gamma;FQ(a')\entails [C',a']:A,(Q'|Q'')$ 
+is also a valid typed closure.
+\end{corollary}
+
+\begin{proof}
+By induction on the length of the reduction sequence. The base case is 
+provided by Lemma~~\hyperref[subject_red_one_step]{\ref*{subject_red_one_step}}
+\end{proof}
+
+This formulation of Subject Reduction explains why a typed closure contains 
+information about the input and output wires of the circuit state. Indeed, 
+Subject Reduction now guarantees (1) that the input wires of a circuit 
+remain unchanged through reduction and (2) that a term can only affect 
+wires whose identifiers are among its quantum addresses.
+
+\subsection{Progress}
+
+\begin{lemma}
+\label{non_values}
+If a term $a$ is not a value then it is of one 
+of the following forms: $(t,C,a')$ with $a'\notin \mathtt{Val}$, 
+$\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$, 
+$if ~a_1~ then ~a_2~ else ~a_3$, $let ~\atuple{x,y}=a_1~ in ~a_2$, $a_1a_2$.
+\end{lemma}
+
+\begin{lemma}
+\label{form_values}
+A well-typed value $v$ is either a variable, a quantum address, a constant or one 
+of the following case occurs: if it is of type $!^nCirc(T,U)$, it is of the 
+form $(t,C,u)$ with $t$ and $u$ values; if it is of type $!^nBool$ it is either 
+$\true$ or $\false$; if it is of type $!^n (A\x B)$, it is of the
+form $\p{w,w'}$, with $w$ and $w'$ values; if it is of type $!^n1$, it is 
+precisely the term $*$; if it is of type $!^n (A\loli B)$, it is a 
+lambda-abstraction.
+\end{lemma}
+
+\begin{proof}
+By induction on the typing derivation of $v$.
+\end{proof}
+
+\begin{proposition}
+\emph{(Progress)}
+If $FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure then either 
+$a\in\mathtt{Val}$ or there exists a closure $[C',a']$ such that 
+$[C,a]\to [C',a']$.
+\end{proposition}
+
+First, note that Progress is stated for a typed closure whose typing 
+context is empty. This is because the Lemma no longer holds if we allow 
+for a non-empty typing context. Indeed, consider the following counterexample:
+\[
+\infer[.]{x:!(!A\loli B), y:!A;\emptyset\entails xy:B}{
+ \infer[]{x:!(!A\loli B);\emptyset\entails x:!A\loli B}{ 
+ }
+ &
+ \infer[]{y:!A;\emptyset\entails y:A}{ 
+ }
+}
+\]
+We now prove the Proposition.
+
+\begin{proof}
+We prove the proposition by induction on the typing derivation $\pi$ of 
+$FQ(a)\entails a:A$. If $a$ is a value then there is nothing 
+to prove. If $a$ is not a value, then by 
+Lemma~\hyperref[non_values]{\ref*{non_values}} there are 5 cases to consider. 
+In each case we show that $[C,a]$ is reducible in the sense that there exists a 
+closure  $[C,b]$ such that $[C,a]\to[C,b]$
+\begin{enumerate}
+  \item If $a=(t,D,a')$ with $a'\notin \mathtt{Val}$, then the typing derivation 
+  $\pi$ is:
+  \[
+  \infer[.]{\emptyset\entails (t,D,a'):Circ(T,U)}{
+    \deduce[]{FQ(t)\entails t:T}{
+      \vdots ~\pi_1
+    }
+    &
+    \deduce[]{FQ(a')\entails a':U}{
+      \vdots ~\pi_2     
+    }
+    &
+    \deduce[]{In(D)=FQ(t)}{
+      Out(D)=FQ(a')
+    }
+  }   
+  \]
+  The typed closure 
+  \[
+  \begin{array}{rcl}
+  FQ(a') & \entails & [D,a']:U,(FQ(t)|\emptyset)
+  \end{array}
+  \]
+  is therefore valid. Since $a'$ 
+  is not a value, the induction hypothesis implies that there exists $a''$ such 
+  that $[D,a']\to [D',a'']$ and $[C,(t,D,a')]$ therefore reduces to 
+  $[C,(t,D',a'')]$ by the $(circ)$ reduction rule.
+  \item If $a=\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$,
+  then the typing derivation $\pi$ is:
+  \[
+  \infer[.]{FQ(a_1),FQ(a_2)\entails \p{a_1,a_2}:!^n(A_1\x A_2)}{
+    \deduce[]{FQ(a_1)\entails a_1:!^nA_1}{
+      \vdots~\pi_1
+    }
+    & 
+    \deduce[]{FQ(a_2)\entails a_2:!^nA_2}{
+      \vdots~\pi_2
+    }
+  }
+  \] 
+  The typed closures 
+  \[
+  \begin{array}{rcl}
+  FQ(a_1) & \entails & [C,a_1]:!^nA_1,(Q'|FQ(a_2),Q'')\\
+  FQ(a_2) & \entails & [C,a_2]:!^nA_1, (Q'|FQ(a_1),Q'')
+  \end{array}
+  \]
+  are therefore both valid. 
+  Now if $a_2\notin\mathtt{Val}$, then by the induction hypothesis 
+  $[C,a_2]\to[C',a_2']$. Hence $[C,\p{a_1,a_2}]$ reduces to $[C',\p{a_1,a_2'}]$ 
+  by the $(right)$ reduction rule.
+  If on the other hand $a_2\in\mathtt{Val}$, then it must be the case that $a_1\notin\mathtt{Val}$ 
+  and we can conclude by reasoning analogously that $[C,\p{a_1,a_2}]$ reduces to 
+  some $[C',\p{a_1',a_2}]$ by the $(left)$ reduction rule.. 
+  \item If $a=if ~a_1~ then ~a_2~ else ~a_3$, then the typing derivation $\pi$ is:
+  \[
+  \infer[.]{FQ(a_1),Q\entails if ~a_1~ then ~a_2~ else ~a_3:A}{
+    \deduce[]{FQ(a_1)\entails a_1:Bool }{
+      \vdots~\pi_1
+    }
+    &
+    \deduce[]{Q \entails a_2:A}{
+      \vdots~\pi_2
+    }    
+    &
+    \deduce[]{Q \entails a_3:A}{
+      \vdots~\pi_3
+    }    
+  }
+  \]  
+  The typed closure
+  \[
+  \begin{array}{rcl}
+  FQ(a_1) & \entails & [C,a_1]:Bool,(Q'|FQ(a_2),FQ(a_3),Q'')
+  \end{array}
+  \]
+  is therefore valid. Now if $a_1\notin\mathtt{Val}$, then by the induction hypothesis 
+  $[C,a_1]\to[C',a_1']$ and thus $[C,if ~a_1~ then ~a_2~ else ~a_3]$ reduces 
+  to $[C',if ~a_1'~ then ~a_2~ else ~a_3]$ by the $(cond)$ reduction rule. 
+  If on the other hand $a_1\in\mathtt{Val}$, then by 
+  Lemma~\hyperref[form_values]{\ref*{form_values}} either $a_1=\true$ or $a_1=\false$. 
+  Thus $[C,if ~a_1~ then ~a_2~ else ~a_3]$ reduces either to $[C,a_2]$ by the 
+  $(if\mbox{-}\mathtt{T})$ reduction rule or 
+  to $[C,a_3]$ by the $(if\mbox{-}\mathtt{F})$ reduction rule.
+  \item If $a=let ~\atuple{x,y}=a_1~ in ~a_2$, then we can reason as above to show that 
+  if $a_1$ is not a value, then the $(let)$ congruence rule applies and that if 
+  $a$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
+  guarantees that the $(pair)$ rule applies.
+  \item If $a=a_1a_2$ then the typing derivation $\pi$ is: 
+  \[
+    \infer[.]{FQ(a_1),FQ(a_2)\entails a_1a_2:A}{
+      \deduce[]{FQ(a_1)\entails a_1:B\loli A}{
+        \vdots~\pi_1
+      }
+      &
+      \deduce[]{FQ(a_2)\entails a_2:B}{
+        \vdots~\pi_2
+      }      
+    }
+  \]  
+  The typed closures
+  \[
+  \begin{array}{rcl}
+  FQ(a_1) & \entails & [C,a_1]:B\loli A,(Q'|FQ(a_2),Q'')\\
+  FQ(a_2) & \entails & [C,a_2]:B, (Q'|FQ(a_1),Q'')
+  \end{array}
+  \]
+  are therefore valid. There are three cases to treat.
+  \begin{itemize}
+    \item If $a\notin\mathtt{Val}$, then by the induction hypothesis 
+    $[C,ab]\to[C',a'b]$.
+    \item If $a\in\mathtt{Val}$ and $b\notin\mathtt{Val}$, then by 
+    the induction hypothesis $[C,ab]\to[C',ab']$.
+    \item $a,b\in\mathtt{Val}$ then by 
+    Lemma~\hyperref[form_values]{\ref*{form_values}}, $a$ is either 
+    an abstraction or a constant. In each case the appropriate rule 
+    among $(\beta)$, $(box)$, $(unbox)$ and $(rev)$ applies. 
+  \end{itemize}
+\end{enumerate}
+\end{proof}
+
+\end{document}
+

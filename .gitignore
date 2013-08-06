@@ -8,14 +8,12 @@ Quipper
 *.o
 .*
 *.info
-
 *.toc
 *.aux
 *.pdf
 *.gz
 *.log
 *.dvi
-
+*.ps
 _build
-
-
+haddock-doc
