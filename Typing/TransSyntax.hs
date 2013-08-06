@@ -1,3 +1,6 @@
+-- | This module processes the surface syntax and translates it into the internal syntax. This includes : processing of type definitions, with inference of
+-- the type properties : subtyping, qdata type ; translation of the body; with scope analysis, generation of the export list, linking with the interface ; some
+-- functions to convert the syntax to rax proto-quipper code.
 module Typing.TransSyntax (
   define_user_subtyping,
   translate_program,
@@ -36,6 +39,7 @@ import Control.Exception
 import Data.Map as Map
 import qualified Data.List as List
 import qualified Data.IntMap as IMap
+
 
 
 -- | Import the type definitions in the current state

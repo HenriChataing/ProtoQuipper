@@ -27,7 +27,8 @@ import qualified Data.IntMap as IMap
 import qualified Data.List as List
 
 
-type Environment = IntMap Value   -- ^ The type of the evaluation context.
+-- | The type of the evaluation context.
+type Environment = IntMap Value
 
 
 

@@ -1,3 +1,5 @@
+-- | This module provides an interface to the type inference and unification. It introduces functions to
+-- parse and process modules, and deal with module dependencies.
 module Typing.Driver where
 
 import Classes
