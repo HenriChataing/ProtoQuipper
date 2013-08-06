@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module provides the pretty printing functions necessary to render
+-- | This module provides the pretty printing functions necessary to render
 -- the types and expressions of the core syntax.
 module Typing.CorePrinter where
 
