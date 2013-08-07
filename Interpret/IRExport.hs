@@ -30,7 +30,7 @@ append_gate (Term b w) irdoc = irdoc ++ "QTerm" ++ show b ++ "(" ++ show w ++ ")
 -- Unary gates
 -- Some gates have a specific format in IR
 append_gate (Phase n w) irdoc =
-  irdoc ++ "QGate[\"R(pi/%)\"," ++ show n ++ "](" ++ show w ++ ")\n" 
+  irdoc ++ "QRot[\"R(2pi/%)\"," ++ show (fromIntegral (2*n) :: Float) ++ "](" ++ show w ++ ")\n" 
 -- And some don't
 append_gate (Unary g w) irdoc =
   let (prg, inv) = case g of
