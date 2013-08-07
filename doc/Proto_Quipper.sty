@@ -6,13 +6,12 @@
 \usepackage{amsthm}
 \usepackage{proof}            % For proof trees.
 \usepackage{mdframed}         % To box figures.
-%\usepackage[]{nohyperref}     % Like hyperref (allows referencing 
-%                              % of sub-lemmas) but without the hyperlinks.
 \input{Qcircuit}              % To draw quantum circuits.
 \usepackage{geometry}
 \usepackage{bussproofs}
 \usepackage[utf8]{inputenc}
 \usepackage[]{hyperref}
+
 
 % ----------------------------------------------------------------------
 % Margins: An environment to locally change the margins.
@@ -27,6 +26,7 @@
 \setlength{\parsep}{\parskip}%
 }%
 \item[]}{\end{list}}
+
 
 % ----------------------------------------------------------------------
 % Theorem definitions:
@@ -84,11 +84,13 @@
 \newenvironment{notation}{\begin{n-notation}}{\end{n-notation}}
 
 \theoremstyle{plain}
-\newtheorem{thm}[n-lemma]{Theorem} % reset theorem numbering for each chapter
+\newtheorem{thm}[n-lemma]{Theorem}     % reset theorem numbering for 
+                                       % each chapter
 
 \theoremstyle{definition}
-\newtheorem{defn}[n-lemma]{Definition} % definition numbers are dependent on theorem numbers
-\newtheorem{exmp}[n-lemma]{Example} % same for example numbers
+\newtheorem{defn}[n-lemma]{Definition} % definition numbers are dependent 
+                                       % on theorem numbers
+\newtheorem{exmp}[n-lemma]{Example}    % same for example numbers
 \newtheorem{prop}[n-lemma]{Proposition}
 \newtheorem{coro}[n-lemma]{Corollary}
 
@@ -106,23 +108,26 @@
 \newcommand{\Cc}{{\bf C}}
 \newcommand{\Dd}{{\bf D}}
 \newcommand{\abs}[1]{|{#1}|}                  % |A|: underlying set.
-\newcommand{\homof}[2]{\textrm{hom}_{#1}(#2)} % hom set \homof{C}{A,B} = C(A,B).
-\renewcommand{\hom}[1]{\homof{}{#1}}          % hom set \hom{A,B}      =  (A,B).
+\newcommand{\homof}[2]{\textrm{hom}_{#1}(#2)} % hom set 
+                                              % \homof{C}{A,B} = C(A,B).
+\renewcommand{\hom}[1]{\homof{}{#1}}          % hom set \hom{A,B} = (A,B).
 \newcommand{\obj}[1]{|#1|}                    % |C|: objects of a cat.
 \newcommand{\seq}{\subseteq}    
 \newcommand{\such}{\,\,|\,\,}                 % in sets {x|...}.
 \newcommand{\cp}{\circ}                       % composition.
 \newcommand{\id}{{\textrm{\rm id}}}           % identity.
 \newcommand{\from}{\colon}                    % F\from A\ii B = F:A->B.
-\newcommand{\ii}{\rightarrow}                 % functions f:a->b (alternative: \to).
+\newcommand{\ii}{\rightarrow}                 % functions f:a->b 
+                                              % (alternative: \to).
 \newcommand{\iii}{\longrightarrow}
 \newcommand{\pii}{\rightharpoonup}            % partial function f:a-`b.
-\newcommand{\adjoint}{\dashv}                 % F\adjoint G: F is left adjoint.
+\newcommand{\adjoint}{\dashv}                 % F\adjoint G: F is left 
+                                              % adjoint.
 \newcommand{\iso}{\cong}                      % isomorph ~=.
 \newcommand{\family}[2]{(#1)_{#2}}            % (X_n)_J or {X_n|J}..
 \newcommand{\rest}[1]{|_{#1}}                 % restriction S|A.
 \newcommand{\atuple}[1]{\langle#1\rangle}     % <a,b,c...>.
-\newcommand{\rtuple}[1]{(#1)}                 % round tuple    (a,b,c...).
+\newcommand{\rtuple}[1]{(#1)}                 % round tuple (a,b,c...).
 \newcommand{\tuple}{\rtuple}
 \newcommand{\p}{\atuple}                      % <a,b>
 \newcommand{\copair}[1]{[#1]}                 % [a,b]
@@ -133,7 +138,8 @@
 \renewcommand{\iff}{\Leftarrow\!\!\!\Rightarrow}
 \newcommand{\defiff}{\mathrel{{:}{\iff}}}     % :<=> or <=>_{def}
 \newcommand{\pow}{{\mathscr{P}}}
-\newcommand{\catarrow}{\xrightarrow}          % extensible arrow for cat notation
+\newcommand{\catarrow}{\xrightarrow}          % extensible arrow for 
+                                              % cat notation
 \newcommand{\da}{^\dagger}
 \newcommand{\dada}{^{\dagger\dagger}}
 \newcommand{\x}{\tensor}
@@ -141,13 +147,15 @@
 
 % ----------------------------------------------------------------------
 % particular categories and sets
-\usepackage{mathrsfs}                      % special script style \mathscr{S} for \Set
+\usepackage{mathrsfs}                      % special script style 
+                                           % \mathscr{S} for \Set
 \newcommand{\Set}{\mathscr{S}}             % Cat of Sets
 \newcommand{\N}{\mathbb{N}}                % Nat'l numbers AMS fonts
 \newcommand{\Z}{\mathbb{Z}}                % Integers AMS fonts
 \newcommand{\R}{{\mathbb{R}}}              % Reals
 \newcommand{\C}{{\mathbb{C}}}              % Complex
-{\makeatletter                             % Cat of finite-dim Hilbert spaces
+{\makeatletter                             % Cat of finite-dim Hilbert 
+                                           % spaces
 \gdef\alphalabels{\def\theenumi{\@alph\c@enumi}\def\labelenumi{(\theenumi)}}}
 \newcommand{\FinHilb}{\textrm{\bf FinHilb}}
 
@@ -162,16 +170,20 @@
 % Special symbols.
 \newcommand{\entails}{\vdash}                     % turnstile
 \newcommand{\semm}[1]{[\![#1]\!]}                 % semantic brackets
-\newcommand{\sem}[2]{\semm{#1}_{#2}}              % semantic brackets with subscript
-\newcommand{\sems}[2]{\semm{#1}^{#2}}             % semantic brackets w/ superscript
+\newcommand{\sem}[2]{\semm{#1}_{#2}}              % semantic brackets 
+                                                  % with subscript
+\newcommand{\sems}[2]{\semm{#1}^{#2}}             % semantic brackets 
+                                                  % w/ superscript
 \newcommand{\semp}{\sem{\,\,\,}{}}                % \sem prototype
 \newcommand{\eqbyrule}[1]{\stackrel{#1}{=}}       % annotated =
 \newcommand{\FV}{{\rm FV}}                        % free variables
 \newcommand{\downdeal}{{\downarrow}}              % downdeal
 \newcommand{\updeal}{{\uparrow}}                  % updeal
-\newcommand{\chk}{\raisebox{.2em}{\tiny$\surd$}}  % check in case distinctions
+\newcommand{\chk}{\raisebox{.2em}{\tiny$\surd$}}  % check in case 
+                                                  % distinctions
 \newcommand{\ih}{{\rm (IH)}}                      % ind. hyp.
-\newcommand{\tensor}{\otimes}
+\newcommand{\tensor}{\otimes}                     % tensor 
+                                                  % (alternative: \x).
 \newcommand{\bk}{\discretionary{}{}{}}            % optional break
 \newcommand{\loli}{\multimap}                     % linear implication
 
@@ -185,32 +197,19 @@
 \renewcommand{\leq}{\leqslant}          
 \renewcommand{\geq}{\geqslant}  
 
+
 % ----------------------------------------------------------------------
 % Quipper specifics. 
-\newcommand{\spec}{\mathtt{Spec}}                % Specification of a type
-\newcommand{\true}{\mathtt{True}}                % Boolean: True
-\newcommand{\false}{\mathtt{False}}              % Boolean: False
-\newcommand{\binding}{\mathfrak{b}}              % Arbitrary binding
+\def\true{\texttt{True}}                % Boolean: True
+\def\false{\texttt{False}}              % Boolean: False
+\def\type{\texttt{Type}}                % Type
+\def\term{\texttt{Term}}                % Term
+\def\val{\texttt{Value}}                % Value
+\def\qdatatype{\texttt{QDataType}}      % QDataType
+\def\qdataterm{\texttt{QDataTerm}}      % QDataTerm
+\def\qdata{\texttt{QData}}              % QData
+\def\spec{\texttt{Spec}}                % Specimen of a type
 
-% ======================================================================
-
-% -------------------------------------------------------
-% Henri's notations
-
-\def\bang{\,!\,}
-\newcommand{\pair}[2]{\langle #1, #2 \rangle}
-\newcommand{\letin}[3]{\text{let}~ #1 = #2 ~\text{in}~ #3}
-\newcommand{\ifthenelse}[3]{\text{if}~ #1 ~\text{then}~ #2 ~\text{else}~ #3}
-\newcommand{\nbang}[1]{\,!^{#1}}
-
-\def\true{\texttt{True}}
-\def\false{\texttt{False}}
-\def\type{\texttt{Type}}
-\def\qdatatype{\texttt{QDataType}}
-\def\qdata{\texttt{QData}}
-\def\spec{\texttt{Spec}}
-
-\def\binding{\mathfrak{b}}
 
 \def\lset{\mathcal{L}}
 \def\qset{\mathcal{Q}}
@@ -218,4 +217,14 @@
 \def\cset{\mathcal{C}}
 \def\fset{\mathcal{F}}
 \def\pset{\mathcal{P}}
+
+
+% ----------------------------------------------------------------------
+% More of Henri's notation. 
+\def\bang{\,!\,}
+\newcommand{\pair}[2]{\langle #1, #2 \rangle}
+\newcommand{\letin}[3]{\text{let}~ #1 = #2 ~\text{in}~ #3}
+\newcommand{\ifthenelse}[3]{\text{if}~ #1 ~\text{then}~ #2 ~\text{else}~ #3}
+\newcommand{\nbang}[1]{\,!^{#1}}
+\newcommand{\binding}{\mathfrak{b}}              % Arbitrary binding
 
