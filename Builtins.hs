@@ -1,5 +1,5 @@
--- | This module contains the definition of some builtin operations that are made available in quipper
--- codes. This includes all the basic gates, listed bealow ; and some integers operations and comparisons.
+-- | This module contains the definition of some built-in operations that are made available in quipper
+-- codes. This includes all the basic gates, listed below ; and some integers operations and comparisons.
 module Builtins where
 
 import Parsing.Syntax
@@ -35,7 +35,7 @@ binary_value g =
         (VTuple [VQbit 0, VQbit 1])
 
 
--- | Map of the builtin gates.
+-- | Map of the built-in gates.
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
   let init = [("INIT0", (TCirc TUnit TQBit,
@@ -71,7 +71,7 @@ builtin_gates =
 
 
 
--- | Generation of the builtin context : integer operations
+-- | Generation of the built-in context : integer operations.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
   let ops = [ ("ADD", (TArrow TInt (TArrow TInt TInt),

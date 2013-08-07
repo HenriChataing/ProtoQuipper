@@ -7,7 +7,7 @@ import Parsing.Localizing
 -- | Recursion level (depth of tree). Used to limit the display
 -- of terms, types and patterns to a certain depth in the syntax tree.
 data Lvl =
-    Nth Int      -- ^ Deth n.
+    Nth Int      -- ^ Depth n.
   | Inf          -- ^ Infinite depth (print everything).
 
 
@@ -40,7 +40,7 @@ class PPrint a where
   -- | Print until the default level.
   sprint  :: a -> String
 
-  -- | Print everything/
+  -- | Print everything.
   pprint :: a -> String
 
 
