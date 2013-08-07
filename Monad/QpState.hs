@@ -425,17 +425,17 @@ lookup_qualified_var (mod, n) = do
             Just x -> return x
             Nothing -> do
                 ex <- get_location
-                f <- return $ codefile (cmodule ctx)
+                f <- return $ filepath (cmodule ctx)
                 throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
       Nothing -> do
           ex <- get_location
-          f <- return $ codefile (cmodule ctx)
+          f <- return $ filepath (cmodule ctx)
           throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
   else do
     ex <- get_location
-    f <- return $ codefile (cmodule ctx)
+    f <- return $ filepath (cmodule ctx)
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
 
@@ -452,17 +452,17 @@ lookup_qualified_type (mod, n) = do
             Just x -> return x
             Nothing -> do
                 ex <- get_location
-                f <- return $ codefile (cmodule ctx)
+                f <- return $ filepath (cmodule ctx)
                 throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
       Nothing -> do
           ex <- get_location
-          f <- return $ codefile (cmodule ctx)
+          f <- return $ filepath (cmodule ctx)
           throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
   else do
     ex <- get_location
-    f <- return $ codefile (cmodule ctx)
+    f <- return $ filepath (cmodule ctx)
     throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
 
 

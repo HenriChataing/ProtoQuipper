@@ -13,12 +13,12 @@ import Data.List as List
 
 -- | Type of all the unary gates.
 unary_type :: Type
-unary_type = TCirc TQBit TQBit
+unary_type = TCirc TQbit TQbit
 
 
 -- | Type of all the binary gates.
 binary_type :: Type
-binary_type = TCirc (TTensor [TQBit, TQBit]) (TTensor [TQBit, TQBit])
+binary_type = TCirc (TTensor [TQbit, TQbit]) (TTensor [TQbit, TQbit])
 
 
 -- | Generic value of unary gates, parametrized over the name of the gate.
@@ -38,14 +38,14 @@ binary_value g =
 -- | Map of the builtin gates.
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
-  let init = [("INIT0", (TCirc TUnit TQBit,
+  let init = [("INIT0", (TCirc TUnit TQbit,
                          VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQbit 0))),
-              ("INIT1", (TCirc TUnit TQBit,
+              ("INIT1", (TCirc TUnit TQbit,
                          VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQbit 0)))] in
 
-  let term = [("TERM0", (TCirc TQBit TUnit,
+  let term = [("TERM0", (TCirc TQbit TUnit,
                          VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit)),
-              ("TERM1", (TCirc TQBit TUnit,
+              ("TERM1", (TCirc TQbit TUnit,
                          VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit))] in
 
   let phase = [("PHASE", (TArrow TInt unary_type,
@@ -60,7 +60,7 @@ builtin_gates =
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
-  let toffoli = ("TOFFOLI", (TCirc (TTensor [TQBit, TQBit, TQBit]) (TTensor [TQBit, TQBit, TQBit]),
+  let toffoli = ("TOFFOLI", (TCirc (TTensor [TQbit, TQbit, TQbit]) (TTensor [TQbit, TQbit, TQbit]),
                              VCirc (VTuple [VQbit 0, VQbit 1, VQbit 2])
                                    (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
                                    (VTuple [VQbit 0, VQbit 1, VQbit 2]))) in

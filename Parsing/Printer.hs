@@ -15,10 +15,10 @@ instance PPrint Type where
     sprintn lv t
 
   -- Print unto Lvl = n
-  sprintn _ TUnit = "T"
-  sprintn _ TBool = "bool"
-  sprintn _ TInt = "int"
-  sprintn _ TQBit = "qbit"
+  sprintn _ TUnit =   "()"
+  sprintn _ TBool =   "bool"
+  sprintn _ TInt =    "int"
+  sprintn _ TQbit =   "qbit"
   sprintn _ (TVar x) = x
   sprintn _ (TQualified m x) = m ++ "." ++ x
   sprintn (Nth 0) _ = "..."
@@ -70,21 +70,22 @@ instance PPrint Pattern where
 
   -- Print unto Lvl = n
   sprintn _ PJoker = "_"
-  sprintn _ PUnit = "<>"
+  sprintn _ PUnit = "()"
   sprintn _ (PVar x) = x
   sprintn (Nth 0) _ = "..."
 
   sprintn lv (PTuple plist) =
     let dlv = decr lv in
     case plist of
-      [] -> "<>"
-      [p] -> "<" ++ sprintn dlv p ++ ">"
-      p:rest -> "<" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ">"
+      [] -> "()"
+      [p] -> "(" ++ sprintn dlv p ++ ")"
+      p:rest -> "(" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ")"
 
   sprintn lv (PDatacon dcon Nothing) = dcon
-  sprintn lv (PDatacon dcon (Just p)) = dcon ++ " (" ++ pprint p ++ ")"
+  sprintn lv (PDatacon dcon (Just p)) =
+    dcon ++ " (" ++ pprint p ++ ")"
 
-  sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " : " ++ pprint t ++ ")"
+  sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " <: " ++ pprint t ++ ")"
 
   sprintn lv (PLocated p _) = sprintn lv p
 
@@ -101,7 +102,7 @@ instance PPrint Pattern where
 -- | Print the expression as a PP document
 print_doc :: Expr -> Doc
 
-print_doc EUnit = text "<>"
+print_doc EUnit = text "()"
 print_doc (EVar x) = text x
 print_doc (EQualified m x) = text m <> text "." <> text x
 print_doc ERev = text "rev"
@@ -119,7 +120,7 @@ print_doc (ELet r p e f) =
 print_doc (ETuple elist) =
   let plist = List.map print_doc elist in
   let slist = punctuate comma (List.init plist) ++ [List.last plist] in
-  char '<' <> hsep plist <> char '>'
+  char '(' <> hsep plist <> char ')'
 
 print_doc (EIf e f g) =
   text "if" <+> print_doc e <+> text "then" $$

@@ -422,7 +422,7 @@ translate_type S.TBool [] m = do
 translate_type S.TInt [] m = do
   return (TBang anyflag TInt, emptyset, fst m)
 
-translate_type S.TQBit [] m = do
+translate_type S.TQbit [] m = do
   return (TBang zero TQbit, emptyset, fst m)
 
 translate_type (S.TVar x) arg (label, bound) = do
