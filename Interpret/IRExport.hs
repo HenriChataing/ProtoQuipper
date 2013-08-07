@@ -75,11 +75,14 @@ append_outputs outWires irdoc =
 
 
 -- | Export a circuit to IR format.
+-- Before the export, the circuit is 'reallocated' via a call to allocate (Circuits) that optimises the use of
+-- wires.
 export_to_IR :: Circuit -> IRDoc
 export_to_IR circ =
-  let irnew = new_with_inputs $ qIn circ in
-  let irgates = List.foldl (\irdoc g -> append_gate g irdoc) irnew $ gates circ in
-  append_outputs (qOut circ) irgates
+  let (circ', _) = allocate circ in
+  let irnew = new_with_inputs $ qIn circ' in
+  let irgates = List.foldl (\irdoc g -> append_gate g irdoc) irnew $ gates circ' in
+  append_outputs (qOut circ') irgates
 
 
 
