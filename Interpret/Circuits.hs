@@ -288,7 +288,8 @@ maxColumns = 80
 
 -- | The definition of the whole grid.
 data Grid = Grid { gsize :: Int,               -- ^ Number of lines.
-                   columns :: [Column] }       -- ^ Reversed list of all columns.
+                   columns :: [Column],        -- ^ Reversed list of all columns.
+                   cut :: Bool }               -- ^ Flag set when the circuit is too long in length.
             
  
 -- | Starting from the right of the grid, move left on the line until it finds
@@ -312,7 +313,7 @@ free_common_depth ls c = List.minimum (List.map (\l -> free_depth l c) ls)
 -- | Prints a 'character' (in fact three) at the coordinates (line, column).
 print_at :: Int -> Int -> String -> [Column] -> [Column]
 print_at l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
-print_at l n s (c:cl) = c:(print_at l (n-1) s cl)
+print_at l n s (c:cl) = (c:(print_at l (n-1) s cl))
 
 
 -- | Hide the display grid behind a state monad.
@@ -325,12 +326,20 @@ instance Monad GrState where
 
 -- | Print n characters on same column, different lines.
 print_multi :: [(Int, String)] -> GrState ()
-print_multi ls = GrState (\gr -> let d = free_common_depth (fst $ unzip ls) $ columns gr in
-                                 if d == -1 then
-                                   let nc = Col { chars = fromList ls } in
-                                   (gr { columns = nc:(columns gr) }, ())
+print_multi ls = GrState (\gr -> if not $ cut gr then
+                                   -- The display stil hasn't over
+                                   let d = free_common_depth (fst $ unzip ls) $ columns gr in
+                                   if d == -1 then
+                                     -- Circuit too log : cut
+                                     if (List.length $ columns gr) * 6 > maxColumns then
+                                       (gr { cut = True }, ())
+                                     else
+                                       let nc = Col { chars = fromList ls } in
+                                       (gr { columns = nc:(columns gr) }, ())
+                                   else
+                                     (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ())
                                  else
-                                   (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ()))
+                                   (gr, ()))
 
 
 -- | Print a gate.
@@ -348,22 +357,26 @@ output_line l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars 
                                                         Nothing -> if l `mod` 2 == 0 then ("---", True) else ("   ", False)
                                                       in
                                                         
-                                    let (s, _) = List.foldr (\c (s, on) -> 
-                                                                let (ns, non) = case Map.lookup l $ chars c of
-                                                                                  Just sm -> if isSuffixOf "|-" sm then
-                                                                                               (s ++ sm, True)
-                                                                                             else if isPrefixOf "-|" sm then
-                                                                                               (s ++ sm, False)
-                                                                                             else (s ++ sm, on)
-                                                                                  Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
-                                                                                             else (s ++ "   ", on)
-                                                                in
-                                                                -- Printing wires
-                                                                if l `mod` 2 == 0 && non then
-                                                                  (ns ++ "---", non)
-                                                                else
-                                                                  (ns ++ "   ", non)) initMode $ columns gr in
-                                    s))
+                                    let (s, on) = List.foldr (\c (s, on) -> 
+                                                                 let (ns, non) = case Map.lookup l $ chars c of
+                                                                                   Just sm -> if isSuffixOf "|-" sm then
+                                                                                                (s ++ sm, True)
+                                                                                              else if isPrefixOf "-|" sm then
+                                                                                                (s ++ sm, False)
+                                                                                              else (s ++ sm, on)
+                                                                                   Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
+                                                                                              else (s ++ "   ", on)
+                                                                 in
+                                                                 -- Printing wires
+                                                                 if l `mod` 2 == 0 && non then
+                                                                   (ns ++ "---", non)
+                                                                 else
+                                                                   (ns ++ "   ", non)) initMode $ columns gr in
+                                    -- If the circuit was cut, add some dots..., if not just return the line
+                                    if cut gr && on then
+                                      s ++ " .."
+                                    else
+                                      s))
 
 
 -- | Output the whole grid.
@@ -382,7 +395,7 @@ instance PPrint Circuit where
     let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = print_gate g in
                                                           run gr) (gr, ()) gates) in
     let GrState run = (runGr >>= (\_ -> output)) in
-    let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [] }) in
+    let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [], cut = False }) in
     s ++ "\n"
 
   sprintn _ c = pprint c
