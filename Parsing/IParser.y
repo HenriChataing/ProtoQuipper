@@ -83,7 +83,7 @@ Tensor_list :
 
 Atom_type :
       BOOL                                      { locate TBool $1 }
-    | QBIT                                      { locate TQBit $1 }
+    | QBIT                                      { locate TQbit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
     | UID '.' LID                               { locate (TQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }

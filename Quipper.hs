@@ -39,55 +39,26 @@ main = do
   argv <- getArgs
   (opts, files) <- parseOpts argv
 
-  -- Program actions
-  if showHelp opts then
-    putStrLn $ usageInfo header options
-  else
-    return ()
-
-  if showVersion opts && not (showHelp opts) then
-    putStrLn $ version
-  else
-    return ()
-
-  if not (showVersion opts) && not (showHelp opts) then do
-    -- Unify option
-    case runUnify opts of
-      Just set -> do
-          putStrLn  $ "\x1b[1;33m" ++ ">> unification test" ++ "\x1b[0m"
-          tokens <- mylex set
-          constraints <- return $ parse_constraints tokens
+  -- Proto quipper
+  case files of
+    [] -> optFail "-: No argument file specified"
+    [file] -> 
           (do
-             s <- unification_test constraints
-             putStrLn s) `E.catch` (\(e :: QError) -> do
-                                      putStrLn $ show e)
+             (_, (v, t)) <- Q.runS (do
+               Q.set_verbose (verbose opts)
+               (v, t) <- do_everything opts file
+               t <- Q.pprint_type_noref t
+               return (v, t)) Q.empty_context
+             case (v, circuitFormat opts) of
+               (Just (VCirc _ c _), "ir") -> do
+                 irdoc <- return $ export_to_IR c
+                 putStrLn irdoc
 
-      Nothing -> do
-          -- Other options
-          if files == [] then do
-            putStrLn "No argument file specified"
-            putStrLn $ usageInfo header options
-          else do
-            -- For now, only the first file is kept and treated
-            -- Read and parse the file
+               (Just (VCirc _ c _), "visual") -> do
+                 putStrLn $ pprint c
 
-            file <- return $ List.head files
-            (do
-               (_, (v, t)) <- Q.runS (do
-                 Q.set_verbose (verbose opts)
-                 (v, t) <- do_everything opts file
-                 t <- Q.pprint_type_noref t
-                 return (v, t)) Q.empty_context
-               case (v, irOutput opts) of
-                 (Just (VCirc _ c _), Just f) -> do
-                   -- Export the circuit to the file f
-                   handle <- openFile f WriteMode
-                   irdoc <- return $ export_to_IR c
-                   hPutStr handle irdoc
-                   hClose handle
+               (Just v, _) -> putStrLn $ (pprint v ++ " : " ++ t)
+               (Nothing, _) -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
 
-                 (Just v, _) -> putStrLn $ (pprint v ++ " : " ++ t)
-                 (Nothing, _) -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
-  else
-    return ()
+    _ -> optFail "-: Several input files"
 

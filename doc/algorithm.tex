@@ -328,7 +328,7 @@ type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \G
 \end{thm}
 
 We can now start formalizing the problem of the type inference. For a complete discussion about the signification of type variables
-and the different understandings of type inference, please refer to the chapter 22 of \cite{pierce}.
+and the different understandings of type inference, please refer to the chapter 22 of \cite{pierce02}.
 Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type, not necessarily verifying $\Gamma \vdash t : T$. We ask ourselves the
 question :
  \begin{center}
@@ -672,15 +672,15 @@ by the completeness theorem.
 \subsection{Unification}
 
 A constraint set can have infinitely many solutions, but some may be better than others. In particular, we will privilege those
-that make the less assumptions about the structure of types. For example, the set $\lset = \{!^n \alpha \prec: !^m \beta\}$ will have
-$\sigma = [\alpha \mapsto \beta, n \mapsto 1, \mapsto 0]$ and $\tau = [\alpha \mapsto !^1 A \otimes !^1 A, \beta \mapsto !^1 A \otimes !^1 A,*
-n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is more general than $\tau$.
+that make less assumptions about the structure of types. For example, the set $\lset = \{!^n \alpha \prec: !^m \beta\}$ will have
+$\sigma = [\alpha \mapsto \beta, n \mapsto 1, m \mapsto 0]$ and $\tau = [\alpha \mapsto !^1 A \otimes !^1 A, \beta \mapsto !^1 A \otimes !^1 A,
+n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is "more general" than $\tau$.
 
 \begin{defn} Suppose two substitutions $\alpha$ and $\alpha'$. We say that $\alpha$ is \textit{more general} than $\alpha'$, written
 	$\alpha \sqsubseteq \alpha'$ if there exists a substitution $\tau$ such that $\alpha' = \tau \circ \alpha$.
 \end{defn}
 
-With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. B. Pierce go even further by stating the existence
+With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. B. Pierce goes even further by stating the existence
 of a most general unifier MGU of a constraint set, a substitution solution of a set that is more general that any other solution. However,
 what was true in STLC is not in QP'. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
 by Pierce. To prove it, it suffices to consider the example above. Suppose that there is a most general unifier $\rho$. Since $\rho$ is
@@ -689,7 +689,7 @@ we can create $\sigma$ equal to $\rho$ but for $\sigma(n) = 1$. Thus built, $\si
 $\rho \sqsubseteq \sigma$.
 We adapt the definition of the most general unifier to be\,:
 
-\begin{defn} The \textit{most general unifier}, or MGU, or a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
+\begin{defn} The \textit{most general unifier}, or MGU, of a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
 	constraint set $\lset'$ such that :
 		\begin{itemize}
 			\item For every solution $\tau$ of $\lset	'$, $\tau \circ \sigma$ is a solution of $\lset$.
@@ -697,17 +697,17 @@ We adapt the definition of the most general unifier to be\,:
 		\end{itemize}
 \end{defn}
 
+This definition only makes sense if this MGU actually exists. Thus we need to prove the theorem\,:
 \begin{thm}
 	\label{existence-MGU}
 	Suppose a constraint $\lset$ that has at least one solution $\sigma$. Then $\lset$ has a most general unifier.
 \end{thm}
-With the theorem \ref{existence-MGU} that ensures the existence of the MGU of any solvable constraint set, we have introduced a sound
-equivalent to the STLC most general unifier.
 
+This notion of MGU is analogous to the one defined for the purpose of the STLC unification.
 The unification algorithm proceeds in two steps :
 	\begin{enumerate}
 		\item Type unification. The algorithm reduces and solves the sub-typing constraints of the input set $\lset$.
-			The output is a substitution $\sigma$, and residual constraint set $\lset'$ which contains only atomic sub-typing constraints and
+			The output is a substitution $\sigma$, and a residual constraint set $\lset'$ which contains only atomic sub-typing constraints and
 			flag constraints.
 			
 		\item Flag unification. This step reduces the flag constraints. It inputs the constraint set $\lset'$ left by the type unification,
@@ -718,7 +718,7 @@ The unification algorithm proceeds in two steps :
 
 \begin{defn}
 	All the composite constraints produced by either the constraint typing
-  algorithm or the unification algorithm are automatically reduced, using the following reduction rules.
+  algorithm or the unification algorithm are automatically reduced, using the following rules.
   If the constraint $c$ is :
   	\begin{itemize}
       \item $T \multimap U \prec: T' \multimap U'$, replace $c$ by $T' \prec: T$ and $U \prec: U'$
@@ -727,40 +727,59 @@ The unification algorithm proceeds in two steps :
       \item $1 \prec: 1$, remove the constraint
       \item For any other composite constraint, the algorithm fails
     \end{itemize}
-  When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha <: \beta$) or
+  When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha \prec: \beta$) or
   semi-composite ($T \prec: \alpha$ or $\alpha \prec: T$).
-	Using the sub-typing relation rules on the one side, and the inversion lemma associated with those rules on the other side,
-	it is possible to show that the sets before and after one reduction step have exactly the same solutions. This justifies
-	the automated application of those reduction rules.
 \end{defn}
 
-\begin{defn}
-	The type unification relies on an ordering of the type variables, that ensures the termination of the algorithm, and gives a upper
-	bound to its complexity (even though the limit itself is exponential).
-	The goal is to sort variables topologically, from youngest to oldest. In particular,
-  the youngest variable may not appear in any composite type. This is done by defining an age for every variable, with the
-  relations :
+\begin{lemma} \label{reductionQP'}
+	Let $\lset$ be a constraint set, and $\lset^*$ the reduction of $\lset$. Then $\sigma$ is a solution of $\lset$ if and only if it is
+	a solution of $\lset*$.
+	
+	\begin{proof}
+		The right to left implication is proved by application of the sub-typing relation rules defined in the figure \ref{subtypingQP'}.
+		The fact that all these rules are invertible gives the left to right implication.
+	\end{proof}
+\end{lemma}
+
+The type unification algorithm relies on an ordering of type variables that ensures termination and gives a upper
+bound to its complexity (even though the limit itself is exponential).
+
+\begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation
+	on the elements of $\vset_\lset$ defines a partition $\mathcal{C}$ of $\vset_\lset$ whose elements are the equivalence classes.
+	Let $\equiv$ be a partial equivalence relation such that\,:
+		\begin{center}
+			For all relation $\alpha \equiv \beta$, $\exists \gamma_1 \dots \gamma_n$, s.t. $\alpha \prec: \gamma_1 \dots
+				\gamma_n \prec: \beta$ (or the inverse).
+		\end{center}
+	For all variable $\alpha \in \vset_\lset$, we write $c_\alpha$ for the the particular equivalence class that contains $\alpha$.
+	We equip the set $\mathcal{C}$ with the partial relation $\ll$ defined as follows\,:
   	\begin{center}
-  	\begin{tabular}{l}
-  	  For all constraint $\alpha \prec: T$ or $T \prec: \alpha$, $\forall \beta \in FV(T), ~ Age (\alpha) < Age (\beta)$ \\
-  	  For all constraint $\alpha \prec: \beta$, $Age (\alpha) = Age (\beta)$
-  	\end{tabular}
+  	  For all constraint $\alpha \prec: T$ or $T \prec: \alpha$, $\forall \beta \in FV(T), c_\alpha \ll c_\beta$
   	\end{center}
-  The algorithm may fail to define the $Age$ due to cyclic constraints, for example with the constraint $\alpha <: \alpha \multimap \beta$,
-  which gives the absurd relation in the definition of the age of $\alpha$ : $A(\alpha) < A(\alpha)$. A constraint set defining an
-  infinite type $\alpha :=: \alpha \bullet \alpha$ will definitely produce this kind of exception. \\
+\end{defn}
+
+The couple of relations $(\equiv, \ll)$ can be interpreted as defining an age for each variable. In a constraint $\alpha \prec: T$,
+we see that $\alpha$ can only be defined after the introduction of all the variables $\beta$ of $T$. Thus, $\alpha$ is in some sense
+\emph{younger} than $\beta$. This is analogous to the topological sorting.
+
+Note that the set $\mathcal{C}$ equipped with the partial relation $\ll$ may be incoherent, as is the case with any set containing
+a constraint like $\alpha \prec: \,!^*\beta ~\bullet~ \,!^*\alpha$ that gives the relation $c_\alpha \ll c_\alpha$. More generally,
+an incoherent set is the symptom of an infinite type definition $\alpha = \alpha \bullet \alpha$. As infinite types are not included
+in the definition of the type system, such cases will lead the algorithm to failure.
   
-  Here is an hint of the algorithm. Take a poset that has only strict $<$ relations on ages (relations $Age (\alpha) = Age(\beta)$ are omitted for now).
-  Suppose this poset is implemented as a graph, whose vertices are the variables, and where each edge $\alpha \rightarrow \beta$ corresponds an
-  age relation $Age(\beta) < Age(\alpha)$. A in-depth exploration of this graph starting from any vertex will either :
+\begin{defn}
+  Here is an sketch of the algorithm.
+  The first step is to sort out all the atomic constraints $\alpha \prec: \beta$, which we use to build the set of equivalence classes
+  $\mathcal{C}$. The relation $\ll$ on classes is then defined using the remaining constraints and the above definition.
+  Suppose this poset is implemented as a graph, whose vertices are the equivalence classes, and where each edge
+  $c_\alpha \rightarrow c_\beta$ corresponds an relation $c_\beta \ll c_\alpha$. An in-depth exploration of this graph starting from any
+  vertex will either :
   	\begin{itemize}
-  		\item Reach a vertex $\alpha$ that has no outgoing edges. Then $\alpha$ is a minimum of the poset.
-  		\item Reach a vertex $\alpha$ that has already been explored. This means the constraint set defines an infinite type $\alpha$.
-  			The algorithm fails.
+  		\item Reach a vertex $c_\alpha$ that has no outgoing edges. Then $c_\alpha$ is a minimum class of the poset.
+  		\item Reach a vertex $c_\alpha$ that has already been explored. This means the poset is incoherent, and the algorithm fails.
   	\end{itemize}
-  Since each vertex is explored at most once, this algorithm is linear in the number of vertices. To take relations $Age(\alpha) = Age(\beta)$,
-  the graph representation is adapted to have age classes as vertices instead of single variables. Then, a relation $Age(\alpha) = Age(\beta)$
-  is dealt with by merging the two vertices containing $\alpha$ and $\beta$.
+  Since each class is explored at most once, this algorithm is linear in the number of vertices (and by extension in the number of type
+  variables).
 \end{defn}
 
 In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denotes the set $\bigcup_{k} \{ A_k \prec: B_k \}$.

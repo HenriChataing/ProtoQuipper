@@ -13,31 +13,31 @@ import qualified Data.IntMap as IMap
 -- | Internal representation of a module.
 data Module = Mod {
   -- Module name, and path to code file
-  mname :: String,          -- ^ Module name.
-  codefile :: FilePath,     -- ^ Path to implementation file.
+  module_name :: String,             -- ^ Module name.
+  filepath :: FilePath,              -- ^ Path to implementation file.
 
   -- Module dependencies
-  dependencies :: [String], -- ^ list of module dependencies.
+  dependencies :: [String],          -- ^ List of module dependencies.
 
   -- Specifications of the module types
-  typespecs :: Map String Typespec,
+  typespecs :: Map String Typespec,  -- ^ List of the module's types definitions.
 
   -- Ids of the global variables
-  global_ids :: Map String Variable,
+  global_ids :: Map String Variable, -- ^ List of the module's global variables.
 
   -- Types of the global variables
-  global_types :: IntMap Type,
+  global_types :: IntMap Type,       -- ^ Types of the global variables.
 
   -- Global variables definitions
-  global_vars :: IntMap Value
+  global_vars :: IntMap Value        -- ^ If the option -r is entered, values of the global variables.
 }
 
 
--- | Dummy module, never to be used
+-- | Dummy module, never to be used.
 dummy_module :: Module
 dummy_module = Mod {
-  mname = "Dummy",
-  codefile = "*UKNOWN*",
+  module_name = "Dummy",
+  filepath = "*UKNOWN*",
 
   dependencies = [],
 

@@ -178,8 +178,8 @@ process_module opts prog = do
 
   -- Set up a new module
   ctx <- get_context
-  set_context $ ctx { cmodule = Mod { mname = mod,
-                                      codefile = f,
+  set_context $ ctx { cmodule = Mod { module_name = mod,
+                                      filepath = f,
                                       dependencies = S.imports prog,
                                       typespecs = Map.empty,
                                       global_ids = Map.empty,
