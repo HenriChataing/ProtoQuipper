@@ -16,8 +16,8 @@ new_with_inputs :: [Int] -> IRDoc
 new_with_inputs [] =
   "Inputs: none\n"
 
-new_with_inputs inWires =
-  let irdoc = List.foldl (\irdoc w -> irdoc ++ " " ++ show w ++ ":Qbit") "Inputs:" inWires in
+new_with_inputs (w:wires) =
+  let irdoc = List.foldl (\irdoc w -> irdoc ++ ", " ++ show w ++ ":Qbit") ("Inputs: " ++ show w ++ ":Qbit") wires in
   irdoc ++ "\n"
  
 
@@ -30,8 +30,7 @@ append_gate (Term b w) irdoc = irdoc ++ "QTerm" ++ show b ++ "(" ++ show w ++ ")
 -- Unary gates
 -- Some gates have a specific format in IR
 append_gate (Phase n w) irdoc =
-  let t = pi / ((fromIntegral n) :: Float) in
-  irdoc ++ "QPhase(" ++ show w ++ ") with t=" ++ show t ++ "\n" 
+  irdoc ++ "QGate[\"R(pi/%)\"," ++ show n ++ "](" ++ show w ++ ")\n" 
 -- And some don't
 append_gate (Unary g w) irdoc =
   let (prg, inv) = case g of
@@ -70,8 +69,8 @@ append_outputs :: [Int] -> IRDoc -> IRDoc
 append_outputs [] irdoc =
   irdoc ++ "Outputs: none\n"
 
-append_outputs outWires irdoc =
-  irdoc ++ List.foldl (\s w -> s ++ " " ++ show w ++ ":Qbit") "Outputs:" outWires ++ "\n"
+append_outputs (w:wires) irdoc =
+  irdoc ++ List.foldl (\s w -> s ++ ", " ++ show w ++ ":Qbit") ("Outputs: " ++ show w ++ ":Qbit") wires ++ "\n"
 
 
 -- | Export a circuit to IR format.
