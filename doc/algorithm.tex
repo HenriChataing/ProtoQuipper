@@ -15,7 +15,7 @@
 \usepackage{mdframed}
 \usepackage{bussproofs}
 \usepackage[utf8]{inputenc}
-\usepackage[]{hyperref}
+\usepackage[]{nohyperref}
 
 \input{Qcircuit}
 
@@ -72,7 +72,7 @@
 
 The grammar of Proto-Quipper being rather extensive, the type inference will be formalized on a subset of the types and terms
 of Proto-Quipper. It shall be explained in a later section how to extend it to the full syntax. This section introduces the
-terms and type system of the language of reference of the formalization, which we name QP', by opposition to QP or Proto-Quipper. 
+terms and type system of the language we will use to formalize the algorithm, which we name QP', by opposition to QP or Proto-Quipper. 
 
 \begin{defn} The terms of QP' are the following :
 	\begin{center}
@@ -91,8 +91,9 @@ terms and type system of the language of reference of the formalization, which w
 			$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
 		\end{tabular}
 		\end{center}
-	This would have been sufficient had the types not been linear. Because we need to be able to separately discuss the \textit{value}
-	and the \textit{linearity} of any type, a new grammar is introduced which, though less intuitive, offers more control over the form
+	This would have been sufficient had the types not been linear. Because we need to be able to separately discuss the \textit{form} (for example
+	$qbit$, $bool \otimes bool$) and the \textit{linearity} (whether the type is duplicable or not) of any type, a new grammar is introduced
+	which, though less intuitive, offers more control over the form
 	of a type :
 		\begin{center}
 		\begin{tabular}{rl}
@@ -105,7 +106,7 @@ terms and type system of the language of reference of the formalization, which w
 		\begin{itemize}
 			\item $\texttt{LinearType}$ is the subset of types that are always linear. They will always correspond to terms that can not be duplicated,
 				such as qbits.
-			\item Depending of the value of their prefixing flag, $\texttt{Type}$ can be duplicable or not. This is intended as the general type of terms.
+			\item $\texttt{Type}$ is set of all the types of terms. Depending of the value of its prefixing flag, a $\texttt{Type}$ can be duplicable or not.
 				In practice, the type of a term will always be represented by a type, never by a linear type.
 			\item $\texttt{Flag}$ is the set of \textit{flag variables}, which parametrize the linearity of a type. If the value of $n$ in
 				$!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type of any quantum address shall be
@@ -189,16 +190,16 @@ New notations are introduced :
 \end{defn}
 
 \begin{remark} The typing rules of QP' are mostly the same as those of QP, but for the different syntax of types and the special
-	case of the tensors typing rules. Recall that the typing rule for $\pair{a}{b}$ was in QP (without the quantum contexts)\,:
+	case of the tensor typing rules. Recall that the typing rule for $\pair{a}{b}$ was in QP (without the quantum contexts)\,:
 		\begin{prooftree}
 			\AxiomC{$\Gamma_1, !\Delta \vdash a : \,!^nA$}
 			\AxiomC{$\Gamma_2, !\Delta \vdash b : \,!^nB$}
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \pair{a}{b} : \,!^n(A \otimes B)$}
 		\end{prooftree}
-	What it says is that the pair $\pair{a}{b}$ is duplicable if and only if both $a$ and $b$ are. However, the grammar of QP' types doesn't
-	allow us to move the $!$ around. This is why the rule $(\otimes.I)$ of QP' uses the type $!^p(!^nA \otimes \,!^mB)$ with the condition
-	that $p$ can be $1$ if and only if both $n$ and $m$ are equal to one. This results in the duplicable pair $\pair{a}{b}$ having the
+	which expresses the fact that the pair $\pair{a}{b}$ is duplicable if and only if both $a$ and $b$ are. However, the grammar of QP' types
+	doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of QP' uses the type $!^p(!^nA \otimes \,!^mB)$ with
+	the condition that $p$ can be $1$ if and only if both $n$ and $m$ are equal to one. This results in the duplicable pair $\pair{a}{b}$ having the
 	type $!^1(!^1 A \otimes \,!^1B)$ rather than $\bang (A \otimes B)$. \\
 	The same can be said of the rule $(\otimes.E)$.
 \end{remark}
@@ -272,7 +273,7 @@ New notations are introduced :
 \subsubsection{Properties}
 
 \begin{thm}{\bf Soundness and completeness} Let $t$ be a QP' term. There exists two transformations $\tau$ and
-	$\bar \tau$ applying on types, respectively from QP to QP' types, and QP' to QP types, verifying the properties :
+	$\bar \tau$ defined on types as functions respectively from QP to QP' types, and QP' to QP types, verifying the properties :
 	\begin{enumerate}
 		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in QP, then
 			$\tau\Gamma \vdash t : \tau T$ is valid in QP'.
@@ -349,7 +350,7 @@ In the rest of this chapter, the language by default will be QP', except when ot
 	from either type variables to \textit{linear} types 	or flag variables to either $0$ or $1$.
 	We write $dom(\sigma)$ for the set of variables appearing on the left-hand sides of the mappings, and $range$ the set of variables appearing
 	on the right-hand sides of pairs in $\sigma$. We also use $vDom$, $vRange$, $fDom$ and $fRange$ for the subsets of $dom$ and $range$ that
-	contain respectively the type variables and the flag variables. Note that variables may appear in both $dom(\sigma)$ and $range(\sigma$. The
+	contain respectively the type variables and the flag variables. Note that variables may appear in both $dom(\sigma)$ and $range(\sigma)$. The
 	intention in such cases is for the mappings of $\sigma$ to be applied simultaneously.
 	The application of a substitution $\sigma$ to types and linear types is defined in the obvious way\,:
 	$$
@@ -368,10 +369,10 @@ In the rest of this chapter, the language by default will be QP', except when ot
 	\end{array}
 	$$
 	
- 	The definition of $\sigma$ ensures that the kind of types is left untouched : linear types are mapped to linear types, and so are
- 	types. The substitution $\sigma$ is extended to contexts by defining 
+ 	The definition of $\sigma$ ensures that the kind of a type is left untouched : a linear type are mapped to a linear type, and so is a
+ 	type. The substitution $\sigma$ is extended to contexts by defining 
  		$$\sigma (x_1 : T_1 \dots x_n : T_n) = (x_1 : \sigma T_1 \dots x_n : \sigma T_n)$$
-	If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ by $\tau$, defined as follow
+	If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ with $\tau$, defined as follow
 		$$\tau \circ \sigma = \left[ \begin{array}{ll}
 																			\alpha \mapsto \tau A & \text{for each } (\alpha \mapsto A) \in \sigma \\
 																			\alpha \mapsto A & \text{for each } (\alpha \mapsto A) \in \tau \text{ with } \alpha \notin vDom(\sigma) \\
@@ -379,13 +380,13 @@ In the rest of this chapter, the language by default will be QP', except when ot
 																			n \mapsto 0|1 & \text{for each } (n \mapsto 0|1) \in \tau \text{ with } n \notin fDom(\sigma) \\
 																		\end{array} \right]$$
  	$\circ$ is associative : $\sigma \circ (\tau \circ \rho) = (\sigma \circ \tau) \circ \rho$. We say that a substitution $\sigma$ is
- 	\textit{idempotent} if it verifies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma$ is idempotent if and
+ 	\textit{idempotent} if it verifies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if and
  	only if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
  	$\sigma \neq \sigma \circ \sigma$ can be really cumbersome, we consider in the following that all substitutions are chosen idempotent.
 \end{defn}
 
 A necessary property of substitutions is that they preserve the validity of typing judgements. If a term $t$ is well-typed with the
-type $T$ in the context $\Gamma$, then for all substitutions instances $\sigma \Gamma \vdash t : \sigma T$.
+type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \Gamma \vdash t : \sigma T$ is valid.
 
 \begin{thm}
 	\label{subs-judgement}
@@ -401,8 +402,8 @@ question :
  	 "Is \text{some} substitution instance of $t$ well-typed ?"
  \end{center}
 That is, can we find $\sigma$ such that $\sigma \Gamma \vdash t : \sigma T$ is well typed ? Looking for valid instantiations of the
-variables of $\Gamma, T$ leads to the problem of type inference. The formalize this, we need a concrete way to substitute variables
-to obtain a valid typing judgement.
+variables of $\Gamma, T$ leads to the problem of type inference. The formalize this, we need a concrete definition of all the
+possible ways to substitute variables to obtain a valid typing judgement.
 
 \begin{defn}
 	\label{decl_problem}
@@ -410,12 +411,14 @@ to obtain a valid typing judgement.
 	$\sigma \Gamma \vdash t : \sigma T$ is a valid typing judgement.
 \end{defn}
 
-\begin{exmp} Let $f$ be $\lambda x.\pair{x}{x}$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then
+\begin{exmp} Let $f$ be $\lambda x.x$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then
 	\begin{center}
 	\begin{tabular}{l}
-		$[\alpha ~\mapsto~ !^1(!^1A \multimap !^0B),~~ \beta ~\mapsto~ !^1A,~~ \gamma ~\mapsto~ !^0B]$ \\
-		$[\alpha ~\mapsto~ !^0(!^1A \multimap !^1B),~~ \beta ~\mapsto~ !^1A,~~ \gamma ~\mapsto~ !^1B]$ \\
-		$[\alpha ~\mapsto~ !^0(!^1int \multimap !^0(!^1int \otimes !^1int)),~~ \beta ~\mapsto~ !^1int,~~ \gamma ~\mapsto~ !^0(!^1int \otimes !^1int)]$
+		$[!^n\alpha ~\mapsto~ !^1(!^0int \multimap !^1int),~~ !^m\beta ~\mapsto~ !^1int,~~ !^p\gamma ~\mapsto~ !^1int]$ \\
+		$[!^n\alpha ~\mapsto~ !^0(!^0qbit \multimap !^0bit),~~ !^m\beta ~\mapsto~ !^0qbit,~~ !^p\gamma ~\mapsto~ !^0qbit]$ \\
+		$[!^n\alpha ~\mapsto~ !^0(!^1int \multimap !^0(!^1int \otimes !^1int)),
+			~~ !^m\beta ~\mapsto~ !^1int,
+			~~ !^p\gamma ~\mapsto~ !^0(!^1int \otimes !^1int)]$
 	\end{tabular}
 	\end{center}
 	are all solutions for $(\varnothing, t, !^p \gamma)$.
@@ -428,14 +431,20 @@ to obtain a valid typing judgement.
 		\begin{center}
 		\begin{tabular}{l}
 			\textit{atomic} if it is of the form $\alpha \prec: \beta$. \\
-			\textit{composite} if it is of the form $A \prec: B$ or $T \prec U$ with $A, B \notin \vset$. \\
+			\textit{composite} if it is of the form $A \prec: B$ or $T \prec: U$ with $A, B \notin \vset$. \\
 			\textit{semi-composite} if it is of the form $\alpha \prec: A$ or $A \prec: \alpha$ with $A \notin \vset$.
 		\end{tabular}
 		\end{center}
   Similarly, flag constraints $n \le m$ are defined over flag variables. Flag constraints are atomic if of the form $n \le m$,
   for $m, n\in \fset$.
-  Though all flag constraints are written in the same form $. \le .$, they can hold different meanings, for example $n \le 0$ can
-  be viewed as $n = 0$, $1 \le m$ is the constraint $m = 1$, and $n \le m$ can be interpreted as $n = 1 \Rightarrow m = 1$.
+  Though all flag constraints are written in the same form $(. \le .)$, they can hold different meanings, for example
+  	\begin{center}
+  	\begin{tabular}{ll}
+  		$n \le 0$ & can be viewed as $n = 0$, \\
+  		$1 \le m$ & is the constraint $m = 1$, \\
+  		$n \le m$ & can be interpreted as $n = 1 \Rightarrow m = 1$.
+  	\end{tabular}
+  	\end{center}
   A substitution $\sigma$ solves a constraint $T \prec: U$ ($n \le m$) if and only if $\sigma T <: \sigma U$ ($\sigma(n) \le \sigma(m)$).
 \end{defn}
 
@@ -443,7 +452,7 @@ to obtain a valid typing judgement.
 	over linear types, types and flags.
   A constraint set can have the following properties :
   \begin{itemize}
-  	\item[]{\bf Atomicity} A set is atomic when all the \textit{type} constraints contained are atomic.
+  	\item[]{\bf Atomicity} A set is atomic when all the constraints contained are atomic.
   	\item[]{\bf Satisfiability} A set is \textit{solved} when all the included constraints can be solved by application of one or
   		more of the sub-typing rules (type constraints) or by transitivity (flag constraints).
   		Thus, a set $\lset$ is \textit{solvable} if there exists a substitution $\sigma$ such that $\sigma \lset$ is solved.
@@ -471,13 +480,13 @@ to obtain a valid typing judgement.
 			\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\varnothing$}
 	\end{prooftree}
 	\begin{prooftree}
-		\AxiomC{$\mathcal{L} = \{1 \le I, ~ \,!^1 \top \prec: T \}$}
+		\AxiomC{$\mathcal{L} = \{1 \le I, ~ \,!^1 1 \prec: T \}$}
 		\RightLabel{$(\top)$}
-		\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} 1 : T ~|_\varnothing$}
+		\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} * : T ~|_\varnothing$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$!^I\Gamma, x : \,!^n\alpha \vdash_\mathcal{L'} t : \,!^m\beta ~|_\chi$} \noLine
-		\UnaryInfC{$\alpha, \beta, n, m, p \notin \chi, \Gamma, T$} \noLine
+		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L'} \cup \{ p \le I, ~ !^p(!^n\alpha \multimap \,!^m\beta) \prec: T \}$}
 		\RightLabel{$(\lambda)$}
 		\UnaryInfC{$\Gamma \vdash_\mathcal{L} \lambda x.t : T ~|_{\chi \cup \{\alpha, \beta, n, m, p \}}$}
@@ -486,7 +495,7 @@ to obtain a valid typing judgement.
 		\AxiomC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \,!^n\alpha ~|_{\chi_2}$} \noLine
 		\UnaryInfC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \,!^0(!^n\alpha \multimap T) ~|_{\chi_1}$} \noLine
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
-    \UnaryInfC{$\alpha, n \notin \chi_1, \chi_2, \Gamma, T$} \noLine
+    \UnaryInfC{$\alpha, n \notin \Gamma, T$} \noLine
     \UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
     \UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
 		\RightLabel{$(app)$}
@@ -498,7 +507,7 @@ to obtain a valid typing judgement.
 		\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \, !^m\beta ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
 		\AxiomC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
-		\BinaryInfC{$\alpha, \beta, n, m, p \notin \chi_1, \chi_2, \Gamma, T$} \noLine
+		\BinaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m ~!^p(!^n\alpha \otimes \,!^m\beta) \prec: T \}$}
 		\RightLabel{$(\otimes.I)$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \pair{t}{u} \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha, \beta, n, m, p \}}$}
@@ -507,7 +516,7 @@ to obtain a valid typing judgement.
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^p (!^n\alpha \otimes \,!^m\beta) ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u, x : \,!^n\alpha, y : \,!^m\beta \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
-		\UnaryInfC{$\alpha, \beta, n, m, p \notin \chi_1, \chi_2$} \noLine
+		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
 		\RightLabel{$(\otimes.E)$}
@@ -544,7 +553,7 @@ to obtain a valid typing judgement.
 			                                            & 1 \le n_1 &
 	  		                                        \end{array} \right\}} \lambda x.\pair{x}{x} : \,!^{n_0} \alpha$}
 		\end{prooftree}
-	the annotation sets $\chi$ are omitted to avoid surcharging the tree. Thus, we have
+	The annotations $\chi$ are omitted to avoid surcharging the tree. Thus, we have
 		$$ \text{ConstraintTyping}\,(\varnothing \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \left\{ \scriptsize
 			                                          \begin{array}{lll} 
 			                                            !^{n_1}\beta \prec: \,!^{n_4}\delta, & n_6 \le n_4 &
@@ -556,7 +565,7 @@ to obtain a valid typing judgement.
 \end{exmp}
 
 The idea of the constraint typing algorithm is that we can check the existence of a typing derivation of $\Gamma \vdash t : T$ by first
-collecting all the constraints that must be met for it to exist in $\lset$. $\lset$ characterizes the possible valid instantiations of
+collecting in $\lset$ all the constraints that must be met for it to exist. $\lset$ characterizes the possible valid instantiations of
 $\Gamma \vdash t : T$. Then, to find solutions, we look for solutions of $\lset$. If no substitution can be found that solves $\lset$,
 then we know that $t$ is not typeable with the type $T$ in the context $\Gamma$. The following definition formalizes this idea.
 
@@ -570,7 +579,7 @@ then we know that $t$ is not typeable with the type $T$ in the context $\Gamma$.
 We now have two different ways of characterizing the possible instantiations of $\Gamma \vdash t : T$ as
  	\begin{enumerate}
  		\item The solutions for $(\Gamma, t, T)$, according to the definition \ref{decl_problem}.
- 		\item Supposing the relation $\Gamma \vdash_\lset t : T$, a the solutions for $(\Gamma, t, T, \lset)$ in the sense of the definition
+ 		\item Supposing the relation $\Gamma \vdash_\lset t : T ~|_\chi$, the solutions for $(\Gamma, t, T, \lset)$ in the sense of the definition
  			\ref{alg_problem}.
  	\end{enumerate}
 
