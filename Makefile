@@ -13,7 +13,7 @@ MAIN = Quipper
 GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
   Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Classes.hs Builtins.hs Interpret/Circuits.hs		\
-  Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs		\
+  Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs Interpret/IRExport.hs		\
   Monad/Namespace.hs Monad/QpState.hs Monad/QuipperError.hs		\
   Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
   Parsing/Syntax.hs Quipper.hs Typing/CorePrinter.hs			\
