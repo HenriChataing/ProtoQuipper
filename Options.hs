@@ -1,14 +1,17 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 -- | Defines the program options.
 module Options where
 
 import System.Console.GetOpt
+import System.Exit
+import System.Directory
 
+import qualified Control.Exception as E
 import qualified Data.List as List
 
 -- | Definition of the record type carrying the options.
 data Options = Options {
-  showHelp :: Bool,                -- ^ Display the help screen.
-  showVersion :: Bool,             -- ^ Display the version number.
   verbose :: Int,                  -- ^ Set the verbose level.
 
   approximations :: Bool,          -- ^ If the unifier should make approximations.
@@ -16,11 +19,9 @@ data Options = Options {
 
   includes :: [FilePath],          -- ^ Add a ditrectory to the list of includes.
  
-  runUnify :: Maybe String,        -- ^ Run a unification test on the constraint set given as argument.
   runInterpret :: Bool,            -- ^ Run the code.
 
-  irOutput :: Maybe String         -- ^ Request for the circuit to be exported in the given file in the IR format.
-
+  circuitFormat :: String          -- ^ Specify the output format of circuits (ignore for other values), default is "ir".
 } deriving Show
 
 
@@ -29,8 +30,6 @@ data Options = Options {
 default_options :: Options
 default_options = Options {
   -- General options
-  showHelp = False,
-  showVersion = False,
   verbose = -1,
   
   -- Include directories
@@ -41,40 +40,95 @@ default_options = Options {
   workWithProto = False,
 
   -- Actions
-  runUnify = Nothing,
   runInterpret = False,
 
   -- Others
-  irOutput = Nothing
+  circuitFormat = "ir"
 }
 
 
 -- | Link the actual command line options to modifications of
 -- the option state. 
-options :: [OptDescr (Options -> Options)]
+options :: [OptDescr (Options -> IO Options)]
 options =
-  [ Option ['h'] ["help"] (NoArg (\opts -> opts { showHelp = True }))
+  [ Option ['h'] ["help"] (NoArg show_help)
       "Display this screen",
-    Option ['V'] ["version"] (NoArg (\opts -> opts { showVersion = True }))
+    Option ['V'] ["version"] (NoArg show_version)
       "Output version information",
-    Option ['v'] ["verbose"] (OptArg (\lvl opts -> let n = case lvl of
-                                                             Just n -> (read n) :: Int
-                                                             Nothing -> 5 in
-                                                   opts { verbose = n }) "LEVEL")
+    Option ['v'] ["verbose"] (OptArg read_verbose "LEVEL")
       "Enable lavish output",
-    Option ['i'] ["include"] (ReqArg (\s opts -> opts { includes = (s ++ "/"):(includes opts) }) "DIR")
+    Option ['i'] ["include"] (ReqArg include_directory "DIR")
       "Include a directory",
-    Option ['r'] ["run"] (NoArg (\opts -> opts { runInterpret = True }))
+    Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
       "Run the interpret",
-    Option []    ["approx"] (NoArg (\opts -> opts { approximations = True }))
+    Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
       "Authorize approximations in unfication algorithm",
-    Option []    ["proto"] (NoArg (\opts -> opts { workWithProto = True }))
-      "Remove all syntactic sugars",
-    Option ['u'] ["unify"] (ReqArg (\s opts -> opts { runUnify = Just s }) "SET")
-      "Run the unification algorithm on the constraint set SET",
-    Option ['o'] [] (ReqArg (\s opts -> opts { irOutput = Just s }) "FILE")
-      "Export the circuit in IR format to the file FILE"
+    Option []    ["proto"] (NoArg (\opts -> return opts { workWithProto = True }))
+      "Remove all syntactic sugar",
+    Option ['f'] ["format"] (ReqArg read_format "FORMAT")
+      "Specify the output format of circuits. Valid formats are 'visual' 'ir'"
   ]
+
+
+-- | Displays the help screen, and exits.
+show_help :: Options -> IO a
+show_help _ = do
+  putStrLn $ usageInfo header options
+  exitSuccess
+
+
+-- | Shows the version number, and exits.
+show_version :: Options -> IO a
+show_version _ = do
+  putStrLn $ version
+  exitSuccess
+
+
+-- | Called when the parsing of command line arguments fails. The argument is an error message.
+optFail :: String -> IO a
+optFail msg = do
+  putStr msg
+  putStrLn " : Try --help for more information"
+  exitFailure
+
+
+-- | Given a list of names, and a string, find all the names it is prefix of.
+prefix_of :: String -> [String] -> [String]
+prefix_of s names =
+  List.filter (List.isPrefixOf s) names
+
+
+-- | Read and set the verbose level of an option vector.
+read_verbose :: Maybe String -> Options -> IO Options
+read_verbose n opts =
+  case n of
+    Just n ->
+        case reads n of
+          [(v, "")] -> return $ opts { verbose = v }
+          _ -> optFail $ "-v: Invalid argument '" ++ n ++ "'"
+    Nothing ->
+        return $ opts { verbose = 5 }
+
+
+-- | Read and set the circuit format of an option vector.
+read_format :: String -> Options -> IO Options
+read_format f opts =
+  let formats = ["visual", "ir"] in
+  case prefix_of f formats of
+    [] -> optFail $ "-f: Invalid format '" ++ f ++ "'"
+    [format] -> return $ opts { circuitFormat = format }
+    _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
+
+
+-- | Add a directory to the list of includes.
+include_directory :: String -> Options -> IO Options
+include_directory dir opts = do
+  exist <- doesDirectoryExist dir
+  if exist then
+    return $ opts { includes = dir:(includes opts) }
+  else
+    optFail $ "-i: Invalid directory '" ++ dir ++ "'"
+
 
 
 -- | The header of the help screen.
@@ -90,8 +144,12 @@ version = "Proto Quipper - v0.1"
 -- | Parses a list of string options, and returns the resulting option state.
 -- Initially, the options are set to the default_option state.
 parseOpts :: [String] -> IO (Options, [String])
-parseOpts argv =
+parseOpts argv = 
   case getOpt Permute options argv of
-    (o, n, []) -> return $ (List.foldl (flip id) default_options o, n)
+    (o, n, []) -> do
+        opts <- List.foldl (\rec o -> do
+                              opts <- rec
+                              flip id opts o) (return default_options) o
+        return (opts, n)
     (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
 
