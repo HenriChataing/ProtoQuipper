@@ -12,60 +12,83 @@
 % ----------------------------------------------------------------------
 \begin{document}
 
+
 \maketitle
 
 \tableofcontents
 
+
 \section{Introduction}
 
-\textbf{Quipper} is an \emph{embedded language}. This means, roughly, 
-that Quipper consists of definitions made within a \emph{host language}: 
-\textbf{Haskell}. One consequence of this situation, is that Quipper 
-inherits Haskell's type system. This is not ideal because Haskell's 
-type system lacks features that are desirable for quantum computing. 
-One important such property is linearity. However, we can hope that 
-this situation is only temporary. In the long run, Quipper could move 
-from an embedded to a \emph{stand alone} language, with a dedicated 
-linear type system.
+Quipper is currently implemented as an embedded language, within 
+the host language Haskell. This has many advantages, for example, 
+the ability to implement a large-scale system very rapidly. However, 
+there are also a few disadvantages. One of these is that the Haskell 
+type system, while providing many  type-safety properties, is not in 
+general strong enough to ensure full type-safety of the quantum 
+programs. In the current implementation, it is therefore the 
+programmer's responsibility to ensure that quantum components are 
+plugged together in physically meaningful ways. This means that 
+certain types of programming errors will not be prevented by the 
+compiler; in the worst case, this may lead to ill-formed output or 
+run-time errors in other parts of the tool chain.
 
-\textbf{Proto-Quipper} is a first step towards this goal. The idea 
-behind the development of Proto-Quipper is to reconstruct Quipper piece 
-by piece, starting with a core language and extending it progressively. 
-These notes represent a first attempt at defining the core language. 
-Consequently, we have focused on defining a linearly typed language 
-with the ability to generate, and act on, quantum circuits.  
-
-Proto-Quipper is based on the \textbf{Quantum Lambda Calculus} (QLC). 
-In the QLC, the reduction relation is defined on \emph{closures}. A 
-closure is essentially a pair $[C,t]$ consisting of a term $t$ and a 
-\emph{quantum state} $C$. The state is a unit vector in a complex 
-Hilbert space and $t$ is a term whose free variables are linked to 
-the qubits composing $C$. The quantum state is held in a 
-\emph{quantum device} which is capable of performing certain operations 
-(applying unitaries, measuring qubits,\ldots). The reduction in the QLC 
-is then defined as a probabilistic rewrite procedure on these closures. 
-Typically, the reduction will be classical until a redex involving a 
-quantum constant is reached. At this point, the quantum device will be 
-instructed to perform the appropriate quantum operation. For example: 
-``Apply a Hadamard gate to qubit number 3". 
-
-The reduction in Proto-Quipper will similarly be defined on closures. 
-However, a closure $[C,t]$ will now consist of a term $t$ and a 
-\emph{circuit state} $C$. This state represents the circuit being 
-currently built. Instead of having a quantum device capable of 
-performing quantum operations, we will therefore assume that we have 
-a \emph{circuit constructor} capable or performing certain circuit 
-building operations (appending gates,\ldots). The reduction will 
-then be defined as a non-probabilistic rewrite procedure on closures. 
-As in the QLC, some redexes will affect the state by sending 
-instructions to the circuit constructor. For example: ``Append a 
-Hadamard gate to wire number 3".
+We have developed a type-safe version of Quipper as a standalone 
+(non-embedded) programming language, which we call Proto-Quipper. 
+The Proto-Quipper language is designed to ``enforce the physics'', 
+in the sense that it will detect, at compile-time, programming 
+errors that could lead to ill-formed or undefined circuits. 
 
 
 \section{Design Rationale}
 
+Our approach was to start with a limited (but still expressive) 
+fragment of the Quipper language and make it completely type-safe. 
+This will provide a basis for extension to the full language in 
+the future. The current version of Proto-Quipper (0.1) therefore 
+focuses on the following key feature of Quipper: the ability to 
+generate, and act on, quantum circuits. Moreover, Proto-Quipper 
+is equipped with a linear type system that guarantees that 
+programs do not violate the no-cloning property.  
 
-\section{Definition of core Proto-Quipper}
+Proto-Quipper is based on the Quantum Lambda Calculus (QLC, see 
+\cite{SeVa}). In the QLC, the reduction relation is defined on 
+\emph{closures}, where a closure is essentially a pair $[C,t]$ 
+consisting of a term $t$ and a quantum state $C$. The state is 
+a unit vector in a complex Hilbert space and $t$ is a term whose 
+free variables are linked to the qubits composing $C$. The quantum 
+state is held in a quantum device capable of performing certain 
+operations (applying unitaries, measuring qubits,\ldots). The 
+reduction in the QLC is then defined as a probabilistic rewrite 
+procedure on these closures. Typically, the reduction will be 
+classical until a redex involving a quantum constant is reached. 
+At this point, the quantum device will be instructed to perform 
+the appropriate quantum operation. For example: ``Apply a Hadamard 
+gate to qubit number 3''. 
+
+The reduction in Proto-Quipper will similarly be defined on 
+closures. However, a closure $[C,t]$ will now consist of a term 
+$t$ and a \emph{circuit state} $C$. This state represents the 
+circuit being currently built. Instead of having a quantum device 
+capable of performing quantum operations, we will therefore assume 
+that we have a \emph{circuit constructor} capable or performing 
+certain circuit building operations (appending gates,\ldots). 
+The reduction will then be defined as a non-probabilistic rewrite 
+procedure on closures. As in the QLC, some redexes will affect the 
+state by sending instructions to the circuit constructor. For 
+example: ``Append a Hadamard gate to wire number 3''.
+
+In what follows, we distinguish between the \emph{core} 
+of Proto-Quipper, which represents the proved type-safe fragment 
+of the language, and the \emph{extensions} of the language, 
+containing newly implemented features of Proto-Quipper that 
+are currently under development. 
+
+
+\section{Core Proto-Quipper}
+
+In this section we present the language for the core of 
+Proto-Quipper.
 
 \subsection{The Language}
 
@@ -136,7 +159,6 @@ we have:
         circuit-producing function and
   \item $rev$ is a constant used to reverse circuits.
 \end{itemize}
-
 Note that the term $box^T$ depends on the type $T$. This 
 \emph{Church-style} typing of the language is the reason why types 
 were introduced before terms. Note also that in the above syntax, 
@@ -194,13 +216,13 @@ is defined inductively as follows:
 \end{itemize}
 \end{definition}
 
-The above definition of free variable extends the usual one. Note that 
-the free variables of a term of the form $(t,C,a)$ are the free variables 
-of $a$. This is justified since no variables ever appear in the QData 
-term $t$. The notions of $\alpha$-equivalence, capture-avoiding 
-substitution, etc. are defined in a straightforward manner. By analogy 
-with the free variables of a term, we introduce a notion of 
-\emph{quantum address of term}.
+The above definition of free variable extends the usual one. Note 
+that the free variables of a term of the form $(t,C,a)$ are the 
+free variables of $a$. This is justified since no variables ever 
+appear in the QData term $t$. The notions of $\alpha$-equivalence, 
+capture-avoiding substitution, etc. are defined in a straightforward 
+manner. By analogy with the free variables of a term, we introduce a 
+notion of \emph{quantum address of term}.
 
 \begin{definition}
 The set of \emph{quantum addresses} of a term $a$, written $FQ(a)$, is 
@@ -217,14 +239,14 @@ defined inductively as follows:
 \end{definition}
 
 Remark that $FQ((t,C,a))=\emptyset$. This reflects the idea that the 
-quantum addresses appearing in $t$ and $a$ are ``bound" in $(t,C,a)$. 
+quantum addresses appearing in $t$ and $a$ are ``bound'' in $(t,C,a)$. 
 
 To append circuits, we will need to be able to express the way in 
 which wires should be connected. For this, we use the notion of a 
 \emph{binding}.
 
 \begin{definition}
-A \emph{binding} is a bijection $\mathcal{Q}\to \mathcal{Q}$.
+A \emph{binding} is a bijection $\qset\to \qset$.
 \end{definition}
 
 % For now it is simply more convenient to have binding be bijections.
@@ -361,7 +383,7 @@ If $A<:B$ then:
   $B_1<:A_1$ and $A_2<:B_2$;
   \item if $A=Circ(A_1, A_2)$, then $B=Circ(B_1,B_2)$, 
   $B_1<:A_1$ and $A_2<:B_2$;
-  \item if $B=!B'$, then $A=!A'$ and $A'<:B'$; \label{subtype_bang}
+  \item if $B=!B'$, then $A=!A'$ and $A'<:B'$;\label{subtype_bang}
   \item if $A$ is not of the form $!A'$, then $B$ is not 
   of the form $!B'$.
 \end{enumerate}
@@ -1611,6 +1633,9 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 \subsection{Reversibility}
 
+\subsection{Classical vs. Quantum Circuits}
+Classical and quantum wires
+
 \subsection{Non-Linear Controls}
 
 \subsection{Dynamic Lifting}
@@ -1623,6 +1648,10 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 \section*{Appendix: Acronyms}
 \addcontentsline{toc}{section}{Appendix: Acronyms}
+
+\bibliography{biblio}{}
+\bibliographystyle{plain}
+\addcontentsline{toc}{section}{Bibliography}
 
 \end{document}
 
