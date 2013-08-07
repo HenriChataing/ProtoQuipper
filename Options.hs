@@ -17,7 +17,10 @@ data Options = Options {
   includes :: [FilePath],          -- ^ Add a ditrectory to the list of includes.
  
   runUnify :: Maybe String,        -- ^ Run a unification test on the constraint set given as argument.
-  runInterpret :: Bool             -- ^ Run the code.
+  runInterpret :: Bool,            -- ^ Run the code.
+
+  irOutput :: Maybe String         -- ^ Request for the circuit to be exported in the given file in the IR format.
+
 } deriving Show
 
 
@@ -39,7 +42,10 @@ default_options = Options {
 
   -- Actions
   runUnify = Nothing,
-  runInterpret = False
+  runInterpret = False,
+
+  -- Others
+  irOutput = Nothing
 }
 
 
@@ -65,7 +71,9 @@ options =
     Option []    ["proto"] (NoArg (\opts -> opts { workWithProto = True }))
       "Remove all syntactic sugars",
     Option ['u'] ["unify"] (ReqArg (\s opts -> opts { runUnify = Just s }) "SET")
-      "Run the unification algorithm on the constraint set SET"
+      "Run the unification algorithm on the constraint set SET",
+    Option ['o'] [] (ReqArg (\s opts -> opts { irOutput = Just s }) "FILE")
+      "Export the circuit in IR format to the file FILE"
   ]
 
 

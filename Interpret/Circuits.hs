@@ -280,6 +280,12 @@ allocate c =
 -- a line can be undefined (it will be interpreted as "   " during the display).
 data Column = Col { chars :: Map Int String }
 
+
+-- | The max number of columns, set to 80 by default (to be divided by the actual width of a column, ie 3).
+maxColumns :: Int
+maxColumns = 80 
+
+
 -- | The definition of the whole grid.
 data Grid = Grid { gsize :: Int,               -- ^ Number of lines.
                    columns :: [Column] }       -- ^ Reversed list of all columns.
@@ -320,11 +326,11 @@ instance Monad GrState where
 -- | Print n characters on same column, different lines.
 print_multi :: [(Int, String)] -> GrState ()
 print_multi ls = GrState (\gr -> let d = free_common_depth (fst $ unzip ls) $ columns gr in
-                                if d == -1 then
-                                  let nc = Col { chars = fromList ls } in
-                                  (gr { columns = nc:(columns gr) }, ())
-                                else
-                                  (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ()))
+                                 if d == -1 then
+                                   let nc = Col { chars = fromList ls } in
+                                   (gr { columns = nc:(columns gr) }, ())
+                                 else
+                                   (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ()))
 
 
 -- | Print a gate.

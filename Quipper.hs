@@ -22,6 +22,7 @@ import Typing.Driver
 
 import Interpret.Values
 import Interpret.Interpret
+import Interpret.IRExport
 
 import System.IO
 import System.Environment
@@ -77,9 +78,16 @@ main = do
                  (v, t) <- do_everything opts file
                  t <- Q.pprint_type_noref t
                  return (v, t)) Q.empty_context
-               case v of
-                 Just v -> putStrLn $ (pprint v ++ " : " ++ t)
-                 Nothing -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+               case (v, irOutput opts) of
+                 (Just (VCirc _ c _), Just f) -> do
+                   -- Export the circuit to the file f
+                   handle <- openFile f WriteMode
+                   irdoc <- return $ export_to_IR c
+                   hPutStr handle irdoc
+                   hClose handle
+
+                 (Just v, _) -> putStrLn $ (pprint v ++ " : " ++ t)
+                 (Nothing, _) -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
   else
     return ()
 
