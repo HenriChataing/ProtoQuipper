@@ -70,7 +70,7 @@ fresh_address l = (maximum l) + 1
 data Gate =
     Init Int Int            -- ^ The initializers  0|-  and  1|-  are treated as gates.
   | Term Int Int            -- ^ Same thing : gates  -|0  and  -|1.
-  | Phase Int Int           -- ^ The phase gate, with a rotation by 2 Pi / n.
+  | Phase Int Int           -- ^ The phase gate, with a rotation by Pi / n.
   | Unary String Int        -- ^ Unary gates. The first argument is the gate name, one of the list unary_gates defined above.
   | Binary String Int Int   -- ^ Binary gates. The first argument is the gate name, one of the list binary_gates.
   | Controlled Gate [Int]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear.
@@ -124,7 +124,7 @@ instance Caps Gate where
 
 -- | Display the gate on one column, and return the result as a list of associations
 -- (line number, output). The wires are placed on even line numbers, and odd line numbers correspond
--- to gaps between lines.
+-- to gaps between lines (ie the wire addresses are multiplied by 2, and additional lines are created to fill the odd line numbers).
 model :: Gate -> [(Int, String)]
 model (Binary s qa qb) =
   let sym = case List.lookup s binary_gates of
@@ -209,35 +209,63 @@ instance Monad AdState where
                                            let AdState run' = action a in
                                            run' ad')
 
+-- | Returns the addressing state.
+get_addressing :: AdState Addressing
+get_addressing =
+  AdState (\ad -> (ad, ad))
 
--- | Find a unused line and binds the wire to this line.
+
+-- | Sets the addressing state.
+set_addressing :: Addressing -> AdState ()
+set_addressing adr =
+  AdState (\_ -> (adr, ()))
+
+
+-- | Bind the wire to some unused line in the grid.
+-- If an existing line is unused, this one is used preferably, else a new line is
+-- create.
 bind_wire :: Int -> AdState Int
-bind_wire q = AdState (\ad -> case unused ad of
-                               [] -> (ad { wires = (+1) $ wires ad,
-                                           bind = (q, wires ad):(bind ad) }, wires ad)
-                               w:cw -> (ad { unused = cw,
-                                             bind = (q, w):(bind ad) }, w))
+bind_wire q = do
+  adr <- get_addressing
+  case unused adr of
+    [] -> do
+        -- No unused line : create a new one
+        set_addressing $ adr { wires = (+1) $ wires adr,
+                               bind = (q, wires adr):(bind adr) }
+        return $ wires adr
+
+    w:cw -> do
+        -- Else use the first unused line
+        set_addressing $ adr { unused = cw,
+                               bind = (q, w):(bind adr) }
+        return w
 
 
 -- | Lookup the number of the line a wire has been associated to.
 assoc_wire :: Int -> AdState Int
-assoc_wire q = AdState (\ad -> (ad, case List.lookup q $ bind ad of
-                                     Just w -> w
-                                     Nothing -> error ("Unbound address " ++ show q)))
+assoc_wire q = do
+  adr <- get_addressing
+  case List.lookup q $ bind adr of
+    Just w -> return w
+    Nothing -> error $ "Circuit construction: Unbound wire " ++ show q
 
 
--- | Associated gate : gate whose wires are replaced by the line numbers
+-- | Associated gate : gate whose wires have been replaced by their respective line number.
 assoc_gate :: Gate -> AdState Gate
-assoc_gate g = AdState (\ad -> (ad, readdress g $ bind ad))
+assoc_gate g = do
+  binding <- get_addressing >>= return . bind
+  return $ readdress g binding
 
 
 -- | Delete a wire, and set it up to be reused.
 delete_vire :: (Int, Int) -> AdState ()
-delete_vire (q, w) = AdState (\ad -> (ad { unused = w:(unused ad),
-                                       bind = List.delete (q, w) $ bind ad }, ()))
+delete_vire (q, w) = do
+  adr <- get_addressing
+  set_addressing $ adr { unused = w:(unused adr),
+                         bind = List.delete (q, w) $ bind adr }
 
 
--- | Allocate a list of gates, and returns the modified gates.
+-- | Allocate a list of gates, and returns the list of modified gates.
 state_allocate :: [Gate] -> AdState [Gate]
 state_allocate [] = do
   return []
@@ -259,19 +287,31 @@ state_allocate (g:cg) = do
   return (g':cg')
 
 
--- | Allocate a whole circuit, and returns the list of modified gates, along with the total number
+-- | Allocate a whole circuit, and returns the modified circuit, along with the total number
 -- of used lines.
-allocate :: Circuit -> ([Gate], Int)
+allocate :: Circuit -> (Circuit, Int)
 allocate c =
   let AdState run = do
-      state_allocate $ gates c
+      -- Bind the input wires (the inputs list is reversed)
+      inputs <- List.foldl (\rec w -> do
+                              r <- rec
+                              w' <- bind_wire w
+                              return $ w':r) (return []) $ qIn c
+      -- Translate the whole circuit
+      gs <- state_allocate $ gates c
+      -- Translate the output wires (reversed list)
+      outputs <- List.foldl (\rec w -> do
+                               r <- rec
+                               w' <- assoc_wire w
+                               return $ w':r) (return []) $ qOut c
+      return $ Circ { qIn = List.reverse inputs,
+                      gates = gs,
+                      qOut = List.reverse outputs }
+      
   in
-  let initState = List.foldl (\ad q -> ad { wires = (+1) $ wires ad,
-                                            bind = (q, wires ad):(bind ad) })
-                             (Address { wires = 0, unused = [], bind = []})
-                             (qIn c) in
-  let (ad, g) = run initState in
-  (g, wires ad)
+  -- Run the addressing in the initially empty state
+  let (ad, c) = run $ Address { wires = 0, unused = [], bind = [] } in
+  (c, wires ad)
 
 
 
@@ -310,12 +350,6 @@ free_common_depth :: [Int] -> [Column] -> Int
 free_common_depth ls c = List.minimum (List.map (\l -> free_depth l c) ls)
 
 
--- | Prints a 'character' (in fact three) at the coordinates (line, column).
-print_at :: Int -> Int -> String -> [Column] -> [Column]
-print_at l 0 s (c:cl) = (c { chars = Map.insert l s $ chars c }:cl)
-print_at l n s (c:cl) = (c:(print_at l (n-1) s cl))
-
-
 -- | Hide the display grid behind a state monad.
 newtype GrState a = GrState (Grid -> (Grid, a))
 instance Monad GrState where
@@ -324,22 +358,56 @@ instance Monad GrState where
                                            let GrState run' = action a in
                                            run' gr')
 
--- | Print n characters on same column, different lines.
+-- | Returns the display grid.
+get_grid :: GrState Grid
+get_grid =
+  GrState (\gr -> (gr, gr))
+
+
+-- | Sets the display grid.
+set_grid :: Grid -> GrState ()
+set_grid gr =
+  GrState (\_ -> (gr, ()))
+
+
+-- | Prints a 'character' (in fact three) at the coordinates (line, column) in the grid.
+print_at :: Int -> Int -> String -> GrState ()
+print_at l n s = do
+  gr <- get_grid
+  at_rec <- return (let at = (\n cols ->
+                                case (n, cols) of
+                                  (0, c:cs) -> c { chars = Map.insert l s $ chars c }:cs
+                                  (n, c:cs) -> c:(at (n-1) cs)) in at)
+  cols' <- return $ at_rec n $ columns gr
+  set_grid $ gr { columns = cols' }
+
+
+
+-- | Prints n characters on same column, different lines.
 print_multi :: [(Int, String)] -> GrState ()
-print_multi ls = GrState (\gr -> if not $ cut gr then
-                                   -- The display stil hasn't over
-                                   let d = free_common_depth (fst $ unzip ls) $ columns gr in
-                                   if d == -1 then
-                                     -- Circuit too log : cut
-                                     if (List.length $ columns gr) * 6 > maxColumns then
-                                       (gr { cut = True }, ())
-                                     else
-                                       let nc = Col { chars = fromList ls } in
-                                       (gr { columns = nc:(columns gr) }, ())
-                                   else
-                                     (List.foldl (\gr (l, s) -> gr { columns = print_at l d s $ columns gr }) gr ls, ())
-                                 else
-                                   (gr, ()))
+print_multi ls = do
+  gr <- get_grid
+  if not $ cut gr then do
+    -- The display stil hasn't overflown
+    d <- return $ free_common_depth (fst $ unzip ls) $ columns gr
+
+    if d == -1 then
+      -- Free depth = -1 => have to create a new column
+      if (List.length $ columns gr) * 6 > maxColumns then
+        -- Circuit too long : cut
+        set_grid $ gr { cut = True }
+      else do
+        -- Ok : create the column
+        nc <- return $ Col { chars = fromList ls }
+        set_grid $ gr { columns = nc:(columns gr) }
+
+    else
+      -- Print the characters in column d
+      List.foldl (\rec (l, s) -> do
+                    rec
+                    print_at l d s) (return ()) ls
+  else
+    return ()
 
 
 -- | Print a gate.
@@ -349,54 +417,82 @@ print_gate g = do
 
 
 -- | Output the whole line, filling the gaps (undefined lines in column definitions) with space characters.
-output_line :: Int -> GrState String
-output_line l = GrState (\gr -> (gr, let initMode =   case Map.lookup l $ chars $ last $ columns gr of
-                                                        Just sym -> if isSuffixOf "|-" sym then ("   ", False)
-                                                                    else if l `mod` 2 == 0 then ("---", True)
-                                                                    else ("   ", False)
-                                                        Nothing -> if l `mod` 2 == 0 then ("---", True) else ("   ", False)
-                                                      in
-                                                        
-                                    let (s, on) = List.foldr (\c (s, on) -> 
-                                                                 let (ns, non) = case Map.lookup l $ chars c of
-                                                                                   Just sm -> if isSuffixOf "|-" sm then
-                                                                                                (s ++ sm, True)
-                                                                                              else if isPrefixOf "-|" sm then
-                                                                                                (s ++ sm, False)
-                                                                                              else (s ++ sm, on)
-                                                                                   Nothing -> if l `mod` 2 == 0 && on then (s ++ "---", on)
-                                                                                              else (s ++ "   ", on)
-                                                                 in
-                                                                 -- Printing wires
-                                                                 if l `mod` 2 == 0 && non then
-                                                                   (ns ++ "---", non)
-                                                                 else
-                                                                   (ns ++ "   ", non)) initMode $ columns gr in
-                                    -- If the circuit was cut, add some dots..., if not just return the line
-                                    if cut gr && on then
-                                      s ++ " .."
-                                    else
-                                      s))
+-- The boolean argument indicates whether the line is of the input wires.
+output_line :: Bool -> Int -> GrState String
+output_line input l = do
+  gr <- get_grid
+  -- First characters of the line
+  init <- if input then
+            return ("---", True)
+          else
+            return ("   ", False)
+  
+  -- s is the line being printed, alloc indicates whether the line is currently allocated   
+  (s, alloc) <- List.foldr (\c rec -> do
+                           (s, alloc) <- rec
+                           (s, alloc) <- case Map.lookup l $ chars c of
+                                           -- If this column contains an init char on this line, the line is allocated
+                                           -- If it is a term char, it is deallocated
+                                           -- If it is a vertical wire, and if the line is allocated, fill in the gaps
+                                           Just sm -> if isSuffixOf "|-" sm then
+                                                        return (s ++ sm, True)
+                                                      else if isPrefixOf "-|" sm then
+                                                        return (s ++ sm, False)
+                                                      else if sm == " | " && alloc then
+                                                        return (s ++ "-|-", True)
+                                                      else
+                                                        return (s ++ sm, alloc)
+
+                                           Nothing -> if alloc then
+                                                        return (s ++ "---", alloc)
+                                                      else
+                                                        return (s ++ "   ", alloc)
+      
+                           -- Printing wires
+                           if alloc then
+                             return (s ++ "---", alloc)
+                           else
+                             return (s ++ "   ", alloc)) (return init) $ columns gr
+
+  -- If the circuit was cut, add some dots..., if not just return the line
+  if cut gr && alloc then
+    return $ s ++ " .."
+  else
+    return s
 
 
--- | Output the whole grid.
-output :: GrState String
-output = GrState (\gr -> let num = [0 .. gsize gr - 1] in
-                         (gr, List.foldl (\s l -> let GrState run = do output_line l in
-                                                  let (_, ln) = run gr in
-                                                  (s ++ ln ++ "\n")) "\n" num))
+-- | Prints a circuit. It first prints all the gates to the grid, then flushes the grid
+-- and returns the resulting string. The integer argument is the total number of allocated lines (supposing it is n,
+-- the total number of lines is 2*n -1).
+print_circuit :: Circuit -> Int -> String
+print_circuit c n =
+  let GrState run = do
+      -- Print the gates
+      List.foldl (\rec g -> do
+                    rec
+                    print_gate g) (return ()) $ gates c
+      -- Output the grid
+      gr <- get_grid
+      disp <- List.foldl (\rec l -> do
+                            s <- rec
+                            input <- if l `mod` 2 == 0 then
+                                       return $ List.elem (l `quot` 2) $ qIn c
+                                     else
+                                       return False
+                            pl <- output_line input l
+                            return $ s ++ pl ++ "\n") (return "") [0 .. gsize gr - 1]
+      return disp
+  in
+  let (_, disp) = run $ Grid { gsize = 2 * n - 1, columns = [], cut = False } in
+  disp
 
 
 -- | Pretty printing of a circuit. The function first makes all the necessary bindings
 -- wire <-> line, then prints the circuit on a grid, before flushing the whole.
 instance PPrint Circuit where
   pprint c =
-    let (gates, lns) = allocate c in
-    let runGr = GrState (\gr -> List.foldl (\(gr, _) g -> let GrState run = print_gate g in
-                                                          run gr) (gr, ()) gates) in
-    let GrState run = (runGr >>= (\_ -> output)) in
-    let (_, s) = run (Grid { gsize = 2 * lns - 1, columns = [], cut = False }) in
-    s ++ "\n"
+    let (c', n) = allocate c in
+    print_circuit c' n
 
   sprintn _ c = pprint c
   sprint c = pprint c
