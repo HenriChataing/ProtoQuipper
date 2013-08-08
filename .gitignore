@@ -2,7 +2,7 @@ Parser.hs
 IParser.hs
 ConstraintParser.hs
 Lexer.hs
-Quipper
+ProtoQuipper
 *~
 *.hi
 *.o
