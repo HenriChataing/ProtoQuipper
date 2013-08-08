@@ -8,7 +8,7 @@ GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
 HAPPY = happy --ghc --info
 ALEX = alex
 
-MAIN = Quipper
+MAIN = ProtoQuipper
 
 GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
   Parsing/Lexer.hs Parsing/Parser.hs
@@ -16,7 +16,7 @@ SOURCE_MODULES = Classes.hs Builtins.hs Interpret/Circuits.hs		\
   Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs Interpret/IRExport.hs		\
   Monad/Namespace.hs Monad/QpState.hs Monad/QuipperError.hs		\
   Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
-  Parsing/Syntax.hs Quipper.hs Typing/CorePrinter.hs			\
+  Parsing/Syntax.hs ProtoQuipper.hs Typing/CorePrinter.hs			\
   Typing/CoreSyntax.hs Typing/Driver.hs Typing/Ordering.hs		\
   Typing/Subtyping.hs Typing/TransSyntax.hs Typing/TypeInference.hs	\
   Typing/TypingContext.hs Utils.hs

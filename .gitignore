@@ -2,7 +2,7 @@ Parser.hs
 IParser.hs
 ConstraintParser.hs
 Lexer.hs
-Quipper
+ProtoQuipper
 *~
 *.hi
 *.o
@@ -16,6 +16,10 @@ Quipper
 *.dvi
 *.ps
 *.out
+*.bbl
+*.blg
 *.texwatch.lock
 _build
 haddock-doc
+test
+temp
