@@ -202,16 +202,17 @@ Atom_expr :
     | UID '.' LID                               { locate (EQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
-    | '(' Expr ')'                              { $2 }
-    | '(' Expr_sep_list ')'                     { locate (ETuple $2) (fromto $1 $3) }
+    | '(' Expr_sep_list ')'                     { case $2 of
+                                                    [x] -> x
+                                                    _ -> locate (ETuple $2) (fromto $1 $3) }
     | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
     | '[' Expr_sep_list ']'                     { List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
     | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 
 Expr_sep_list :
-      Expr ',' Expr                             { [$1, $3] }
-    | Expr_sep_list ',' Expr                    { $1 ++ [$3] }
+      Expr                                      { [$1] }
+    | Expr ',' Expr_sep_list                    { $1:$3 }
 
 
 Pattern :
@@ -222,8 +223,9 @@ Pattern :
     | Pattern ':' Pattern                       { locate_opt (PDatacon "Cons" (Just $ PTuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
     | '(' ')'                                   { locate PUnit (fromto $1 $2) }
-    | '(' Pattern ')'                           { $2 }
-    | '(' Pattern_sep_list ')'                  { locate (PTuple $2) (fromto $1 $3) }
+    | '(' Pattern_sep_list ')'                  { case $2 of
+                                                    [x] -> x
+                                                    _ -> locate (PTuple $2) (fromto $1 $3) }
     | '[' ']'                                   { locate (PDatacon "Nil" Nothing) (fromto $1 $2) }
     | '[' Pattern_sep_list ']'                  { List.foldr (\p rest -> PDatacon "Cons" (Just $ PTuple [p,rest])) (PDatacon "Nil" Nothing) $2 } 
     | '(' Pattern "<:" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
@@ -235,8 +237,8 @@ Pattern_list :
 
 
 Pattern_sep_list :
-      Pattern ',' Pattern                       { [$1, $3] }
-    | Pattern_sep_list ',' Pattern              { $1 ++ [$3] }
+      Pattern                                   { [$1] }
+    | Pattern ',' Pattern_sep_list              { $1:$3 }
 
 
 Matching :
