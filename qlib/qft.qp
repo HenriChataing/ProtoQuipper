@@ -9,32 +9,31 @@ import List
 -- Apply the nth phase gate to each qbit of the list, controlled by a parameter
 let rec appphase n q qn =
   match qn with
-   Nil -> (q, Nil)
- | Cons (q0, qr) ->
+   [] -> (q, [])
+ | q0:qr ->
      (q, qr) <- appphase (n+1) q qr;
      (q0, q) <-* cphase (2 ^ n);
-     (q, Cons (q0, qr))
+     (q, q0:qr)
 ;;
 
 
 -- Quantum Fourier Transform
 let rec qft qreg =
   match qreg with
-    Nil -> Nil
-  | Cons (q, reg) ->
-      (qn, qn1) <- sf_last (Cons (q, reg));
+    [] -> []
+  | q:reg ->
+      (qn, qn1) <- sf_last (q:reg);
       qn1 <- qft qn1;
       (qn, qn1) <- appphase 1 qn qn1;
       qn <-* hadamard;
-      Cons (qn, qn1)
+      qn:qn1
 ;;
 
 
 -- Test on five qbits
 box [ qbit * qbit * qbit * qbit * qbit ] (
   fun (q0, q1, q2, q3, q4) ->
-     let l = Cons (q0, Cons (q1, Cons (q2, Cons (q3, Cons (q4, Nil))))) in
+     let l = [q0,q1,q2,q3,q4] in
      match qft l with
-       Cons (q0, Cons (q1, Cons (q2, Cons (q3, Cons (q4, Nil))))) -> (q0, q1, q2, q3, q4)
-     | Cons (q0, Cons (q1, Cons (q2, Cons (q3, Cons (q4, Nil))))) -> (q0, q1, q2, q3, q4)
+       [q0,q1,q2,q3,q4] -> (q0, q1, q2, q3, q4)
 ) ;;

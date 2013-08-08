@@ -14,14 +14,14 @@ let nil = Nil ;;
 
 -- UNSAFE OPERATIONS
 
-let head (Cons (top, rest)) = top ;;
+let head (x:_) = x ;;
 
-let tail (Cons (tail, rest)) = tail ;;
+let tail (_:xs) = xs ;;
 
 let rec last l =
   match l with
-    Cons (x, Nil) -> x
-  | Cons (a, l) -> last l
+    [x] -> x
+  | _:xs -> last xs
 ;;
 
 let rec (@) l n =
@@ -33,47 +33,51 @@ let rec (@) l n =
 
 -- SAFE OPERATIONS
 
+let sf_head (x:xs) = (x, xs) ;;
+let sf_tail (x:xs) = (xs, x) ;;
+ 
+
 let rec sf_last l =
   match l with
-    Cons (x, Nil) -> (x, Nil)
-  | Cons (q, l) -> let (x, l) = sf_last l in
-                   (x, Cons (q, l))
+    [x] -> (x, [])
+  | x:xs -> let (d, xs) = sf_last xs in
+            (d, x:xs)
 ;;
 
 let rec map f l =
   match l with
-    Nil -> Nil
-  | Cons (a, l) -> Cons (f a, map f l)
+    [] -> []
+  | x:xs -> (f x):(map f xs)
 ;;
 
-let rec foldl f init l =
+let rec foldl f y l =
   match l with
-    Nil -> init
-  | Cons (a, l) -> foldl f (f init a) l
+    [] -> y
+  | x:xs -> foldl f (f y x) xs
 ;;
 
-let rec foldr f l init =
+let rec foldr f l y =
   match l with
-    Nil -> init
-  | Cons (a, l) -> let a = foldr f l init in
-                   f a
+    [] -> y
+  | x:xs -> let y = foldr f l y in
+            f x y
 ;;
 
 let rec (++) l0 l1 =
   match (l0, l1) with
-    (Nil, l) -> l
-  | (l, Nil) -> l
-  | (Cons (top, rest), l) -> let l = rest ++ l in
-                             Cons (top, l)
+    ([], l) -> l
+  | (l, []) -> l
+  | (x:xs, l) -> let l = xs ++ l in
+                 x:l
 ;;
 
 let reverse l =
   let rec reverse_acc acc l =
     match l with
-      Nil -> acc
-    | Cons (top, rest) -> reverse_acc (Cons (top, acc)) rest
+      [] -> acc
+    | x:xs -> reverse_acc (x:acc) xs
   in
 
-  reverse_acc Nil l
+  reverse_acc [] l
 ;;
 
