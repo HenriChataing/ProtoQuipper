@@ -597,10 +597,10 @@ set_flag ref = do
               case value info of
                 Zero -> do
                     throw_NonDuplicableError ref
-                One ->
-                    return ()
-                _ ->
+                Unknown ->
                     set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
+                _ ->
+                    return ()  -- Includes anyflag and one
 
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
@@ -623,10 +623,10 @@ unset_flag ref = do
               case value info of
                 One ->
                     throw_NonDuplicableError ref
-                Zero ->
-                    return ()
-                _ ->
+                Unknown ->
                     set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
+                _ ->
+                    return ()  -- Includes anyflag and zero
 
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
