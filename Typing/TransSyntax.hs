@@ -3,11 +3,13 @@
 -- functions to convert the syntax to rax proto-quipper code.
 module Typing.TransSyntax (
   define_user_subtyping,
-  translate_program,
+  define_user_properties,
   translate_type,
   translate_bound_type,
   translate_unbound_type,
-  translate_body,
+  translate_expression,
+  translate_pattern,
+  export_pattern_variables,
   unsugar,
   import_builtins,
   import_typedefs,
@@ -723,62 +725,6 @@ translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
   return $ EConstraint e' t
 
-
--- | Translate a whole program
--- Proceeds in three steps:
---   Import the type definitions
---   Translate the expression body
--- The boolean argument indicates whether the program has to be translated into the proto core or not
-translate_program :: Bool -> S.Program -> QpState Expr
-translate_program proto prog = do
-  dcons <- import_typedefs proto $ S.typedefs prog
-  define_user_subtyping $ S.typedefs prog
-  define_user_properties $ S.typedefs prog
-  update_module_types
-
-  cm <- get_module
-  ctx <- get_context
-  set_context $ ctx { cmodule = cm { global_ids = dcons } }
-
-  -- Import the global variables from the dependencies
-  gbls <- global_namespace
-
-  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
-  if proto then
-    unsugar t
-  else
-    return t
-
-
-
--- | Translate and merge the list of term declarations
-translate_body :: S.Program -> [S.Declaration] -> Map String Int -> QpState Expr
--- The general type of a file, if empty, is unit
-translate_body _ [] _ =
-  return EUnit
-
--- However, if the last declaration is an expression,
--- it becomes the return value of the evaluation
-translate_body prog [S.DExpr e] lbl = do
-  translate_expression e lbl
-
--- If an lonely expression is encountered, it is ignored
-translate_body prog ((S.DExpr _):rest) lbl = do
-  translate_body prog rest lbl
-
--- If a variable declaration is encountered,
--- the variables of the pattern are marked to be exported,
--- and the "let p = e" is connected with the rest of the body
-translate_body prog ((S.DLet recflag p e):rest) lbl = do
-  (p', lbl') <- translate_pattern p lbl
-
-  -- Export the variables of the pattern
-  p' <- export_pattern_variables prog p'
-
-  -- Connect the let
-  e' <- translate_expression e (if recflag == Recursive then lbl' else lbl)
-  r <- translate_body prog rest lbl'
-  return (ELet recflag p' e' r)
 
 
 -- | Export the variables of a pattern. If an interface file is provided, it first checks

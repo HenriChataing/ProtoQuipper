@@ -44,21 +44,10 @@ main = do
     [] -> optFail "-: No argument file specified"
     [file] -> 
           (do
-             (_, (v, t)) <- Q.runS (do
-               Q.set_verbose (verbose opts)
-               (v, t) <- do_everything opts file
-               t <- Q.pprint_type_noref t
-               return (v, t)) Q.empty_context
-             case (v, circuitFormat opts) of
-               (Just (VCirc _ c _), "ir") -> do
-                 irdoc <- return $ export_to_IR c
-                 putStrLn irdoc
-
-               (Just (VCirc _ c _), "visual") -> do
-                 putStrLn $ pprint c
-
-               (Just v, _) -> putStrLn $ (pprint v ++ " : " ++ t)
-               (Nothing, _) -> putStrLn $ "-: " ++ t) `E.catch` (\(e :: QError) -> putStrLn $ show e)
+             _ <- Q.runS (do
+                 Q.set_verbose (verbose opts)
+                 do_everything opts file) Q.empty_context
+             return ()) `E.catch` (\(e :: QError) -> putStrLn $ show e)
 
     _ -> optFail "-: Several input files"
 
