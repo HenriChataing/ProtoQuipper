@@ -10,7 +10,7 @@ import Builtins
 import Parsing.Lexer
 import qualified Parsing.Parser as P
 import qualified Parsing.IParser as IP
-import Parsing.Localizing (clear_location)
+import Parsing.Localizing (clear_location, extent_unknown)
 import Parsing.Syntax (RecFlag(..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
@@ -21,6 +21,7 @@ import Typing.TransSyntax
 import Interpret.Interpret
 import Interpret.Values
 import Interpret.IRExport
+import Interpret.Circuits
 
 import Typing.Ordering
 import Typing.Subtyping
@@ -194,9 +195,14 @@ process_declaration opts prog ctx (S.DExpr e) = do
   -- Free variables of the new expression
   fve <- return $ free_var e'
   a@(TBang n _) <- new_type
+  specify_location n $ (case e' of
+                          ELocated _ ex -> ex
+                          _ -> extent_unknown)
+  specify_expression n $ (ActualOfE e')
 
-  -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE : 
+  -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
   set_flag n
+
   -- ALL VARIABLES ALREADY USED AND USED BY E MUST BE DUPLICABLE
   gamma <- return $ typing ctx
   (delta, _) <- sub_context (List.intersect fve $ used ctx) gamma
@@ -374,6 +380,10 @@ process_module opts prog = do
   gbls <- global_namespace
   -- Import the gloabl values from the dependencies
   env <- global_context
+
+  -- Reset the circuit stack
+  ctx <- get_context
+  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
 
 
 --  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
