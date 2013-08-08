@@ -24,6 +24,7 @@ import Data.List as List
   '*' { TkStar $$ }
   '.' { TkDot $$ }
   ',' { TkComma $$ }
+  ':' { TkColon $$ }
   ';' { TkSemiColon $$ }
   '!' { TkBang $$ }
   '|' { TkBar $$ }
@@ -73,6 +74,7 @@ import Data.List as List
   INT { TkInt $$ }
 
 %right "->"
+%right ':'
 %left INFIX0
 %right INFIX1
 %left INFIX2
@@ -169,6 +171,7 @@ Op_expr :
     | Op_expr INFIX1 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_expr INFIX2 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_expr INFIX3 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_expr ':' Op_expr                        { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | Op_expr '*' Op_expr                        { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Apply_expr                                 { $1 }
 
@@ -201,6 +204,8 @@ Atom_expr :
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
     | '(' Expr ')'                              { $2 }
     | '(' Expr_sep_list ')'                     { locate (ETuple $2) (fromto $1 $3) }
+    | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
+    | '[' Expr_sep_list ']'                     { List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
     | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 
@@ -214,10 +219,13 @@ Pattern :
     | LID                                       { locate (PVar (snd $1)) (fst $1) }
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
+    | Pattern ':' Pattern                       { locate_opt (PDatacon "Cons" (Just $ PTuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
     | '(' ')'                                   { locate PUnit (fromto $1 $2) }
     | '(' Pattern ')'                           { $2 }
     | '(' Pattern_sep_list ')'                  { locate (PTuple $2) (fromto $1 $3) }
+    | '[' ']'                                   { locate (PDatacon "Nil" Nothing) (fromto $1 $2) }
+    | '[' Pattern_sep_list ']'                  { List.foldr (\p rest -> PDatacon "Cons" (Just $ PTuple [p,rest])) (PDatacon "Nil" Nothing) $2 } 
     | '(' Pattern "<:" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
 
 
