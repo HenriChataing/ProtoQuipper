@@ -1,6 +1,8 @@
 \documentclass{article}
 
+
 \input{Proto_Quipper.sty}
+
 
 % ----------------------------------------------------------------------
 % General Information.
@@ -14,6 +16,7 @@
 
 
 \maketitle
+
 
 \tableofcontents
 
@@ -39,24 +42,40 @@ The Proto-Quipper language is designed to ``enforce the physics'',
 in the sense that it will detect, at compile-time, programming 
 errors that could lead to ill-formed or undefined circuits. 
 
+We distinguish between the \emph{core} of Proto-Quipper, which 
+represents the proved type-safe fragment of the language, and 
+the \emph{extensions} of the language, containing newly 
+implemented features of Proto-Quipper that are currently under 
+development. In what follows, we provide an introduction to 
+Proto-Quipper, prove the type safety of the core language and 
+describe its type inference algorithm. We then discuss already 
+available extensions to the core language and future 
+developments. We conclude with an introduction to programming 
+in Proto-Quipper.
+
 
 \section{Design Rationale}
 
 Our approach was to start with a limited (but still expressive) 
 fragment of the Quipper language and make it completely type-safe. 
-This will provide a basis for extension to the full language in 
-the future. The current version of Proto-Quipper (0.1) therefore 
-focuses on the following key feature of Quipper: the ability to 
-generate, and act on, quantum circuits. Moreover, Proto-Quipper 
-is equipped with a linear type system that guarantees that 
-programs do not violate the no-cloning property.  
-
-Proto-Quipper is based on the Quantum Lambda Calculus (QLC, see 
-\cite{SeVa}). In the QLC, the reduction relation is defined on 
-\emph{closures}, where a closure is essentially a pair $[C,t]$ 
-consisting of a term $t$ and a quantum state $C$. The state is 
-a unit vector in a complex Hilbert space and $t$ is a term whose 
-free variables are linked to the qubits composing $C$. The quantum 
+This provides a basis for extension to the full language in the 
+future. The current version of Proto-Quipper (0.1) was designed 
+with two goals in mind: 
+\begin{itemize}
+  \item incorporate Quipper's ability to generate and act on 
+  quantum circuits and 
+  \item provide a linear type system to guarantee that the 
+  produced circuits are physically meaningful (in particular, 
+  properties like no-cloning are respected).
+\end{itemize}
+Proto-Quipper follows the QRAM model of quantum computation and 
+is based on the Quantum Lambda Calculus (QLC, see \cite{SeVa09}). 
+In the QLC, the execution of programs is modelled by the so-called
+reduction relation. This relation is defined on \emph{closures}. 
+These closures are essentially pairs $[C,t]$ consisting of a term 
+of the language $t$ and a quantum state $C$. The state is a unit 
+vector in a complex Hilbert space and $t$ is a term whose free 
+variables are linked to the qubits composing $C$. The quantum 
 state is held in a quantum device capable of performing certain 
 operations (applying unitaries, measuring qubits,\ldots). The 
 reduction in the QLC is then defined as a probabilistic rewrite 
@@ -66,31 +85,25 @@ At this point, the quantum device will be instructed to perform
 the appropriate quantum operation. For example: ``Apply a Hadamard 
 gate to qubit number 3''. 
 
-The reduction in Proto-Quipper will similarly be defined on 
-closures. However, a closure $[C,t]$ will now consist of a term 
-$t$ and a \emph{circuit state} $C$. This state represents the 
-circuit being currently built. Instead of having a quantum device 
-capable of performing quantum operations, we will therefore assume 
-that we have a \emph{circuit constructor} capable or performing 
-certain circuit building operations (appending gates,\ldots). 
-The reduction will then be defined as a non-probabilistic rewrite 
-procedure on closures. As in the QLC, some redexes will affect the 
-state by sending instructions to the circuit constructor. For 
-example: ``Append a Hadamard gate to wire number 3''.
-
-In what follows, we distinguish between the \emph{core} 
-of Proto-Quipper, which represents the proved type-safe fragment 
-of the language, and the \emph{extensions} of the language, 
-containing newly implemented features of Proto-Quipper that 
-are currently under development. 
+The reduction in Proto-Quipper is similarly defined on closures. 
+However, a closure $[C,t]$ now consists of a term $t$ and a 
+\emph{circuit state} $C$. This state represents the circuit being 
+currently built. Instead of having a quantum device capable of 
+performing quantum operations, we assume that we have a 
+\emph{circuit constructor} capable or performing certain circuit 
+building operations (appending gates,\ldots). The reduction is 
+then defined as a non-probabilistic rewrite procedure on closures. 
+As in the QLC, some redexes will affect the state by sending 
+instructions to the circuit constructor. For example: ``Append a 
+Hadamard gate to wire number 3''.
 
 
-\section{Core Proto-Quipper}
+\section{The Core Language}
 
 In this section we present the language for the core of 
 Proto-Quipper.
 
-\subsection{The Language}
+\subsection{Types and terms}
 
 \begin{definition} 
 The \emph{types} of Proto-Quipper are defined by:
@@ -108,17 +121,24 @@ $\qdatatype~T,U$ & $\bnf$ & $qubit \bor 1 \bor T \tensor U.$
 \end{center}
 \end{definition}
 
-The types $1,Bool, A\x B, A\loli B$ and $!A$ are intended to have 
-their usual meaning, i.e., as in linear logic. In particular, $!A$ 
-is the set of \emph{duplicable} or \emph{reusable} elements of type 
-$A$. We will sometimes write $!^nA$, with $n\in\N$, to mean: 
+The type system of Proto-Quipper, like the type system of the QLC, 
+is based on intuitionistic linear logic (see \cite{Gir87}). 
+It can be helpful to think of types as sets of values. The 
+meaning of the types is as follows. $Bool$ is the type of 
+booleans, $1$ is the unit type, $A\x B$ is the type of pairs 
+composed of a left member of type $A$ and of right member of type 
+$B$ and $A\loli B$ is the type of functions from $A$ to $B$. 
+The elements of $qubit$ are (quantum) wire identifiers. The 
+QData types are circuit endpoints, which consist of tuples 
+of wire identifiers. The type $Circ(T,U)$ is the set of all 
+circuits having $T$-type input and $U$-type output. The type 
+$!A$ can be understood as the subset of values of type $A$ that 
+have the additional property of being \emph{duplicable} or 
+\emph{reusable}. We will sometimes write $!^nA$, with $n\in\N$, 
+to mean: 
 \[
 \underbrace{!\ldots !}_{n} A.
 \]
-The elements of $qubit$ are (quantum) wire identifiers. The QData 
-types are circuit endpoints, which consist of tuples of wire 
-identifiers. The type $Circ(T,U)$ is the set of all circuits having 
-$T$-type input and $U$-type output. 
 
 \begin{definition}
 Assume three countable sets: a set $\vset$ of \emph{variables}, a 
@@ -145,10 +165,11 @@ $In,Out\from \cset\to\pset_f(\qset)$ and that $\qset$ is
 well-ordered.
 \end{definition}
 
-Again, the meaning of most terms is intended to be the usual one, 
-i.e., as in any typed lambda calculi. For example, $\lambda x.a$ 
-is the function which assigns $a$ to $x$. For the remaining terms 
-we have:
+The meaning of most terms is intended to be the standard 
+one. For example $\p{a,b}$ is the pair of $a$ and $b$, 
+$\true$ and $\false$ are the booleans and $\lambda x.a$ 
+is the function which assigns $a$ to $x$. For the more 
+unusual terms we have:
 \begin{itemize}
   \item $q$ is a wire identifier,
   \item $(t,C,a)$ is a circuit with $t$ as an input and $a$ as an 
@@ -163,12 +184,19 @@ Note that the term $box^T$ depends on the type $T$. This
 \emph{Church-style} typing of the language is the reason why types 
 were introduced before terms. Note also that in the above syntax, 
 $box^T$, $unbox$ and $rev$ are terms in their own right. In earlier 
-versions of these notes, they were term constructors. The current 
-presentation  was chosen because it allows for a more concise 
-presentation of the operational semantics. Finally, remark that 
-in a term like $(t,C,a)$, $t$ is a QData term but $a$ isn't. The 
-type system to be introduced later will guarantee that even though 
-$a$ is not yet a QData term it will eventually reduce to one.
+versions of these notes, they were term constructors. This choice 
+was made because it allows for a more concise presentation of 
+the operational semantics. Finally, remark that in a term like 
+$(t,C,a)$, $t$ is a QData term but $a$ isn't. The type system to 
+be introduced later will guarantee that even though $a$ is not yet 
+a QData term it will eventually reduce to one. 
+
+As an example of well-formed term of Proto-Quipper consider:
+\[
+qft_3
+\]
+The operational meaning of this program will be explained later 
+once the operational semantics of Proto-Quipper has been introduced.
 
 The \emph{values} are the terms whose execution is finished.
 
@@ -859,7 +887,37 @@ By case distinction on $a$.
 \end{proof}
 
 
-\section{Proof of Type Safety}
+\section{Type Safety}
+
+In this section, we establish that Proto-Quipper is a 
+\emph{type safe} language. We follow \cite{} and 
+say that Proto-Quipper is type safe if it enjoys the 
+following two properties: 
+\begin{description}
+  \item[Subject Reduction:] this property guarantees 
+  that the type of a term is stable under reduction.
+  As a corollary, it also shows that if a term is 
+  well-typed, then it never reduces to an ill-typed 
+  term.
+  \item[Progress:] this property shows that a 
+  well-typed term never reaches an ``error state", 
+  which is defined to be a closure $[C,t]$ to which 
+  no reduction rule applies but such that 
+  $t\notin \mathtt{Val}$. 
+\end{description}
+Note that the reduction relation is defined on closures 
+but the typing rules apply to terms. We therefore extend 
+the notions of typing judgement and validity to closures.
+
+\begin{definition}
+A \emph{typed closure} is an expression of the form:
+\[
+\Gamma;Q\entails [C,a]:A,(Q'|Q'')
+\]
+where $\mathtt{In}(C)=Q'$ and $\mathtt{Out}(C)=Q,Q''$. 
+It is \emph{valid} if $\Gamma;Q\entails a:A$ is a valid 
+typing judgement.
+\end{definition}
 
 \subsection{Properties of the Type System}
 
@@ -1067,27 +1125,6 @@ respectively. We prove the Lemma by induction on $\pi_1$.
 \end{itemize}
 \end{proof}
 
-To establish that Proto-Quipper is a \emph{type safe} language, we must prove that 
-it enjoys two properties: \emph{Subject Reduction} and \emph{Progress}. The first 
-property guarantees that the type of a term is stable under reduction. As a 
-corollary, it also proves that if a term is well-typed, then it never reduces to 
-an ill-typed term. The second property shows that a well-typed term never reaches 
-an ``error state", which is a closure $[C,t]$ to which no reduction rule applies 
-but such that $t\notin \mathtt{Val}$. 
-
-The reduction relation is defined on closures but the typing rules apply to terms. 
-We therefore start by extending the notions of typing judgement and validity to 
-closures.
-
-\begin{definition}
-A \emph{typed closure} is an expression of the form:
-\[
-\Gamma;Q\entails [C,a]:A,(Q'|Q'')
-\]
-where $\mathtt{In}(C)=Q'$ and $\mathtt{Out}(C)=Q,Q''$. It is 
-\emph{valid} if $\Gamma;Q\entails a:A$ is a valid 
-typing judgement.
-\end{definition}
 
 \subsection{Subject Reduction}
 
@@ -1646,8 +1683,8 @@ Classical and quantum wires
 \section{Proto-Quipper User Guide}
 
 
-\section*{Appendix: Acronyms}
-\addcontentsline{toc}{section}{Appendix: Acronyms}
+\section*{Acronyms}
+\addcontentsline{toc}{section}{Acronyms}
 
 \bibliography{biblio}{}
 \bibliographystyle{plain}
