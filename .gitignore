@@ -16,6 +16,10 @@ Quipper
 *.dvi
 *.ps
 *.out
+*.bbl
+*.blg
 *.texwatch.lock
 _build
 haddock-doc
+test
+temp
