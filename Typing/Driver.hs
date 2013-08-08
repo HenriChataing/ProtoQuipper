@@ -41,7 +41,7 @@ import Data.IntMap as IMap
 import Data.Char as Char
 
 
--- | Lex and parse the file of the given filepath (implementation)
+-- | Lex and parse the file of the given filepath (implementation).
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
@@ -50,7 +50,7 @@ lex_and_parse_implementation file = do
   return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
 
 
--- | Lex and parse the file of the given filepath (interface)
+-- | Lex and parse the file of the given filepath (interface).
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
   contents <- liftIO $ readFile file
@@ -63,9 +63,8 @@ lex_and_parse_interface file = do
 -- The name of the code file is expected to be dir/module.ext,
 -- where dir is the directory, module is the name of the module with
 -- the first letter put to lower case, and ext the extension, which can be either .qp (implementation)
--- or .qpi (interface). 'dir' is taken in the provided list of directories
---
--- If several implementations are found, an error is raised
+-- or .qpi (interface). 'dir' is taken in the provided list of directories.
+-- If several implementations are found, an error is raised.
 find_in_directories :: String -> [FilePath] -> String -> QpState (Maybe FilePath)
 find_in_directories mod@(initial:rest) directories extension = do
   mfile <- return $ (Char.toLower initial):(rest ++ extension)
@@ -92,7 +91,7 @@ find_in_directories mod@(initial:rest) directories extension = do
 
 -- | Specifically look for the implementation of a module
 -- Since an implementation is expected, the function fails if no matching
--- file is found
+-- file is found.
 find_implementation_in_directories :: String -> [FilePath] -> QpState FilePath
 find_implementation_in_directories mod directories = do
   f <- find_in_directories mod directories ".qp"
@@ -106,7 +105,7 @@ find_implementation_in_directories mod directories = do
 
 
 -- | Specifically look for the interface of a module
--- Since the interface file is optional, so is the return value
+-- Since the interface file is optional, so is the return value.
 find_interface_in_directories :: String -> [FilePath] -> QpState (Maybe FilePath)
 find_interface_in_directories mod directories =
   find_in_directories mod directories ".qpi"
@@ -115,9 +114,9 @@ find_interface_in_directories mod directories =
 
 -- | Recursively explore the dependencies of the program. It returns
 -- a map linking the modules to their parsed implementation, and a map corresponding
--- to the dependency graph
+-- to the dependency graph.
 -- It proceeds to sort topologically the dependencies at the same time, using an in-depth exploration of the graph
--- Note that the return list is reversed, with the 'oldest' module first
+-- Note that the return list is reversed, with the 'oldest' module first.
 explore_dependencies :: [String] -> S.Program -> [String] -> [S.Program] -> QpState ([S.Program], [String])
 explore_dependencies dirs prog explored sorted = do
   -- Mark the module as explored
@@ -160,9 +159,9 @@ explore_dependencies dirs prog explored sorted = do
 -- | Sort the dependencies of file in a topological fashion
 -- The program argument is the main program, on which quipper has been called. The return value
 -- is a list of the dependencies, with the properties :
---      - each module may only appear once
---      - for each module, every dependent module is placed before in the list
---      - (as a corollary) the main module is placed last
+-- >     - each module may only appear once.
+-- >     - for each module, every dependent module is placed before in the list.
+-- >     - (as a corollary) the main module is placed last.
 build_dependencies :: [String] -> S.Program -> QpState [S.Program]
 build_dependencies dirs main = do
   (deps, _) <- explore_dependencies dirs main [] []
@@ -182,13 +181,21 @@ data ExtensiveContext = Context {
 }
 
 
+-- | Definition of processing options specific to modules (as is not the case with the program options that affect
+-- the whole program).
+data MOptions = MOptions {
+  toplevel :: Bool                -- ^ Is the module at toplevel (in the sense : was it given as argument of the program).
+}
+
+
+
 -- | Process a list of declarations (corresponding to either commands in interactive mode or
 -- the body of a module). The arguments include os the vector of command options, the current module,
 -- an extensive context, and a declaration.
-process_declaration :: Options -> S.Program -> ExtensiveContext -> S.Declaration -> QpState ExtensiveContext
+process_declaration :: (Options, MOptions) -> S.Program -> ExtensiveContext -> S.Declaration -> QpState ExtensiveContext
 
 -- EXPRESSIONS
-process_declaration opts prog ctx (S.DExpr e) = do
+process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Translation of the expression into internal syntax.
   e' <- translate_expression e $ label ctx
 
@@ -220,7 +227,7 @@ process_declaration opts prog ctx (S.DExpr e) = do
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- If interpretation, interpret, and display the result
-  if runInterpret opts then do
+  if runInterpret opts && toplevel mopts then do
     v <- interpret (environment ctx) e'
     case (v, circuitFormat opts) of
       (VCirc _ c _, "ir") -> do
@@ -230,8 +237,10 @@ process_declaration opts prog ctx (S.DExpr e) = do
           liftIO $ putStrLn (pprint c ++ " : " ++ inferred ++ "\n")
       _ ->
           liftIO $ putStrLn (pprint v ++ " : " ++ inferred ++ "\n") 
-  else
+  else if toplevel mopts then
     liftIO $ putStrLn ("-: "  ++ inferred)
+  else
+    return ()
 
   -- Return
   return $ ctx { used = List.union (used ctx) fve,     -- Used variables are augmented by the variables used in this expression.
@@ -239,7 +248,7 @@ process_declaration opts prog ctx (S.DExpr e) = do
 
 
 -- LET BINDING
-process_declaration opts prog ctx (S.DLet recflag p e) = do
+process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', lbl') <- translate_pattern p $ label ctx
   e' <- translate_expression e lbl'
@@ -309,10 +318,13 @@ process_declaration opts prog ctx (S.DLet recflag p e) = do
                       rec
                       nx <- variable_name x
                       pa <- pprint_type_noref a
-                      liftIO $ putStrLn (nx ++ " : " ++ pa)
-                      return ()) (return ()) gamma_p
+                      -- No unnecessary printing
+                      if toplevel mopts then
+                        liftIO $ putStrLn (nx ++ " : " ++ pa)
+                      else
+                        return ()) (return ()) gamma_p
 
-  -- Evaluation
+  -- Evaluation (even if the module is not toplevel, if the general optons want it to be evaluated, then so be it)
   if runInterpret opts then do
     -- Reduce the argument e1
     v <- interpret (environment ctx) e'
@@ -343,8 +355,9 @@ process_declaration opts prog ctx (S.DLet recflag p e) = do
 
 -- | Process a module, from the syntax translation to the type inference
 -- Every result produced by the type inference is recorded in the module
--- internal representation (type Module)
-process_module :: Options -> S.Program -> QpState ()
+-- internal representation (type Module)? The module options indicate whether
+-- the toplevel expressions must be executed or not (amongst others). 
+process_module :: (Options, MOptions) -> S.Program -> QpState ()
 process_module opts prog = do
 
 -- Configuration part
@@ -368,7 +381,7 @@ process_module opts prog = do
   import_globals
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs (workWithProto opts) $ S.typedefs prog
+  dcons <- import_typedefs (workWithProto $ fst opts) $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
   define_user_properties $ S.typedefs prog
   update_module_types
@@ -385,13 +398,11 @@ process_module opts prog = do
   ctx <- get_context
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
 
-
 --  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
 --  if proto then
 --    unsugar t
 --  else
 --    return t
-
 
 -- Type inference part
 
@@ -412,39 +423,34 @@ process_module opts prog = do
   fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
   _ <- unify True (fconstraints <> constraints ctx)
  
-  -- Return the inferred type 
+  -- Return
   return ()
 
 
 -- ==================================== --
 -- | DO EVERYTHING !
-do_everything :: Options -> FilePath -> QpState ()
-do_everything opts file = do
+-- To sort the dependencies of a list of modules, and e able to reuse the existing functions for single modules,
+-- a dummy module is created that imports all the toplevel modules (never to be executed).
+do_everything :: Options -> [FilePath] -> QpState ()
+do_everything opts files = do
   -- Define the builtins
   import_builtins
 
-  -- Parse the original file
-  prog <- lex_and_parse_implementation file
-  -- Look for an interface file
-  fInter <- find_interface_in_directories (S.module_name prog) (includes opts)
-  prog <- case fInter of
-            Just f -> do
-                interface <- lex_and_parse_interface f
-                return $ prog { S.interface = Just interface }
-            Nothing ->
-                return prog
+  -- Get the modules' names
+  progs <- return $ List.map module_of_file files
 
-  -- Build the dependencies
-  deps <- build_dependencies (includes opts) prog
+  -- Build the dependencies (with a dummy module that is removed immediately)
+  deps <- build_dependencies (includes opts) S.dummy_program { S.imports = progs }
+  deps <- return $ List.init deps
 
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
                 _ <- rec
-                process_module opts p
+                mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs }
+                process_module (opts, mopts) p
                 -- Move the module internally onto the modules stack
                 ctx <- get_context
                 set_context $ ctx { modules = (S.module_name p, cmodule ctx):(modules ctx) }
-                -- Return the last type
                 return ()) (return ()) deps
 -- ===================================== --
 

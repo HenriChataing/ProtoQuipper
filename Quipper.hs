@@ -42,12 +42,10 @@ main = do
   -- Proto quipper
   case files of
     [] -> optFail "-: No argument file specified"
-    [file] -> 
+    _ -> 
           (do
              _ <- Q.runS (do
                  Q.set_verbose (verbose opts)
-                 do_everything opts file) Q.empty_context
+                 do_everything opts files) Q.empty_context
              return ()) `E.catch` (\(e :: QError) -> putStrLn $ show e)
-
-    _ -> optFail "-: Several input files"
 

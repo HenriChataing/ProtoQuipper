@@ -50,6 +50,18 @@ data Program = Prog {
 }
 
 
+-- | A dummy program, all empty.
+dummy_program :: Program
+dummy_program = Prog {
+  module_name = "Dummy",
+  filepath = "*Unknown*",
+  imports = [],
+  typedefs = [],
+  body = [],
+  interface = Nothing
+}
+
+
 -- | Definition of an interface file. The definition carries the list of type declarations contained in the interface, which
 -- list must be a subset of the global variables of the implementation.
 type Interface = [(String, Type)]
