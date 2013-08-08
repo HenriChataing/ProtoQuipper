@@ -123,10 +123,6 @@ read_format f opts =
 -- | Add a directory to the list of includes.
 include_directory :: String -> Options -> IO Options
 include_directory dir opts = do
-  dir <- if List.isSuffixOf "/" dir then
-           return dir
-         else
-           return $ dir ++ "/"
   exist <- doesDirectoryExist dir
   if exist then
     return $ opts { includes = dir:(includes opts) }

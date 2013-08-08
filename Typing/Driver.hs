@@ -34,6 +34,7 @@ import Monad.Modules
 import Monad.QuipperError
 
 import System.Directory
+import System.FilePath.Posix
 
 import Data.List as List
 import Data.Map as Map
@@ -70,7 +71,7 @@ find_in_directories mod@(initial:rest) directories extension = do
   mfile <- return $ (Char.toLower initial):(rest ++ extension)
   existing <- List.foldl (\rec d -> do
                             r <- rec
-                            nexttry <- return $ d ++ mfile
+                            nexttry <- return $ combine d mfile
                             exists <- liftIO $ doesFileExist nexttry
                             if exists then
                               return (nexttry:r)

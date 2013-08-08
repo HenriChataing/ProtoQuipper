@@ -45,7 +45,7 @@ main = do
     [] -> optFail "-: No argument file specified"
     _ -> do
         -- Automatically include the directories of the files
-        dirs <- return $ List.nub $ List.map (\f -> takeDirectory f ++ "/") files
+        dirs <- return $ List.nub $ List.map (\f -> takeDirectory f) files
         opts <- return $ opts { includes = List.union dirs (includes opts) }
         (do
            _ <- Q.runS (do
