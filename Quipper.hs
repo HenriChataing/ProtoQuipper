@@ -3,30 +3,13 @@
 -- | Main module, which contains the main function that patches everything together.
 module Main where
 
-import Parsing.Parser
-import Parsing.ConstraintParser
-import Parsing.Lexer
-
 import Monad.QuipperError
 import qualified Monad.QpState as Q
 
-import Classes
-import Utils
-
-import Parsing.Syntax
-import Parsing.Printer
-
-import Typing.CoreSyntax
-import Typing.TransSyntax
 import Typing.Driver
-
-import Interpret.Values
-import Interpret.Interpret
-import Interpret.IRExport
 
 import System.IO
 import System.Environment
-import System.Console.GetOpt
 import System.FilePath.Posix
 import qualified Control.Exception as E
 import Options
