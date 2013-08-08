@@ -63,27 +63,27 @@ future. The current version of Proto-Quipper (0.1) was designed
 with two goals in mind: 
 \begin{itemize}
   \item incorporate Quipper's ability to generate and act on 
-  quantum circuits and 
+  quantum circuits, and 
   \item provide a linear type system to guarantee that the 
   produced circuits are physically meaningful (in particular, 
   properties like no-cloning are respected).
 \end{itemize}
-Proto-Quipper follows the QRAM model of quantum computation and 
-is based on the Quantum Lambda Calculus (QLC, see \cite{SeVa09}). 
-In the QLC, the execution of programs is modelled by the so-called
-reduction relation. This relation is defined on \emph{closures}. 
-These closures are essentially pairs $[C,t]$ consisting of a term 
-of the language $t$ and a quantum state $C$. The state is a unit 
-vector in a complex Hilbert space and $t$ is a term whose free 
-variables are linked to the qubits composing $C$. The quantum 
-state is held in a quantum device capable of performing certain 
-operations (applying unitaries, measuring qubits,\ldots). The 
-reduction in the QLC is then defined as a probabilistic rewrite 
-procedure on these closures. Typically, the reduction will be 
-classical until a redex involving a quantum constant is reached. 
-At this point, the quantum device will be instructed to perform 
-the appropriate quantum operation. For example: ``Apply a Hadamard 
-gate to qubit number 3''. 
+Proto-Quipper is based on the Quantum Lambda Calculus (QLC see 
+\cite{SeVa09} respectively). In the QLC, the execution 
+of programs is modelled by the so-called reduction relation. This 
+relation is defined on \emph{closures}. These closures are 
+essentially pairs $[C,t]$ consisting of a term of the language 
+$t$ and a quantum state $C$. The state is a unit vector in a 
+complex Hilbert space and $t$ is a term whose free variables are 
+linked to the qubits composing $C$. The quantum state is held in 
+a quantum device capable of performing certain operations 
+(applying unitaries, measuring qubits,\ldots). The reduction in 
+the QLC is then defined as a probabilistic rewrite procedure on 
+these closures. Typically, the reduction will be classical until 
+a redex involving a quantum constant is reached. At this point, 
+the quantum device will be instructed to perform the appropriate 
+quantum operation. For example: ``Apply a Hadamard gate to qubit 
+number 3''. 
 
 The reduction in Proto-Quipper is similarly defined on closures. 
 However, a closure $[C,t]$ now consists of a term $t$ and a 
@@ -123,22 +123,23 @@ $\qdatatype~T,U$ & $\bnf$ & $qubit \bor 1 \bor T \tensor U.$
 
 The type system of Proto-Quipper, like the type system of the QLC, 
 is based on intuitionistic linear logic (see \cite{Gir87}). 
-It can be helpful to think of types as sets of values. The 
-meaning of the types is as follows. $Bool$ is the type of 
-booleans, $1$ is the unit type, $A\x B$ is the type of pairs 
-composed of a left member of type $A$ and of right member of type 
-$B$ and $A\loli B$ is the type of functions from $A$ to $B$. 
-The elements of $qubit$ are (quantum) wire identifiers. The 
-QData types are circuit endpoints, which consist of tuples 
-of wire identifiers. The type $Circ(T,U)$ is the set of all 
-circuits having $T$-type input and $U$-type output. The type 
-$!A$ can be understood as the subset of values of type $A$ that 
-have the additional property of being \emph{duplicable} or 
-\emph{reusable}. We will sometimes write $!^nA$, with $n\in\N$, 
-to mean: 
+It can be helpful to think of types as sets of values. Under this 
+interpretation, the types can be understood as follows. $Bool$ is 
+the set of booleans, $1$ is the unit type, $A\x B$ is the set of 
+pairs composed of a left member of type $A$ and of right member 
+of type $B$ and $A\loli B$ is the set of functions from $A$ to 
+$B$. The type $!A$ can be understood as the subset of $A$ 
+consisting of values that have the additional property of being 
+\emph{duplicable} or \emph{reusable}. We will sometimes write 
+$!^nA$, with $n\in\N$, to mean: 
 \[
 \underbrace{!\ldots !}_{n} A.
 \]
+The remaining types are specific to Proto-Quipper. The elements 
+of $qubit$ are (quantum) wire identifiers. The QData types are 
+circuit endpoints, which consist of tuples of wire identifiers. 
+Finally, the type $Circ(T,U)$ is the set of all circuits having 
+$T$-type input and $U$-type output. 
 
 \begin{definition}
 Assume three countable sets: a set $\vset$ of \emph{variables}, a 
@@ -184,12 +185,13 @@ Note that the term $box^T$ depends on the type $T$. This
 \emph{Church-style} typing of the language is the reason why types 
 were introduced before terms. Note also that in the above syntax, 
 $box^T$, $unbox$ and $rev$ are terms in their own right. In earlier 
-versions of these notes, they were term constructors. This choice 
-was made because it allows for a more concise presentation of 
-the operational semantics. Finally, remark that in a term like 
-$(t,C,a)$, $t$ is a QData term but $a$ isn't. The type system to 
-be introduced later will guarantee that even though $a$ is not yet 
-a QData term it will eventually reduce to one. 
+versions of these notes, they were term constructors. The current 
+presentation was eventually adopted because it allows for a more 
+concise exposition of the operational semantics. Finally, remark 
+that in a term like $(t,C,a)$, $t$ is a QData term but $a$ isn't. 
+The type system to be introduced later will guarantee that even 
+though $a$ is not yet a QData term it will eventually reduce to 
+one. 
 
 As an example of well-formed term of Proto-Quipper consider:
 \[
@@ -339,6 +341,11 @@ If $X$ is clear, we simply write $\spec (T)$.
 
 \subsection{The Type System}
 
+The fact that a term is reusable should not prevent us from 
+using it exactly once. Intuitively, this should imply that if a 
+term has the type $!A$, then it should also have the type $A$. 
+To capture this idea, we use a subtyping relation on types.
+
 \begin{definition}
 The \emph{subtyping relation} $<:$ is the smallest relation on 
 types satisfying the rules given in 
@@ -392,15 +399,6 @@ figure~\hyperref[subtyping_congruences]{\ref*{subtyping_congruences}}.
 \end{figure}
 
 \begin{remark}
-\label{equiv_subtype_arithm}
-The following are equivalent:
-\begin{itemize}
-  \item $(m=0)\wedge (n\geq 1)$,
-  \item $(m\geq 1) \implies (n\geq 1)$.
-\end{itemize}
-\end{remark}
-
-\begin{remark}
 \label{subtyping_shape}
 If $A<:B$ then:
 \begin{enumerate}
@@ -420,6 +418,17 @@ If $A<:B$ then:
 \begin{proposition}
 The subtyping relation is reflexive and transitive.
 \end{proposition}
+
+Note that the following equivalence holds: 
+\[
+(m=0)\wedge (n\geq 1) 
+~\mbox{ iff }~ 
+(m\geq 1) \implies (n\geq 1),
+\]
+so that, as expected, the following rule is derivable:
+\[
+  \infer[.]{!A <: A}{}
+\]
 
 \begin{definition}
 A \emph{typing context} is a finite set 
@@ -553,20 +562,19 @@ type of a wire might have to be explicitly stated.
 }
 \]
 \end{mdframed}
-\caption{Typing rules.}
 \label{typing_rules}
+\caption{Typing rules.}
 \end{figure}
 
-In the current type system, any circuit can be reversed. 
-This is because the present version of Proto-Quipper does not 
-make a distinction between reversible and irreversible circuits. 
-Of course, this will have to be modified to accommodate non-reversible 
-gates such as measurements.
+To illustrate the safety properties of the type system, 
+note that the $(\x\mbox{-i})$ rule ensures that 
+$\lambda x. \p{x,x}$ cannot be given the type 
+$qubit\loli qubit \x qubit$.
 
 
 \subsection{Circuit Constructors}
 
-As mentioned in the introduction, the reduction relation for 
+As mentioned in Section 2, the reduction relation for 
 Proto-Quipper is defined in the presence of a \emph{circuit
 constructor}. This is a device capable of 
 performing certain basic circuit building operations. It is 
@@ -613,7 +621,8 @@ circuits. The definition of circuit used by a particular
 constructor needn't be specified here. However, it can be helpful 
 to keep in mind the usual representation of quantum circuits when 
 thinking about constructors. For example, one can think of 
-$\mathtt{New}(q_1,q_2,q_3)$ as the circuit given in figure~\hyperref[rep_new]{\ref*{rep_new}}.
+$\mathtt{New}(q_1,q_2,q_3)$ as the circuit given in 
+figure~\hyperref[rep_new]{\ref*{rep_new}}.
 
 \begin{figure}[!ht]
 \[
@@ -636,7 +645,7 @@ a new circuit $C'$ together with a new map $\binding'$. $C'$ can be
 seen as the composition of $C$ and $D$ along $\binding$. An illustration of 
 this process is given in figure~\hyperref[rep_unencap]{\ref*{rep_unencap}}. 
 The function $\binding$ is used to specify along which wires to compose $C$ 
-and $D$ while the function $\binding'$ updates the wire names post-composition.
+and $D$ while the function $\binding'$ updates the wire names post composition.
 
 \begin{figure}[!ht]
 \[
@@ -842,36 +851,38 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \label{circ_gen_rules}
 \end{figure}
 
-The classical reduction rules and the congruence rules (minus $(circ)$) are standard. They 
-describe the usual call-by-value reduction strategy. The $(rev)$ rule is 
-straightforward. We briefly discuss the remaining rules. The $(box)$ rule is 
-to be understood as follows. Start by generating a specimen of type $T$. Then 
-apply the function $v$ on the input $t$ in the context of an empty circuit of 
-the appropriate arity. Note that while this computation is taking place, the 
-state $C$ is not accessible. By the $(circ)$ congruence rule, this computation will 
-continue until a value is reached, i.e., a term of the form $(t,D,t')$. At this point, 
-the construction of $C$ can resume. Remark that it was necessary to know the type 
-$T$ in order to generate the appropriate specimen. This explains the choice of a 
-Church-style typing of the language. The $(unbox)$ rule will first generate a binding 
-from $v$ and the input $u$ of $D$. Then, it will compose $C$ and $D$ along that 
+The classical reduction rules and the congruence rules (minus $(circ)$) 
+are standard. They describe the usual call-by-value reduction strategy. 
+The $(rev)$ rule is straightforward. We briefly discuss the remaining 
+rules. The $(box)$ rule is to be understood as follows. Start by 
+generating a specimen of type $T$. Then apply the function $v$ on the 
+input $t$ in the context of an empty circuit of the appropriate arity. 
+Note that while this computation is taking place, the state $C$ is not 
+accessible. By the $(circ)$ congruence rule, this computation will 
+continue until a value is reached, i.e., a term of the form $(t,D,t')$. 
+At this point, the construction of $C$ can resume. Remark that it was 
+necessary to know the type $T$ in order to generate the appropriate 
+specimen. This explains the choice of a Church-style typing of the 
+language. The $(unbox)$ rule will first generate a binding from $v$ 
+and the input $u$ of $D$. Then, it will compose $C$ and $D$ along that 
 binding and update the names of the wire identifiers appearing in $u'$ 
 according to $\binding'$.
 
-The inductive nature of the reduction rule explains why closures are not
-required to satisfy $FQ(a)=\mathtt{Out}(C)$. The requirement that 
-$FQ(a)\subseteq \mathtt{Out}(C)$ is justified by the idea that a term should 
-not affect a wire outside of $C$. But if we also asked for the opposite 
-inclusion, it wouldn't be possible to define an inductive reduction in a 
-straightforward way. For example, the reduction of a pair is done 
-component-wise: to reduce $\p{a,b}$ one first reduces $b$. The simplest way 
-to express this in terms of closures is to carry the whole circuit state along. 
-This implies that if both $a$ and $b$ contain wire identifiers, then the 
-equality $FQ(a)=\mathtt{Out}(C)$ cannot be satisfied.
+The inductive nature of the reduction rule explains why closures are 
+not required to satisfy $FQ(a)=\mathtt{Out}(C)$. The requirement that 
+$FQ(a)\subseteq \mathtt{Out}(C)$ is justified by the idea that a term 
+should not affect a wire outside of $C$. But if we also asked for the 
+opposite inclusion, it wouldn't be possible to define an inductive 
+reduction in a straightforward way. For example, the reduction of a 
+pair is done component-wise: to reduce $\p{a,b}$ one first reduces $b$. 
+The simplest way to express this in terms of closures is to carry the 
+whole circuit state along. This implies that if both $a$ and $b$ 
+contain wire identifiers, then the equality $FQ(a)=\mathtt{Out}(C)$ 
+cannot be satisfied.
 
-Proto-Quipper's reduction is non-probabilistic, in the sense that the right member of 
-any reduction rule is a unique closure. This property might be modified 
-in later versions of the language if a notion of \emph{dynamic lifting} is added. The 
-following proposition establishes that Proto-Quipper's reduction is  
+Proto-Quipper's reduction is non-probabilistic, in the sense that the 
+right member of any reduction rule is a unique closure. The following 
+proposition establishes that Proto-Quipper's reduction is moreover  
 \emph{deterministic}.
 
 From now on, we always assume an adequate circuit constructor.
@@ -890,8 +901,8 @@ By case distinction on $a$.
 \section{Type Safety}
 
 In this section, we establish that Proto-Quipper is a 
-\emph{type safe} language. We follow \cite{} and 
-say that Proto-Quipper is type safe if it enjoys the 
+\emph{type safe} language. We follow \cite{WrFe94} in 
+considering that a language is type safe if it enjoys the 
 following two properties: 
 \begin{description}
   \item[Subject Reduction:] this property guarantees 
@@ -921,12 +932,13 @@ typing judgement.
 
 \subsection{Properties of the Type System}
 
-We record some properties of the type system, including 
-the important \emph{Substitution Lemma}. Note that the typing 
-rules enforce a \emph{strict} linearity on variables and quantum addresses. 
-In particular, if a quantum address appears in the quantum context of a 
-valid typing judgement for a term $a$, then it must belong to the 
-quantum addresses of $a$.
+Before proving subject reduction and progress, we record 
+some properties of the type system, including the important 
+\emph{Substitution Lemma}. Note that the typing rules 
+enforce a \emph{strict} linearity on variables and quantum 
+addresses. In particular, if a quantum address appears in 
+the quantum context of a valid typing judgement for a term 
+$a$, then it must belong to the quantum addresses of $a$.
 
 \begin{lemma}~
 \label{prop_type_syst}
@@ -982,8 +994,8 @@ then $\Gamma=Q=\emptyset$.
 \end{lemma}
 
 \begin{proof}
-By induction on the typing derivation of $\Gamma,!\Delta;Q \entails v:!A$. For 
-the $(ax_c)$ case, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}.\ref*{subtype_bang}}.
+By induction on the typing derivation of $\Gamma,!\Delta;Q \entails v:!A$. 
+In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}.\ref*{subtype_bang}}.
 \end{proof}
 
 \begin{lemma}
@@ -1272,7 +1284,7 @@ the $(\beta)$ case.
     }
   \]  
   and $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails (\lambda x.b)v:A,(Q'|Q'')$ 
-  is valid. By Lemma~\hyperref[substitution]{\ref*{substitution}}, 
+  is valid. By Lemma \hyperref[substitution]{\ref*{substitution}}, we know that
   $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails b[v/x]:A$ is a valid typing 
   judgement which implies that 
   $\Gamma_1,\Gamma_2,!\Delta;FQ(b),FQ(v)\entails [C,b[v/x]]:A,(Q'|Q'')$ is a valid
@@ -1322,8 +1334,8 @@ We treat them individually.
   }
   \]
   Moreover, $FQ(t)=\mathtt{Out}(\mathtt{New}(FQ(t)))=\mathtt{In}(\mathtt{New}(FQ(t)))$. 
-  Therefore $!\Delta;FQ(t)\entails [\mathtt{New}(FQ(t)),vt]:U,(FQ(t)|\emptyset)$ is a 
-  valid typed closure. By the induction hypothesis, this implies that 
+  It therefore follows that $!\Delta;FQ(t)\entails [\mathtt{New}(FQ(t)),vt]:U,(FQ(t)|\emptyset)$ 
+  is a valid typed closure. By the induction hypothesis, this implies that 
   $!\Delta;FQ(b)\entails [D,b]:U,(FQ(t)|\emptyset)$ is also valid.
   In particular, this means that $\mathtt{In}(D)=FQ(t)$, $\mathtt{Out}(D)=FQ(b)$ 
   and there exists a typing derivation $\pi_3$ of $!\Delta;FQ(b)\entails b:U$.
@@ -1670,12 +1682,22 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 \subsection{Reversibility}
 
+In the current type system, any circuit can be reversed. 
+This is because the present version of Proto-Quipper does not 
+make a distinction between reversible and irreversible circuits. 
+Of course, this will have to be modified to accommodate non-reversible 
+gates such as measurements.
+
+
 \subsection{Classical vs. Quantum Circuits}
 Classical and quantum wires
 
 \subsection{Non-Linear Controls}
 
 \subsection{Dynamic Lifting}
+
+This property might be 
+modified in later versions of the language if a notion of \emph{dynamic lifting} is added.
 
 \subsection{Dependent types}
 
