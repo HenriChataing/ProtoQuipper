@@ -160,9 +160,9 @@ explore_dependencies dirs prog explored sorted = do
 -- | Sort the dependencies of file in a topological fashion
 -- The program argument is the main program, on which quipper has been called. The return value
 -- is a list of the dependencies, with the properties :
--- >     - each module may only appear once.
--- >     - for each module, every dependent module is placed before in the list.
--- >     - (as a corollary) the main module is placed last.
+--      - each module may only appear once.
+--      - for each module, every dependent module is placed before in the list.
+--      - (as a corollary) the main module is placed last.
 build_dependencies :: [String] -> S.Program -> QpState [S.Program]
 build_dependencies dirs main = do
   (deps, _) <- explore_dependencies dirs main [] []
