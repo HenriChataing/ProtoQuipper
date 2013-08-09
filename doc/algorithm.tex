@@ -1,56 +1,44 @@
 \section{Type inference}
 
-\subsection{Language QP'}
-\subsubsection{Definition}
+\subsection{The QP' language}
 
-The grammar of Proto-Quipper being rather extensive, the type inference will be formalized on a subset of the types and terms
-of Proto-Quipper. It shall be explained in a later section how to extend it to the full syntax. This section introduces the
-terms and type system of the language we will use to formalize the algorithm, which we name QP', by opposition to QP or Proto-Quipper. 
+The grammar of Proto-Quipper is rather extensive, so we formalize type inference algorithm on a fragment of the language and explain in a later section how to extend it to the full syntax. The present section introduces the terms and type system of the language we use for type inference, which we name QP' by opposition to QP or Proto-Quipper. 
 
-\begin{defn} The terms of QP' are the following :
+\begin{defn} The \emph{terms} of QP' are defined by:
 	\begin{center}
 	\begin{tabular}{rl}
 		$\texttt{Term} ~t,u~ ::=$ & $x ~|~ * ~|~ \lambda x.t ~|~ t \, u ~|~ \pair{t}{u} ~|~ \letin{\pair{x}{y}}{t}{u}. $
 	\end{tabular}
 	\end{center}
-	The development of the algorithm was initially based on the syntax of Lambda Calculus terms, that includes only variables,
-	$\lambda$-abstractions and functions applications. Tensors were then added, to give a better understanding of type inference.
 \end{defn}
 
-\begin{defn} The natural way to implement the type system of QP' would be to select in the set of types of QP those associated with the
-	terms of QP', and extend them with type variables. This would give :
-		\begin{center}
-		\begin{tabular}{rl}
-			$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
-		\end{tabular}
-		\end{center}
-	This would have been sufficient had the types not been linear. Because we need to be able to separately discuss the \textit{form} (for example
-	$qbit$, $bool \otimes bool$) and the \textit{linearity} (whether the type is duplicable or not) of any type, a new grammar is introduced
-	which, though less intuitive, offers more control over the form
-	of a type :
-		\begin{center}
-		\begin{tabular}{rl}
-			$\texttt{Flag}~ ::=$ & $n ~|~ 0 ~|~ 1$ \\		
-			$\texttt{LinearType} ~A~ ::=$ & $\alpha ~|~ 1 ~|~ T \multimap U ~|~ T \otimes U$ \\
-			$\texttt{Type	} ~T,U~ ::=$ & $!^n A$
-		\end{tabular}
-		\end{center}
-	Flags, linear types and types are to be interpreted as follow :
-		\begin{itemize}
-			\item $\texttt{LinearType}$ is the subset of types that are always linear. They will always correspond to terms that can not be duplicated,
-				such as qbits.
-			\item $\texttt{Type}$ is set of all the types of terms. Depending of the value of its prefixing flag, a $\texttt{Type}$ can be duplicable or not.
-				In practice, the type of a term will always be represented by a type, never by a linear type.
-			\item $\texttt{Flag}$ is the set of \textit{flag variables}, which parametrize the linearity of a type. If the value of $n$ in
-				$!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type of any quantum address shall be
-				$!^0 qbit$.
-		\end{itemize}
-	
-	Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type
-	variables to \textit{linear} types, whereas the first grammar allows us map $\alpha$ to anything, which is inconvenient.	
+The algorithm was initially developed for a simple Lambda Calculus with only variables, $\lambda$-abstractions and applications. We added tensors to give a better understanding of type inference.
+
+For the purpose of type inference, it would be natural to define the type system of QP' by extending the types of QP with type variables. This would give the following grammar for types:
+	\begin{center}
+	\begin{tabular}{rl}
+		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
+	\end{tabular}
+	\end{center}
+This would have been sufficient, had the types not been linear. However, we need to be able to discuss separately the \textit{form} (for example $qbit$, $bool \otimes bool$) and the \textit{linearity} (whether the type is duplicable or not) of a type. A new grammar is therefore introduced which, though less intuitive, offers more control over the form of a type.
+
+\begin{defn} The \emph{types} of QP' are defined by:
+	\begin{center}
+	\begin{tabular}{rl}
+		$\texttt{Flag}~ ::=$ & $n ~|~ 0 ~|~ 1$ \\		
+		$\texttt{LinearType} ~A~ ::=$ & $\alpha ~|~ 1 ~|~ T \multimap U ~|~ T \otimes U$ \\
+		$\texttt{Type	} ~T,U~ ::=$ & $!^n A$.
+	\end{tabular}
+	\end{center}
 \end{defn}
 
-New notations are introduced :
+Flags, linear types and types are to be interpreted as follow :
+\begin{itemize}
+	\item $\texttt{LinearType}$ is the subset of types that are always linear. They will always correspond to terms that can not be duplicated, such as qbits.
+	\item $\texttt{Type}$ is set of all the types of terms. Depending of the value of its prefixing flag, a $\texttt{Type}$ can be duplicable or not. In practice, the type of a term will always be represented by a type, never by a linear type.
+	\item $\texttt{Flag}$ is the set of \textit{flag variables}, which parametrize the linearity of a type. If the value of $n$ in $!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type of any quantum address shall be $!^0 qbit$.
+\end{itemize}
+Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in QP. We introduce the following new notations:
 \begin{itemize}
 	\item $\alpha, \beta \dots$ for type variables, taken in the set $\vset$.
 	\item $n, m \dots$ for flag variables, taken in the set $\fset$.
@@ -58,18 +46,14 @@ New notations are introduced :
 	\item $T, U \dots$ for types.
 \end{itemize}
 
-\begin{defn} We equip QP' types and linear types with the sub-typing relation $<:$ , built as the smallest relation on QP' types and
-	linear types satisfying the rules stated in figure \ref{subtypingQP'}.
+\begin{defn} The subtyping relation $<:$ is the smallest relation on types and linear types satisfying the rules given in figure \ref{subtypingQP'}.
 \end{defn}
-
-\begin{lemma} \it The sub-typing relation $<:$ is reflexive, transitive.
-\end{lemma}
 
 \begin{figure}[!ht]
 \begin{mdframed}
 	\begin{prooftree}
-  	\AxiomC{}
-  	\RightLabel{$(var)$}
+	  	\AxiomC{}
+	  	\RightLabel{$(var)$}
 	 	\UnaryInfC{$\alpha <: ~ \alpha$}
 	\end{prooftree}
 	\begin{prooftree}
@@ -88,7 +72,7 @@ New notations are introduced :
 	 	\AxiomC{$U <: U'$}
 	 	\RightLabel{$(\multimap)$}
 	 	\BinaryInfC{$T \multimap U <: T' \multimap U'$}
-	\end{prooftree}
+	\end{prooftree} 
 	\begin{prooftree}
 	 	\AxiomC{$T <: T'$}
 	 	\AxiomC{$U <: U'$}
@@ -100,41 +84,36 @@ New notations are introduced :
 \label{subtypingQP'}
 \end{figure}
 
-\begin{defn} \textit{A typing context} is a set of mappings $x : T$ associating QP' \textit{types} to variables, such that no variable is bound
-	more than once. The \textit{support} of $\Gamma$, written $|\Gamma|$, is the set of term variables bound in $\Gamma$.
-	The notation $!^I \Gamma$ is used to represent contexts of the form
-	$\Gamma = x_1 : \nbang{i_1} T_1 ~ \dots ~ x_n : \nbang{i_n} T_n$, with $I = \{i_1 \dots i_n\}$.
-	The sub-typing relation $\Gamma <: \Delta$ on contexts is used with the intended meaning :
-		\begin{center}
-			$\Gamma <: \Delta \equiv \left\{ \begin{array}{l}
-																						\Gamma = x_1 : T_1 \dots x_n : T_n \\
-																						\Delta = x_1 : U_1 \dots x_n : U_n \\
-																						\forall i, T_i <: U_i
-																					\end{array}	 \right.$
-		\end{center}
-	Finally, we write $\Gamma|_t$ to represent the context $\Gamma$ where only the bindings $x : T$ with $x \in FV(t)$ appear.
-	Similarly, the notation $\Gamma \backslash_t$ designates the context $\Gamma$ where the bindings $x : T$ for $x \in FV(t)$ have been
-	removed.
+\begin{proposition} \it The subtyping relation is reflexive and transitive.
+\end{proposition}
+
+The notion of a typing context, and the extension of the subtyping relation to typing contexts, are straightforwardly adapted from QP. We introduce the following new notations for the typing contexts of QP'. We write $\Gamma|_t$ to represent the context $\Gamma$ where only the bindings $x : T$ with $x \in FV(t)$ appear. Similarly, the notation $\Gamma \backslash_t$ designates the context $\Gamma$ where the bindings $x : T$ for $x \in FV(t)$ have been removed. Finally, we write $!^I \Gamma$ to represent contexts of the form $\Gamma = x_1 : \nbang{i_1} T_1 ~ \dots ~ x_n : \nbang{i_n} T_n$, with $I = \{i_1 \dots i_n\}$.
+
+The typing rules have to be adapted to the new grammar of types.
+
+\begin{defn}
+A \emph{typing judgement} is an expression of the form:
+\[
+\Gamma \vdash t:T
+\] 
+where $\Gamma$ is a typing context, $t$ is a term and $T$ is a type. A typing judgment is \emph{valid} if it can be inferred from the rules given in figure \ref{typingQP'}.
 \end{defn}
 
-\begin{defn} The typing rules have to be adapted to the new grammar of types. A typing judgement is a sequent
-	$\Gamma \vdash t : T$ that states that \textit{under the assumptions $\Gamma$, the term $t$ has the type $T$}. A typing judgement
-	is \textit{valid} if, and only if a typing derivation can be built using the typing rules written in figure \ref{typingQP'}.
-\end{defn}
+As in QP, a typing judgement should be interpreted as stating that \textit{under the assumptions $\Gamma$, the term $t$ has the type $T$}. 
 
-\begin{remark} The typing rules of QP' are mostly the same as those of QP, but for the different syntax of types and the special
-	case of the tensor typing rules. Recall that the typing rule for $\pair{a}{b}$ was in QP (without the quantum contexts)\,:
+\begin{remark} For the most part, the typing rules of QP' are those of QP adapted to the different syntax of types. This is not quite the 
+	case of the rules for $\x$. Recall that the typing rule for $\pair{a}{b}$ in QP was (omitting the quantum contexts):
 		\begin{prooftree}
 			\AxiomC{$\Gamma_1, !\Delta \vdash a : \,!^nA$}
 			\AxiomC{$\Gamma_2, !\Delta \vdash b : \,!^nB$}
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \pair{a}{b} : \,!^n(A \otimes B)$}
 		\end{prooftree}
-	which expresses the fact that the pair $\pair{a}{b}$ is duplicable if and only if both $a$ and $b$ are. However, the grammar of QP' types
-	doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of QP' uses the type $!^p(!^nA \otimes \,!^mB)$ with
-	the condition that $p$ can be $1$ if and only if both $n$ and $m$ are equal to one. This results in the duplicable pair $\pair{a}{b}$ having the
-	type $!^1(!^1 A \otimes \,!^1B)$ rather than $\bang (A \otimes B)$. \\
-	The same can be said of the rule $(\otimes.E)$.
+	This rule expresses the fact that the pair $\pair{a}{b}$ is duplicable if, and only if, both $a$ and $b$ are. However, the grammar of 
+	QP' types doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of QP' uses the type 
+	$!^p(!^nA \otimes \,!^mB)$ with the condition that $p$ can be $1$ if, and only if, both $n$ and $m$ are equal to one. This results in 
+	the duplicable pair $\pair{a}{b}$ having the type $!^1(!^1 A \otimes \,!^1B)$ rather than $\bang (A \otimes B)$. A similar remark applies 
+	to the $(\otimes.E)$ rule.
 \end{remark}
 
 \begin{exmp} The term $\lambda x.\pair{x}{x}$ can be typed in the empty context with the type 
@@ -202,9 +181,6 @@ New notations are introduced :
 \label{typingQP'}
 \end{figure}
 
-
-\subsubsection{Properties}
-
 \begin{thm}{\bf Soundness and completeness} Let $t$ be a QP' term. There exists two transformations $\tau$ and
 	$\bar \tau$ defined on types as functions respectively from QP to QP' types, and QP' to QP types, verifying the properties :
 	\begin{enumerate}
@@ -214,11 +190,11 @@ New notations are introduced :
 			$\bar \tau \Gamma \vdash t : \bar \tau T$ is valid in QP.
 	\end{enumerate}
 	
-	\begin{proof}
+	\begin{proofsketch}
 		The transformations $\tau$ and $\bar \tau$ can be written as recursive functions on types. Their definition will not be explained
-		here. The proof is a simple induction on the typing derivation of $\Gamma \vdash t : T$. Note that the cases of $(\otimes.I)$ and
+		here. The proof is a simple induction on the typing derivation of $\Gamma \vdash t : T$. The cases of $(\otimes.I)$ and
 		$(\otimes.E)$ use the isomorphism $\bang\bang A \equiv \bang A$.
-	\end{proof}
+	\end{proofsketch}
 \end{thm}
 
 \begin{remark}
