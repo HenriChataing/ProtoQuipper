@@ -533,7 +533,7 @@ by the completeness theorem.
 
 \begin{prop}{\bf Soundness} \\
 	Suppose that $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. If $\sigma$ is a solution
-	of $\mathcal{L}$ that is complete, then it is also a solution for $(\Gamma, t, T)$.
+	of $\mathcal{L}$, then it is also a solution for $(\Gamma, t, T)$.
 
 	\begin{proof}
  		By induction on the constraint typing derivation. If the term is
@@ -600,7 +600,7 @@ by the completeness theorem.
 		\item $x$. The typing judgement $\sigma \Gamma \vdash x : \sigma T$ being valid, $\sigma \Gamma$ must be of the form
 			$!^1 \Delta, x : \sigma U$, and $\sigma U <: \sigma T$. Thus, $\sigma$ is a solution of $\mathcal{L} = \{ U <: T, 1 \le I \}$.
 			
-		\item $\lambda x.t$. Supposing $\Gamma, x : \,!^n\alpha \vdash_\mathcal{L'} t : \,!^m\beta ~|_\chi$, $\mathcal{L} = \mathcal{L'} \cup
+		\item $\lambda x.t$. Suppose $\Gamma, x : \,!^n\alpha \vdash_\mathcal{L'} t : \,!^m\beta ~|_\chi$, $\mathcal{L} = \mathcal{L'} \cup
 			\{ p \le I, \,!^p(!^n\alpha \multimap !^m\beta) \}$.
 			Depending on the form taken by $\sigma T$ :
 			\begin{itemize}
@@ -614,7 +614,7 @@ by the completeness theorem.
 					$$\sigma' = \sigma, [p \mapsto 1, \,!^n\alpha \mapsto T_1, \,!^m\beta \mapsto T_2]$$
 				By construction, $\sigma' (\Gamma, x : \,!^n\alpha) \equiv \sigma\Gamma, x : T_1$ and $\sigma' (!^m \beta) = T_2$. Hence
 				$\sigma' \Gamma, x : \sigma'(!^n\alpha) \vdash t : \sigma'(!^m \beta)$ is valid. Finally,
-				$dom(\sigma') \cap \chi = dom(\sigma) \cup \{\alpha, \beta, n, m, p\} \cap \chi = \varnothing$.
+				$dom(\sigma') \cap \chi = (dom(\sigma) \cup \{\alpha, \beta, n, m, p\}) \cap \chi = \varnothing$.
 				This means $\sigma'$ is a solution for $(\Gamma,x : \,!^n\alpha, t, \,!^m\beta)$ with the right property
 				$dom(\sigma') \cap \chi = \varnothing$. By the induction hypothesis, $\sigma^*$ solution of $\mathcal{L'}$ can be constructed
 				with the property $\sigma^* \backslash_\chi = \sigma'$.
@@ -655,7 +655,7 @@ by the completeness theorem.
 									   \sigma'(!^0(!^n \alpha \multimap T)) = \,!^0 (U \multimap \sigma T) \\
 									   dom(\sigma') \cap \chi_1 = dom(\sigma) \cap \chi_1 = \varnothing
 									 \end{array} \right.$$
-		  Consequently, $\sigma'$ is a solution for $(\Gamma_1, \Delta, ~t, ~!^0(!^n \multimap T))$ verifying $dom(\sigma') \cap \chi_1 = \varnothing$.
+		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ verifying $dom(\sigma') \cap \chi_1 = \varnothing$.
 			But this statement has to be adjusted to match the problem $(\Gamma|_t, t, \,!^0 (!^n \alpha\multimap T), \mathcal{L}_1)$.
 			This is done by applying the lemma \ref{contraction} which states that $\sigma'$ is also a solution for
 			$(\Gamma_1, \Delta|_t, ~t, ~!^0(!^n\alpha \multimap T)) \equiv (\Gamma|_t, ~t, ~!^0(!^n\alpha \multimap T))$.
@@ -667,8 +667,8 @@ by the completeness theorem.
 										 \sigma^* (!^n \alpha) = \sigma' (!^n \alpha) = U \\
 										 dom(\sigma^*) \cap \chi_2 = dom(\sigma) \cap \chi_2 = \varnothing ~~(\text{because} ~\chi_1 \cap \chi_2 = \varnothing)
 					  			 \end{array}\right.$$
-			Thus $\sigma^*$ is a solution for $(\Gamma_1, \Delta, ~u, ~!^n\alpha)$, which means for $(\Gamma|_u, ~u, ~!^n\alpha)$ as well.
-			It also verifies $dom(\sigma^*) \cap _chi_2 = \varnothing$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
+			Thus $\sigma^*$ is a solution for $((\Gamma_2, \Delta), ~u, ~!^n\alpha)$, which means for $(\Gamma|_u, ~u, ~!^n\alpha)$ as well.
+			It also verifies $dom(\sigma^*) \cap \chi_2 = \varnothing$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
 			$\mathcal{L}_2$ such that $\sigma^{**} \backslash_{\chi_2} = \sigma^*$. \\
 			Overall, $\sigma^{**}$ is a solution of $\mathcal{L}_1$, $\mathcal{L}_2$ and $\{ 1 \le I \}$, which means it solves $\mathcal{L}$.
 			Moreover, $\sigma^{**} \backslash_{\chi_1 \cup \chi_2 \cup \{\alpha, n\}} = \sigma^* \backslash_{\chi_1 \cup \{\alpha, n\}} =
