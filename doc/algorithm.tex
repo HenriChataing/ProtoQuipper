@@ -67,34 +67,42 @@ New notations are introduced :
 
 \begin{figure}[!ht]
 \begin{mdframed}
-	\begin{prooftree}
+	$$ $$
+	$$ \mbox{
   	\AxiomC{}
   	\RightLabel{$(var)$}
 	 	\UnaryInfC{$\alpha <: ~ \alpha$}
-	\end{prooftree}
-	\begin{prooftree}
+	 	\DisplayProof
+		~~
+		~~
 		\AxiomC{}
 	 	\RightLabel{$(1)$}
 	 	\UnaryInfC{$1 <: 1$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+		~~
+		~~
 	 	\AxiomC{$A <: B$}
 	 	\AxiomC{$m \le n$}
 	 	\RightLabel{$(!)$}
 	 	\BinaryInfC{$!^n A <: ~ !^m B$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 	 	\AxiomC{$T' <: T$}
 	 	\AxiomC{$U <: U'$}
 	 	\RightLabel{$(\multimap)$}
 	 	\BinaryInfC{$T \multimap U <: T' \multimap U'$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+		~~
+		~~
 	 	\AxiomC{$T <: T'$}
 	 	\AxiomC{$U <: U'$}
 	 	\RightLabel{$(\otimes)$}
 	 	\BinaryInfC{$T \otimes U <: T' \otimes U'$}
-	\end{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
 \end{mdframed}
 \caption{The sub-typing relation rules of QP'.}
 \label{subtypingQP'}
@@ -155,48 +163,62 @@ New notations are introduced :
 
 \begin{figure}[!ht]
 \begin{mdframed}
-	\begin{prooftree}
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$T <: U$}
 		\RightLabel{$(ax)$}
-			\UnaryInfC{$!^1 \Delta, x : T \vdash x : U$}
-	\end{prooftree}
-	\begin{prooftree}
+		\UnaryInfC{$!^1 \Delta, x : T \vdash x : U$}
+		\DisplayProof
+		~~
+		~~
+		~~
 		\AxiomC{}
 		\RightLabel{$(1)$}
-			\UnaryInfC{$!^1 \Delta \vdash * : \,!^n 1$}
-	\end{prooftree}
-	\begin{prooftree}
+		\UnaryInfC{$!^1 \Delta \vdash * : \,!^n 1$}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma, x : T \vdash t : U$}
 		\RightLabel{$(\lambda_1)$}
 		\UnaryInfC{$\Gamma \vdash \lambda x.t : \,!^0 (T \multimap U)$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+		~~
+		~~
 		\AxiomC{$!^1 \Gamma, x : T \vdash t : U$}
 		\RightLabel{$(\lambda_2)$}
 		\UnaryInfC{$!^1 \Gamma \vdash \lambda x.t : \,!^1 (T \multimap U)$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma_1, !^1\Delta \vdash t : \,!^0(T \multimap U)$}
 		\AxiomC{$\Gamma_2, !^1\Delta \vdash u : T$}
 		\RightLabel{$(app)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash t u : U$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma_1, !^1\Delta \vdash t : \, !^nA$}
 		\noLine
 		\UnaryInfC{$\Gamma_2, !^1\Delta \vdash u : \, !^mB$}
 		\AxiomC{$p \le n, ~ p \le m$}
 		\RightLabel{$(\otimes.I)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \, \pair{t}{u} \, : \,!^p(!^nA \otimes \,!^mB)$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma_1, \,!^1\Delta \vdash t : \, !^p (!^nA \otimes \,!^mB)$}
 		\noLine
 		\UnaryInfC{$\Gamma_2, \,!^1\Delta, x : \,!^nA, y : \,!^nB \vdash u : T$}
 		\AxiomC{$p \le n, ~ p \le m$}
 		\RightLabel{$(\otimes.E)$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : T$}
-	\end{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
 \end{mdframed}
 \caption{The typing rules of QP'.}
 \label{typingQP'}
@@ -407,24 +429,30 @@ possible ways to substitute variables to obtain a valid typing judgement.
 	
 \begin{figure}[!ht]
 \begin{mdframed}
-	\begin{prooftree}
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ T \prec: U\}$}
 		\RightLabel{$(ax)$}
-			\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\varnothing$}
-	\end{prooftree}
-	\begin{prooftree}
+		\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\varnothing$}
+		\DisplayProof
+		~~
+		~~
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ \,!^1 1 \prec: T \}$}
 		\RightLabel{$(\top)$}
 		\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} * : T ~|_\varnothing$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$!^I\Gamma, x : \,!^n\alpha \vdash_\mathcal{L'} t : \,!^m\beta ~|_\chi$} \noLine
 		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L'} \cup \{ p \le I, ~ !^p(!^n\alpha \multimap \,!^m\beta) \prec: T \}$}
 		\RightLabel{$(\lambda)$}
 		\UnaryInfC{$\Gamma \vdash_\mathcal{L} \lambda x.t : T ~|_{\chi \cup \{\alpha, \beta, n, m, p \}}$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \,!^n\alpha ~|_{\chi_2}$} \noLine
 		\UnaryInfC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \,!^0(!^n\alpha \multimap T) ~|_{\chi_1}$} \noLine
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
@@ -433,8 +461,10 @@ possible ways to substitute variables to obtain a valid typing judgement.
     \UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
 		\RightLabel{$(app)$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} t \, u : T ~|_{\chi_1 \cup \chi_2 \cup \{ \alpha, n\}}$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$	
+	$$ \mbox{
 		\footnotesize
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^n\alpha ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \, !^m\beta ~|_{\chi_2}$}
@@ -444,8 +474,10 @@ possible ways to substitute variables to obtain a valid typing judgement.
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m ~!^p(!^n\alpha \otimes \,!^m\beta) \prec: T \}$}
 		\RightLabel{$(\otimes.I)$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \pair{t}{u} \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha, \beta, n, m, p \}}$}
-	\end{prooftree}
-	\begin{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
+	$$ \mbox{
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^p (!^n\alpha \otimes \,!^m\beta) ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u, x : \,!^n\alpha, y : \,!^m\beta \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
@@ -454,7 +486,9 @@ possible ways to substitute variables to obtain a valid typing judgement.
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
 		\RightLabel{$(\otimes.E)$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha,\beta,m,n,p \}}$}
-	\end{prooftree}
+		\DisplayProof
+	} $$
+	$$ $$
 \end{mdframed}
 \caption{Constraints typing rules.}
 \label{ctypeQP'}
@@ -1064,16 +1098,18 @@ in the rule of $\texttt{LinearType}$, along with the typing rules from the figur
 		\RightLabel{$(box)$}
 		\UnaryInfC{$!^1\Gamma \vdash box^T : ~!^1(!^1(T \multimap U) \multimap~ !^1Circ (T, U))$}
 	\end{prooftree}
-	\begin{prooftree}
+	$$ \mbox{
 		\AxiomC{}
 		\RightLabel{$(\texttt{True})$}
-			\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 bool$}
-	\end{prooftree}
-	\begin{prooftree}
+		\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 bool$}
+		\DisplayProof
+		~~
+		~~
 		\AxiomC{}
 		\RightLabel{$(\texttt{False})$}
-			\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 bool$}
-	\end{prooftree}
+		\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 bool$}
+		\DisplayProof
+	} $$
 	\begin{prooftree}
 		\AxiomC{$\Gamma_1, ~!^1\Delta \vdash t : ~!^0 bool$}
 		\AxiomC{$\Gamma_2, ~!^1\Delta \vdash u : T$}		\noLine
@@ -1108,16 +1144,18 @@ figure \ref{extctypeQP'}.
 		\RightLabel{$(box)$}
 		\UnaryInfC{$!^I\Gamma \vdash box^T : U ~|_{\{\alpha, n\}}$}
 	\end{prooftree}
-	\begin{prooftree}
+	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
 		\RightLabel{$(\texttt{True})$}
-			\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
-	\end{prooftree}
-	\begin{prooftree}
+		\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
+		\DisplayProof
+		~~
+		~~
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
 		\RightLabel{$(\texttt{False})$}
-			\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
-	\end{prooftree}
+		\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
+		\DisplayProof
+	} $$
 	\begin{prooftree}
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : ~!^0 bool ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_{u, v} \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}	 \noLine
