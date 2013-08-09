@@ -1,0 +1,283 @@
+
+
+Our implementation of Proto-Quipper was developed in Haskell. 
+Nonetheless, the syntax of Proto-Quipper might be more familiar 
+to programmers having experience with OCaml.
+
+Code in Proto-Quipper is organized as modules. Modules names 
+always start with an upper-case character and the implementation 
+must be placed in a file of the same name but written in lower-case, 
+ending with the {\tt.qp} extension. For example, the module {\tt List} 
+will be implemented in {\tt list.qp}.
+The organization of a module is as follow :
+	\begin{enumerate}
+		\item The module starts with a list of import declarations, written {\tt import Module}.
+		\item All the type definitions of the module have to be place after the list of imports.
+		\item The rest of the file forms the body of the module, organized as a list of variable declarations and
+			top-level expressions.
+	\end{enumerate}
+
+\subsection{Proto-Quipper primitives}
+
+The figure \ref{expressions} contains the terms of Proto-Quipper and their equivalent in the implementation.
+
+\begin{figure}[!ht]
+\begin{center}
+\begin{tabular}{|c|c|}
+	\hline
+	Formalization & Implementation \\\hline
+	$qbit$, $bool, 1$, & \verb# qbit bool ()# \\\hline
+	$A \otimes B$ & \verb# A * B# \\\hline
+	$A \multimap B$ & \verb# A -> B # \\\hline
+	$Circ(T, U)$ & \verb# circ(T, U)# \\\hline
+	${!} A$ & \verb# !A# \\\hline
+\end{tabular}
+\end{center}
+\label{types}
+\caption{Proto-Quipper types}
+\end{figure}
+
+\begin{figure}[!ht]
+\begin{center}
+\begin{tabular}{|c|c|}
+	\hline
+	Formalization & Implementation \\\hline
+	$x$ & \verb# x# \\\hline
+	$\texttt{True}, \texttt{False}$ & \verb# true false# \\\hline
+	$\pair{a}{b}$ & \verb# (a,b) # \\\hline
+	$*$ & \verb# ()# \\\hline
+	$\lambda x.ab$ & \verb# fun x -> a# \\\hline
+	$box^T$ & \verb# box[T]# \\\hline
+	$unbox, rev$ & \verb# unbox rev# \\\hline
+	$if ~a~ then ~b~ else ~c$ & \verb# if a then b else c# \\\hline
+	$let \pair{x}{y} = a ~in~ b$ & \verb# let (x,y) = a in b# \\\hline
+\end{tabular}
+\end{center}
+\label{terms}
+\caption{Proto-Quipper terms}
+\end{figure}
+
+A \verb#qbit# is essentially a reference to a logical qubit within a
+computation. It can be thought of as a reference to an actual quantum
+bit on some physical device, or simply as a reference to a quantum
+wire within a circuit that is being generated. \verb#bool# is the type of boolean parameters
+(\verb#true#, \verb#false#).
+
+The module \verb#Gates# that can be found in the library qlib contains the definition of a set of basic gates,
+which are, amongst others: \verb#init0#, \verb#init1#, \verb#term0#, \verb#term1#, \verb#not#, \verb#hadamard#, \verb#T#,
+\verb#S#, \verb#Y#, \verb#Z#, \verb#phase#, \verb#W#, \verb#E#, \verb#toffoli# \ldots
+For a complete list of the gate circuits, please refer to the documentation.
+
+\subsection{A simple example}\label{ssec-quipper-by-e}
+Having introduced the primitive functions that can be used in Quipper
+programs, we can now move on to combining these primitives into a
+larger program. The best way to introduce this notation is to start with a basic example: the circuit of the
+bell state. Here is the code of the module \verb#Bell#:
+\begin{figure}[!ht]
+\begin{verbatim}
+import Gates
+
+box[] (fun x ->
+  let q0 = hadamard (init0 ()) in
+  let q1 = init0 () in
+  let (q1, q0) = cnot (q1, q0) in
+  (q0, q1)
+) ;;
+\end{verbatim}
+\caption{Contents of the module Bell.}
+\end{figure}
+
+Here is a line by line interpretation of the code:
+The circuit uses the gates \verb#hadamard#, \verb#init0# and \verb#cnot# that are provided by the \verb#Gates# module.
+Since we use this module, we must import it explicitly:
+  \begin{center}
+  	\verb#import Gates#
+  \end{center}
+The \verb#box[]# constructor starts a new circuit of type \verb#circ((), T)# (if the type annotation is omitted under the brackets, it is
+interpreted as the unit type \verb#()#). The first step is to create a new qubit, initialized in the state $|0\rangle$. This is done by
+a call to $init0$, which is in fact defined as \verb#unbox INIT0#, where \verb#INIT0# is the circuit
+	$$\Qcircuit @C=1em @R=.7em {
+	  & \lstick{\ket{0}} & \qw
+	 }$$
+All the gates defined in the \verb#Gates# module have already been applied to \verb#unbox#, and thus can be used as functions.
+The newly created \verb#qbit# is then applied the \verb#hadamard# gate, and stored in the variable \verb#q0#.
+As you may have noticed, the let binding used here differs from the formalization in that it is used with something not a pair.
+This is a syntactic sugar introduced in the implementation to make the programming easier. We make a list of the shorthand notations
+in a later section.
+The rest of the code is straightforward. The pair \verb#(q0,q1)# \emph{must} be returned as the end of the box definition, as is ensured by the
+strict linearity. The hypothetical code where \verb#q0, q1# are not returned would generate a typing error. 
+Finally, every top-level expression in the body of the module must be suffixed by \verb#;;#.
+
+
+\subsection{Short hand notations}
+
+As is common with a lot of functional programming languages (Haskell, OCaml \ldots) some notations are introduced to increase
+the readability of the code. Note that the let-binding is \emph{not} a syntactic sugar (it may be) as it is used to introduce
+the let-polymorphism (an integral part of all the ML-based languages).
+The figure \ref{sugar} gives the list of the notations introduced in Proto-Quipper. Some of those use patterns, objects that are
+defined by the grammar
+	\begin{center}
+	\begin{tabular}{rcl}
+		Pattern $p_1 \dots p_n$ & ::= & $x$ \\
+		            & $|$ & $(p_1, \dots, p_n)$ \\
+		            & $|$ & $()$
+	\end{tabular}
+	\end{center}
+
+\begin{figure}[!ht]
+\begin{tabular}{ll}
+	\verb#let p = a in b# & Binds the variables of the pattern \verb#p# \\
+	\verb#p <- a; b#      & Same as \verb#let p = a in b# \\
+	\verb#p <-* a; b#     & Used to compute \verb#let p = a p in b# (\verb#a# must be a function)\\
+	\verb#fun p -> a#     & Equivalent of \verb#fun x -> let p = x in a# \\
+	\verb#fun x y z -> a# & Equivalent of \verb#fun x -> fun y -> fun z -> a# \\
+	\verb#let f x y z = a in b# & Equivalent of \verb#let f = (fun x y z -> a) in b#
+\end{tabular}
+\label{sugar}
+\caption{Syntactic sugars.}
+\end{figure}
+
+\subsection{Another example}
+
+Now that we introduced short hand notations, we can write larger programs. Let us implement the Quantum Fourier Transform 
+of three qubits ($QFT_3$). The content of the file \verb#qft3.qp# is given in the figure \ref{qft3}.
+
+\begin{figure}[!ht]
+\begin{verbatim}
+box[qbit * qbit * qbit] (
+  fun (q0, q1, q2) ->
+    q2 <-* hadamard;
+    (q2, q1) <-* cphase 2;
+    q1 <-* hadamard;
+    (q2, q0) <-* cphase 4;
+    (q1, q0) <-* cphase 2;
+    q0 <-* hadamard;
+    (q0, q1, q2)
+) ;;
+\end{verbatim}
+\label{qft3}
+\caption{Module Qft3.}
+\end{figure}
+
+You can see that the notation \verb#p <-* a# really comes in handy when it comes to applying quantum gates to
+qubits, since the result is usually put in the same variables. Not that the type annotation in \verb#box# is
+\verb#qbit *qbit * qbit#, rather than \verb#qbit * (qbit * qbit)# or \verb#(qbit * qbit) * qbit#. As the syntactic sugars,
+this code could have been written without this extension, with exactly the same circuit output. However, this version is more compact.
+Proto-Quipper authorizes the use of tuples of any size.
+The next section introduces further extensions, that are not part of the Core language.
+
+\subsection{Extensions}
+
+The extensions defined here were already mentioned in the report on Proto-Quipper. For more information, please refer to these notes.
+
+\subsubsection{Let-polymorphism}
+
+The let-bindings are always assumed to be polymorphic. For example, we could define the function
+\begin{verbatim}
+let double f q = f (f q) ;;
+\end{verbatim}
+and use it in the following circuit
+\begin{verbatim}
+box[qbit * qbit] (fun (q, r) ->
+  q <- double not q;
+  (q, r) <- double cnot (q, r);
+  (q, r)
+) ;;
+\end{verbatim}
+The first occurrence of \verb#double# has the type \verb#!(qbit -> qbit) -> qbit -> qbit#, when the second occurrence is typed with
+\verb#!(qbit * qbit -> qbit * qbit) -> qbit * qbit -> qbit * qbit#.
+
+\subsubsection{Algebraic types, integers and lists}
+
+The formal definition of sum types, with the constructors $left$ and $right$, is not particularly user friendly. We therefore authorize
+the algebraic types, which can be seen as a generalization of sum types.
+The definition of these types has to be placed at the beginning of the source files, just after the \verb#import# statements, and follows the
+pattern:
+\begin{verbatim}
+type typename [a b ..] =
+    Datacon1 [of T1]
+  | Datacon2 [of T2]
+  ..
+  | DataconN [of TN]
+\end{verbatim}
+In particluar:
+\begin{itemize}
+	\item The name of the type must start with a lower case character
+	\item The type is followed by a (eventually empty) list of type arguments
+	\item The name of the data constructors starts with an upper case character. Each data constructor can take one argument type, introduced
+		by \verb#of#.
+\end{itemize}
+
+All the types defined in the same module are assumed to be co-inductive. 
+For example, the type of lists included in the module \verb#List# has the definition
+\begin{verbatim}
+type list a =
+    Nil
+  | Cons of a * list a
+\end{verbatim}
+Since lists are part of the basic objects, some notations have been introduced in the syntax to simplify the writing and manipulation
+of lists. These are
+	\begin{center}
+	\begin{tabular}{ll}
+		\verb#[]# & for ~ \verb#Nil# \\
+		\verb#x:xs# & for ~ \verb#Cons (x, xs)# \\
+		\verb#[x1, x2, .., xn]# & for ~ \verb#Cons (x1, Cons (x2, .. Cons (xn, Nil) ..))#
+	\end{tabular}
+	\end{center}
+and can be used in either expressions or patterns.
+
+\subsubsection{Recursion}
+
+Recursive functions can be written using the syntax:
+\begin{verbatim}
+let rec f x y z = a in b
+\end{verbatim}
+Note that only functions may be declared recursive in Proto-Quipper, whereas Haskell authorized recursive values, and for example lists of infinite
+size.
+
+\subsection{More examples}
+
+Equipped with the extensions given in the previous section, let us write the Quantum Fourier Algorithm for quantum registers encoded as lists
+of qubits. The QFT algorithm is now defined in a recursive function that inputs a quantum register, and applies the QFT algorithm. The output
+is the list of resulting qubits.
+
+We need to import the \verb#List#, \verb#Gates# and \verb#Core# modules. We assume that the \verb#List# module contains the following function, 
+with the given type:
+\begin{verbatim}
+val sf_last <: !(list a -> (a, list a))
+\end{verbatim}
+This function returns the last element of a list, and for linearity reasons also the rest of the list.
+The module \verb#Core# provides some basic integer operations like \verb#+ ^ - * ..#. The \verb#Gates# module you already known about.
+
+The implementation of the algorithm is as follow:
+
+\begin{verbatim}
+import Core
+import Gates
+import List
+
+-- Apply the nth phase gate to each qbit of the list, controlled by a parameter
+let rec appphase n q qn =
+  match qn with
+   [] -> (q, [])
+ | q0:qr ->
+     (q, qr) <- appphase (n+1) q qr;
+     (q0, q) <-* cphase (2 ^ n);
+     (q, q0:qr)
+;;
+
+-- Quantum Fourier Transform
+let rec qft qreg =
+  match qreg with
+    [] -> []
+  | q:reg ->
+      (qn, qn1) <- sf_last (q:reg);
+      qn1 <- qft qn1;
+      (qn, qn1) <- appphase 1 qn qn1;
+      qn <-* hadamard;
+      qn:qn1
+;;
+\end{verbatim}
+
+\end{document}
+
