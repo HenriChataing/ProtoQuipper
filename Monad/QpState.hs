@@ -175,7 +175,7 @@ empty_context =  Ctx {
   datacons = IMap.empty,
   flags = IMap.empty,
 
-  circuits = [],
+  circuits = [ Circ { qIn = [], gates = [], qOut = [] } ],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,

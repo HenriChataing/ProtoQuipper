@@ -30,6 +30,15 @@ let rec qft qreg =
 ;;
 
 
+-- Test on three qbits
+box [ qbit * qbit * qbit ] (
+  fun (q0, q1, q2) ->
+     let l = [q0,q1,q2] in
+     match qft l with
+       [q0,q1,q2] -> (q0, q1, q2)
+) ;;
+
+
 -- Test on five qbits
 box [ qbit * qbit * qbit * qbit * qbit ] (
   fun (q0, q1, q2, q3, q4) ->

@@ -218,7 +218,8 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
 
   -- Type e. The constraints from the context are added for the unification.
-  cset <- constraint_typing gamma e' [a] >>= break_composite True
+  (gamma_e, _) <- sub_context fve gamma
+  cset <- constraint_typing gamma_e e' [a] >>= break_composite True
   cset' <- unify (not $ approximations opts) (cset <> fconstraints <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 

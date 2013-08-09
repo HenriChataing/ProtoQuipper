@@ -6,7 +6,9 @@ module Main where
 import Monad.QuipperError
 import qualified Monad.QpState as Q
 
+import Typing.CoreSyntax
 import Typing.Driver
+import Typing.TransSyntax
 
 import System.IO
 import System.Environment
@@ -14,6 +16,10 @@ import System.FilePath.Posix
 import qualified Control.Exception as E
 import Options
 
+import Interactive
+
+import qualified Data.Map as Map
+import qualified Data.IntMap as IMap
 import Data.List as List
 
 -- | Main function. Parses the command line arguments, and acts accordingly.
@@ -25,7 +31,17 @@ main = do
 
   -- Proto quipper
   case files of
-    [] -> optFail "-: No argument file specified"
+    [] -> do
+        putStrLn "### Proto-Quipper -- Interactive Mode ###"
+        putStr "# "
+        hFlush stdout
+        _ <- Q.runS (do
+            import_builtins
+            run_interactive opts (Context { label = Map.empty, typing = IMap.empty,
+                                            environment = IMap.empty, used = [], constraints = emptyset }) []
+            return ()) Q.empty_context
+        return ()
+
     _ -> do
         -- Automatically include the directories of the files
         dirs <- return $ List.nub $ List.map (\f -> takeDirectory f) files
