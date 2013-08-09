@@ -68,7 +68,7 @@ with two goals in mind:
   produced circuits are physically meaningful (in particular, 
   properties like no-cloning are respected).
 \end{itemize}
-Proto-Quipper is based on the Quantum Lambda Calculus (QLC see 
+Proto-Quipper is based on the Quantum Lambda Calculus (QLC, see 
 \cite{SeVa09} respectively). In the QLC, the execution 
 of programs is modelled by the so-called reduction relation. This 
 relation is defined on \emph{closures}. These closures are 
@@ -192,13 +192,6 @@ that in a term like $(t,C,a)$, $t$ is a QData term but $a$ isn't.
 The type system to be introduced later will guarantee that even 
 though $a$ is not yet a QData term it will eventually reduce to 
 one. 
-
-As an example of well-formed term of Proto-Quipper consider:
-\[
-qft_3
-\]
-The operational meaning of this program will be explained later 
-once the operational semantics of Proto-Quipper has been introduced.
 
 The \emph{values} are the terms whose execution is finished.
 
@@ -468,7 +461,7 @@ A \emph{typing judgment} is an expression of the form:
 where $\Gamma$ is a typing context, $Q$ is a quantum context, 
 $a$ is a term and $A$ is a type. A typing judgment is \emph{valid} if 
 it can be inferred from the rules given in figure 
-\hyperref[typing_rules]{\ref*{typing_rules}}. In the rule $(cst_c)$, 
+\hyperref[trules]{\ref*{trules}}. In the rule $(cst_c)$, 
 $c$ ranges over the set $\s{box^T, unbox, rev}$.
 \end{definition}
 
@@ -562,8 +555,8 @@ type of a wire might have to be explicitly stated.
 }
 \]
 \end{mdframed}
-\label{typing_rules}
 \caption{Typing rules.}
+\label{trules}
 \end{figure}
 
 To illustrate the safety properties of the type system, 
