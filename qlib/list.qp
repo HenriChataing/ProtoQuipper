@@ -14,6 +14,12 @@ let nil = Nil ;;
 
 -- UNSAFE OPERATIONS
 
+let null l =
+  match l with
+    [] -> true
+  | _ -> false
+;;
+
 let head (x:_) = x ;;
 
 let tail (_:xs) = xs ;;
@@ -32,6 +38,12 @@ let rec (@) l n =
 ;;
 
 -- SAFE OPERATIONS
+
+let sf_null l =
+  match l with
+    [] -> (true, [])
+  | xs -> (false, xs)
+;;
 
 let sf_head (x:xs) = (x, xs) ;;
 let sf_tail (x:xs) = (xs, x) ;;
