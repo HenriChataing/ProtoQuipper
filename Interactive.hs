@@ -20,6 +20,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
 
+
+
 -- | Import a module and its dependencies in the current context.
 import_modules :: Options -> [String] -> ExtensiveContext -> QpState ExtensiveContext
 import_modules opts mnames ctx = do 
@@ -30,7 +32,7 @@ import_modules opts mnames ctx = do
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
                 ctx <- rec
-                mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) mnames, disp_decls = False }
+                mopts <- return $ MOptions { toplevel = False, disp_decls = False }
                 -- Check whether the module has already been imported or not
                 imported <- get_context >>= return . modules
                 case List.lookup (S.module_name p) imported of
@@ -89,36 +91,59 @@ run_interactive opts ctx buffer = do
                         return ctx)
 
     -- Resume the command input
-    liftIO $ putStr "# "
-    liftIO $ hFlush stdout
-    run_interactive opts ctx []
-  else if buffer == [] && List.isPrefixOf ":" l then
-    if l == ":exit" then do
-      -- NEED TO CHECK NO DISCARDING OF NON DUP VARIABLES
-      return ()
-    else do
+    resume opts ctx
 
-      case l of
-        ":ctx" ->
-            IMap.foldWithKey (\x a rec -> do 
+  else if buffer == [] && List.isPrefixOf ":" l then
+    case prefix_of l (List.map fst commands) of
+      [] -> do
+          liftIO $ putStrLn $ "Unknown command: '" ++ l ++ "' -- Try :help for more information"
+          resume opts ctx
+
+      [":help"] -> do
+          List.foldl (\rec (c, descr) -> do
+                        rec
+                        liftIO $ putStrLn $ c ++ " -- " ++ descr) (return ()) commands
+          resume opts ctx
+          
+      [":exit"] ->
+          -- NEED TO CHECK NO DISCARDING OF NON DUP VARIABLES
+          return ()
+
+      [":ctx"] -> do
+          IMap.foldWithKey (\x a rec -> do 
                               rec
                               n <- variable_name x
                               t <- pprint_type_noref a
                               liftIO $ putStrLn $ "~" ++ n ++ " : " ++ t) (return ()) (typing ctx)
-        ":used" ->
-            List.foldl (\rec x -> do
+          resume opts ctx
+
+      [":used"] -> do
+          List.foldl (\rec x -> do
                         rec
                         n <- variable_name x
                         liftIO $ putStrLn $ "~" ++ n) (return ()) (used ctx)
+          resume opts ctx
 
-        _ -> return ()
-
-      -- Resume the command input
-      liftIO $ putStr "# "
-      liftIO $ hFlush stdout
-      run_interactive opts ctx []
-
+      _ -> do
+        liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
+        resume opts ctx
+     
   else
     run_interactive opts ctx (l:buffer) 
-  
  
+
+-- | List of valid commands, associated to their description.
+commands :: [(String, String)]
+commands = [
+  (":help", "Display the list of commands"),
+  (":ctx", "List the variables of the current context"),
+  (":used", "List the variables that have already been used"),
+  (":exit", "Quit the interactive mode") ]
+
+-- | Resume the command input.
+resume :: Options -> ExtensiveContext -> QpState ()
+resume opts ctx = do
+  liftIO $ putStr "# "
+  liftIO $ hFlush stdout
+  run_interactive opts ctx []
+
