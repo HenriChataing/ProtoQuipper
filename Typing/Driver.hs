@@ -185,7 +185,8 @@ data ExtensiveContext = Context {
 -- | Definition of processing options specific to modules (as is not the case with the program options that affect
 -- the whole program).
 data MOptions = MOptions {
-  toplevel :: Bool                -- ^ Is the module at toplevel (in the sense : was it given as argument of the program).
+  toplevel :: Bool,               -- ^ Is the module at toplevel (in the sense : was it given as argument of the program).
+  disp_decls :: Bool              -- ^ Display the variable declarations or not.
 }
 
 
@@ -233,11 +234,11 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
     case (v, circuitFormat opts) of
       (VCirc _ c _, "ir") -> do
           irdoc <- return $ export_to_IR c
-          liftIO $ putStrLn (irdoc ++ "\n")
+          liftIO $ putStrLn irdoc
       (VCirc _ c _, "visual") ->
-          liftIO $ putStrLn (pprint c ++ " : " ++ inferred ++ "\n")
+          liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
-          liftIO $ putStrLn (pprint v ++ " : " ++ inferred ++ "\n") 
+          liftIO $ putStrLn (pprint v ++ " : " ++ inferred) 
   else if toplevel mopts then
     liftIO $ putStrLn ("-: "  ++ inferred)
   else
@@ -314,16 +315,19 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   -- Update the typing context of u
                                   return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
-  -- Print the types of the pattern p
-  IMap.foldWithKey (\x a rec -> do
-                      rec
-                      nx <- variable_name x
-                      pa <- pprint_type_noref a
-                      -- No unnecessary printing
-                      if toplevel mopts then
-                        liftIO $ putStrLn (nx ++ " : " ++ pa)
-                      else
-                        return ()) (return ()) gamma_p
+  if disp_decls mopts then
+    -- Print the types of the pattern p
+    IMap.foldWithKey (\x a rec -> do
+                        rec
+                        nx <- variable_name x
+                        pa <- pprint_type_noref a
+                        -- No unnecessary printing
+                        if toplevel mopts then
+                          liftIO $ putStrLn (nx ++ " : " ++ pa)
+                        else
+                          return ()) (return ()) gamma_p
+  else
+    return ()
 
   -- Evaluation (even if the module is not toplevel, if the general optons want it to be evaluated, then so be it)
   if runInterpret opts then do
@@ -447,7 +451,7 @@ do_everything opts files = do
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
                 _ <- rec
-                mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs }
+                mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
                 process_module (opts, mopts) p
                 -- Move the module internally onto the modules stack
                 ctx <- get_context
