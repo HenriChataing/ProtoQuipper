@@ -33,8 +33,6 @@ main = do
   case files of
     [] -> do
         putStrLn "### Proto-Quipper -- Interactive Mode ###"
-        putStr "# "
-        hFlush stdout
         _ <- Q.runS (do
             import_builtins
             run_interactive opts (Context { label = Map.empty, typing = IMap.empty,

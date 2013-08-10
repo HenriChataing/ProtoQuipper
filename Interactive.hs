@@ -7,14 +7,19 @@ import Parsing.Lexer
 import Parsing.Parser
 import qualified Parsing.Syntax as S
 
+import Typing.CoreSyntax
+import Typing.TypingContext
 import Typing.Driver
 import Typing.TransSyntax
+import qualified Typing.TypeInference (filter)
+import Typing.TypeInference
 
 import Monad.QuipperError
 import Monad.QpState
 import Monad.Modules
 
 import System.IO
+import System.Console.Readline
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -80,56 +85,67 @@ run_command opts prog ctx = do
 -- character is read, else the lines are pushed to this buffer.
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
-  l <- liftIO getLine
-  if List.isSuffixOf ";;" l then do
-    tokens <- liftIO $ mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
-    prog <- return $ parse tokens
-    -- Process the 'module'
-    ctx <- (run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx
-           )`catchQ` (\e -> do
-                        liftIO $ putStrLn $ show e
-                        return ctx)
+  -- Wait for user input
+  l <- liftIO $ readline "# "
 
-    -- Resume the command input
-    resume opts ctx
+  -- Check the command
+  case l of
+    Nothing -> 
+        -- Quit the interactive mode
+        exit ctx
 
-  else if buffer == [] && List.isPrefixOf ":" l then
-    case prefix_of l (List.map fst commands) of
-      [] -> do
-          liftIO $ putStrLn $ "Unknown command: '" ++ l ++ "' -- Try :help for more information"
-          resume opts ctx
+    Just l ->
+        if List.isSuffixOf ";;" l then do
+          -- Add the command to the history
+          liftIO $ addHistory $ List.foldl (\r c -> c ++ "\n" ++ r) l buffer
 
-      [":help"] -> do
-          List.foldl (\rec (c, descr) -> do
-                        rec
-                        liftIO $ putStrLn $ c ++ " -- " ++ descr) (return ()) commands
-          resume opts ctx
-          
-      [":exit"] ->
-          -- NEED TO CHECK NO DISCARDING OF NON DUP VARIABLES
-          return ()
+          tokens <- liftIO $ mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
+          prog <- return $ parse tokens
+          -- Process the 'module'
+          ctx <- (run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx
+                 )`catchQ` (\e -> do
+                              liftIO $ putStrLn $ show e
+                              return ctx)
 
-      [":ctx"] -> do
-          IMap.foldWithKey (\x a rec -> do 
+          -- Resume the command input
+          run_interactive opts ctx []
+
+        else if buffer == [] && List.isPrefixOf ":" l then
+          case prefix_of l (List.map fst commands) of
+            [] -> do
+                liftIO $ putStrLn $ "Unknown command: '" ++ l ++ "' -- Try :help for more information"
+                run_interactive opts ctx []
+
+            [":help"] -> do
+                List.foldl (\rec (c, descr) -> do
+                              rec
+                              liftIO $ putStrLn $ c ++ " -- " ++ descr) (return ()) commands
+                run_interactive opts ctx []
+                
+            [":exit"] -> do
+                exit ctx  
+
+            [":ctx"] -> do
+                IMap.foldWithKey (\x a rec -> do 
+                                    rec
+                                    n <- variable_name x
+                                    t <- pprint_type_noref a
+                                    liftIO $ putStrLn $ "~" ++ n ++ " : " ++ t) (return ()) (typing ctx)
+                run_interactive opts ctx []
+
+            [":used"] -> do
+                List.foldl (\rec x -> do
                               rec
                               n <- variable_name x
-                              t <- pprint_type_noref a
-                              liftIO $ putStrLn $ "~" ++ n ++ " : " ++ t) (return ()) (typing ctx)
-          resume opts ctx
+                              liftIO $ putStrLn $ "~" ++ n) (return ()) (used ctx)
+                run_interactive opts ctx []
 
-      [":used"] -> do
-          List.foldl (\rec x -> do
-                        rec
-                        n <- variable_name x
-                        liftIO $ putStrLn $ "~" ++ n) (return ()) (used ctx)
-          resume opts ctx
-
-      _ -> do
-        liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
-        resume opts ctx
+            _ -> do
+              liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
+              run_interactive opts ctx []
      
-  else
-    run_interactive opts ctx (l:buffer) 
+      else
+        run_interactive opts ctx (l:buffer) 
  
 
 -- | List of valid commands, associated to their description.
@@ -140,10 +156,13 @@ commands = [
   (":used", "List the variables that have already been used"),
   (":exit", "Quit the interactive mode") ]
 
--- | Resume the command input.
-resume :: Options -> ExtensiveContext -> QpState ()
-resume opts ctx = do
-  liftIO $ putStr "# "
-  liftIO $ hFlush stdout
-  run_interactive opts ctx []
 
+
+-- | Quits the interactive mode. As it tries quitting, it checks
+-- the variables that are dropped are indeed duplicable.
+exit :: ExtensiveContext -> QpState ()
+exit ctx = do
+  (_, delta) <- sub_context (used ctx) (typing ctx)
+  fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
+  _ <- unify True (fconstraints <> constraints ctx)
+  return ()
