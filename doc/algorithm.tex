@@ -33,9 +33,13 @@ This would have been sufficient, had the types not been linear. However, we need
 
 Flags, linear types and types are to be interpreted as follow :
 \begin{itemize}
-	\item $\texttt{LinearType}$ is the subset of types that are always linear. They will always correspond to terms that can not be duplicated, such as qbits.
-	\item $\texttt{Type}$ is set of all the types of terms. Depending of the value of its prefixing flag, a $\texttt{Type}$ can be duplicable or not. In practice, the type of a term will always be represented by a type, never by a linear type.
-	\item $\texttt{Flag}$ is the set of \textit{flag variables}, which parametrize the linearity of a type. If the value of $n$ in $!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type of any quantum address shall be $!^0 qbit$.
+	\item $\texttt{LinearType}$ corresponds to the subset of QP types that are always linear. They will always correspond to terms that can not be
+		duplicated, such as qbits.
+	\item $\texttt{Type}$ is set of all types. Depending of the value of its prefixing flag, a $\texttt{Type}$ is duplicable or not.
+		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
+	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parametrize the linearity of a type.
+		If the value of $n$ in $!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type
+		of any quantum address shall be $!^0 qbit$.
 \end{itemize}
 Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in QP. We introduce the following new notations:
 \begin{itemize}
@@ -241,11 +245,13 @@ As in QP, a typing judgement should be interpreted as stating that \textit{under
 	\end{enumerate}
 	
 	\begin{proof}
-		The properties are proved by induction on the typing derivation of $t$. Note that the statement
-		\textit{Suppose $\Gamma \vdash t : T$ and $T <: U$, then $\Gamma \vdash t : U$} alone can not be proved, as the case
-		$\lambda x.t$ introduces a relation of sub-typing on the context.
+		The properties are proved by induction on the typing derivation of $t$.
 	\end{proof}
 \end{lemma}
+
+Note that the statement
+\textit{Suppose $\Gamma \vdash t : T$ and $T <: U$, then $\Gamma \vdash t : U$} alone can not be proved, as the case
+$\lambda x.t$ introduces a relation of sub-typing on the context.
 
 \begin{coro} The following typing rules are admissible in QP' :
 	\begin{prooftree}
@@ -272,16 +278,15 @@ As in QP, a typing judgement should be interpreted as stating that \textit{under
 
 \subsection{Constraint Typing}
 
-In the rest of this chapter, the language by default will be QP', except when otherwise stated.
+Unless otherwise stated, QP' is the default language for the rest of this section.
 
 \subsubsection{Definitions}
 
-\begin{defn} We introduce \textit{substitutions}, defined as a finite list of mappings $(\alpha \mapsto A)$ or $(n \mapsto 0 ~|~ 1)$
+\begin{defn} A \textit{substitution} is a finite list of mappings $(\alpha \mapsto A)$ or $(n \mapsto 0 ~|~ 1)$
 	from either type variables to \textit{linear} types 	or flag variables to either $0$ or $1$.
-	We write $dom(\sigma)$ for the set of variables appearing on the left-hand sides of the mappings, and $range$ the set of variables appearing
-	on the right-hand sides of pairs in $\sigma$. We also use $vDom$, $vRange$, $fDom$ and $fRange$ for the subsets of $dom$ and $range$ that
-	contain respectively the type variables and the flag variables. Note that variables may appear in both $dom(\sigma)$ and $range(\sigma)$. The
-	intention in such cases is for the mappings of $\sigma$ to be applied simultaneously.
+	We write $dom(\sigma)$ for the set of variables appearing on the left-hand sides of the mappings, and $range(\sigma)$ for the set of variables
+	appearing on the right-hand sides of pairs in $\sigma$. We also use $vDom$, $vRange$, $fDom$ and $fRange$ for the subsets of $dom$ and $range$
+	that contain respectively the type variables and the flag variables.
 	The application of a substitution $\sigma$ to types and linear types is defined in the obvious way\,:
 	$$
 	\begin{array}{lcl}
@@ -298,24 +303,27 @@ In the rest of this chapter, the language by default will be QP', except when ot
 																\end{array} \right. \\
 	\end{array}
 	$$
-	
- 	The definition of $\sigma$ ensures that the kind of a type is left untouched : a linear type are mapped to a linear type, and so is a
- 	type. The substitution $\sigma$ is extended to contexts by defining 
+\end{defn}	
+
+Note that variables may appear in both $dom(\sigma)$ and $range(\sigma)$. The intention in such cases is for the mappings of $\sigma$ to
+be applied simultaneously. The definition of $\sigma$ ensures that the kind of a type is left untouched : a linear type is mapped to a linear
+type, and so is a type. The substitution $\sigma$ is extended to contexts by defining
  		$$\sigma (x_1 : T_1 \dots x_n : T_n) = (x_1 : \sigma T_1 \dots x_n : \sigma T_n)$$
-	If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ with $\tau$, defined as follow
+ 		
+\begin{defn} If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ with $\tau$, defined as follow
 		$$\tau \circ \sigma = \left[ \begin{array}{ll}
 																			\alpha \mapsto \tau A & \text{for each } (\alpha \mapsto A) \in \sigma \\
 																			\alpha \mapsto A & \text{for each } (\alpha \mapsto A) \in \tau \text{ with } \alpha \notin vDom(\sigma) \\
 																			n \mapsto 0|1 & \text{for each } (n \mapsto 0|1) \in \sigma \\
 																			n \mapsto 0|1 & \text{for each } (n \mapsto 0|1) \in \tau \text{ with } n \notin fDom(\sigma) \\
 																		\end{array} \right]$$
- 	$\circ$ is associative : $\sigma \circ (\tau \circ \rho) = (\sigma \circ \tau) \circ \rho$. We say that a substitution $\sigma$ is
- 	\textit{idempotent} if it verifies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if and
- 	only if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
- 	$\sigma \neq \sigma \circ \sigma$ can be really cumbersome, we consider in the following that all substitutions are chosen idempotent.
 \end{defn}
 
-A necessary property of substitutions is that they preserve the validity of typing judgements. If a term $t$ is well-typed with the
+The composition is associative: $\sigma \circ (\tau \circ \rho) = (\sigma \circ \tau) \circ \rho$. We say that a substitution
+$\sigma$ is \textit{idempotent} if it verifies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if and only if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
+$\sigma \neq \sigma \circ \sigma$ can be really cumbersome, we consider in the following that all substitutions are chosen idempotent.
+
+Substitutions preserve the validity of typing judgements. If a term $t$ is well-typed with the
 type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \Gamma \vdash t : \sigma T$ is valid.
 
 \begin{thm}
@@ -324,20 +332,20 @@ type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \G
 	is valid.
 \end{thm}
 
-We can now start formalizing the problem of the type inference. For a complete discussion about the signification of type variables
+We can now formalize the problem of the type inference. For a complete discussion about the significance of type variables
 and the different understandings of type inference, please refer to the chapter 22 of \cite{pierce02}.
 Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type, not necessarily verifying $\Gamma \vdash t : T$. We ask ourselves the
 question :
  \begin{center}
- 	 "Is \text{some} substitution instance of $t$ well-typed ?"
+ 	 ``Is \text{some} substitution instance of $t$ well-typed ?"
  \end{center}
 That is, can we find $\sigma$ such that $\sigma \Gamma \vdash t : \sigma T$ is well typed ? Looking for valid instantiations of the
-variables of $\Gamma, T$ leads to the problem of type inference. The formalize this, we need a concrete definition of all the
-possible ways to substitute variables to obtain a valid typing judgement.
+variables of $\Gamma, T$ leads to the problem of type inference. The set of all such substitutions is taken as the set of solutions
+for the following problem:
 
 \begin{defn}
 	\label{decl_problem}
-	Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type. $\sigma$ is a solution for the problem $(\Gamma, t, T)$ if
+	Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type. A substitution $\sigma$ is a solution for the problem $(\Gamma, t, T)$ if
 	$\sigma \Gamma \vdash t : \sigma T$ is a valid typing judgement.
 \end{defn}
 
@@ -351,32 +359,33 @@ possible ways to substitute variables to obtain a valid typing judgement.
 			~~ !^p\gamma ~\mapsto~ !^0(!^1int \otimes !^1int)]$
 	\end{tabular}
 	\end{center}
-	are all solutions for $(\varnothing, t, !^p \gamma)$.
+	are solutions for $(\varnothing, t, !^p \gamma)$.
 \end{exmp}
 
 \subsubsection{Constraint typing relation}
 
-\begin{defn} We introduce sub-typing constraints $T \prec: U$ and $A \prec: B$ defined over types and linear types.
-	We say that a constraint $A \prec: B$ or $T \prec: U$ is\,:
+\begin{defn} We introduce sub-typing constraints $X \prec: Y$ for $X, Y \in \texttt{Type}$ or $X, Y \in \texttt{LinearType}$.
+We say that a constraint $X \prec: Y$ is\,:
 		\begin{center}
 		\begin{tabular}{l}
 			\textit{atomic} if it is of the form $\alpha \prec: \beta$. \\
-			\textit{composite} if it is of the form $A \prec: B$ or $T \prec: U$ with $A, B \notin \vset$. \\
-			\textit{semi-composite} if it is of the form $\alpha \prec: A$ or $A \prec: \alpha$ with $A \notin \vset$.
+			\textit{semi-composite} if it is of the form $\alpha \prec: A$ or $A \prec: \alpha$ with $A \notin \vset$. \\
+			\textit{composite} if it is of the form $X \prec: Y$ with $X, Y \notin \vset$.
 		\end{tabular}
 		\end{center}
   Similarly, flag constraints $n \le m$ are defined over flag variables. Flag constraints are atomic if of the form $n \le m$,
   for $m, n\in \fset$.
-  Though all flag constraints are written in the same form $(. \le .)$, they can hold different meanings, for example
-  	\begin{center}
-  	\begin{tabular}{ll}
-  		$n \le 0$ & can be viewed as $n = 0$, \\
-  		$1 \le m$ & is the constraint $m = 1$, \\
-  		$n \le m$ & can be interpreted as $n = 1 \Rightarrow m = 1$.
-  	\end{tabular}
-  	\end{center}
   A substitution $\sigma$ solves a constraint $T \prec: U$ ($n \le m$) if and only if $\sigma T <: \sigma U$ ($\sigma(n) \le \sigma(m)$).
 \end{defn}
+
+Though all flag constraints are written in the same form $(. \le .)$, they can hold different meanings, for example
+	\begin{center}
+	\begin{tabular}{ll}
+		$n \le 0$ & can be viewed as $n = 0$, \\
+ 		$1 \le m$ & is the constraint $m = 1$, \\
+ 		$n \le m$ & can be interpreted as $n = 1 \Rightarrow m = 1$.
+ 	\end{tabular}
+ 	\end{center}
 
 \begin{defn} We define constraint sets $\lset$ as sets of constraints $\{ A \prec: B \dots, T \prec: U \dots, n \le m \dots\}$
 	over linear types, types and flags.
@@ -393,14 +402,16 @@ possible ways to substitute variables to obtain a valid typing judgement.
 \end{defn}
 
 \begin{defn} The \textit{constraint typing relation} $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ is defined by the constraint typing rules
-	of the figure \ref{ctypeQP'}. It can be interpreted as : \textit{Under the assumptions $\Gamma$, when the constraints $\lset$ are solved,
-	the term $t$ has the type $T$}. The set $\chi$ keeps track of the type and flag variables created during the construction of the derivation
-	of the typing judgement $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. It allows us to choose variables fresh in the current context.
-  The constraint typing algorithm is obtained by reading the constraint typing rules from bottom to top. It can be verified that
-  the algorithm is indeed deterministic, whereas the typing rules of QP' were not (see the rules $(\lambda_1)$ and $(\lambda_2)$).
-  The function ConstraintTyping applies the constraint typing algorithm to a typing judgement $\Gamma \vdash t : T$, and returns a set
-  $\mathcal{L}$ (and as a by-product the set of variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ holds.
+	of the figure \ref{ctypeQP'}. It it to be interpreted as : \textit{Under the assumptions $\Gamma$, when the constraints $\lset$ are solved,
+	the term $t$ has the type $T$}. 
 \end{defn}
+
+The set $\chi$ keeps track of the type and flag variables created during the construction of the derivation
+of the typing judgement $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. The constraint typing algorithm is obtained by reading the
+constraint typing rules from bottom to top. It can be verified that the algorithm is indeed deterministic, whereas the typing
+rules of QP' were not (see the rules $(\lambda_1)$ and $(\lambda_2)$). The function ConstraintTyping applies the constraint
+typing algorithm to a typing judgement $\Gamma \vdash t : T$, and returns a set $\mathcal{L}$ (and as a by-product the set of
+variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ holds.
 	
 \begin{figure}[!ht]
 \begin{mdframed}
@@ -453,19 +464,20 @@ possible ways to substitute variables to obtain a valid typing judgement.
 	} $$
 	$$ $$
 	$$ \mbox{
+		\footnotesize
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^p (!^n\alpha \otimes \,!^m\beta) ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u, x : \,!^n\alpha, y : \,!^m\beta \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
 		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
-		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
+		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ p \le n, p \le m, 1 \le I \}$}
 		\RightLabel{$(\otimes.E)$}
-		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \text{let} \pair{t}{u} = t ~ \text{in} ~ u \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha,\beta,m,n,p \}}$}
+		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \text{let} \pair{x}{y} = t ~ \text{in} ~ u \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha,\beta,m,n,p \}}$}
 		\DisplayProof
 	} $$
 	$$ $$
 \end{mdframed}
-\caption{Constraints typing rules.}
+\caption{Constraint typing rules.}
 \label{ctypeQP'}
 \end{figure}
 
@@ -515,7 +527,7 @@ then we know that $t$ is not typeable with the type $T$ in the context $\Gamma$.
 	\label{alg_problem}
 	Suppose $\Gamma$ a typing context, $t$ a term, $T$ a type, and $\lset$ a constraint set, such that the constraint typing relation
 	$\Gamma \vdash_\lset t : T ~|_\chi$ holds.
-	$\sigma$ is a solution for the problem 	$(\Gamma, t, T, \lset)$ if it is a solution of $\lset$.
+	A substitution $\sigma$ is a solution for the problem 	$(\Gamma, t, T, \lset)$ if it is a solution of $\lset$.
 \end{defn}
 
 We now have two different ways of characterizing the possible instantiations of $\Gamma \vdash t : T$ as
@@ -525,7 +537,7 @@ We now have two different ways of characterizing the possible instantiations of 
  			\ref{alg_problem}.
  	\end{enumerate}
 
-We now have to show that those definitions are equivalent. That is, we need to show that every solution $\sigma$ for $(\Gamma, t, T, \lset)$
+We now have to show that these definitions are equivalent. That is, we need to show that every solution $\sigma$ for $(\Gamma, t, T, \lset)$
 is a solution for $(\Gamma, t, T)$. This implication is proved by the soundness theorem. Conversely, we also prove that from every solution
 for $(\Gamma, t, T)$ we can derive a solution for $(\Gamma, t, T, \lset)$ by adding bindings for the freshly generated variables, as stated
 by the completeness theorem.
@@ -683,7 +695,7 @@ by the completeness theorem.
 A constraint set can have infinitely many solutions, but some may be better than others. In particular, we will privilege those
 that make less assumptions about the structure of types. For example, the set $\lset = \{!^n \alpha \prec: !^m \beta\}$ will have
 $\sigma = [\alpha \mapsto \beta, n \mapsto 1, m \mapsto 0]$ and $\tau = [\alpha \mapsto !^1 A \otimes !^1 A, \beta \mapsto !^1 A \otimes !^1 A,
-n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is "more general" than $\tau$.
+n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is ``more general" than $\tau$.
 
 \begin{defn} Suppose two substitutions $\alpha$ and $\alpha'$. We say that $\alpha$ is \textit{more general} than $\alpha'$, written
 	$\alpha \sqsubseteq \alpha'$ if there exists a substitution $\tau$ such that $\alpha' = \tau \circ \alpha$.
@@ -692,10 +704,13 @@ n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is "mo
 With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. B. Pierce goes even further by stating the existence
 of a most general unifier MGU of a constraint set, a substitution solution of a set that is more general that any other solution. However,
 what was true in STLC is not in QP'. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
-by Pierce. To prove it, it suffices to consider the example above. Suppose that there is a most general unifier $\rho$. Since $\rho$ is
-solution of $\lset$, $(\rho(n), \rho(m))$ can take the values $(0, 0)$, $(1, 0)$ and $(1, 1)$. But then, supposing $(\rho(n), \rho(m)) = (0, 0)$,
-we can create $\sigma$ equal to $\rho$ but for $\sigma(n) = 1$. Thus built, $\sigma$ is a solution of $\lset$ that doesn't verify
-$\rho \sqsubseteq \sigma$.
+by Pierce. To prove it, it suffices to consider the set $\{ m \le n \}$. Three solutions of this constraint set exist:
+	$$ \begin{array}{ccl}
+		   \sigma_1 & = & [m \mapsto 0, n \mapsto 0] \\
+			 \sigma_2 & = & [m \mapsto 0, n \mapsto 1] \\
+			 \sigma_3 & = & [m \mapsto 1, n \mapsto 1]
+			\end{array} $$
+and it is easy to verify that none is more general than the others.
 We adapt the definition of the most general unifier to be\,:
 
 \begin{defn} The \textit{most general unifier}, or MGU, of a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
