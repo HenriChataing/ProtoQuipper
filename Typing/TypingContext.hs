@@ -138,7 +138,7 @@ bind_pattern (PDatacon dcon p) = do
         ex <- get_location
         f <- get_file
         ndcon <- datacon_name dcon
-        throwQ $ WrongDataArguments ndcon (f, ex)
+        throwQ $ LocatedError (WrongDataArguments ndcon) (f, ex)
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint on the actual type of the pattern
@@ -230,7 +230,7 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
         ex <- get_location
         f <- get_file
         ndcon <- datacon_name dcon
-        throwQ $ WrongDataArguments ndcon (f, ex)
+        throwQ $ LocatedError (WrongDataArguments ndcon) (f, ex)
 
 
 -- Same as with the function bind_pattern

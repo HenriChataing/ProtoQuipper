@@ -264,11 +264,11 @@ check_cyclic c explored poset = do
                             return Nothing
 
               f <- get_file
-              throwQ $ InfiniteTypeError prt ploop mprt pre (f, ex)
+              throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (f, ex)
 
           _ -> do
               f <- get_file
-              throwQ $ InfiniteTypeError prt ploop Nothing "(Unknown)" (f, extent_unknown)
+              throwQ $ LocatedError (InfiniteTypeError prt ploop Nothing "(Unknown)") (f, extent_unknown)
 
 
 

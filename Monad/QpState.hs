@@ -426,17 +426,17 @@ lookup_qualified_var (mod, n) = do
             Nothing -> do
                 ex <- get_location
                 f <- return $ filepath (cmodule ctx)
-                throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+                throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
       Nothing -> do
           ex <- get_location
           f <- return $ filepath (cmodule ctx)
-          throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+          throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
   else do
     ex <- get_location
     f <- return $ filepath (cmodule ctx)
-    throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+    throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
 
 -- | Looks up a type from a specific module (typically used with a qualified type name).
@@ -453,17 +453,17 @@ lookup_qualified_type (mod, n) = do
             Nothing -> do
                 ex <- get_location
                 f <- return $ filepath (cmodule ctx)
-                throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+                throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
       Nothing -> do
           ex <- get_location
           f <- return $ filepath (cmodule ctx)
-          throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+          throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
   else do
     ex <- get_location
     f <- return $ filepath (cmodule ctx)
-    throwQ $ UnboundVariable (mod ++ "." ++ n) (f, ex)
+    throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
 
 
 -- | Looks up the type of a builtin object.
@@ -588,7 +588,7 @@ set_flag ref = do
     (-1) -> return ()
     0 -> do
         f <- get_file
-        throwQ $ NonDuplicableError "(unknown)" (f, extent_unknown)
+        throwQ $ LocatedError (NonDuplicableError "(unknown)") (f, extent_unknown)
     1 -> return ()
     _ -> do
         ctx <- get_context 
@@ -615,7 +615,7 @@ unset_flag ref = do
     0 -> return ()
     1 -> do
         f <- get_file
-        throwQ $ NonDuplicableError "(unknown)" (f, extent_unknown)
+        throwQ $ LocatedError (NonDuplicableError "(unknown)") (f, extent_unknown)
     _ -> do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
@@ -850,7 +850,7 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
                       return $ Nothing
 
         f <- get_file
-        throwQ $ DetailedTypingError prt pru mprt pre (f, ex)
+        throwQ $ LocatedError (DetailedTypingError prt pru mprt pre) (f, ex)
 
     (_, Just (e, ex, typ)) -> do
         -- Print the expression / pattern
@@ -866,7 +866,7 @@ throw_TypingError t@(TBang n _) u@(TBang m _) = do
                       return $ Nothing
 
         f <- get_file
-        throwQ $ DetailedTypingError pru prt mprt pre (f, ex)
+        throwQ $ LocatedError (DetailedTypingError pru prt mprt pre) (f, ex)
  
     _ ->
       -- No information available
@@ -887,11 +887,11 @@ throw_NonDuplicableError ref = do
                  ActualOfE e -> pprint_expr_noref e
                  ActualOfP p -> pprint_pattern_noref p
         f <- get_file
-        throwQ $ NonDuplicableError pre (f, ex)
+        throwQ $ LocatedError (NonDuplicableError pre) (f, ex)
 
     _ -> do
         f <- get_file
-        throwQ $ NonDuplicableError "(Unknown)" (f, extent_unknown)
+        throwQ $ LocatedError (NonDuplicableError "(Unknown)") (f, extent_unknown)
 
 
 

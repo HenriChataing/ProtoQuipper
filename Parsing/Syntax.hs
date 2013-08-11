@@ -54,7 +54,7 @@ data Program = Prog {
 dummy_program :: Program
 dummy_program = Prog {
   module_name = "Dummy",
-  filepath = "*Unknown*",
+  filepath = file_unknown,
   imports = [],
   typedefs = [],
   body = [],

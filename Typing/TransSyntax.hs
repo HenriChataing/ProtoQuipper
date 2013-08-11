@@ -436,7 +436,7 @@ translate_type (S.TVar x) arg (label, bound) = do
         else do
           ex <- get_location
           f <- get_file
-          throw $ WrongTypeArguments (pprint typ) 0 (List.length arg) (f, ex)
+          throw $ LocatedError (WrongTypeArguments (pprint typ) 0 (List.length arg)) (f, ex)
 
     -- If the variable is not found, it can be either a user type,
     -- or a free variable (depending on the boolean arg)
@@ -457,13 +457,13 @@ translate_type (S.TVar x) arg (label, bound) = do
           else do
             ex <- get_location
             f <- get_file
-            throw $ WrongTypeArguments x nexp nact (f, ex)
+            throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
         
         else if bound then do
           -- If the type variables are supposed to be bound, this one isn't
           ex <- get_location
           f <- get_file
-          throw $ UnboundVariable x (f, ex)
+          throw $ LocatedError (UnboundVariable x) (f, ex)
 
         else do
           -- Last case, if the type authorize free variables, register this one with a new type
@@ -484,7 +484,7 @@ translate_type (S.TQualified m x) arg lbl = do
   else do
     ex <- get_location
     f <- get_file
-    throw $ WrongTypeArguments x nexp nact (f, ex)
+    throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
 
 translate_type (S.TArrow t u) [] (label, bound) = do
   (t', csett, lblt) <- translate_type t [] (label, bound)
@@ -523,7 +523,7 @@ translate_type (S.TLocated t ex) args label = do
 translate_type t args label = do
   ex <- get_location
   f <- get_file
-  throw $ WrongTypeArguments (pprint t) 0 (List.length args) (f, ex)
+  throw $ LocatedError (WrongTypeArguments (pprint t) 0 (List.length args)) (f, ex)
 
 
 
@@ -580,7 +580,7 @@ translate_pattern (S.PDatacon datacon p) label = do
     Nothing -> do
         ex <- get_location
         f <- get_file
-        throw $ UnboundDatacon datacon (f, ex)
+        throw $ LocatedError (UnboundDatacon datacon) (f, ex)
 
 translate_pattern (S.PLocated p ex) label = do
   (p', lbl) <- translate_pattern p label
@@ -615,7 +615,7 @@ translate_expression (S.EVar x) label = do
     Nothing -> do
         ex <- get_location
         f <- get_file
-        throw $ UnboundVariable x (f, ex)
+        throw $ LocatedError (UnboundVariable x) (f, ex)
 
 translate_expression (S.EQualified m x) _ = do
   id <- lookup_qualified_var (m, x)
@@ -653,7 +653,7 @@ translate_expression (S.EDatacon datacon e) label = do
     Nothing -> do
         ex <- get_location
         f <- get_file
-        throw $ UnboundDatacon datacon (f, ex)
+        throw $ LocatedError (UnboundDatacon datacon) (f, ex)
 
 translate_expression (S.EMatch e blist) label = do
   e' <- translate_expression e label
@@ -690,7 +690,7 @@ translate_expression (S.EBox t) _ = do
   if not qdata then do
     prt <- pprint_type_noref t'
     f <- get_file
-    throwQ $ BoxTypeError prt (f, ex)
+    throwQ $ LocatedError (BoxTypeError prt) (f, ex)
 
   else
     -- The translation of the type of the box in the core syntax produces
@@ -719,7 +719,7 @@ translate_expression (S.EBuiltin s) _ = do
     -- Wrong, no builtin of name s has been defined
     ex <- get_location
     f <- get_file
-    throwQ $ UndefinedBuiltin s (f, ex)
+    throwQ $ LocatedError (UndefinedBuiltin s) (f, ex)
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label

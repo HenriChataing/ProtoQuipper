@@ -15,9 +15,13 @@ import Data.List as List
 -- | Data type of the program exceptions.
 data QError =
 
+-- LOCATED ERRORS
+
+    LocatedError QError (String, Extent)                                                  -- ^ An exception produced by the code at the extent.
+
 -- FILE ERRORS
 
-    NotExistingModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
+  | NotExistingModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
   | DuplicateImplementation String String String                                          -- ^ Thrown if two implementation files of the same module are found.
   | CyclicDependencies String [String]                                                    -- ^ Thrown when it is found that the module dependencies form a cycle.
 
@@ -29,22 +33,22 @@ data QError =
 
   | ParsingError String                                                                   -- ^ Parsing error, the argument is the token on which the error occured.
   | ErrorEndOfFile                                                                        -- ^ Thrown when the parser arrived at the end of a file with an incomplete expression.
-  | WrongTypeArguments String Int Int (String, Extent)                                    -- ^ An algebraic type has been called with a wrong number of arguments. The first
+  | WrongTypeArguments String Int Int                                                     -- ^ An algebraic type has been called with a wrong number of arguments. The first
                                                                                           -- argument is the name of the type, the two next the actual and expected number of
                                                                                           -- arguments. The rest gives the location of the error.
 
-  | BoxTypeError String (String, Extent)                                                  -- ^ Box constructor called with something not a quantum data type.
-  | UnboundVariable String (String, Extent)                                               -- ^ Variable not in scope. The arguments are name and location of the variable.
-  | UnboundDatacon String (String, Extent)                                                -- ^ Data constructor not in scope. The arguments are name and location of the constructor.
+  | BoxTypeError String                                                                   -- ^ Box constructor called with something not a quantum data type.
+  | UnboundVariable String                                                                -- ^ Variable not in scope. The arguments are name and location of the variable.
+  | UnboundDatacon String                                                                 -- ^ Data constructor not in scope. The arguments are name and location of the constructor.
 
-  | UndefinedBuiltin String (String, Extent)                                              -- ^ As the name indicates, the program tried to used an undefined builtin, of name 
+  | UndefinedBuiltin String                                                               -- ^ As the name indicates, the program tried to used an undefined builtin, of name 
                                                                                           -- the first argument, at the location the second.
 
 -- RUN TIME ERRORS
 
-  | NotBoolError String (String, Extent)                                                  -- ^ During execution, something not a boolean has been used as an if condition.
-  | NoMatchError String (String, Extent)                                                  -- ^ During execution, non exhaustive pattern matching.
-  | NotFunctionError String (String, Extent)                                              -- ^ During execution, something not a function has been applied to an argument.
+  | NotBoolError String                                                                   -- ^ During execution, something not a boolean has been used as an if condition.
+  | NoMatchError String                                                                   -- ^ During execution, non exhaustive pattern matching.
+  | NotFunctionError String                                                               -- ^ During execution, something not a function has been applied to an argument.
   | MatchingError String String                                                           -- ^ During execution, a pattern and a value from a binding (let, fun, match) are found to have
                                                                                           -- unmatching structures.
  
@@ -52,20 +56,20 @@ data QError =
 
   | TypingError String String                                                             -- ^ Typing error, but missing detailed information. The goal is to have as few of them as possible.
 
-  | DetailedTypingError String String (Maybe String) String (String, Extent)              -- ^ Typing error : the two first arguments are the types that couldn't be matched (the first the actual type, 
+  | DetailedTypingError String String (Maybe String) String                               -- ^ Typing error : the two first arguments are the types that couldn't be matched (the first the actual type, 
                                                                                           -- the other one the expected type), the next string locates the actual type inside of a larger one, the
                                                                                           -- last string is the expression cause of the typing error, and the rest is the location.
 
-  | NonDuplicableError String (String, Extent)                                            -- ^ A non duplicable term (eg of type qbit), has been used in a non linear fashion. The string
+  | NonDuplicableError String                                                             -- ^ A non duplicable term (eg of type qbit), has been used in a non linear fashion. The string
                                                                                           -- argument is the expression cause of all this (used in a non linear fashion), the rest the
                                                                                           -- location of the expression.
 
-  | InfiniteTypeError String [String] (Maybe String) String (String, Extent)              -- ^ Trying to build an infinite type. The first string is the type variable cause of the error,
+  | InfiniteTypeError String [String] (Maybe String) String                               -- ^ Trying to build an infinite type. The first string is the type variable cause of the error,
                                                                                           -- the list is the sequence of type constraints which caused the error. The optional string
                                                                                           -- locate the variable inside of a larger type, and the last string is the expression in which the error
                                                                                           -- occured, the rest is location information.
 
-  | WrongDataArguments String (String, Extent)                                            -- ^ Thrown when a data constructor expecting no arguments is given one.
+  | WrongDataArguments String                                                             -- ^ Thrown when a data constructor expecting no arguments is given one.
 
 -- MISC
 
@@ -74,8 +78,29 @@ data QError =
   deriving (Typeable)
 
 
+
+instance Located QError where
+  locate e ex = LocatedError e (file_unknown, ex)
+
+  locate_opt e Nothing = e
+  locate_opt e (Just ex) = locate e ex
+
+  location (LocatedError e (_, ex)) = Just ex
+  location _ = Nothing
+
+  clear_location (LocatedError e _) = e
+  clear_location e = e
+
+
+
 -- | Error pretty printing
 instance Show QError where
+  show (LocatedError err (f,ex)) =
+    if f == file_unknown then
+      show ex ++ ": " ++ show err
+    else
+      f ++ ":" ++ show ex ++ show err
+
   show (NotExistingModule mod) =
     "Error: couldn't find the implementation of the module " ++ mod
 
@@ -98,31 +123,30 @@ instance Show QError where
   show ErrorEndOfFile =
     "Parsing error: unexpected end of file"
 
-  show (WrongTypeArguments typ exp act (f, ex)) =
-    f ++ ":" ++ show ex ++
-    if exp == 0 then     ": the type '" ++ typ ++ "' expects no arguments, but has been given " ++ show act
-    else                 ": the type '" ++ typ ++ "' expects " ++ show exp ++ " arguments, but has been given " ++ show act
+  show (WrongTypeArguments typ exp act) =
+    if exp == 0 then     "the type '" ++ typ ++ "' expects no arguments, but has been given " ++ show act
+    else                 "the type '" ++ typ ++ "' expects " ++ show exp ++ " arguments, but has been given " ++ show act
 
-  show (BoxTypeError typ (f, ex)) =
-    f ++ ":" ++ show ex ++ ": in the box constructor: the type '" ++ typ ++ "' is not quantum"
+  show (BoxTypeError typ) =
+    "in the box constructor: the type '" ++ typ ++ "' is not quantum"
 
-  show (UnboundVariable x (f, ex)) =
-    f ++ ":" ++ show ex ++ ": unbound variable " ++ x
+  show (UnboundVariable x) =
+    "unbound variable " ++ x
 
-  show (UnboundDatacon dcon (f, ex)) =
-    f ++ ":" ++ show ex ++ ": unbound data constructor " ++ dcon
+  show (UnboundDatacon dcon) =
+    "unbound data constructor " ++ dcon
 
-  show (UndefinedBuiltin s (f, ex)) =
-    f ++ ":" ++ show ex ++ ": undefined builtin value " ++ s
+  show (UndefinedBuiltin s) =
+    "undefined builtin value " ++ s
 
-  show (NotBoolError v (f, ex)) =
-    f ++ ":" ++ show ex ++ ": " ++ v ++ " is not of type bool"
+  show (NotBoolError v) =
+    v ++ " is not of type bool"
 
-  show (NoMatchError v (f, ex)) =
-    f ++ ":" ++ show ex ++ ": this pattern matching is not exhaustive: the value " ++ v ++ " is not matched"
+  show (NoMatchError v) =
+    "this pattern matching is not exhaustive: the value " ++ v ++ " is not matched"
 
-  show (NotFunctionError v (f, ex)) =
-    f ++ ":" ++ show ex ++ ": " ++ v ++ " is not a function"
+  show (NotFunctionError v) =
+    v ++ " is not a function"
   
   show (MatchingError p q) =
     "Error: can't bind the objects " ++ p ++ " and " ++ q
@@ -130,8 +154,8 @@ instance Show QError where
   show (TypingError ta tb) =
     "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
 
-  show (DetailedTypingError ta tb mt e (f, ex)) =
-    f ++ ":" ++ show ex ++":\n" ++
+  show (DetailedTypingError ta tb mt e) =
+    "\n" ++
     "    Couldn't match actual type\n" ++
     ta ++ "\n" ++
     "    with expected type\n" ++
@@ -145,11 +169,11 @@ instance Show QError where
     "    In the type of\n" ++
     e
 
-  show (NonDuplicableError e (f, ex)) =
-    f ++ ":" ++ show ex ++ ": the term " ++ e ++ " is not duplicable"
+  show (NonDuplicableError e) =
+    "the term " ++ e ++ " is not duplicable"
 
-  show (InfiniteTypeError t clist mt e (f, ex)) =
-    f ++ ":" ++ show ex ++ ":\n" ++
+  show (InfiniteTypeError t clist mt e) =
+    "\n" ++
     "    Couldn't build the infinite type\n" ++
     t ++ "\n" ++ List.concat (List.map (\c -> c ++ "\n") clist) ++
     (case mt of
@@ -161,8 +185,8 @@ instance Show QError where
     "    In the type of\n" ++
     e
 
-  show (WrongDataArguments dcon (f, ex)) =
-    f ++ ":" ++ show ex ++ ": the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
+  show (WrongDataArguments dcon) =
+    "the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
 
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg

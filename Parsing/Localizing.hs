@@ -47,6 +47,13 @@ extent_unknown =
   Ext { lbegin = locus_unknown, lend = locus_unknown }
 
 
+
+-- | Default file name : unknown
+file_unknown :: String
+file_unknown =
+  "*Unknown*"
+
+
 -- | Return the union of two extents.
 fromto :: Extent -> Extent -> Extent
 fromto ex1 ex2 =

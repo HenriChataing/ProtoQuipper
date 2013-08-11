@@ -254,7 +254,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', lbl') <- translate_pattern p $ label ctx
-  e' <- translate_expression e lbl'
+  e' <- translate_expression e $ label ctx
   fve <- return $ free_var e'
 
   -- ALL VARIABLES ALREADY USED AND USED BY E MUST BE DUPLICABLE
@@ -321,10 +321,12 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     IMap.foldWithKey (\x a rec -> do
                         rec
                         nx <- variable_name x
-                        pa <- pprint_type_noref a
+                        pa <- case a of
+                                TForall _ _ _ a -> pprint_type_noref a
+                                _ -> pprint_type_noref a
                         -- No unnecessary printing
                         if toplevel mopts then
-                          liftIO $ putStrLn (nx ++ " : " ++ pa)
+                          liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
                         else
                           return ()) (return ()) gamma_p
   else

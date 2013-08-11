@@ -2,9 +2,11 @@
 module Interactive where
 
 import Options
+import Classes
 
 import Parsing.Lexer
 import Parsing.Parser
+import Parsing.Localizing
 import qualified Parsing.Syntax as S
 
 import Typing.CoreSyntax
@@ -13,6 +15,8 @@ import Typing.Driver
 import Typing.TransSyntax
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
+
+import Interpret.Circuits
 
 import Monad.QuipperError
 import Monad.QpState
@@ -35,7 +39,7 @@ import_modules opts mnames ctx = do
   deps <- return $ List.init deps
 
   -- Process everything, finishing by the main file
-  List.foldl (\rec p -> do
+  ctx <- List.foldl (\rec p -> do
                 ctx <- rec
                 mopts <- return $ MOptions { toplevel = False, disp_decls = False }
                 -- Check whether the module has already been imported or not
@@ -55,6 +59,8 @@ import_modules opts mnames ctx = do
                                             label = Map.union (global_ids cm) (label ctx),
                                             environment = IMap.union (global_vars cm) (environment ctx) }
                       return ctx) (return ctx) deps
+  set_file file_unknown
+  return ctx
 
 
 
@@ -144,6 +150,12 @@ run_interactive opts ctx buffer = do
                               liftIO $ putStrLn $ "~" ++ n) (return ()) (used ctx)
                 run_interactive opts ctx []
 
+            [":display"] -> do
+                c <- get_context >>= return . List.head . circuits
+                pc <- return $ pprint c
+                liftIO $ putStrLn pc
+                run_interactive opts ctx []
+
             _ -> do
               liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
               run_interactive opts ctx []
@@ -158,7 +170,8 @@ commands = [
   (":help", "Display the list of commands"),
   (":ctx", "List the variables of the current context"),
   (":used", "List the variables that have already been used"),
-  (":exit", "Quit the interactive mode") ]
+  (":exit", "Quit the interactive mode"),
+  (":display", "Display the toplevel circuit") ]
 
 
 
