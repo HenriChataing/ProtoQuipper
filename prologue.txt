@@ -1,0 +1,3 @@
+
+This is the Proto-Quipper Language, a functional programming language for quantum computation. You can browse the source code and
+documentation from here.

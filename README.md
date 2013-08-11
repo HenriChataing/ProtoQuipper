@@ -1,9 +1,18 @@
 # README
 
-Requirements : 
-- To run the interactive mode, the readline library is needed. It can be installed via cabal install with the command
-     cabal install readline
-The System.Console.Readline package itself is just a binding to the gnu library readline. You might have to install the package
-libreadline-dev
+Prerequisites
+=============
 
+* The GHC Haskell compiler (tested with version 7.4.2)
+
+* Alex and Happy (lexer and parser for Haskell)
+
+* The Haskell readline library. It can be installed with:
+
+  cabal install readline
+
+Building
+========
+
+In the top-level directory, type "make".
 
