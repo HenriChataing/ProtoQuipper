@@ -11,12 +11,12 @@ import Data.Map as Map
 import Data.List as List
 
 
--- | Type of all the unary gates.
+-- | Type of all the unary gates: i.e circ (qbit, qbit).
 unary_type :: Type
 unary_type = TCirc TQbit TQbit
 
 
--- | Type of all the binary gates.
+-- | Type of all the binary gates: i.e circ (qbit * qbit, qbit * qbit).
 binary_type :: Type
 binary_type = TCirc (TTensor [TQbit, TQbit]) (TTensor [TQbit, TQbit])
 
@@ -36,6 +36,10 @@ binary_value g =
 
 
 -- | Map of the built-in gates.
+-- Unary gates are : INIT0, INIT1, TERM0, TERM1, PHASE, GATE_H, NOT, GATE_X, GATE_Y, GATE_Z, GATE_S, GATE_S_INV, GATE_T, GATE_T_INV,
+-- GATE_E, GATE_E_INV, GATE_OMEGA, GATE_V, GATE_V_INV.
+-- Binary gates are : CNOT, SWAP, CONTROL_PHASE, GATE_W.
+-- Trinary gates are : TOFFOLI.
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
   let init = [("INIT0", (TCirc TUnit TQbit,
@@ -71,7 +75,7 @@ builtin_gates =
 
 
 
--- | Generation of the built-in context : integer operations.
+-- | Map of the built-in operations. This includes the operators : ADD, SUB, MUL, DIV, POW, LT, GT, EQ.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
   let ops = [ ("ADD", (TArrow TInt (TArrow TInt TInt),

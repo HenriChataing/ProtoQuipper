@@ -1,4 +1,5 @@
--- | This module defines several custom classes.
+-- | This module gives the definition of custom Proto-Quipper type classes.
+-- Amongst these are: PPrint, Constraint, Reversible, Param.
 module Classes where
 
 import Parsing.Localizing
@@ -45,7 +46,7 @@ class PPrint a where
 
 
 
--- | Objects that can include type constraints. Typically patterns and expressions.
+-- | Objects that can include type constraints, typically patterns and expressions.
 class Constraint a where
   -- | Remove all the type constraint annotations.
   drop_constraints :: a -> a
