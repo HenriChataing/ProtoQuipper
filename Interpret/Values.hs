@@ -40,27 +40,39 @@ data Value =
 
 
 instance PPrint Value where
-  pprint VUnit = "()"
-  pprint VRev = "rev"
-  pprint VUnbox = "unbox"
-  pprint (VBuiltin _) = "<fun>"
-  pprint (VQbit q) = subvar 'q' q
-  pprint (VBool b) = if b then "true" else "false"
-  pprint (VInt n) = show n
-  pprint (VTuple (v:rest)) = "(" ++ pprint v ++ List.foldl (\s w -> s ++ ", " ++ pprint w) "" rest ++ ")"
-  pprint (VCirc _ c _) = pprint c
-  pprint (VSumCirc _) = "<circ>"
-  pprint (VFun _ _ _) = "<fun>"
-  pprint (VDatacon datacon e) =
-    subvar 'D' datacon ++
-      case e of
-        Just e -> " " ++ pprint e
-        Nothing -> ""
-  pprint (VUnboxed _) = "<fun>"
+  genprint l VUnit opts = "()"
+  genprint l VRev opts = "rev"
+  genprint l VUnbox opts = "unbox"
+  genprint l (VBuiltin _) opts = "<fun>"
+  genprint l (VQbit q) opts = subvar 'q' q
+  genprint l (VBool b) opts = if b then "true" else "false"
+  genprint l (VInt n) opts = show n
+  genprint l (VTuple (v:rest)) opts = "(" ++ genprint l v opts ++ List.foldl (\s w -> s ++ ", " ++ genprint l w opts) "" rest ++ ")"
+  genprint l (VCirc _ c _) opts = pprint c
+  genprint l (VSumCirc _) opts = "<circ>"
+  genprint l (VFun _ _ _) opts = "<fun>"
+  genprint l (VDatacon datacon e) [f] =
+    case (f datacon, e) of
+      -- List constructors
+      ("Nil", Nothing) ->
+          "[]"
+      ("Cons", Just (VTuple [a, b])) ->
+          let pa = genprint l a [f] in
+          case genprint l b [f] of
+            "[]" -> "[" ++ pa ++ "]"
+            '[':rest -> "[" ++ pa ++ ", " ++ rest
+            nope -> "Cons " ++ "(" ++ pa ++ "," ++ nope ++ ")"
+
+      -- Others
+      _ ->
+        f datacon ++ case e of
+                       Just e -> " " ++ genprint l e [f]
+                       Nothing -> ""
+  genprint l (VUnboxed _) opts = "<fun>"
 
   sprint v = pprint v
   sprintn _ v = pprint v
-  genprint _ v _ = pprint v
+  pprint v = genprint Inf v [(\d -> subvar 'D' d)]
 
 
 -- | The equality between values is only about the skeleton. It is only to be used to compare quantum values, and

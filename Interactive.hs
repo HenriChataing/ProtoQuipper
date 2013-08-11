@@ -153,7 +153,7 @@ run_interactive opts ctx buffer = do
             [":display"] -> do
                 c <- get_context >>= return . List.head . circuits
                 pc <- return $ pprint c
-                liftIO $ putStrLn pc
+                liftIO $ putStrLn (pc ++ " : circ((), _)")
                 run_interactive opts ctx []
 
             _ -> do

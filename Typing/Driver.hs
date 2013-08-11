@@ -232,6 +232,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- If interpretation, interpret, and display the result
   if runInterpret opts && toplevel mopts then do
     v <- interpret (environment ctx) e'
+    pv <- pprint_value_noref v
     case (v, circuitFormat opts) of
       (VCirc _ c _, "ir") -> do
           irdoc <- return $ export_to_IR c
@@ -239,7 +240,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
       (VCirc _ c _, "visual") ->
           liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
-          liftIO $ putStrLn (pprint v ++ " : " ++ inferred) 
+          liftIO $ putStrLn (pv ++ " : " ++ inferred) 
   else if toplevel mopts then
     liftIO $ putStrLn ("-: "  ++ inferred)
   else
@@ -254,7 +255,9 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', lbl') <- translate_pattern p $ label ctx
-  e' <- translate_expression e $ label ctx
+  e' <- case recflag of
+          Recursive -> translate_expression e lbl'
+          Nonrecursive -> translate_expression e $ label ctx
   fve <- return $ free_var e'
 
   -- ALL VARIABLES ALREADY USED AND USED BY E MUST BE DUPLICABLE

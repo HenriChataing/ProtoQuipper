@@ -1059,3 +1059,13 @@ pprint_type_noref t = do
   return $ genprint Inf t [fflag, fvar]
 
 
+-- | Same as pprint_expr_noref.
+pprint_value_noref :: Value -> QpState String
+pprint_value_noref v = do
+  nspace <- get_context >>= return . namespace
+  -- Printing of data constructors
+  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'D' d)
+
+  return $ genprint Inf v [fdata]

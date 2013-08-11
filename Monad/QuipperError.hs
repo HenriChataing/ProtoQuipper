@@ -99,7 +99,7 @@ instance Show QError where
     if f == file_unknown then
       show ex ++ ": " ++ show err
     else
-      f ++ ":" ++ show ex ++ show err
+      f ++ ":" ++ show ex ++ ": " ++ show err
 
   show (NotExistingModule mod) =
     "Error: couldn't find the implementation of the module " ++ mod
