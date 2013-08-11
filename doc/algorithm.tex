@@ -747,7 +747,7 @@ The unification algorithm proceeds in two steps :
   	\begin{itemize}
       \item $T \multimap U \prec: T' \multimap U'$, replace $c$ by $T' \prec: T$ and $U \prec: U'$
       \item $T \otimes U \prec: T' \otimes U'$, replace $c$ by $T \prec: T'$ and $U \prec: U'$
-      \item $!^n T \prec: \, !^m U$, replace $c$ by $T \prec: U$ and $m \le n$
+      \item $!^n A \prec: \, !^m B$, replace $c$ by $A \prec: B$ and $m \le n$
       \item $1 \prec: 1$, remove the constraint
       \item For any other composite constraint, the algorithm fails
     \end{itemize}
@@ -766,7 +766,7 @@ The unification algorithm proceeds in two steps :
 \end{lemma}
 
 The type unification algorithm relies on an ordering of type variables that ensures termination and gives a upper
-bound to its complexity (even though the limit itself is exponential).
+bound of its complexity (even though the limit itself is exponential).
 
 \begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation
 	on the elements of $\vset_\lset$ defines a partition $\mathcal{C}$ of $\vset_\lset$ whose elements are the equivalence classes.
@@ -792,7 +792,7 @@ an incoherent set is the symptom of an infinite type definition $\alpha = \alpha
 in the definition of the type system, such cases will lead the algorithm to failure.
   
 \begin{defn}
-  Here is an sketch of the algorithm.
+  Here is a sketch of the algorithm.
   The first step is to sort out all the atomic constraints $\alpha \prec: \beta$, which we use to build the set of equivalence classes
   $\mathcal{C}$. The relation $\ll$ on classes is then defined using the remaining constraints and the above definition.
   Suppose this poset is implemented as a graph, whose vertices are the equivalence classes, and where each edge
@@ -811,7 +811,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 \begin{defn}{\bf Type Unification} \\
 	The algorithm TypeUnification inputs a set of linear constraints $\mathcal{L}$, and returns
 	a substitutions $\sigma$ associated with a set $\mathcal{L'}$ whose only sub-typing constraints are atomic.
-	The algorithm proceeds as follow : \\
+	The algorithm proceeds as follows: \\
 	\\
   Let $\alpha_1 \dots \alpha_n$ be the the youngest variables. The constraint set $\mathcal{L}$ is formed of the constraints
   $\mathcal{L'} \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k \cup \{ \alpha_{i_l} \prec: B_l \}_l
@@ -819,7 +819,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
   The set $\mathcal{L'}$ contains all the constraints unrelated to $\alpha_1 \dots \alpha_n$,
   and the linear types $A_m, B_l$ are all composite.
   		
-  Depending on the types $A_m, B_l$ :
+  Depending on the types $\{A_m, B_l\}_{l, m}$ :
 	\begin{itemize}
 		\item If this set is empty, then \\
 			\begin{tabular}{l}
@@ -843,9 +843,9 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	  	\end{tabular}
   \end{itemize}
 
-  Of course, if the set of sub-typing constraint is empty, the algorithm stops.
-  TypeUnification can fail in two different ways : either it attempted to construct an infinite
-  type, and the variable ordering failed, or the reduction encountered an absurd composite constraint.
+  Of course, if the set of sub-typing constraints is empty, the algorithm stops.
+  TypeUnification can fail in two different ways : either it attempts to construct an infinite
+  type, and the variable ordering fails, or the reduction encounters an absurd composite constraint.
 \end{defn}
 
 \begin{defn} Let $\mathcal{L}$ be a constraint set. the following notations are introduced :
@@ -868,19 +868,19 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 				immediately when applied to $\mathcal{L}$.
 				
 			\item $(C_\lset, N_\lset)$ and $\lset = \lset' \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k$, where $\alpha_1 \dots \alpha_n$ are
-				the youngest variables. Since $\mathcal{L'} \subsetneq \mathcal{L}$, it ensues $N_\lset' = |\mathcal{L'}| < N_\lset$.
+				the youngest variables. Since $\mathcal{L'} \subsetneq \mathcal{L}$, it ensues that $N_\lset' = |\mathcal{L'}| < N_\lset$.
 				Moreover, because all the constraints of $\mathcal{L} \,\backslash\, \mathcal{L'}$ are atomic, $C_\lset' = \#\mathcal{L'} = C_\lset$.
 				Consequently, the index $(C_\lset', N_\lset')$ of $\mathcal{L'}$ is such that $(C_\lset', N_\lset') \lneq (C_\lset, N_\lset)$.
 				Thus, the induction hypothesis applies, and the function call $\text{TypeUnification}\,(\mathcal{L'})$ terminates, and the same
-				for $\text{TypeInference}\,(\mathcal{L})$.
+				for $\text{TypeUnification}\,(\mathcal{L})$.
 			
 			\item $(C_\lset, N_\lset)$ and $\lset = \lset' \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k \cup \{ \alpha_{i_l} \prec: B_l \}_l
 				\cup \{ A_m \prec: \alpha_{j_m} \}_m$, where $\alpha_1 \dots \alpha_n$ are the youngest variables.
 
-				If $\{T_m, U_l\}_{l, m}$ contains $C = 1$. Each variable $\alpha_i$ is mapped in $\sigma$ to $1$.
-				The result of the application of the new mappings $\sigma$ to $\mathcal{L}$ is :
-			  	$$\sigma \mathcal{L} = \mathcal{L'} \cup \{1 \prec: 1\}_k \cup \{ 1 \prec B_l \}_l \cup \{ A_m \prec 1 \}_m$$
-       	The reduction of the constraints $\{ 1 \prec B_l \}_l \cup \{ A_m \prec 1 \}_m$ can only finish with either an error or en empty set.
+				If $\{A_m, B_l\}_{l, m}$ contains $C = 1$. Each variable $\alpha_i$ is mapped in $\sigma$ to $1$.
+				The result of the application of the new mappings to $\mathcal{L}$ is :
+			  	$$\sigma \mathcal{L} = \mathcal{L'} \cup \{1 \prec: 1\}_k \cup \{ 1 \prec: B_l \}_l \cup \{ A_m \prec: 1 \}_m$$
+       	The reduction of the constraints $\{ 1 \prec: B_l \}_l \cup \{ A_m \prec: 1 \}_m$ can only finish with either an error or the empty set.
        	Thence, what remains after reduction of the composite constraints is only $\mathcal{L'}$.
        	The complexity of the reduced constraint set $\sigma \mathcal{L}$ is :
 			  	$$C_\lset' = \#\sigma\mathcal{L} = \#\mathcal{L'} $$
@@ -888,7 +888,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 			  The induction hypothesis holds, and the function call $\text{TypeUnification}\,(\sigma \mathcal{L})$ terminates,
 			  giving the termination of the call $\text{TypeUnification}\,(\mathcal{L})$. \\
 							
-				If it contains $C = C_1 \,\bullet\, C_2$. Since that the variable ordering did not fail, we know for sure that
+				If it contains $C = C_1 \,\bullet\, C_2$. Since the variable ordering did not fail, we know for sure that
 						$$\alpha_1 \dots \alpha_n ~ \notin ~ \bigcup_{l} FV(B_l) \cup \bigcup_{m} FV(A_m)$$
 				Each $\alpha_i$ is mapped in $\sigma$ to $!^{p_i} \beta_i ~ \bullet ~ !^{q_i}\gamma_i$.
 				The result of the application of the new mappings $\sigma$ to $\mathcal{L}$ is :
@@ -907,7 +907,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 			  		$\sigma \mathcal{L}$ & $ = $ & $\mathcal{L'}$ \\
 			  		& $ \cup $ & $\{q_{j_k} \le q_{i_k}, ~p_{j_k} \le p_{i_k}, ~\beta_{i_k} \prec: \beta_{j_k}, ~\gamma_{i_k} \prec: \gamma_{j_k} \}_k$ \\
 			  		& $ \cup $ & $\{ \beta_{i_l} \prec: B^1_l, ~ \gamma_{i_l} \prec: B^2_l \}_l$ \\
-			  		& $ \cup $ & $\{ A^1_m \prec \beta_{j_m}, ~ A^2_m \prec: \gamma_{j_m} \}_m$ \\
+			  		& $ \cup $ & $\{ A^1_m \prec: \beta_{j_m}, ~ A^2_m \prec: \gamma_{j_m} \}_m$ \\
 			  		& $ \cup $ & $\{$ some flag constraints $\}$
 			  	\end{tabular}
 			  	\end{center}
@@ -916,7 +916,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 			  In the reduction of the constraints with $A_m$ and $B_l$, it is assumed that the types $A_m$ and $B_l$ are of the form
 			  $!^*A^1_m ~\bullet~ !^*A^2_m$ and $!^*B^1_l ~\bullet~ !^*B^2_l$. The value of the flags doesn't really matter here. \\
 			  Following, the complexity of the reduced constraint set $\sigma \mathcal{L}$ compared to that of the original set $\mathcal{L}$ is :
-			  	$$C_\lset' = \#\sigma\mathcal{L} = \#\mathcal{L'} + \sum_{l} (\#U_l - 1) + \sum_{m} (\#A_m - 1) $$
+			  	$$C_\lset' = \#\sigma\mathcal{L} = \#\mathcal{L'} + \sum_{l} (\#B_l - 1) + \sum_{m} (\#A_m - 1) $$
 			  which is strictly inferior to $C_\lset$, meaning $(C_\lset',|\sigma\mathcal{L}|) \lneq (C_\lset, N_\lset)$.
 			  The induction hypothesis holds, and the function call $\text{TypeUnification}\,(\sigma \mathcal{L})$ terminates,
 			  giving the termination of the call $\text{TypeUnification}\,(\mathcal{L})$.
@@ -926,8 +926,8 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 \end{thm}
 
 \begin{thm}{\bf Correctness} \\
-	Let $\mathcal{L}$ be a constraint set. The unification algorithm applied to $\mathcal{L}$ produces a
-	set $\mathcal{L'}$ and a substitution $\sigma$ such that :
+	Let $\mathcal{L}$ be a constraint set. The unification algorithm applied to $\mathcal{L}$ produces
+	a substitution $\sigma$ and a set $\mathcal{L'}$ such that :
 		\begin{center}
 		\begin{tabular}{ll}
 			(a) & for every solution $\tau$ of $\mathcal{L'}$, $\tau \circ \sigma$ is a solution of $\mathcal{L}$ \\
@@ -945,7 +945,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 				The properties (a) and (b) are trivially satisfied.
 				
 			\item $(C_\lset, N_\lset)$, and $\lset = \lset' \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k$. \\
-				Let $\sigma, \mathcal{L''} = ~\text{TypeInference}\,(\mathcal{L'})$. By application of the induction hypothesis, $\sigma$ and
+				Let $\sigma, \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L'})$. By application of the induction hypothesis, $\sigma$ and
 				$\mathcal{L''}$ respect the properties (a) and (b).
 					\begin{itemize}
 						\item[(a)] Let $\tau$ be a solution of $\mathcal{L''} \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k$.
@@ -953,7 +953,8 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 							$\sigma$ proves that $\tau \circ \sigma$ is a solution of $\mathcal{L'}$. Overall, $\tau \circ \sigma$ is a
 							solution of $\mathcal{L}$.
 							
-						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$. The property (b) applied with $\mathcal{L''}$ and $\sigma$ ensures the existence
+						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$, and therefore of $\lset'$.
+							The property (b) applied with $\mathcal{L''}$ and $\sigma$ ensures the existence
 							of $\tau$ solution of $\mathcal{L''}$ such that $\tau \circ \sigma$ is equal to $\rho$. Moreover, it follows from (c) that
 							$\sigma \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k = \{\alpha_{i_k} \prec: \alpha_{j_k} \}_k$. Thus,
 								$$(\tau \circ \sigma) \{\alpha_{i_k} \prec: \alpha_{j_k} \}_k = \tau \{\alpha_{i_k} \prec: \alpha_{j_k} \}_k$$
@@ -966,17 +967,18 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 				\{ \alpha_{i_l} \prec: B_l \}_l \cup \{ A_m \prec: \alpha_{j_m} \}_m$.
 				The case where the composite types $\{ A_m, B_l \}_{l, m}$ are all equal to $1$ is solved easily, as the mappings
 				$[\alpha_i \mapsto 1]_i$ give the only solution for $\alpha_1 \dots \alpha_n$.
-				By applying the induction hypothesis, the properties (a), (b) and (c) are easily proved. \\
+				By applying the induction hypothesis, the properties (a) and (b) are easily proved. \\
 				
 				Otherwise, let $\sigma$ be the substitution $\sigma = [\alpha_i \mapsto !^{p_i}\beta_i \,\bullet\, !^{q_i}\gamma_i]_i$, and
 				$\mathcal{L}^*$ the reduced set $\sigma \mathcal{L}$. Finally, let $\sigma', \mathcal{L''} = ~\text{TypeUnification}\,(\mathcal{L}^*)$.
-				The induction hypothesis applied to $\mathcal{L}^*$ proves that $\sigma', \mathcal{L''}$ respect the properties (a), (b) and (c).
+				The induction hypothesis applied to $\mathcal{L}^*$ proves that $\sigma', \mathcal{L''}$ respect the properties (a) and (b).
 					\begin{itemize}
-						\item[(a)] Let $\tau$ be a solution of $\mathcal{L''}$. By application of (b), $\tau \circ \sigma'$ is a solution of $\mathcal{L}^*$.
+						\item[(a)] Let $\tau$ be a solution of $\mathcal{L''}$. By application of (a), $\tau \circ \sigma'$ is a solution of $\mathcal{L}^*$.
 							Since the solutions of $\mathcal{L}^*$ and $\sigma \mathcal{L}$ are the same, $\tau \circ \sigma'$ is also a solution of
 							$\sigma \mathcal{L}$. Thence, $\tau \circ \sigma' \circ \sigma$ is a solution of $\mathcal{L}$.
 							
-						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$. In particular, $\rho$ contains the mappings :
+						\item[(b)] Let $\rho$ be a solution of $\mathcal{L}$. In particular, since $\rho$ is assumed to be idempotent,
+							it contains the mappings :
 								$$\rho = \rho', [\alpha_i \mapsto T_i \,\bullet\, U_i]_i$$
 							Thus it can be modified to be :
 								$$\rho = (\rho',[!^{p_i}\beta_i \mapsto T_i]_i, [!^{q_i}\gamma_i \mapsto U_i]_i) \circ
@@ -999,17 +1001,18 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 \subsubsection{Flag unification}
 
 \begin{defn}{\bf Flag unification} \\
-	The algorithm inputs a set of atomic constraints, and returns a substitution $\sigma$ on flags, along with
-	the remaining constraints (all atomic).
+	The algorithm inputs a set of constraints that contains only atomic type constraints, and returns a substitution
+	$\sigma$ on flags, along with the remaining constraints (all atomic).
 	
 	The algorithm looks for constraints of the form
 	\begin{itemize}
-		\item $n \le 1$ or $0 \le n$, those constraints are trivially solved and removed.
+		\item $n \le 1$ or $0 \le n$, those constraints don't affect the set of solutions of the constraint set, and thus can be removed
+			without any consequences.
 		\item $1 \le n$, in which case it removes the constraint, and sets $n$ to $1$.
 		\item $n \le 0$, in which case it removes the constraint, and sets $n$ to $0$.
 	\end{itemize}	
 	When setting a flag to a value, it also needs to replace the instances of this flag in the constraint set.
-	If no such constraints remains, it returns. The algorithm fails if and only if it encounters a absurdity,
+	If no such constraint remains, it returns. The algorithm fails if and only if it encounters a absurdity,
 	as in the case of the set $\{ 1 \le n, n \le 0 \}$.
 	The termination of FlagUnification is obvious because the number of constraints strictly diminishes each step.
 	The correctness is also straightforward.
@@ -1041,11 +1044,11 @@ The previous algorithm gives an exact, and most general solution. However, this 
 the application of the unification algorithm to the set
 { \footnotesize
 	$$\lset = \{\alpha_0 \prec: (!^{n_1}\alpha_1 ~\bullet~ !^{n_1}\alpha_1), ~~ 
-	\alpha_1 \prec: (!^{n_2}\alpha_2 ~\bullet~ !^{n_2}\alpha_2) \dots \dots \alpha_{i-1} \prec: (!^{n_i}\alpha_i ~\bullet~ !^{n_i}\alpha_{i}) \}$$ }
+	\alpha_1 \prec: (!^{n_2}\alpha_2 ~\bullet~ !^{n_2}\alpha_2) ~~ \dots ~~ \alpha_{i-1} \prec: (!^{n_i}\alpha_i ~\bullet~ !^{n_i}\alpha_{i}) \}$$ }
 leads to the creation of an exponential number of variables, and the resulting set also contains an exponential number of
 constraints.
-This is why it may interesting to make some concessions to win back on the cost of the algorithm. Also, the goal of the algorithm is
-often only to determine the existence of solutions, and not necessarily find all the possible solutions.
+This is why it may be interesting to make some concessions to win back on the cost of the algorithm. Also, the goal of the algorithm is
+often only to determine the existence of solutions, and not necessarily find all the possible ones.
 We propose some approximations, that keep the satisfiability of the constraint set, but restrict the set of inferred solutions :
 	
 \begin{itemize}
@@ -1164,4 +1167,4 @@ figure \ref{extctypeQP'}.
 You may have noted that, also the circuits $(t, C, a)$ have been included in the extended QP' syntax, no associated typing rule or
 constraint typing relation rules were specified. The reason for this is that the type inference algorithm is designed to infer the
 types of the terms coded by a programmer. However, the constructor $(t, C, a)$ has never been intended to be directly accessible.
-More specifically, the programmer can access a built-in collection of basic gate circuits, whose type is already known at compile time.
+More specifically, the programmer can access a built-in collection of basic gate circuits, whose types are already known at compile time.
