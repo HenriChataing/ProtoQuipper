@@ -86,12 +86,16 @@ run_command opts prog ctx = do
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
-  l <- liftIO $ readline "# "
+  l <- case buffer of
+         [] -> liftIO $ readline "# "
+         _ -> liftIO $ readline "  "
 
   -- Check the command
   case l of
-    Nothing -> 
+    Nothing -> do 
         -- Quit the interactive mode
+        liftIO $ putStrLn ""
+        liftIO $ hFlush stdout
         exit ctx
 
     Just l ->
