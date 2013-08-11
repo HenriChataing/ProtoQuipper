@@ -332,7 +332,7 @@ type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \G
 	is valid.
 \end{thm}
 
-We can now formalize the problem of the type inference. For a complete discussion about the significance of type variables
+We now formalize the problem of the type inference. For a complete discussion about the significance of type variables
 and the different understandings of type inference, please refer to the chapter 22 of \cite{pierce02}.
 Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type, not necessarily verifying $\Gamma \vdash t : T$. We ask ourselves the
 question :
@@ -668,7 +668,7 @@ by the completeness theorem.
 									 \end{array} \right.$$
 		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ verifying $dom(\sigma') \cap \chi_1 = \varnothing$.
 			But this statement has to be adjusted to match the problem $(\Gamma|_t, t, \,!^0 (!^n \alpha\multimap T), \mathcal{L}_1)$.
-			This is done by applying the lemma \ref{contraction} which states that $\sigma'$ is also a solution for
+			This is done by applying the lemma \ref{QP'prop} which states that $\sigma'$ is also a solution for
 			$(\Gamma_1, \Delta|_t, ~t, ~!^0(!^n\alpha \multimap T)) \equiv (\Gamma|_t, ~t, ~!^0(!^n\alpha \multimap T))$.
 			By the induction hypothesis, $\sigma^*$ can be constructed that is solution of $\mathcal{L}_1$, with the property
 			$\sigma^* \backslash_{\chi_1} = \sigma'$. We now need to modify $\sigma^*$ to solve $\mathcal{L}_2$ as well.
