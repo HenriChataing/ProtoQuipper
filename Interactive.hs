@@ -39,6 +39,10 @@ prompt :: String -> QpState (Maybe String)
 -- | Add a command to the history.
 add_history :: String -> QpState ()
 
+-- | Print some colored text.
+print_red :: String -> QpState ()
+print_yellow :: String -> QpState ()
+
 -- Windows or not windows, that is the question...
 #ifdef mingw32_HOST_OS
 
@@ -51,6 +55,12 @@ prompt p = do
 add_history _ =
   return ()
 
+print_red s =
+  liftIO $ putStr s
+
+print_yellow s =
+  liftIO $ putStr s
+
 #else
 
 prompt p =
@@ -58,6 +68,12 @@ prompt p =
 
 add_history c =
   liftIO $ addHistory c
+
+print_red s =
+  liftIO $ putStr $ "\x1b[31;1m" ++ s ++ "\x1b[0m" 
+
+print_yellow s =
+  liftIO $ putStr $ "\x1b[33;1m" ++ s ++ "\x1b[0m" 
 
 #endif
 
@@ -180,12 +196,13 @@ run_interactive opts ctx buffer = do
                                                   t <- pprint_type_noref b
                                                   return (v, t)
                                     nm <- variable_name x
-                                    n <- case v of
-                                           Zero -> return $ "\x1b[31;1m" ++ nm ++ "\x1b[0m"
-                                           One -> return $ "\x1b[33;1m" ++ nm ++ "\x1b[0m"
-                                           Any -> return $ "\x1b[32;1m" ++ nm ++ "\x1b[0m"
-                                           Unknown -> return $ "\x1b[35;0m" ++ nm ++ "\x1b[0m"
-                                    liftIO $ putStrLn $ "~ " ++ n ++ " : " ++ t) (return ()) (typing ctx)
+                                    liftIO $ putStr "~ "
+                                    case v of
+                                      Zero -> print_red nm
+                                      One -> print_yellow nm
+                                      Any -> print_yellow nm
+                                      Unknown -> liftIO $ putStr nm
+                                    liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
 
             [":display"] -> do
@@ -235,6 +252,7 @@ exit ctx = do
       liftIO $ putStr $ "~" ++ "\x1b[31;1m"
       List.foldl (\rec n -> do
                     rec
-                    liftIO $ putStr $ "  " ++ n) (return ()) ndup
-      liftIO $ putStrLn  "\x1b[0m"
+                    liftIO $ putStr "  "
+                    print_red n) (return ()) ndup
+      liftIO $ putStrLn ""
   return ()
