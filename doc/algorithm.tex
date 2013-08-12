@@ -287,7 +287,7 @@ Unless otherwise stated, $\QP'$ is the default language for the rest of this sec
 	We write $dom(\sigma)$ for the set of variables appearing on the left-hand sides of the mappings, and $range(\sigma)$ for the set of variables
 	appearing on the right-hand sides of pairs in $\sigma$. We also use $vDom$, $vRange$, $fDom$ and $fRange$ for the subsets of $dom$ and $range$
 	that contain respectively the type variables and the flag variables.
-	The application of a substitution $\sigma$ to types and linear types is defined in the obvious way\,:
+	The application of a substitution $\sigma$ to types and linear types is defined in the obvious way:
 	$$
 	\begin{array}{lcl}
 		\sigma (\alpha) &=& \left\{ \begin{array}{l}
@@ -365,7 +365,7 @@ for the following problem:
 \subsubsection{Constraint typing relation}
 
 \begin{defn} We introduce sub-typing constraints $X \prec: Y$ for $X, Y \in \texttt{Type}$ or $X, Y \in \texttt{LinearType}$.
-We say that a constraint $X \prec: Y$ is\,:
+We say that a constraint $X \prec: Y$ is:
 		\begin{center}
 		\begin{tabular}{l}
 			\textit{atomic} if it is of the form $\alpha \prec: \beta$. \\
@@ -711,7 +711,7 @@ by Pierce. To prove it, it suffices to consider the set $\{ m \le n \}$. Three s
 			 \sigma_3 & = & [m \mapsto 1, n \mapsto 1]
 			\end{array} $$
 and it is easy to verify that none is more general than the others.
-We adapt the definition of the most general unifier to be\,:
+We adapt the definition of the most general unifier to be:
 
 \begin{defn} The \textit{most general unifier}, or MGU, of a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
 	constraint set $\lset'$ such that:
@@ -721,7 +721,7 @@ We adapt the definition of the most general unifier to be\,:
 		\end{itemize}
 \end{defn}
 
-This definition only makes sense if this MGU actually exists. Thus we need to prove the theorem\,:
+This definition only makes sense if this MGU actually exists. Thus we need to prove the theorem:
 \begin{thm}
 	\label{existence-MGU}
 	Suppose a constraint $\lset$ that has at least one solution $\sigma$. Then $\lset$ has a most general unifier.
@@ -770,13 +770,13 @@ bound of its complexity (even though the limit itself is exponential).
 
 \begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation
 	on the elements of $\vset_\lset$ defines a partition $\mathcal{C}$ of $\vset_\lset$ whose elements are the equivalence classes.
-	Let $\equiv$ be a partial equivalence relation such that\,:
+	Let $\equiv$ be a partial equivalence relation such that:
 		\begin{center}
 			For all relation $\alpha \equiv \beta$, $\exists \gamma_1 \dots \gamma_n$, s.t. $\alpha \prec: \gamma_1 \dots
 				\gamma_n \prec: \beta$ (or the inverse).
 		\end{center}
 	For all variable $\alpha \in \vset_\lset$, we write $c_\alpha$ for the the particular equivalence class that contains $\alpha$.
-	We equip the set $\mathcal{C}$ with the partial relation $\ll$ defined as follows\,:
+	We equip the set $\mathcal{C}$ with the partial relation $\ll$ defined as follows:
   	\begin{center}
   	  For all constraint $\alpha \prec: T$ or $T \prec: \alpha$, $\forall \beta \in FV(T), c_\alpha \ll c_\beta$
   	\end{center}
