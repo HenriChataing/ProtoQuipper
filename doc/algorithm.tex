@@ -752,7 +752,7 @@ The unification algorithm proceeds in two steps:
 
 \subsubsection{Type unification}
 
-\begin{defn}
+\begin{algorithm}{\bf (Reduction).}
   Given a constraint set $\lset$, we define its {\em reduction} $\lset^*$ by repeated application of the following rules.
   If any constraint $c$ in the set is:
   	\begin{itemize}
@@ -760,11 +760,11 @@ The unification algorithm proceeds in two steps:
       \item $T \otimes U \prec: T' \otimes U'$, replace $c$ by $T \prec: T'$ and $U \prec: U'$;
       \item $!^n A \prec: \, !^m B$, replace $c$ by $A \prec: B$ and $m \le n$;
       \item $1 \prec: 1$, remove the constraint;
-      \item For any other composite constraint, the algorithm fails.
+      \item For any other composite type constraint, the algorithm fails.
     \end{itemize}
   When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha \prec: \beta$) or
   semi-composite ($T \prec: \alpha$ or $\alpha \prec: T$).
-\end{defn}
+\end{algorithm}
 
 \begin{lemma} \label{reductionQP'}
 	Let $\lset$ be a constraint set, and $\lset^*$ the reduction of $\lset$. Then $\sigma$ is a solution of $\lset$ if and only if it is
@@ -776,7 +776,7 @@ The unification algorithm proceeds in two steps:
 	\end{proof}
 \end{lemma}
 
-The type unification algorithm relies on an ordering of type variables that ensures termination and gives an upper
+Before we can define the type unification algorithm (Algorith~\ref{alg-type-uni} below), we need an ordering of type variables that ensures termination and gives an upper
 bound of its complexity (even though the limit itself is exponential).
 
 \begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation
@@ -798,12 +798,14 @@ Informally, if $\alpha\ll\beta$, we say that the variable $\alpha$ is
 that in a constraint $\alpha \prec: T$,
 we see that $\alpha$ can only be defined after the introduction of all the variables $\beta$ of $T$. This is analogous to the topological sorting.
 
-Note that the set $\mathcal{C}$ equipped with the partial relation $\ll$ may be incoherent, as is the case with any set containing
-a constraint like $\alpha \prec: \,!^*\beta ~\bullet~ \,!^*\alpha$ that gives the relation $c_\alpha \ll c_\alpha$. More generally,
-an incoherent set is the symptom of an infinite type definition $\alpha = \alpha \bullet \alpha$. As infinite types are not included
+Note that the set $\mathcal{C}$ equipped with the partial relation
+$\ll$ may be inconsistent. For example, let $\bullet$ be any binary type
+operator (i.e., $\otimes$ or $\loli$). Any set with
+a constraint like $\alpha \prec: \,!^*\beta ~\bullet~ \,!^*\alpha$ gives the relation $c_\alpha \ll c_\alpha$. More generally,
+an inconsistent set is the symptom of an infinite type definition $\alpha = \alpha \bullet \alpha$. As infinite types are not included
 in the definition of the type system, such cases will lead the algorithm to failure.
   
-\begin{defn}
+\begin{algorithm}{\bf (Variable ordering).}
   Here is a sketch of an algorithm for computing the relations $\equiv$ and $\ll$. 
   The first step is to sort out all the atomic constraints $\alpha \prec: \beta$, which we use to build the set of equivalence classes
   $\mathcal{C}$. The relation $\ll$ on classes is then defined using the remaining constraints and the above definition.
@@ -812,16 +814,17 @@ in the definition of the type system, such cases will lead the algorithm to fail
   vertex will either:
   	\begin{itemize}
   		\item Reach a vertex $c_\alpha$ that has no outgoing edges. Then $c_\alpha$ is a minimum class of the poset.
-  		\item Reach a vertex $c_\alpha$ that has already been explored. This means the poset is incoherent, and the algorithm fails.
+  		\item Reach a vertex $c_\alpha$ that has already been explored. This means the poset is inconsistent, and the algorithm fails.
   	\end{itemize}
   Since each class is explored at most once, this algorithm is linear in the number of vertices (and by extension in the number of type
   variables).
-\end{defn}
+\end{algorithm}
 
 We are now ready to state the type unification algorithm. 
 In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denotes the set $\bigcup_{k} \{ A_k \prec: B_k \}$.
 
-\begin{algorithm}{\bf (Type Unification).} \\
+\begin{algorithm}{\bf (Type Unification).}\label{alg-type-uni}
+ \\
 	The algorithm TypeUnification inputs a set of linear constraints $\mathcal{L}$, and returns
 	a substitutions $\sigma$ associated with a set $\mathcal{L'}$ whose only sub-typing constraints are atomic.
 	The algorithm proceeds as follows: \\
@@ -1018,7 +1021,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 
 \subsubsection{Flag unification}\label{sssec-flag}
 
-\begin{defn}{\bf (Flag unification).} \\
+\begin{algorithm}{\bf (Flag unification).} \\
 	The algorithm inputs a set of constraints that contains only atomic type constraints, and returns a substitution
 	$\sigma$ on flags, along with the remaining constraints (all atomic).
 	
@@ -1034,7 +1037,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	as in the case of the set $\{ 1 \le 0 \}$.
 	The termination of FlagUnification is obvious because the number of constraints strictly diminishes each step.
 	The correctness is also straightforward.
-\end{defn}
+\end{algorithm}
 
 We now can connect TypeUnification and FlagUnification, to build the unification algorithm.
 
@@ -1058,7 +1061,7 @@ We now can connect TypeUnification and FlagUnification, to build the unification
 
 \subsubsection{Approximations}
 
-The previous algorithm gives an exact, and most general solution. However, this result is obtained at the cost of a high complexity:
+Algorithm~\ref{alg-type-uni} gives an exact, and most general solution to the type unification algorithm. However, this result is obtained at the cost of a high complexity:
 the application of the unification algorithm to the set
 { \small
 	$$\lset = \{\alpha_0 \prec: (!^{n_1}\alpha_1 ~\bullet~ !^{n_1}\alpha_1), ~~ 
