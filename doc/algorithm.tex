@@ -1,7 +1,14 @@
 
 \subsection{The $\QP'$ language}
 
-The grammar of Proto-Quipper is rather extensive, so we formalize type inference algorithm on a fragment of the language and explain in a later section how to extend it to the full syntax. The present section introduces the terms and type system of the language we use for type inference, which we name $\QP'$ by opposition to $\QP$ or Proto-Quipper. 
+The grammar of core Proto-Quipper is rather extensive, so in the interest of readability, we formalize the type inference algorithm on a smaller fragment of the language. In Section~\ref{ssec-extending-to-QP}, we will explain how to extend type inference to all of core Proto-Quipper. To avoid confusing, we will denote core Proto-Quipper by $\QP$, and the smaller fragment by $\QP'$.
+
+We will introduce the concepts of type inference that are specific to
+linear type inference. However, we will presuppose a certain amount of
+familiarity with type inference in general.  For a more comprehensive
+introduction to type inference, including a discussion of the
+significance of type variables and the different understandings of
+type inference, please refer to Chapter 22 of Pierce {\cite{pierce02}}.
 
 \begin{defn} The \emph{terms} of $\QP'$ are defined by:
 	\begin{center}
@@ -11,15 +18,13 @@ The grammar of Proto-Quipper is rather extensive, so we formalize type inference
 	\end{center}
 \end{defn}
 
-The algorithm was initially developed for a simple Lambda Calculus with only variables, $\lambda$-abstractions and applications. We added tensors to give a better understanding of type inference.
-
-For the purpose of type inference, it would be natural to define the type system of $\QP'$ by extending the types of $\QP$ with type variables. This would give the following grammar for types:
+For the purpose of type inference, it would seem natural to define the type system of $\QP'$ by extending the types of $\QP$ with type variables. This would give the following grammar for types:
 	\begin{center}
 	\begin{tabular}{rl}
 		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
 	\end{tabular}
 	\end{center}
-This would have been sufficient, had the types not been linear. However, we need to be able to discuss separately the \textit{form} (for example $qbit$, $bool \otimes bool$) and the \textit{linearity} (whether the type is duplicable or not) of a type. A new grammar is therefore introduced which, though less intuitive, offers more control over the form of a type.
+This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $qbit$, $bool \otimes bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
 
 \begin{defn} The \emph{types} of $\QP'$ are defined by:
 	\begin{center}
@@ -31,17 +36,16 @@ This would have been sufficient, had the types not been linear. However, we need
 	\end{center}
 \end{defn}
 
-Flags, linear types and types are to be interpreted as follow:
+Flags, linear types and types are to be interpreted as follows:
 \begin{itemize}
-	\item $\texttt{LinearType}$ corresponds to the subset of $\QP$ types that are always linear. They will always correspond to terms that can not be
-		duplicated, such as qbits.
+	\item $\texttt{LinearType}$ corresponds to the subset of $\QP$ types that are always linear at the outermost level.
 	\item $\texttt{Type}$ is set of all types. Depending of the value of its prefixing flag, a $\texttt{Type}$ is duplicable or not.
 		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
 	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parametrize the linearity of a type.
-		If the value of $n$ in $!^n A$ is $1$, then $T = \,!^n A$ is duplicable; if it is $0$ then it is linear. For example, the type
-		of any quantum address shall be $!^0 qbit$.
+		If the value of $n$ is $1$, then $!^n A$ is duplicable; if it is $0$, then $!^n A$ is linear. This idea is that $!^1A=!A$ and $!^0A=A$. For example, the type
+		of any quantum bit will be $!^0 qbit$.
 \end{itemize}
-Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in $\QP$. We introduce the following new notations:
+Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in $\QP$. We will use the following notation:
 \begin{itemize}
 	\item $\alpha, \beta \dots$ for type variables, taken in the set $\vset$.
 	\item $n, m \dots$ for flag variables, taken in the set $\fset$.
@@ -49,7 +53,7 @@ Using a grammar that distinguishes linear types and types also allows us to unam
 	\item $T, U \dots$ for types.
 \end{itemize}
 
-\begin{defn} The subtyping relation $<:$ is the smallest relation on types and linear types satisfying the rules given in figure \ref{subtypingQP'}.
+\begin{defn} The subtyping relation $<:$ is the smallest relation on types and linear types satisfying the rules given in Figure \ref{subtypingQP'}.
 \end{defn}
 
 \begin{figure}[!ht]
@@ -107,10 +111,10 @@ A \emph{typing judgement} is an expression of the form:
 \[
 \Gamma \vdash t:T
 \] 
-where $\Gamma$ is a typing context, $t$ is a term and $T$ is a type. A typing judgment is \emph{valid} if it can be inferred from the rules given in figure \ref{typingQP'}.
+where $\Gamma$ is a typing context, $t$ is a term and $T$ is a type. A typing judgment is \emph{valid} if it can be inferred from the rules given in Figure \ref{typingQP'}.
 \end{defn}
 
-As in $\QP$, a typing judgement should be interpreted as stating that \textit{under the assumptions $\Gamma$, the term $t$ has the type $T$}. 
+As in $\QP$, a typing judgement should be interpreted as stating that under the assumptions $\Gamma$, the term $t$ has the type $T$. 
 
 \begin{remark} For the most part, the typing rules of $\QP'$ are those of $\QP$ adapted to the different syntax of types. This is not quite the 
 	case of the rules for $\otimes$. Recall that the typing rule for $\pair{a}{b}$ in $\QP$ was (omitting the quantum contexts):
@@ -120,9 +124,9 @@ As in $\QP$, a typing judgement should be interpreted as stating that \textit{un
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \pair{a}{b} : \,!^n(A \otimes B)$}
 		\end{prooftree}
-	This rule expresses the fact that the pair $\pair{a}{b}$ is duplicable if, and only if, both $a$ and $b$ are. However, the grammar of 
+	This rule expresses the fact that the pair $\pair{a}{b}$ is duplicable if and only if both $a$ and $b$ are duplicable. However, the grammar of 
 	$\QP'$ types doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of $\QP'$ uses the type 
-	$!^p(!^nA \otimes \,!^mB)$ with the condition that $p$ can be $1$ if, and only if, both $n$ and $m$ are equal to one. This results in 
+	$!^p(!^nA \otimes \,!^mB)$ with the condition that $p$ can be $1$ if and only if both $n$ and $m$ are equal to one. This results in 
 	the duplicable pair $\pair{a}{b}$ having the type $!^1(!^1 A \otimes \,!^1B)$ rather than $\bang (A \otimes B)$. A similar remark applies 
 	to the $(\otimes.E)$ rule.
 \end{remark}
@@ -206,8 +210,10 @@ As in $\QP$, a typing judgement should be interpreted as stating that \textit{un
 \label{typingQP'}
 \end{figure}
 
-\begin{thm}{\bf Soundness and completeness} Let $t$ be a $\QP'$ term. There exists two transformations $\tau$ and
-	$\bar \tau$ defined on types as functions respectively from $\QP$ to $\QP'$ types, and $\QP'$ to $\QP$ types, verifying the properties:
+The correspondence between the type systems for $\QP$ and $\QP'$ is established in the following theorem:
+
+\begin{thm}{\bf (Soundness and completeness).} Let $t$ be a $\QP'$ term. There exists two transformations $\tau$ and
+	$\bar \tau$ defined on types as functions respectively from $\QP$ to $\QP'$ types, and $\QP'$ to $\QP$ types, satisfying the properties:
 	\begin{enumerate}
 		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in $\QP$, then
 			$\tau\Gamma \vdash t : \tau T$ is valid in $\QP'$.
@@ -218,7 +224,7 @@ As in $\QP$, a typing judgement should be interpreted as stating that \textit{un
 	\begin{proofsketch}
 		The transformations $\tau$ and $\bar \tau$ can be written as recursive functions on types. Their definition will not be explained
 		here. The proof is a simple induction on the typing derivation of $\Gamma \vdash t : T$. The cases of $(\otimes.I)$ and
-		$(\otimes.E)$ use the isomorphism $\bang\bang A \equiv \bang A$.
+		$(\otimes.E)$ use the isomorphism $\bang\bang A \equiv \bang A$ of $\QP$-types.
 	\end{proofsketch}
 \end{thm}
 
@@ -231,7 +237,7 @@ As in $\QP$, a typing judgement should be interpreted as stating that \textit{un
 	\end{itemize}
 \end{remark}
 
-\begin{lemma} The type system verifies the following properties:
+\begin{lemma} The type system satisfies the following properties:
 	\label{QP'prop}
 	\begin{enumerate}
 		\item Suppose $\Gamma \vdash t : T$ is a valid typing judgement in LL. Let $\Delta$ and $U$ be such that
@@ -249,9 +255,11 @@ As in $\QP$, a typing judgement should be interpreted as stating that \textit{un
 	\end{proof}
 \end{lemma}
 
-Note that the statement
-\textit{Suppose $\Gamma \vdash t : T$ and $T <: U$, then $\Gamma \vdash t : U$} alone can not be proved, as the case
-$\lambda x.t$ introduces a relation of sub-typing on the context.
+\begin{remark}
+Note that the weaker statement
+``\textit{If $\Gamma \vdash t : T$ and $T <: U$, then $\Gamma \vdash t : U$}'' cannot be proved directly by induction, because the case for
+$\lambda x.t$ requires a relation of sub-typing on the context, and thus requires the stronger induction hypothesis.
+\end{remark}
 
 \begin{coro} The following typing rules are admissible in $\QP'$ :
 	\begin{prooftree}
@@ -282,8 +290,8 @@ Unless otherwise stated, $\QP'$ is the default language for the rest of this sec
 
 \subsubsection{Definitions}
 
-\begin{defn} A \textit{substitution} is a finite list of mappings $(\alpha \mapsto A)$ or $(n \mapsto 0 ~|~ 1)$
-	from either type variables to \textit{linear} types 	or flag variables to either $0$ or $1$.
+\begin{defn} A \textit{substitution} is a finite list of mappings $(\alpha \mapsto A)$ or $(n \mapsto \s{0, 1})$
+	from type variables to \textit{linear} types and from flag variables to either $0$ or $1$.
 	We write $dom(\sigma)$ for the set of variables appearing on the left-hand sides of the mappings, and $range(\sigma)$ for the set of variables
 	appearing on the right-hand sides of pairs in $\sigma$. We also use $vDom$, $vRange$, $fDom$ and $fRange$ for the subsets of $dom$ and $range$
 	that contain respectively the type variables and the flag variables.
@@ -298,8 +306,9 @@ Unless otherwise stated, $\QP'$ is the default language for the rest of this sec
 		\sigma(T \otimes U) &=& \sigma T \otimes \sigma U \\
 		\sigma(T \multimap U) &=& \sigma T \multimap \sigma U \\
 		\sigma(!^n A) &=& \left\{ \begin{array}{l}
-																	!^{0|1} \sigma A \text{ if } (n \mapsto 0|1) \in \sigma \\
-																	!^n \sigma A \text{ if not}
+																	!^{0} \sigma A \text{ if } (n \mapsto 0) \in \sigma \\
+																	!^{1} \sigma A \text{ if } (n \mapsto 1) \in \sigma \\
+																	!^n \sigma A \text{ otherwise}
 																\end{array} \right. \\
 	\end{array}
 	$$
@@ -307,20 +316,20 @@ Unless otherwise stated, $\QP'$ is the default language for the rest of this sec
 
 Note that variables may appear in both $dom(\sigma)$ and $range(\sigma)$. The intention in such cases is for the mappings of $\sigma$ to
 be applied simultaneously. The definition of $\sigma$ ensures that the kind of a type is left untouched: a linear type is mapped to a linear
-type, and so is a type. The substitution $\sigma$ is extended to contexts by defining
+type, and a type is mapped to a type. The substitution $\sigma$ is extended to contexts by defining
  		$$\sigma (x_1 : T_1 \dots x_n : T_n) = (x_1 : \sigma T_1 \dots x_n : \sigma T_n)$$
  		
-\begin{defn} If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ with $\tau$, defined as follow
+\begin{defn} If $\sigma$ and $\tau$ are substitutions, we write $\sigma \circ \tau$ for the composition of $\sigma$ with $\tau$, defined as follows
 		$$\tau \circ \sigma = \left[ \begin{array}{ll}
 																			\alpha \mapsto \tau A & \text{for each } (\alpha \mapsto A) \in \sigma \\
 																			\alpha \mapsto A & \text{for each } (\alpha \mapsto A) \in \tau \text{ with } \alpha \notin vDom(\sigma) \\
-																			n \mapsto 0|1 & \text{for each } (n \mapsto 0|1) \in \sigma \\
-																			n \mapsto 0|1 & \text{for each } (n \mapsto 0|1) \in \tau \text{ with } n \notin fDom(\sigma) \\
+																			n \mapsto \sigma(n) & \text{for each } n \in fDom(\sigma) \\
+																			n \mapsto \tau(n) & \text{for each } n \in fDom(\tau) \text{ with } n \notin fDom(\sigma) \\
 																		\end{array} \right]$$
 \end{defn}
 
 The composition is associative: $\sigma \circ (\tau \circ \rho) = (\sigma \circ \tau) \circ \rho$. We say that a substitution
-$\sigma$ is \textit{idempotent} if it verifies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if and only if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
+$\sigma$ is \textit{idempotent} if it satisfies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
 $\sigma \neq \sigma \circ \sigma$ can be really cumbersome, we consider in the following that all substitutions are chosen idempotent.
 
 Substitutions preserve the validity of typing judgements. If a term $t$ is well-typed with the
@@ -332,10 +341,8 @@ type $T$ in the context $\Gamma$, then for any substitution $\sigma$, $\sigma \G
 	is valid.
 \end{thm}
 
-We now formalize the problem of the type inference. For a complete discussion about the significance of type variables
-and the different understandings of type inference, please refer to the chapter 22 of \cite{pierce02}.
-Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type, not necessarily verifying $\Gamma \vdash t : T$. We ask ourselves the
-question:
+We now formalize the problem of type inference. 
+Suppose $\Gamma$ a typing context, $t$ a term and $T$ a type, not necessarily satisfying $\Gamma \vdash t : T$. The purpose of type inference is to answer the question:
  \begin{center}
  	 ``Is \text{some} substitution instance of $t$ well-typed?"
  \end{center}
@@ -364,7 +371,7 @@ for the following problem:
 
 \subsubsection{Constraint typing relation}
 
-\begin{defn} We introduce sub-typing constraints $X \prec: Y$ for $X, Y \in \texttt{Type}$ or $X, Y \in \texttt{LinearType}$.
+\begin{defn} We introduce {\em sub-typing constraints} $X \prec: Y$ for $X, Y \in \texttt{Type}$ or $X, Y \in \texttt{LinearType}$.
 We say that a constraint $X \prec: Y$ is:
 		\begin{center}
 		\begin{tabular}{l}
@@ -373,7 +380,7 @@ We say that a constraint $X \prec: Y$ is:
 			\textit{composite} if it is of the form $X \prec: Y$ with $X, Y \notin \vset$.
 		\end{tabular}
 		\end{center}
-  Similarly, flag constraints $n \le m$ are defined over flag variables. Flag constraints are atomic if of the form $n \le m$,
+  Similarly, flag constraints $n \le m$ are defined over flag variables and the constants $0$ and $1$. Flag constraints are atomic if of the form $n \le m$,
   for $m, n\in \fset$.
   A substitution $\sigma$ solves a constraint $T \prec: U$ ($n \le m$) if and only if $\sigma T <: \sigma U$ ($\sigma(n) \le \sigma(m)$).
 \end{defn}
@@ -395,24 +402,29 @@ Though all flag constraints are written in the same form $(. \le .)$, they can h
   	\item[]{\bf Satisfiability} A set is \textit{solved} when all the included constraints can be solved by application of one or
   		more of the sub-typing rules (type constraints) or by transitivity (flag constraints).
   		Thus, a set $\lset$ is \textit{solvable} if there exists a substitution $\sigma$ such that $\sigma \lset$ is solved.
-	 	\item[]{\bf Derivation} When the validity of a set $\mathcal{L}$ can be deduced from another set $\mathcal{L'}$ by application of
-		  the sub-typing rules and the transitivity, we say that $\lset$ \textit{derives} from $\lset'$,
+	 	\item[]{\bf Derivability} When the validity of a set $\mathcal{L}$ can be deduced from another set $\mathcal{L'}$ by application of
+		  the sub-typing rules and the transitivity, we say that $\lset$ is \textit{derivable} from $\lset'$,
 		  written $\lset' \vdash \lset$.
   \end{itemize}
 \end{defn}
 
 \begin{defn} The \textit{constraint typing relation} $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ is defined by the constraint typing rules
-	of the figure \ref{ctypeQP'}. It it to be interpreted as: \textit{Under the assumptions $\Gamma$, when the constraints $\lset$ are solved,
+	of Figure \ref{ctypeQP'}. It it to be interpreted as: \textit{Under the assumptions $\Gamma$, when the constraints $\lset$ are solved,
 	the term $t$ has the type $T$}. 
 \end{defn}
 
 The set $\chi$ keeps track of the type and flag variables created during the construction of the derivation
-of the typing judgement $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. The constraint typing algorithm is obtained by reading the
+of the typing judgement $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. 
+
+\begin{algorithm}{\bf (ConstraintTyping).}
+The constraint typing algorithm is obtained by reading the
 constraint typing rules from bottom to top. It can be verified that the algorithm is indeed deterministic, whereas the typing
-rules of $\QP'$ were not (see the rules $(\lambda_1)$ and $(\lambda_2)$). The function ConstraintTyping applies the constraint
-typing algorithm to a typing judgement $\Gamma \vdash t : T$, and returns a set $\mathcal{L}$ (and as a by-product the set of
+rules of $\QP'$ were not (see the rules $(\lambda_1)$ and $(\lambda_2)$). 
+The function ConstraintTyping applies the constraint
+typing algorithm to a typing judgement $\Gamma \vdash t : T$, and either fails, or returns a set $\mathcal{L}$ (and as a by-product the set of
 variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ holds.
-	
+\end{algorithm}	
+
 \begin{figure}[!ht]
 \begin{mdframed}
 	$$ $$
@@ -507,7 +519,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 			                                            & 1 \le n_1 &
 	  		                                        \end{array} \right\}} \lambda x.\pair{x}{x} : \,!^{n_0} \alpha$}
 		\end{prooftree}
-	The annotations $\chi$ are omitted to avoid surcharging the tree. Thus, we have
+	The annotations $\chi$ are omitted to avoid cluttering the notation. Thus, we have
 		$$ \text{ConstraintTyping}\,(\varnothing \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \left\{ \scriptsize
 			                                          \begin{array}{lll} 
 			                                            !^{n_1}\beta \prec: \,!^{n_4}\delta, & n_6 \le n_4 &
@@ -527,22 +539,22 @@ then we know that $t$ is not typeable with the type $T$ in the context $\Gamma$.
 	\label{alg_problem}
 	Suppose $\Gamma$ a typing context, $t$ a term, $T$ a type, and $\lset$ a constraint set, such that the constraint typing relation
 	$\Gamma \vdash_\lset t : T ~|_\chi$ holds.
-	A substitution $\sigma$ is a solution for the problem 	$(\Gamma, t, T, \lset)$ if it is a solution of $\lset$.
+	We say that a substitution $\sigma$ is a {\em solution for the problem 	$(\Gamma, t, T, \lset)$} if it is a solution of $\lset$.
 \end{defn}
 
 We now have two different ways of characterizing the possible instantiations of $\Gamma \vdash t : T$ as
  	\begin{enumerate}
- 		\item The solutions for $(\Gamma, t, T)$, according to the definition \ref{decl_problem}.
- 		\item Supposing the relation $\Gamma \vdash_\lset t : T ~|_\chi$, the solutions for $(\Gamma, t, T, \lset)$ in the sense of the definition
+ 		\item The solutions for $(\Gamma, t, T)$, according to Definition \ref{decl_problem}.
+ 		\item Supposing the relation $\Gamma \vdash_\lset t : T ~|_\chi$, the solutions for $(\Gamma, t, T, \lset)$ in the sense of Definition
  			\ref{alg_problem}.
  	\end{enumerate}
 
 We now have to show that these definitions are equivalent. That is, we need to show that every solution $\sigma$ for $(\Gamma, t, T, \lset)$
-is a solution for $(\Gamma, t, T)$. This implication is proved by the soundness theorem. Conversely, we also prove that from every solution
+is a solution for $(\Gamma, t, T)$. This implication is proved by the Soundness Theorem. Conversely, we also prove that from every solution
 for $(\Gamma, t, T)$ we can derive a solution for $(\Gamma, t, T, \lset)$ by adding bindings for the freshly generated variables, as stated
-by the completeness theorem.
+by the Completeness Theorem.
 
-\begin{prop}{\bf Soundness} \\
+\begin{prop}{\bf (Soundness).} \\
 	Suppose that $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. If $\sigma$ is a solution
 	of $\mathcal{L}$, then it is also a solution for $(\Gamma, t, T)$.
 
@@ -600,7 +612,7 @@ by the completeness theorem.
 	\end{proof}
 \end{prop}
 
-\begin{prop}{\bf Completeness} \\
+\begin{prop}{\bf (Completeness).} \\
 	Suppose $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. If $\sigma$ is a solution for $(\Gamma, t, T)$ such that
 	$dom(\sigma) \cap \chi = \varnothing$, then there 	is some solution $\sigma'$ of $\mathcal{L}$ such that
 	$\sigma' \backslash \chi = \sigma$.
@@ -629,7 +641,7 @@ by the completeness theorem.
 				This means $\sigma'$ is a solution for $(\Gamma,x : \,!^n\alpha, t, \,!^m\beta)$ with the right property
 				$dom(\sigma') \cap \chi = \varnothing$. By the induction hypothesis, $\sigma^*$ solution of $\mathcal{L'}$ can be constructed
 				with the property $\sigma^* \backslash_\chi = \sigma'$.
-				$\sigma^*$ also verifies $\sigma^*\backslash_{\chi \cup \{\alpha, \beta, n, m , p\}} =
+				$\sigma^*$ also satisfies $\sigma^*\backslash_{\chi \cup \{\alpha, \beta, n, m , p\}} =
 				\sigma' \backslash_{\{\alpha, \beta, n, m, p \}} = \sigma$ and $\sigma^* \mathcal{L}$ solved. \\
 					
 			\item If $\sigma T = \,!^0 (T_1 \multimap T_2)$.
@@ -660,13 +672,13 @@ by the completeness theorem.
 			that by definition $\sigma I = 1 \dots 1$. \\
 			By hypothesis, $dom(\sigma) \cap \{ \alpha, n \} = \varnothing$. Thus $\sigma$ can be extended as
 			$\sigma' = \sigma, [!^n\alpha \mapsto U]$. \\
-			By construction of $\sigma'$,the following properties are verified
+			By construction of $\sigma'$, the following properties are satisfied
 				$$\left\{ \begin{array}{l}
 									   \sigma' \Gamma = \sigma \Gamma \\
 									   \sigma'(!^0(!^n \alpha \multimap T)) = \,!^0 (U \multimap \sigma T) \\
 									   dom(\sigma') \cap \chi_1 = dom(\sigma) \cap \chi_1 = \varnothing
 									 \end{array} \right.$$
-		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ verifying $dom(\sigma') \cap \chi_1 = \varnothing$.
+		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ satisfying $dom(\sigma') \cap \chi_1 = \varnothing$.
 			But this statement has to be adjusted to match the problem $(\Gamma|_t, t, \,!^0 (!^n \alpha\multimap T), \mathcal{L}_1)$.
 			This is done by applying the lemma \ref{QP'prop} which states that $\sigma'$ is also a solution for
 			$(\Gamma_1, \Delta|_t, ~t, ~!^0(!^n\alpha \multimap T)) \equiv (\Gamma|_t, ~t, ~!^0(!^n\alpha \multimap T))$.
@@ -679,7 +691,7 @@ by the completeness theorem.
 										 dom(\sigma^*) \cap \chi_2 = dom(\sigma) \cap \chi_2 = \varnothing ~~(\text{because} ~\chi_1 \cap \chi_2 = \varnothing)
 					  			 \end{array}\right.$$
 			Thus $\sigma^*$ is a solution for $((\Gamma_2, \Delta), ~u, ~!^n\alpha)$, which means for $(\Gamma|_u, ~u, ~!^n\alpha)$ as well.
-			It also verifies $dom(\sigma^*) \cap \chi_2 = \varnothing$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
+			It also satisfies $dom(\sigma^*) \cap \chi_2 = \varnothing$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
 			$\mathcal{L}_2$ such that $\sigma^{**} \backslash_{\chi_2} = \sigma^*$. \\
 			Overall, $\sigma^{**}$ is a solution of $\mathcal{L}_1$, $\mathcal{L}_2$ and $\{ 1 \le I \}$, which means it solves $\mathcal{L}$.
 			Moreover, $\sigma^{**} \backslash_{\chi_1 \cup \chi_2 \cup \{\alpha, n\}} = \sigma^* \backslash_{\chi_1 \cup \{\alpha, n\}} =
@@ -692,19 +704,19 @@ by the completeness theorem.
 
 \subsection{Unification}
 
-A constraint set can have infinitely many solutions, but some may be better than others. In particular, we will privilege those
-that make less assumptions about the structure of types. For example, the set $\lset = \{!^n \alpha \prec: !^m \beta\}$ will have
-$\sigma = [\alpha \mapsto \beta, n \mapsto 1, m \mapsto 0]$ and $\tau = [\alpha \mapsto !^1 A \otimes !^1 A, \beta \mapsto !^1 A \otimes !^1 A,
+A constraint set can have infinitely many solutions, but some may be better than others. In particular, we will give a privileged status to solutions
+that make fewer assumptions about the structure of types. For example, the set $\lset = \{!^n \alpha \prec: !^m \beta\}$ will have
+$\sigma = [\alpha \mapsto \beta, n \mapsto 1, m \mapsto 0]$ and $\tau = [\alpha \mapsto {!}^1 A \otimes {!}^1 A, \beta \mapsto {!}^1 A \otimes {!}^1 A,
 n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is ``more general" than $\tau$.
 
 \begin{defn} Suppose two substitutions $\alpha$ and $\alpha'$. We say that $\alpha$ is \textit{more general} than $\alpha'$, written
 	$\alpha \sqsubseteq \alpha'$ if there exists a substitution $\tau$ such that $\alpha' = \tau \circ \alpha$.
 \end{defn}
 
-With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. B. Pierce goes even further by stating the existence
-of a most general unifier MGU of a constraint set, a substitution solution of a set that is more general that any other solution. However,
-what was true in STLC is not in $\QP'$. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
-by Pierce. To prove it, it suffices to consider the set $\{ m \le n \}$. Three solutions of this constraint set exist:
+With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. Pierce {\cite{pierce02}} goes even further by stating the existence
+of a most general unifier of a constraint set, a substitution solution of a set that is more general that any other solution. However,
+while this is true in simply-typed lambda calculus, it is not true $\QP'$. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
+by Pierce. To prove this, it suffices to consider the set $\{ m \le n \}$. Three solutions of this constraint set exist:
 	$$ \begin{array}{ccl}
 		   \sigma_1 & = & [m \mapsto 0, n \mapsto 0] \\
 			 \sigma_2 & = & [m \mapsto 0, n \mapsto 1] \\
@@ -713,7 +725,7 @@ by Pierce. To prove it, it suffices to consider the set $\{ m \le n \}$. Three s
 and it is easy to verify that none is more general than the others.
 We adapt the definition of the most general unifier to be:
 
-\begin{defn} The \textit{most general unifier}, or MGU, of a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
+\begin{defn} A \textit{most general unifier} of a constraint set $\lset$ is a pair of a substitution $\sigma$ and an atomic
 	constraint set $\lset'$ such that:
 		\begin{itemize}
 			\item For every solution $\tau$ of $\lset	'$, $\tau \circ \sigma$ is a solution of $\lset$.
@@ -721,13 +733,13 @@ We adapt the definition of the most general unifier to be:
 		\end{itemize}
 \end{defn}
 
-This definition only makes sense if this MGU actually exists. Thus we need to prove the theorem:
+This definition is only useful if such most general unifiers actually exist. Thus we need to prove the theorem:
 \begin{thm}
 	\label{existence-MGU}
 	Suppose a constraint $\lset$ that has at least one solution $\sigma$. Then $\lset$ has a most general unifier.
 \end{thm}
 
-This notion of MGU is analogous to the one defined for the purpose of the STLC unification.
+This notion of most general unifier is analogous to the one defines for the purpose of unification in the simply-typed lambda calculus.
 The unification algorithm proceeds in two steps:
 	\begin{enumerate}
 		\item Type unification. The algorithm reduces and solves the sub-typing constraints of the input set $\lset$.
@@ -741,15 +753,14 @@ The unification algorithm proceeds in two steps:
 \subsubsection{Type unification}
 
 \begin{defn}
-	All the composite constraints produced by either the constraint typing
-  algorithm or the unification algorithm are automatically reduced, using the following rules.
-  If the constraint $c$ is:
+  Given a constraint set $\lset$, we define its {\em reduction} $\lset^*$ by repeated application of the following rules.
+  If any constraint $c$ in the set is:
   	\begin{itemize}
-      \item $T \multimap U \prec: T' \multimap U'$, replace $c$ by $T' \prec: T$ and $U \prec: U'$
-      \item $T \otimes U \prec: T' \otimes U'$, replace $c$ by $T \prec: T'$ and $U \prec: U'$
-      \item $!^n A \prec: \, !^m B$, replace $c$ by $A \prec: B$ and $m \le n$
-      \item $1 \prec: 1$, remove the constraint
-      \item For any other composite constraint, the algorithm fails
+      \item $T \multimap U \prec: T' \multimap U'$, replace $c$ by $T' \prec: T$ and $U \prec: U'$;
+      \item $T \otimes U \prec: T' \otimes U'$, replace $c$ by $T \prec: T'$ and $U \prec: U'$;
+      \item $!^n A \prec: \, !^m B$, replace $c$ by $A \prec: B$ and $m \le n$;
+      \item $1 \prec: 1$, remove the constraint;
+      \item For any other composite constraint, the algorithm fails.
     \end{itemize}
   When all the composite constraints have been reduced, there remains a set of constraints either atomic ($\alpha \prec: \beta$) or
   semi-composite ($T \prec: \alpha$ or $\alpha \prec: T$).
@@ -760,31 +771,32 @@ The unification algorithm proceeds in two steps:
 	a solution of $\lset*$.
 	
 	\begin{proof}
-		The right to left implication is proved by application of the sub-typing relation rules defined in the figure \ref{subtypingQP'}.
+		The right to left implication is proved by application of the sub-typing relation rules defined in Figure \ref{subtypingQP'}.
 		The fact that all these rules are invertible gives the left to right implication.
 	\end{proof}
 \end{lemma}
 
-The type unification algorithm relies on an ordering of type variables that ensures termination and gives a upper
+The type unification algorithm relies on an ordering of type variables that ensures termination and gives an upper
 bound of its complexity (even though the limit itself is exponential).
 
 \begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation
 	on the elements of $\vset_\lset$ defines a partition $\mathcal{C}$ of $\vset_\lset$ whose elements are the equivalence classes.
-	Let $\equiv$ be a partial equivalence relation such that:
+	Let $\equiv$ be a smallest equivalence relation on type variables such that for all $\alpha,\beta$:
 		\begin{center}
-			For all relation $\alpha \equiv \beta$, $\exists \gamma_1 \dots \gamma_n$, s.t. $\alpha \prec: \gamma_1 \dots
-				\gamma_n \prec: \beta$ (or the inverse).
+			If $\exists \gamma_1 \dots \gamma_n$, s.t. $\alpha \prec: \gamma_1 \dots
+				\gamma_n \prec: \beta$, then $\alpha \equiv \beta$.
 		\end{center}
-	For all variable $\alpha \in \vset_\lset$, we write $c_\alpha$ for the the particular equivalence class that contains $\alpha$.
-	We equip the set $\mathcal{C}$ with the partial relation $\ll$ defined as follows:
+	For all variables $\alpha \in \vset_\lset$, we write $c_\alpha$ for the the equivalence class of $\alpha$.
+	We also equip the set $\mathcal{C}$ with the partial relation $\ll$ defined as follows:
   	\begin{center}
-  	  For all constraint $\alpha \prec: T$ or $T \prec: \alpha$, $\forall \beta \in FV(T), c_\alpha \ll c_\beta$
+  	  For all constraints $\alpha \prec: T$ or $T \prec: \alpha$, $\forall \beta \in FV(T), c_\alpha \ll c_\beta$
   	\end{center}
 \end{defn}
 
-The couple of relations $(\equiv, \ll)$ can be interpreted as defining an age for each variable. In a constraint $\alpha \prec: T$,
-we see that $\alpha$ can only be defined after the introduction of all the variables $\beta$ of $T$. Thus, $\alpha$ is in some sense
-\emph{younger} than $\beta$. This is analogous to the topological sorting.
+Informally, if $\alpha\ll\beta$, we say that the variable $\alpha$ is
+{\em younger} than $\beta$. The intuition behind this terminology is
+that in a constraint $\alpha \prec: T$,
+we see that $\alpha$ can only be defined after the introduction of all the variables $\beta$ of $T$. This is analogous to the topological sorting.
 
 Note that the set $\mathcal{C}$ equipped with the partial relation $\ll$ may be incoherent, as is the case with any set containing
 a constraint like $\alpha \prec: \,!^*\beta ~\bullet~ \,!^*\alpha$ that gives the relation $c_\alpha \ll c_\alpha$. More generally,
@@ -792,7 +804,7 @@ an incoherent set is the symptom of an infinite type definition $\alpha = \alpha
 in the definition of the type system, such cases will lead the algorithm to failure.
   
 \begin{defn}
-  Here is a sketch of the algorithm.
+  Here is a sketch of an algorithm for computing the relations $\equiv$ and $\ll$. 
   The first step is to sort out all the atomic constraints $\alpha \prec: \beta$, which we use to build the set of equivalence classes
   $\mathcal{C}$. The relation $\ll$ on classes is then defined using the remaining constraints and the above definition.
   Suppose this poset is implemented as a graph, whose vertices are the equivalence classes, and where each edge
@@ -806,14 +818,15 @@ in the definition of the type system, such cases will lead the algorithm to fail
   variables).
 \end{defn}
 
+We are now ready to state the type unification algorithm. 
 In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denotes the set $\bigcup_{k} \{ A_k \prec: B_k \}$.
 
-\begin{defn}{\bf Type Unification} \\
+\begin{algorithm}{\bf (Type Unification).} \\
 	The algorithm TypeUnification inputs a set of linear constraints $\mathcal{L}$, and returns
 	a substitutions $\sigma$ associated with a set $\mathcal{L'}$ whose only sub-typing constraints are atomic.
 	The algorithm proceeds as follows: \\
 	\\
-  Let $\alpha_1 \dots \alpha_n$ be the the youngest variables. The constraint set $\mathcal{L}$ is formed of the constraints
+  Let $\alpha_1 \dots \alpha_n$ be the the youngest variables under the $\ll$ ordering. The constraint set $\mathcal{L}$ is formed of the constraints
   $\mathcal{L'} \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k \cup \{ \alpha_{i_l} \prec: B_l \}_l
 	\cup \{ A_m \prec: \alpha_{j_m} \}_m$.
   The set $\mathcal{L'}$ contains all the constraints unrelated to $\alpha_1 \dots \alpha_n$,
@@ -845,10 +858,10 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 
   Of course, if the set of sub-typing constraints is empty, the algorithm stops.
   TypeUnification can fail in two different ways: either it attempts to construct an infinite
-  type, and the variable ordering fails, or the reduction encounters an absurd composite constraint.
-\end{defn}
+  type, and the variable ordering fails, or the reduction encounters an absurd composite constraint (such as $A\otimes B <: C\loli D$).
+\end{algorithm}
 
-\begin{defn} Let $\mathcal{L}$ be a constraint set. the following notations are introduced:
+\begin{defn} Let $\mathcal{L}$ be a constraint set. The following notations are introduced:
 	\begin{itemize}
 		\item[$\#\mathcal{L}$] for the complexity of $\mathcal{L}$, given by the number of connectives $\multimap$,
 			$\otimes$ and symbols $1$ used in the types of the sub-typing constraints.
@@ -857,7 +870,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	Sets $\mathcal{L}$ are indexed by the pair $(\#\mathcal{L}, |\mathcal{L}|)$, equipped with the lexicographical order.
 \end{defn}
 
-\begin{thm}{\bf Termination} \\
+\begin{thm}{\bf (Termination).} \\
 	\textit{For all constraint sets $\mathcal{L}$, the unification algorithm applied to $\mathcal{L}$ terminates. }
 	\begin{proof}
 		By induction on indexed sets (see definition above). The induction hypothesis is this: \textit{if for all sets of index $I^{-} \lneq I$ the
@@ -884,7 +897,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
        	Thence, what remains after reduction of the composite constraints is only $\mathcal{L'}$.
        	The complexity of the reduced constraint set $\sigma \mathcal{L}$ is:
 			  	$$C_\lset' = \#\sigma\mathcal{L} = \#\mathcal{L'} $$
-			  which is strictly inferior to $C_\lset$, meaning $(C_\lset',|\sigma\mathcal{L}|) \lneq (C_\lset, N_\lset)$.
+			  which is strictly less than $C_\lset$, meaning $(C_\lset',|\sigma\mathcal{L}|) \lneq (C_\lset, N_\lset)$.
 			  The induction hypothesis holds, and the function call $\text{TypeUnification}\,(\sigma \mathcal{L})$ terminates,
 			  giving the termination of the call $\text{TypeUnification}\,(\mathcal{L})$. \\
 							
@@ -925,7 +938,17 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	\end{proof}
 \end{thm}
 
-\begin{thm}{\bf Correctness} \\
+\begin{remark} Properties $(a)$ and $(b)$ in the following correctness
+  theorem of type unification very much resemble the definition of the
+  most general unifier.  However, the constraint set that is returned
+  along with the substitution can still have {\em non-atomic flag
+    constraints}.  Solving these remaining constraints is the purpose
+  of the flag unification algorithm, which will be introduced in
+  Section~\ref{sssec-flag}.
+\end{remark}
+
+
+\begin{thm}{\bf (Correctness).} \\
 	Let $\mathcal{L}$ be a constraint set. The unification algorithm applied to $\mathcal{L}$ produces
 	a substitution $\sigma$ and a set $\mathcal{L'}$ such that:
 		\begin{center}
@@ -993,14 +1016,9 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	\end{proof}
 \end{thm}
 
-\begin{remark} The properties $(a)$ and $(b)$ of the correctness of Type Unification resemble very much the definition of the MGU.
-	However, the constraint set that is returned along with the substitution can still have non-atomic flag constraints.
-	Solving those is the purpose of the flag unification, introduced now.
-\end{remark}
+\subsubsection{Flag unification}\label{sssec-flag}
 
-\subsubsection{Flag unification}
-
-\begin{defn}{\bf Flag unification} \\
+\begin{defn}{\bf (Flag unification).} \\
 	The algorithm inputs a set of constraints that contains only atomic type constraints, and returns a substitution
 	$\sigma$ on flags, along with the remaining constraints (all atomic).
 	
@@ -1011,16 +1029,16 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 		\item $1 \le n$, in which case it removes the constraint, and sets $n$ to $1$.
 		\item $n \le 0$, in which case it removes the constraint, and sets $n$ to $0$.
 	\end{itemize}	
-	When setting a flag to a value, it also needs to replace the instances of this flag in the constraint set.
-	If no such constraint remains, it returns. The algorithm fails if and only if it encounters a absurdity,
-	as in the case of the set $\{ 1 \le n, n \le 0 \}$.
+	When setting a flag to a value, the algorithm also needs to replace the instances of this flag in the constraint set.
+	If no such constraint remains, it returns. The algorithm fails if and only if it encounters an absurdity,
+	as in the case of the set $\{ 1 \le 0 \}$.
 	The termination of FlagUnification is obvious because the number of constraints strictly diminishes each step.
 	The correctness is also straightforward.
 \end{defn}
 
 We now can connect TypeUnification and FlagUnification, to build the unification algorithm.
 
-\begin{defn} {\bf Unification} \\
+\begin{defn} {\bf (Unification).} \\
 	The algorithm inputs a constraint set $\lset$ and successively applies TypeUnification and FlagUnification:
 		\begin{center}
 		\begin{tabular}{l}
@@ -1042,14 +1060,14 @@ We now can connect TypeUnification and FlagUnification, to build the unification
 
 The previous algorithm gives an exact, and most general solution. However, this result is obtained at the cost of a high complexity:
 the application of the unification algorithm to the set
-{ \footnotesize
+{ \small
 	$$\lset = \{\alpha_0 \prec: (!^{n_1}\alpha_1 ~\bullet~ !^{n_1}\alpha_1), ~~ 
 	\alpha_1 \prec: (!^{n_2}\alpha_2 ~\bullet~ !^{n_2}\alpha_2) ~~ \dots ~~ \alpha_{i-1} \prec: (!^{n_i}\alpha_i ~\bullet~ !^{n_i}\alpha_{i}) \}$$ }
-leads to the creation of an exponential number of variables, and the resulting set also contains an exponential number of
+potentially leads to the creation of an exponential number of variables, and the resulting set also contains an exponential number of
 constraints.
-This is why it may be interesting to make some concessions to win back on the cost of the algorithm. Also, the goal of the algorithm is
-often only to determine the existence of solutions, and not necessarily find all the possible ones.
-We propose some approximations, that keep the satisfiability of the constraint set, but restrict the set of inferred solutions:
+This is why it may be interesting to make some concessions to lower the cost of the algorithm. Also, the goal of the algorithm is
+often only to determine the {\em existence} of solutions, and not necessarily find all the possible ones.
+We propose some approximations that keep the satisfiability of the constraint set, but restrict the set of inferred solutions:
 	
 \begin{itemize}
 	\item In the case where $\mathcal{L} = \mathcal{L'} \cup \{\alpha_{i_k} \prec: \alpha_{j_k} \}_k$,
@@ -1065,14 +1083,13 @@ We propose some approximations, that keep the satisfiability of the constraint s
 	\item The same for the case $\mathcal{L} = \mathcal{L'} \cup \{\alpha_{i_k} \prec: \alpha_{j_k}\}_k \cup \{\alpha_{i_m} \prec: U_m\}_m$.
 \end{itemize}
 
-\subsection{Extending $\QP'$}
-
-\subsubsection{Proto-Quipper}
+\subsection{Extending type inference to core Proto-Quipper}
+\label{ssec-extending-to-QP}
 
 This section gives the additions that have to be made to the grammar of $\QP'$ for the type inference algorithm to perform in the syntax
-of Proto-Quipper.
+of core Proto-Quipper.
 We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $bool, qbit, Circ(T, U)$
-in the rule of $\texttt{LinearType}$, along with the typing rules from the figure \ref{exttypeQP'}
+in the rule of $\texttt{LinearType}$, along with the typing rules from Figure \ref{exttypeQP'}
 
 \begin{figure}[!ht]
 \begin{mdframed}
@@ -1114,8 +1131,7 @@ in the rule of $\texttt{LinearType}$, along with the typing rules from the figur
 \caption{Additional typing rules.}
 \label{exttypeQP'}
 \end{figure}
-In the same way, the constraint typing relation has to be extended to cover the new terms. The additional typing rules are developed in the
-figure \ref{extctypeQP'}.
+In the same way, the constraint typing relation has to be extended to cover the new terms. The additional typing rules are developed in Figure \ref{extctypeQP'}.
 
 \begin{figure}[!ht]
 \begin{mdframed}
@@ -1164,7 +1180,7 @@ figure \ref{extctypeQP'}.
 \label{extctypeQP'}
 \end{figure}
 
-You may have noted that, also the circuits $(t, C, a)$ have been included in the extended $\QP'$ syntax, no associated typing rule or
+The reader may have noticed that, although the circuits $(t, C, a)$ have been included in the extended $\QP'$ syntax, no associated typing rule or
 constraint typing relation rules were specified. The reason for this is that the type inference algorithm is designed to infer the
 types of the terms coded by a programmer. However, the constructor $(t, C, a)$ has never been intended to be directly accessible.
 More specifically, the programmer can access a built-in collection of basic gate circuits, whose types are already known at compile time.
