@@ -23,11 +23,43 @@ import Monad.QpState
 import Monad.Modules
 
 import System.IO
+
+#if mingw32_HOST_OS
+#else
 import System.Console.Readline
+#endif
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
+
+-- | Wait for a user command, with the prompt given as argument (eg : "# ").
+prompt :: String -> QpState (Maybe String)
+
+-- | Add a command to the history.
+add_history :: String -> QpState ()
+
+-- Windows or not windows, that is the question...
+#ifdef mingw32_HOST_OS
+
+prompt p = do
+  liftIO $ putStr p
+  liftIO $ hFlush stdout
+  l <- liftIO getLine
+  return $ Just l
+
+add_history _ =
+  return ()
+
+#else
+
+prompt p =
+  liftIO $ readline p
+
+add_history c =
+  liftIO $ addHistory c
+
+#endif
 
 
 
@@ -93,8 +125,8 @@ run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
   l <- case buffer of
-         [] -> liftIO $ readline "# "
-         _ -> liftIO $ readline "  "
+         [] -> prompt "# "
+         _ -> prompt "  "
 
   -- Check the command
   case l of
@@ -107,7 +139,7 @@ run_interactive opts ctx buffer = do
     Just l ->
         if List.isSuffixOf ";;" l then do
           -- Add the command to the history
-          liftIO $ addHistory $ List.foldl (\r c -> c ++ "\n" ++ r) l buffer
+          add_history $ List.foldl (\r c -> c ++ "\n" ++ r) l buffer
 
           tokens <- liftIO $ mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
           prog <- return $ parse tokens

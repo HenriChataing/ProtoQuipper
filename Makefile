@@ -23,7 +23,7 @@ SOURCE_MODULES = Classes.hs Builtins.hs Interactive.hs Interpret/Circuits.hs		\
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
 all : $(MODULES)
-	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
+	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parsing/Parser.hs : Parsing/Parser.y
 	$(HAPPY) Parsing/Parser.y
@@ -73,3 +73,6 @@ haddock-doc/src/%.html: %.hs
 
 haddock-tmp : $(MODULES)
 	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN)
+
+# ----------------------------------------------------------------------
+# Distribution
