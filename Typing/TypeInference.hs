@@ -76,7 +76,9 @@ constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
   fconstraints <- force_duplicable_context gamma >>= filter
 
-  acts <- builtin_type s
+  acts@(TBang n _) <- builtin_type s
+  specify_expression n $ ActualOfE (EBuiltin s)
+
   return $ (acts <:: cst) <> fconstraints
 
 
@@ -146,7 +148,7 @@ constraint_typing gamma (EInt p) cst = do
 constraint_typing gamma (EVar x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of x gamma
-  (a, csetx) <- instanciate sa -- In case a is a typing scheme
+  (a, csetx) <- instanciate sa
 
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma

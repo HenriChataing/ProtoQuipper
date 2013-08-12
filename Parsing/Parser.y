@@ -32,7 +32,7 @@ import Data.List as List
   '(' { TkLParen $$ }
   ')' { TkRParen $$ }
   '[' { TkLBracket $$ }
-  ']' { TkRBracket $$ }
+  ']' { TkRBracket $$ }
 
   ";;" { TkDblSemiColon $$ }
   "->" { TkRArrow $$ }

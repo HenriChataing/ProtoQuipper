@@ -382,9 +382,9 @@ define_user_properties typedefs = do
     newlog 0 "<<\n"
 
 
--- | Transfer the type definitions from the state monad to the current module
+-- | Transfer the type definitions from the state monad to the current module.
 -- This function assumes that the current module already have entries corresponding to its types, and
--- then just updates them
+-- then just updates them.
 update_module_types :: QpState ()
 update_module_types = do
   cmod <- get_module
@@ -396,10 +396,7 @@ update_module_types = do
   set_context $ ctx { cmodule = cmod' }
 
 
--- | Builtin values
--- For the moment, only the gates are builtin. Later, other values may be added
--- The gates are only listed by name in the Gates module, so a value and type need to be created for
--- each one. 
+-- | Import the builtin values, defined in the Builtin module, in the current context.
 import_builtins :: QpState ()
 import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do

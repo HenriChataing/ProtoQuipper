@@ -177,7 +177,6 @@ data ExtensiveContext = Context {
   label :: Map String Int,        -- ^ A labelling map.
   typing :: TypingContext,        -- ^ A typing context.
   environment :: Environment,     -- ^ An evaluation context.
-  used :: [Variable],             -- ^ A list of variables that have already been used.
   constraints :: ConstraintSet    -- ^ An atomic constraint set that cumulates the constraints of all the toplevel expressions.
 }
 
@@ -212,15 +211,11 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
   set_flag n
 
-  -- ALL VARIABLES ALREADY USED AND USED BY E MUST BE DUPLICABLE
-  gamma <- return $ typing ctx
-  (delta, _) <- sub_context (List.intersect fve $ used ctx) gamma
-  fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
-
   -- Type e. The constraints from the context are added for the unification.
+  gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
   cset <- constraint_typing gamma_e e' [a] >>= break_composite True
-  cset' <- unify (not $ approximations opts) (cset <> fconstraints <> constraints ctx)
+  cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 
   -- Apply the substitution produced by the unification to the context gamma
@@ -246,9 +241,23 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   else
     return ()
 
-  -- Return
-  return $ ctx { used = List.union (used ctx) fve,     -- Used variables are augmented by the variables used in this expression.
-                 constraints = cset' }                 -- The new constraints are those from the unification of the type of e.
+  -- Remove the used AND non duplicable variables from the context
+  IMap.foldWithKey (\x a rec -> do
+                      ctx <- rec
+                      v <- case a of
+                             TBang n _ -> flag_value n
+                             TForall _ _ _ (TBang n _) -> flag_value n
+ 
+                      case (List.elem x fve, v) of
+                        (True, Zero) -> do
+                            n <- variable_name x
+                            return $ ctx { label = Map.delete n $ label ctx,
+                                           typing = IMap.delete x $ typing ctx,
+                                           environment = IMap.delete x $ environment ctx }
+
+                        _ ->
+                            return ctx) (return $ ctx { typing = gamma,
+                                                        constraints = cset' }) gamma
 
 
 -- LET BINDING
@@ -260,17 +269,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           Nonrecursive -> translate_expression e $ label ctx
   fve <- return $ free_var e'
 
-  -- ALL VARIABLES ALREADY USED AND USED BY E MUST BE DUPLICABLE
-  gamma <- return $ typing ctx
-  (delta, _) <- sub_context (List.intersect fve $ used ctx) gamma
-  fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
-
-  csetup <- unify True (fconstraints <> constraints ctx)  -- Immediatly unify the new constraints
-
   -- Export the variables of the pattern
   p' <- export_pattern_variables prog p'
 
   -- Give the corresponding sub contexts
+  gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
 
   -- Mark the limit free variables / bound variables used in the typing of t
@@ -300,12 +303,21 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                m <- rec
                                a' <- map_type a
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
+
   -- Generalize the types of the pattern (= polymorphism)
   gamma_p <- IMap.foldWithKey (\x a rec -> do
                                   ctx <- rec
                                   -- First apply the substitution
-                                  a' <- map_type a
-                                  
+                                  a'@(TBang n _) <- map_type a
+                                 
+                                  -- Check the flag of a'
+                                  --     if set, then ok
+                                  --     if not, set it to 1
+                                  v <- flag_value n
+                                  case v of
+                                    Unknown -> set_flag n
+                                    _ -> return ()
+ 
                                   -- Identify the free variables, the free variables form a subset of those used here.
                                   fv <- return $ List.union (free_typ_var a') (free_typ_var csete)
                                   ff <- return $ List.union (free_flag a') (free_flag csete)
@@ -336,30 +348,41 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     return ()
 
   -- Evaluation (even if the module is not toplevel, if the general optons want it to be evaluated, then so be it)
-  if runInterpret opts then do
-    -- Reduce the argument e1
-    v <- interpret (environment ctx) e'
-  
-    -- Recursive function ?
-    env <- case (recflag, v, drop_constraints $ clear_location p') of
-             (Recursive, VFun ev arg body, PVar x) ->
-                 let ev' = IMap.insert x (VFun ev' arg body) ev in do
-                 Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
+  ctx <- if runInterpret opts then do
+           -- Reduce the argument e1
+           v <- interpret (environment ctx) e'
+        
+           -- Recursive function ?
+           env <- case (recflag, v, drop_constraints $ clear_location p') of
+                    (Recursive, VFun ev arg body, PVar x) ->
+                        let ev' = IMap.insert x (VFun ev' arg body) ev in do
+                        Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
 
-             _ -> do
-                 -- Bind it to the pattern p in the current context
-                 Interpret.Interpret.bind_pattern p' v (environment ctx)
-    -- End, at last
-    return $ ctx { label = lbl',               -- Label updated with the bindings of p
-                   typing = gamma_p <+> gamma, -- Typing context updated with the bindings of p
-                   environment = env,          -- Environment updated with the bindings of p
-                   constraints = csetup,       -- The constraints are added flag constraints
-                   used = List.union (used ctx) fve }
-  else
-    return $ ctx { label = lbl',               -- Label updated with the bindings of p
-                   typing = gamma_p <+> gamma, -- Typing context updated with the bindings of p
-                   constraints = csetup,       -- The constraints are added flag constraints
-                   used = List.union (used ctx) fve }
+                    _ -> do
+                        -- Bind it to the pattern p in the current context
+                        Interpret.Interpret.bind_pattern p' v (environment ctx)
+           -- End, at last
+           return $ ctx { label = lbl',                -- Label updated with the bindings of p
+                          typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
+                          environment = env }          -- Environment updated with the bindings of p
+         else
+           return $ ctx { label = lbl',                -- Label updated with the bindings of p
+                          typing = gamma_p <+> gamma } -- Typing context updated with the bindings of p
+
+  -- Remove the variables used by e and non duplicable
+  IMap.foldWithKey (\x a rec -> do
+                      ctx <- rec
+                      v <- case a of
+                             TBang n _ -> flag_value n
+                             TForall _ _ _ (TBang n _) -> flag_value n
+                      case (List.elem x fve, v) of
+                        (True, Zero) -> do
+                            n <- variable_name x
+                            return $ ctx { label = Map.delete n $ label ctx,
+                                           typing = IMap.delete x $ typing ctx,
+                                           environment = IMap.delete x $ environment ctx }
+                        _ ->
+                            return ctx) (return ctx) (typing ctx)
 
 
 
@@ -426,12 +449,10 @@ process_module opts prog = do
                        process_declaration opts prog ctx decl) (return $ Context { label = Map.union gbls dcons,
                                                                                    typing = IMap.empty,
                                                                                    environment = env,
-                                                                                   used = [],
                                                                                    constraints = emptyset }) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
-  (_, delta) <- sub_context (used ctx) (typing ctx)
-  fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
+  fconstraints <- force_duplicable_context (typing ctx) >>= Typing.TypeInference.filter
   _ <- unify True (fconstraints <> constraints ctx)
  
   -- Return

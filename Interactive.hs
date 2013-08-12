@@ -138,16 +138,22 @@ run_interactive opts ctx buffer = do
             [":ctx"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
-                                    n <- variable_name x
-                                    t <- pprint_type_noref a
-                                    liftIO $ putStrLn $ "~" ++ n ++ " : " ++ t) (return ()) (typing ctx)
-                run_interactive opts ctx []
-
-            [":used"] -> do
-                List.foldl (\rec x -> do
-                              rec
-                              n <- variable_name x
-                              liftIO $ putStrLn $ "~" ++ n) (return ()) (used ctx)
+                                    (v, t) <- case a of
+                                                TBang f _ -> do
+                                                  v <- flag_value f
+                                                  t <- pprint_type_noref a
+                                                  return (v, t)
+                                                TForall _ _ _ b@(TBang f _) -> do
+                                                  v <- flag_value f
+                                                  t <- pprint_type_noref b
+                                                  return (v, t)
+                                    nm <- variable_name x
+                                    n <- case v of
+                                           Zero -> return $ "\x1b[31;1m" ++ nm ++ "\x1b[0m"
+                                           One -> return $ "\x1b[33;1m" ++ nm ++ "\x1b[0m"
+                                           Any -> return $ "\x1b[32;1m" ++ nm ++ "\x1b[0m"
+                                           Unknown -> return $ "\x1b[35;0m" ++ nm ++ "\x1b[0m"
+                                    liftIO $ putStrLn $ "~ " ++ n ++ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
 
             [":display"] -> do
@@ -169,7 +175,6 @@ commands :: [(String, String)]
 commands = [
   (":help", "Display the list of commands"),
   (":ctx", "List the variables of the current context"),
-  (":used", "List the variables that have already been used"),
   (":exit", "Quit the interactive mode"),
   (":display", "Display the toplevel circuit") ]
 
@@ -179,7 +184,25 @@ commands = [
 -- the variables that are dropped are indeed duplicable.
 exit :: ExtensiveContext -> QpState ()
 exit ctx = do
-  (_, delta) <- sub_context (used ctx) (typing ctx)
-  fconstraints <- force_duplicable_context delta >>= Typing.TypeInference.filter
-  _ <- unify True (fconstraints <> constraints ctx)
+  -- List all the non-duplicable variables
+  ndup <- IMap.foldWithKey (\x a rec -> do
+                              ndup <- rec
+                              v <- case a of
+                                     TBang n _ -> flag_value n
+                                     TForall _ _ _ (TBang n _) -> flag_value n
+                              case v of
+                                Zero -> do 
+                                    n <- variable_name x
+                                    return $ n:ndup
+                                _ ->
+                                    return ndup) (return []) (typing ctx)
+  case ndup of
+    [] -> return ()
+    _ -> do
+      liftIO $ putStrLn "Warning: the following variables are not duplicable and will be discarded:"
+      liftIO $ putStr $ "~" ++ "\x1b[31;1m"
+      List.foldl (\rec n -> do
+                    rec
+                    liftIO $ putStr $ "  " ++ n) (return ()) ndup
+      liftIO $ putStrLn  "\x1b[0m"
   return ()
