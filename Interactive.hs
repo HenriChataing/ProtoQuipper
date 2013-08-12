@@ -3,6 +3,7 @@ module Interactive where
 
 import Options
 import Classes
+import Console
 
 import Parsing.Lexer
 import Parsing.Parser
@@ -24,58 +25,9 @@ import Monad.Modules
 
 import System.IO
 
-#if mingw32_HOST_OS
-#else
-import System.Console.Readline
-#endif
-
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
-
--- | Wait for a user command, with the prompt given as argument (eg : "# ").
-prompt :: String -> QpState (Maybe String)
-
--- | Add a command to the history.
-add_history :: String -> QpState ()
-
--- | Print some colored text.
-print_red :: String -> QpState ()
-print_yellow :: String -> QpState ()
-
--- Windows or not windows, that is the question...
-#ifdef mingw32_HOST_OS
-
-prompt p = do
-  liftIO $ putStr p
-  liftIO $ hFlush stdout
-  l <- liftIO getLine
-  return $ Just l
-
-add_history _ =
-  return ()
-
-print_red s =
-  liftIO $ putStr s
-
-print_yellow s =
-  liftIO $ putStr s
-
-#else
-
-prompt p =
-  liftIO $ readline p
-
-add_history c =
-  liftIO $ addHistory c
-
-print_red s =
-  liftIO $ putStr $ "\x1b[31;1m" ++ s ++ "\x1b[0m" 
-
-print_yellow s =
-  liftIO $ putStr $ "\x1b[33;1m" ++ s ++ "\x1b[0m" 
-
-#endif
 
 
 
@@ -198,9 +150,9 @@ run_interactive opts ctx buffer = do
                                     nm <- variable_name x
                                     liftIO $ putStr "~ "
                                     case v of
-                                      Zero -> print_red nm
-                                      One -> print_yellow nm
-                                      Any -> print_yellow nm
+                                      Zero -> putStrC Red nm
+                                      One -> putStrC Yellow nm
+                                      Any -> putStrC Blue nm
                                       Unknown -> liftIO $ putStr nm
                                     liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
@@ -249,10 +201,10 @@ exit ctx = do
     [] -> return ()
     _ -> do
       liftIO $ putStrLn "Warning: the following variables are not duplicable and will be discarded:"
-      liftIO $ putStr $ "~" ++ "\x1b[31;1m"
+      liftIO $ putStr $ "~"
       List.foldl (\rec n -> do
                     rec
                     liftIO $ putStr "  "
-                    print_red n) (return ()) ndup
+                    putStrC Red n) (return ()) ndup
       liftIO $ putStrLn ""
   return ()

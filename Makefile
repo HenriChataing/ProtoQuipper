@@ -15,8 +15,8 @@ GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
 SOURCE_MODULES = Classes.hs Builtins.hs Interactive.hs Interpret/Circuits.hs		\
   Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs Interpret/IRExport.hs		\
   Monad/Namespace.hs Monad/QpState.hs Monad/QuipperError.hs		\
-  Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
-  Parsing/Syntax.hs ProtoQuipper.hs Typing/CorePrinter.hs			\
+  Console.hs Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
+  Console.hs Parsing/Syntax.hs ProtoQuipper.hs Typing/CorePrinter.hs			\
   Typing/CoreSyntax.hs Typing/Driver.hs Typing/Ordering.hs		\
   Typing/Subtyping.hs Typing/TransSyntax.hs Typing/TypeInference.hs	\
   Typing/TypingContext.hs Utils.hs
