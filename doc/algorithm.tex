@@ -1,9 +1,9 @@
 
-\subsection{The QP' language}
+\subsection{The $\QP'$ language}
 
-The grammar of Proto-Quipper is rather extensive, so we formalize type inference algorithm on a fragment of the language and explain in a later section how to extend it to the full syntax. The present section introduces the terms and type system of the language we use for type inference, which we name QP' by opposition to QP or Proto-Quipper. 
+The grammar of Proto-Quipper is rather extensive, so we formalize type inference algorithm on a fragment of the language and explain in a later section how to extend it to the full syntax. The present section introduces the terms and type system of the language we use for type inference, which we name $\QP'$ by opposition to $\QP$ or Proto-Quipper. 
 
-\begin{defn} The \emph{terms} of QP' are defined by:
+\begin{defn} The \emph{terms} of $\QP'$ are defined by:
 	\begin{center}
 	\begin{tabular}{rl}
 		$\texttt{Term} ~t,u~ ::=$ & $x ~|~ * ~|~ \lambda x.t ~|~ t \, u ~|~ \pair{t}{u} ~|~ \letin{\pair{x}{y}}{t}{u}. $
@@ -13,7 +13,7 @@ The grammar of Proto-Quipper is rather extensive, so we formalize type inference
 
 The algorithm was initially developed for a simple Lambda Calculus with only variables, $\lambda$-abstractions and applications. We added tensors to give a better understanding of type inference.
 
-For the purpose of type inference, it would be natural to define the type system of QP' by extending the types of QP with type variables. This would give the following grammar for types:
+For the purpose of type inference, it would be natural to define the type system of $\QP'$ by extending the types of $\QP$ with type variables. This would give the following grammar for types:
 	\begin{center}
 	\begin{tabular}{rl}
 		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
@@ -21,7 +21,7 @@ For the purpose of type inference, it would be natural to define the type system
 	\end{center}
 This would have been sufficient, had the types not been linear. However, we need to be able to discuss separately the \textit{form} (for example $qbit$, $bool \otimes bool$) and the \textit{linearity} (whether the type is duplicable or not) of a type. A new grammar is therefore introduced which, though less intuitive, offers more control over the form of a type.
 
-\begin{defn} The \emph{types} of QP' are defined by:
+\begin{defn} The \emph{types} of $\QP'$ are defined by:
 	\begin{center}
 	\begin{tabular}{rl}
 		$\texttt{Flag}~ ::=$ & $n ~|~ 0 ~|~ 1$ \\		
@@ -33,7 +33,7 @@ This would have been sufficient, had the types not been linear. However, we need
 
 Flags, linear types and types are to be interpreted as follow :
 \begin{itemize}
-	\item $\texttt{LinearType}$ corresponds to the subset of QP types that are always linear. They will always correspond to terms that can not be
+	\item $\texttt{LinearType}$ corresponds to the subset of $\QP$ types that are always linear. They will always correspond to terms that can not be
 		duplicated, such as qbits.
 	\item $\texttt{Type}$ is set of all types. Depending of the value of its prefixing flag, a $\texttt{Type}$ is duplicable or not.
 		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
@@ -41,7 +41,7 @@ Flags, linear types and types are to be interpreted as follow :
 		If the value of $n$ in $!^n A$ is $1$, then $T = \,!^n A$ is duplicable ; if it is $0$ then it is linear. For example, the type
 		of any quantum address shall be $!^0 qbit$.
 \end{itemize}
-Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in QP. We introduce the following new notations:
+Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in $\QP$. We introduce the following new notations:
 \begin{itemize}
 	\item $\alpha, \beta \dots$ for type variables, taken in the set $\vset$.
 	\item $n, m \dots$ for flag variables, taken in the set $\fset$.
@@ -91,14 +91,14 @@ Using a grammar that distinguishes linear types and types also allows us to unam
 	} $$
 	$$ $$
 \end{mdframed}
-\caption{The sub-typing relation rules of QP'.}
+\caption{The sub-typing relation rules of $\QP'$.}
 \label{subtypingQP'}
 \end{figure}
 
 \begin{proposition} \it The subtyping relation is reflexive and transitive.
 \end{proposition}
 
-The notion of a typing context, and the extension of the subtyping relation to typing contexts, are straightforwardly adapted from QP. We introduce the following new notations for the typing contexts of QP'. We write $\Gamma|_t$ to represent the context $\Gamma$ where only the bindings $x : T$ with $x \in FV(t)$ appear. Similarly, the notation $\Gamma \backslash_t$ designates the context $\Gamma$ where the bindings $x : T$ for $x \in FV(t)$ have been removed. Finally, we write $!^I \Gamma$ to represent contexts of the form $\Gamma = x_1 : \nbang{i_1} T_1 ~ \dots ~ x_n : \nbang{i_n} T_n$, with $I = \{i_1 \dots i_n\}$.
+The notion of a typing context, and the extension of the subtyping relation to typing contexts, are straightforwardly adapted from $\QP$. We introduce the following new notations for the typing contexts of $\QP'$. We write $\Gamma|_t$ to represent the context $\Gamma$ where only the bindings $x : T$ with $x \in FV(t)$ appear. Similarly, the notation $\Gamma \backslash_t$ designates the context $\Gamma$ where the bindings $x : T$ for $x \in FV(t)$ have been removed. Finally, we write $!^I \Gamma$ to represent contexts of the form $\Gamma = x_1 : \nbang{i_1} T_1 ~ \dots ~ x_n : \nbang{i_n} T_n$, with $I = \{i_1 \dots i_n\}$.
 
 The typing rules have to be adapted to the new grammar of types.
 
@@ -110,10 +110,10 @@ A \emph{typing judgement} is an expression of the form:
 where $\Gamma$ is a typing context, $t$ is a term and $T$ is a type. A typing judgment is \emph{valid} if it can be inferred from the rules given in figure \ref{typingQP'}.
 \end{defn}
 
-As in QP, a typing judgement should be interpreted as stating that \textit{under the assumptions $\Gamma$, the term $t$ has the type $T$}. 
+As in $\QP$, a typing judgement should be interpreted as stating that \textit{under the assumptions $\Gamma$, the term $t$ has the type $T$}. 
 
-\begin{remark} For the most part, the typing rules of QP' are those of QP adapted to the different syntax of types. This is not quite the 
-	case of the rules for $\otimes$. Recall that the typing rule for $\pair{a}{b}$ in QP was (omitting the quantum contexts):
+\begin{remark} For the most part, the typing rules of $\QP'$ are those of $\QP$ adapted to the different syntax of types. This is not quite the 
+	case of the rules for $\otimes$. Recall that the typing rule for $\pair{a}{b}$ in $\QP$ was (omitting the quantum contexts):
 		\begin{prooftree}
 			\AxiomC{$\Gamma_1, !\Delta \vdash a : \,!^nA$}
 			\AxiomC{$\Gamma_2, !\Delta \vdash b : \,!^nB$}
@@ -121,7 +121,7 @@ As in QP, a typing judgement should be interpreted as stating that \textit{under
 			\BinaryInfC{$\Gamma_1, \Gamma_2, !\Delta \vdash \pair{a}{b} : \,!^n(A \otimes B)$}
 		\end{prooftree}
 	This rule expresses the fact that the pair $\pair{a}{b}$ is duplicable if, and only if, both $a$ and $b$ are. However, the grammar of 
-	QP' types doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of QP' uses the type 
+	$\QP'$ types doesn't allow us to move the $!$ annotation around. This is why the rule $(\otimes.I)$ of $\QP'$ uses the type 
 	$!^p(!^nA \otimes \,!^mB)$ with the condition that $p$ can be $1$ if, and only if, both $n$ and $m$ are equal to one. This results in 
 	the duplicable pair $\pair{a}{b}$ having the type $!^1(!^1 A \otimes \,!^1B)$ rather than $\bang (A \otimes B)$. A similar remark applies 
 	to the $(\otimes.E)$ rule.
@@ -202,17 +202,17 @@ As in QP, a typing judgement should be interpreted as stating that \textit{under
 	} $$
 	$$ $$
 \end{mdframed}
-\caption{The typing rules of QP'.}
+\caption{The typing rules of $\QP'$.}
 \label{typingQP'}
 \end{figure}
 
-\begin{thm}{\bf Soundness and completeness} Let $t$ be a QP' term. There exists two transformations $\tau$ and
-	$\bar \tau$ defined on types as functions respectively from QP to QP' types, and QP' to QP types, verifying the properties :
+\begin{thm}{\bf Soundness and completeness} Let $t$ be a $\QP'$ term. There exists two transformations $\tau$ and
+	$\bar \tau$ defined on types as functions respectively from $\QP$ to $\QP'$ types, and $\QP'$ to $\QP$ types, verifying the properties :
 	\begin{enumerate}
-		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in QP, then
-			$\tau\Gamma \vdash t : \tau T$ is valid in QP'.
-		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in QP', then
-			$\bar \tau \Gamma \vdash t : \bar \tau T$ is valid in QP.
+		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in $\QP$, then
+			$\tau\Gamma \vdash t : \tau T$ is valid in $\QP'$.
+		\item If there exist a context $\Gamma$ and a type $T$ such that the typing judgement $\Gamma \vdash t : T$ is valid in $\QP'$, then
+			$\bar \tau \Gamma \vdash t : \bar \tau T$ is valid in $\QP$.
 	\end{enumerate}
 	
 	\begin{proofsketch}
@@ -224,10 +224,10 @@ As in QP, a typing judgement should be interpreted as stating that \textit{under
 
 \begin{remark}
 	This theorem is necessary to ensure the validity of the type inference algorithm : by proving that
-	terms can be typed in either QP or QP' with similar judgements, we ensure that :
+	terms can be typed in either $\QP$ or $\QP'$ with similar judgements, we ensure that :
 	\begin{itemize}
-		\item If the algorithm infers a typing judgement valid in QP', then it is possible to derive a typing judgement valid in QP.
-		\item Conversely, if the inference fails to produce such a judgement, then $t$ is surely not typeable in QP.
+		\item If the algorithm infers a typing judgement valid in $\QP'$, then it is possible to derive a typing judgement valid in $\QP$.
+		\item Conversely, if the inference fails to produce such a judgement, then $t$ is surely not typeable in $\QP$.
 	\end{itemize}
 \end{remark}
 
@@ -253,7 +253,7 @@ Note that the statement
 \textit{Suppose $\Gamma \vdash t : T$ and $T <: U$, then $\Gamma \vdash t : U$} alone can not be proved, as the case
 $\lambda x.t$ introduces a relation of sub-typing on the context.
 
-\begin{coro} The following typing rules are admissible in QP' :
+\begin{coro} The following typing rules are admissible in $\QP'$ :
 	\begin{prooftree}
 		\AxiomC{$\Gamma \vdash t : T$}
 		\AxiomC{$T <: U$}
@@ -278,7 +278,7 @@ $\lambda x.t$ introduces a relation of sub-typing on the context.
 
 \subsection{Constraint Typing}
 
-Unless otherwise stated, QP' is the default language for the rest of this section.
+Unless otherwise stated, $\QP'$ is the default language for the rest of this section.
 
 \subsubsection{Definitions}
 
@@ -409,7 +409,7 @@ Though all flag constraints are written in the same form $(. \le .)$, they can h
 The set $\chi$ keeps track of the type and flag variables created during the construction of the derivation
 of the typing judgement $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. The constraint typing algorithm is obtained by reading the
 constraint typing rules from bottom to top. It can be verified that the algorithm is indeed deterministic, whereas the typing
-rules of QP' were not (see the rules $(\lambda_1)$ and $(\lambda_2)$). The function ConstraintTyping applies the constraint
+rules of $\QP'$ were not (see the rules $(\lambda_1)$ and $(\lambda_2)$). The function ConstraintTyping applies the constraint
 typing algorithm to a typing judgement $\Gamma \vdash t : T$, and returns a set $\mathcal{L}$ (and as a by-product the set of
 variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$ holds.
 	
@@ -703,7 +703,7 @@ n \mapsto 1, m \mapsto 0]$ as solutions, but we want to say that $\sigma$ is ``m
 
 With this definition, we can now say in the example above that $\sigma \sqsubseteq \tau$. B. Pierce goes even further by stating the existence
 of a most general unifier MGU of a constraint set, a substitution solution of a set that is more general that any other solution. However,
-what was true in STLC is not in QP'. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
+what was true in STLC is not in $\QP'$. A constraint set $\lset$ doesn't have  most general unifier, at least not according to the definition given
 by Pierce. To prove it, it suffices to consider the set $\{ m \le n \}$. Three solutions of this constraint set exist:
 	$$ \begin{array}{ccl}
 		   \sigma_1 & = & [m \mapsto 0, n \mapsto 0] \\
@@ -1065,13 +1065,13 @@ We propose some approximations, that keep the satisfiability of the constraint s
 	\item The same for the case $\mathcal{L} = \mathcal{L'} \cup \{\alpha_{i_k} \prec: \alpha_{j_k}\}_k \cup \{\alpha_{i_m} \prec: U_m\}_m$.
 \end{itemize}
 
-\subsection{Extending QP'}
+\subsection{Extending $\QP'$}
 
 \subsubsection{Proto-Quipper}
 
-This section gives the additions that have to be made to the grammar of QP' for the type inference algorithm to perform in the syntax
+This section gives the additions that have to be made to the grammar of $\QP'$ for the type inference algorithm to perform in the syntax
 of Proto-Quipper.
-We now consider that all the terms of Proto-Quipper have been added to QP'. First, we need to include the types $bool, qbit, Circ(T, U)$
+We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $bool, qbit, Circ(T, U)$
 in the rule of $\texttt{LinearType}$, along with the typing rules from the figure \ref{exttypeQP'}
 
 \begin{figure}[!ht]
@@ -1164,7 +1164,7 @@ figure \ref{extctypeQP'}.
 \label{extctypeQP'}
 \end{figure}
 
-You may have noted that, also the circuits $(t, C, a)$ have been included in the extended QP' syntax, no associated typing rule or
+You may have noted that, also the circuits $(t, C, a)$ have been included in the extended $\QP'$ syntax, no associated typing rule or
 constraint typing relation rules were specified. The reason for this is that the type inference algorithm is designed to infer the
 types of the terms coded by a programmer. However, the constructor $(t, C, a)$ has never been intended to be directly accessible.
 More specifically, the programmer can access a built-in collection of basic gate circuits, whose types are already known at compile time.
