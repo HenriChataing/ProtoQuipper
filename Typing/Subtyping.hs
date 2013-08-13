@@ -65,9 +65,9 @@ break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt)):lc, fc) = do
   break_composite bu (lc, fc)
 
 
--- Qbit against QBit : removed
-break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
-  -- Make sure the qbit type is not banged
+-- Qubit against QuBit : removed
+break_composite bu ((Subtype (TBang n TQubit) (TBang m TQubit)):lc, fc) = do
+  -- Make sure the qubit type is not banged
   if n >= 2 then unset_flag n
   else return ()
   if m >= 2 then unset_flag m

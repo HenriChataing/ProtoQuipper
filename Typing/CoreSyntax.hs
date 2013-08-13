@@ -111,7 +111,7 @@ data LinType =
   | TUser String [Type]        -- ^ Algebraic type, parametrized over the variables a1 .. an.
 
 -- Quantum related types
-  | TQbit                      -- ^ qbit
+  | TQubit                      -- ^ qubit
   | TCirc Type Type            -- ^ circ (T, U)
   deriving (Show, Eq)
 
@@ -292,7 +292,7 @@ instance KType LinType where
   subs_typ_var _ _ TUnit = TUnit
   subs_typ_var _ _ TInt = TInt
   subs_typ_var _ _ TBool = TBool
-  subs_typ_var _ _ TQbit = TQbit
+  subs_typ_var _ _ TQubit = TQubit
   subs_typ_var a b (TUser n args) = TUser n $ List.map (subs_typ_var a b) args
   subs_typ_var a b (TArrow t u) = TArrow (subs_typ_var a b t) (subs_typ_var a b u)
   subs_typ_var a b (TTensor tlist) = TTensor $ List.map (subs_typ_var a b) tlist

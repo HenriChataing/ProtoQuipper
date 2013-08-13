@@ -29,7 +29,7 @@ import Data.List as List
   VAR { TkLId $$ }
   CIRC { TkCirc $$ }
   BOOL { TkBool $$ }
-  QBIT { TkQBit $$ }
+  QUBIT { TkQuBit $$ }
 
 %left ARROW
 %left '*'
@@ -46,7 +46,7 @@ Constraint : Type "<:" Type              { ($1, $3) }
 
 Atom_type : VAR                          { locate (TVar $ snd $1) $ fst $1 }
           | BOOL                         { locate TBool $1 }
-          | QBIT                         { locate TQbit $1 }
+          | QUBIT                         { locate TQubit $1 }
           | CIRC '(' Type ',' Type ')'   { locate (TCirc $3 $5) (fromto $1 $6) }
           | '(' Type ')'                 { $2 }
           | '(' ')'                      { locate TUnit (fromto $1 $2) }

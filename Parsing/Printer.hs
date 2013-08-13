@@ -17,7 +17,7 @@ instance PPrint Type where
   sprintn _ TUnit =   "()"
   sprintn _ TBool =   "bool"
   sprintn _ TInt =    "int"
-  sprintn _ TQbit =   "qbit"
+  sprintn _ TQubit =   "qubit"
   sprintn _ (TVar x) = x
   sprintn _ (TQualified m x) = m ++ "." ++ x
   sprintn (Nth 0) _ = "..."

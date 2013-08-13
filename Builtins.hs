@@ -11,14 +11,14 @@ import Data.Map as Map
 import Data.List as List
 
 
--- | Type of all the unary gates: i.e circ (qbit, qbit).
+-- | Type of all the unary gates: i.e circ (qubit, qubit).
 unary_type :: Type
-unary_type = TCirc TQbit TQbit
+unary_type = TCirc TQubit TQubit
 
 
--- | Type of all the binary gates: i.e circ (qbit * qbit, qbit * qbit).
+-- | Type of all the binary gates: i.e circ (qubit * qubit, qubit * qubit).
 binary_type :: Type
-binary_type = TCirc (TTensor [TQbit, TQbit]) (TTensor [TQbit, TQbit])
+binary_type = TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])
 
 
 -- | Generic value of unary gates, parametrized over the name of the gate.
@@ -33,7 +33,7 @@ binary_type = TCirc (TTensor [TQbit, TQbit]) (TTensor [TQbit, TQbit])
 -- where N is the name of the gate.
 unary_value :: String -> Value
 unary_value g =
-  VCirc (VQbit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQbit 0) 
+  VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQubit 0) 
 
 
 -- | Generic value of binary gates, parametrized over the name of the gate.
@@ -49,9 +49,9 @@ unary_value g =
 -- where N is the name of the gate.
 binary_value :: String -> Value
 binary_value g =
-  VCirc (VTuple [VQbit 0, VQbit 1])
+  VCirc (VTuple [VQubit 0, VQubit 1])
         (Circ { qIn = [0, 1], gates = [ Binary g 0 1 ], qOut = [0, 1] })
-        (VTuple [VQbit 0, VQbit 1])
+        (VTuple [VQubit 0, VQubit 1])
 
 
 -- | Subset of the builtin values that provides the definitions of the gates.
@@ -67,32 +67,32 @@ binary_value g =
 -- Note that the list of unary and binary gates is actually provided by the "Interpret.Circuits" module.
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
-  let init = [("INIT0", (TCirc TUnit TQbit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQbit 0))),
-              ("INIT1", (TCirc TUnit TQbit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQbit 0)))] in
+  let init = [("INIT0", (TCirc TUnit TQubit,
+                         VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQubit 0))),
+              ("INIT1", (TCirc TUnit TQubit,
+                         VCirc VUnit (Circ { qIn = [], gates = [ Init 0 1 ], qOut = [0] }) (VQubit 0)))] in
 
-  let term = [("TERM0", (TCirc TQbit TUnit,
-                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit)),
-              ("TERM1", (TCirc TQbit TUnit,
-                         VCirc (VQbit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit))] in
+  let term = [("TERM0", (TCirc TQubit TUnit,
+                         VCirc (VQubit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit)),
+              ("TERM1", (TCirc TQubit TUnit,
+                         VCirc (VQubit 0) (Circ { qIn = [], gates = [ Term 0 1 ], qOut = [0] }) VUnit))] in
 
   let phase = [("PHASE", (TArrow TInt unary_type,
-                          VBuiltin (\(VInt n) -> VCirc (VQbit 0)
+                          VBuiltin (\(VInt n) -> VCirc (VQubit 0)
                                                        (Circ { qIn = [0], gates = [ Phase n 0 ], qOut = [0] })
-                                                       (VQbit 0)))),
+                                                       (VQubit 0)))),
                ("CONTROL_PHASE", (TArrow TInt binary_type,
-                                  VBuiltin (\(VInt n) -> VCirc (VTuple [VQbit 0, VQbit 1])
+                                  VBuiltin (\(VInt n) -> VCirc (VTuple [VQubit 0, VQubit 1])
                                                                (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [1] ], qOut = [0, 1] })
-                                                               (VTuple [VQbit 0, VQbit 1])))) ] in
+                                                               (VTuple [VQubit 0, VQubit 1])))) ] in
 
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
-  let toffoli = ("TOFFOLI", (TCirc (TTensor [TQbit, TQbit, TQbit]) (TTensor [TQbit, TQbit, TQbit]),
-                             VCirc (VTuple [VQbit 0, VQbit 1, VQbit 2])
+  let toffoli = ("TOFFOLI", (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]),
+                             VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
                                    (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
-                                   (VTuple [VQbit 0, VQbit 1, VQbit 2]))) in
+                                   (VTuple [VQubit 0, VQubit 1, VQubit 2]))) in
 
   Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ binary))
 

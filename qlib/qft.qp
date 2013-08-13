@@ -1,12 +1,12 @@
 -- -- QUANTUM FOURIER TRANSFORM -- --
 -- Implements the quantum fourier transform as a function
--- from a list of qbits to a list of qbits
+-- from a list of qubits to a list of qubits
 
 import Core
 import Gates
 import List
 
--- Apply the nth phase gate to each qbit of the list, controlled by a parameter
+-- Apply the nth phase gate to each qubit of the list, controlled by a parameter
 let rec appphase n q qn =
   match qn with
    [] -> (q, [])
@@ -30,8 +30,8 @@ let rec qft qreg =
 ;;
 
 
--- Test on three qbits
-box [ qbit * qbit * qbit ] (
+-- Test on three qubits
+box [ qubit * qubit * qubit ] (
   fun (q0, q1, q2) ->
      let l = [q0,q1,q2] in
      match qft l with

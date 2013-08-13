@@ -18,7 +18,7 @@ $ ./ProtoQuipper qlib/qft.qp -fv
           |           |                
 ---[H]---[R]---------[R]---------------
 
- : !circ(qbit * qbit * qbit, qbit * qbit * qbit)
+ : !circ(qubit * qubit * qubit, qubit * qubit * qubit)
 \end{verbatim}
 The default format option is \verb#ir# which outputs the intermediate representation of quantum circuits specified in the context of the QCS program. The \verb#-h# option displays the list of available command line 
 options. If multiple files are passed as arguments to Proto-Quipper, they 
@@ -77,7 +77,7 @@ the core syntax.
 \begin{tabular}{|c|c|}
   \hline
   \textbf{Formalization}    & \textbf{Implementation} \\\hline
-  $qbit$, $bool, 1$         & \verb#qbit#, \verb#bool#, \verb#()# \\\hline
+  $qubit$, $bool, 1$         & \verb#qubit#, \verb#bool#, \verb#()# \\\hline
   $A \otimes B$             & \verb# A * B# \\\hline
   $A \multimap B$           & \verb# A -> B # \\\hline
   $Circ(T, U)$              & \verb# circ(T,U)# \\\hline
@@ -162,8 +162,8 @@ $$\Qcircuit @C=1em @R=.7em {
 In fact, \verb#unbox# has been applied to all the primitive gates provided 
 in the module \verb#Gates# so that they can be directly used as functions. 
 In this manner, the \verb#hadamard# gate is applied to the newly created 
-\verb#qbit# and the result is stored in the variable \verb#q0#. Similarly, 
-another \verb#qbit# is initialized in the state $\ket{0}$ and stored in the 
+\verb#qubit# and the result is stored in the variable \verb#q0#. Similarly, 
+another \verb#qubit# is initialized in the state $\ket{0}$ and stored in the 
 variable \verb#q1#. The rest of the code is straightforward. A \verb#cnot# 
 gate is applied to the pair \verb#(q1,q0)# and the pair is then returned. 
 Remark that the pair \verb#(q0,q1)# \emph{must} be returned as the end of 
@@ -222,7 +222,7 @@ With the help of the shorthand notations introduced above, we can write
 larger programs. For example, an implementation of the Quantum Fourier 
 Transform of three qubits is given below:
 \begin{verbatim}
-box[qbit * qbit * qbit] (
+box[qubit * qubit * qubit] (
   fun (q0, q1, q2) ->
     q2 <-* hadamard;
     (q2, q1) <-* cphase 2;
@@ -236,8 +236,8 @@ box[qbit * qbit * qbit] (
 This code illustrate the usefulness of the \verb#p <-* a# notation, since 
 the result of the application of quantum gates to qubits is usually stored 
 in the same variables. Note that the type annotation in \verb#box# is 
-\verb#qbit *qbit * qbit#, rather than \verb#qbit * (qbit * qbit)# or 
-\verb#(qbit * qbit) * qbit#. This is because our implementation of 
+\verb#qubit *qubit * qubit#, rather than \verb#qubit * (qubit * qubit)# or 
+\verb#(qubit * qubit) * qubit#. This is because our implementation of 
 Proto-Quipper allows the use unparenthesized tuples of arbitrary size. As 
 with most syntactic sugars, this function producing same output circuit 
 could have been coded without using this extension. However, this version 
@@ -257,15 +257,15 @@ let double f q = f (f q) ;;
 \end{verbatim}
 can be used as follows:
 \begin{verbatim}
-box[qbit * qbit] (fun (q, r) ->
+box[qubit * qubit] (fun (q, r) ->
   q <- double not q;
   (q, r) <- double cnot (q, r);
   (q, r)
 ) ;;
 \end{verbatim}
 The first occurrence of \verb#double# has the type 
-\verb#!(qbit -> qbit) -> qbit -> qbit#, while the second occurrence has type 
-\verb#!(qbit * qbit -> qbit * qbit) -> qbit * qbit -> qbit * qbit#.
+\verb#!(qubit -> qubit) -> qubit -> qubit#, while the second occurrence has type 
+\verb#!(qubit * qubit -> qubit * qubit) -> qubit * qubit -> qubit * qubit#.
 
 \subsubsection{Algebraic types, integers and lists}
 
@@ -346,7 +346,7 @@ import Core
 import Gates
 import List
 
--- Apply the nth phase gate to each qbit of the list, controlled by a parameter
+-- Apply the nth phase gate to each qubit of the list, controlled by a parameter
 let rec appphase n q qn =
   match qn with
    [] -> (q, [])

@@ -301,7 +301,7 @@ define_user_subtyping typedefs = do
 -- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
 -- is delayed till later.
 is_qdata_lintype :: LinType -> [String] -> QpState (Bool, [String])
-is_qdata_lintype TQbit _ =
+is_qdata_lintype TQubit _ =
   return (True, [])
 
 is_qdata_lintype TUnit _ =
@@ -384,10 +384,10 @@ define_user_properties typedefs = do
     (mbound, mdata, mgraph) <- List.foldl (\rec n -> do
                                  (mbound, mdata, mgraph) <- rec
                                  spec <- type_spec n
-                                 -- Replace the arguments by qbit in the unfolded definition
+                                 -- Replace the arguments by qubit in the unfolded definition
                                  argtyps <- return $ List.map (\(_, _, argtyp) ->
                                                                  List.foldl (\a (TBang _ (TVar x)) ->
-                                                                               subs_typ_var x TQbit a) argtyp $ fst $ unfolded spec) (snd $ unfolded spec)
+                                                                               subs_typ_var x TQubit a) argtyp $ fst $ unfolded spec) (snd $ unfolded spec)
                                  -- Check each of the types for qdata types
                                  (b, deps) <- List.foldl (\rec a -> do
                                                             (b, deps) <- rec
@@ -471,8 +471,8 @@ translate_type S.TBool [] m = do
 translate_type S.TInt [] m = do
   return (TBang anyflag TInt, emptyset, fst m)
 
-translate_type S.TQbit [] m = do
-  return (TBang zero TQbit, emptyset, fst m)
+translate_type S.TQubit [] m = do
+  return (TBang zero TQubit, emptyset, fst m)
 
 translate_type (S.TVar x) arg (label, bound) = do
   case Map.lookup x label of
@@ -857,8 +857,8 @@ unfold_tensors_in_lintype TBool =
 unfold_tensors_in_lintype TInt =
   return TInt
 
-unfold_tensors_in_lintype TQbit =
-  return TQbit
+unfold_tensors_in_lintype TQubit =
+  return TQubit
 
 unfold_tensors_in_lintype (TCirc a b) = do
   a' <- unfold_tensors a

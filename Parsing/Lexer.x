@@ -58,7 +58,7 @@ tokens :-
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
   of                                  { locate_token TkOf }
-  qbit                                { locate_token TkQBit }
+  qubit                                { locate_token TkQuBit }
   rec                                 { locate_token TkRec }
   rev                                 { locate_token TkRev }
   then                                { locate_token TkThen }
@@ -112,7 +112,7 @@ data Token =
   | TkLet Extent           -- ^ let.
   | TkMatch Extent         -- ^ match.
   | TkOf Extent            -- ^ of. 
-  | TkQBit Extent          -- ^ qbit.
+  | TkQuBit Extent          -- ^ qubit.
   | TkRec Extent           -- ^ rec. 
   | TkRev Extent           -- ^ rev.
   | TkThen Extent          -- ^ then.

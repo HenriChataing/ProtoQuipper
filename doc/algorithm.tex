@@ -24,7 +24,7 @@ For the purpose of type inference, it would seem natural to define the type syst
 		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
 	\end{tabular}
 	\end{center}
-This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $qbit$, $bool \otimes bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
+This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $qubit$, $bool \otimes bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
 
 \begin{defn} The \emph{types} of $\QP'$ are defined by:
 	\begin{center}
@@ -43,7 +43,7 @@ Flags, linear types and types are to be interpreted as follows:
 		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
 	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parametrize the linearity of a type.
 		If the value of $n$ is $1$, then $!^n A$ is duplicable; if it is $0$, then $!^n A$ is linear. This idea is that $!^1A=!A$ and $!^0A=A$. For example, the type
-		of any quantum bit will be $!^0 qbit$.
+		of any quantum bit will be $!^0 qubit$.
 \end{itemize}
 Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in $\QP$. We will use the following notation:
 \begin{itemize}
@@ -358,7 +358,7 @@ for the following problem:
 	\begin{center}
 	\begin{tabular}{l}
 		$[!^n\alpha ~\mapsto~ !^1(!^0int \multimap !^1int),~~ !^m\beta ~\mapsto~ !^1int,~~ !^p\gamma ~\mapsto~ !^1int]$ \\
-		$[!^n\alpha ~\mapsto~ !^0(!^0qbit \multimap !^0bit),~~ !^m\beta ~\mapsto~ !^0qbit,~~ !^p\gamma ~\mapsto~ !^0qbit]$ \\
+		$[!^n\alpha ~\mapsto~ !^0(!^0qubit \multimap !^0bit),~~ !^m\beta ~\mapsto~ !^0qubit,~~ !^p\gamma ~\mapsto~ !^0qubit]$ \\
 		$[!^n\alpha ~\mapsto~ !^0(!^1int \multimap !^0(!^1int \otimes !^1int)),
 			~~ !^m\beta ~\mapsto~ !^1int,
 			~~ !^p\gamma ~\mapsto~ !^0(!^1int \otimes !^1int)]$
@@ -1089,7 +1089,7 @@ We propose some approximations that keep the satisfiability of the constraint se
 
 This section gives the additions that have to be made to the grammar of $\QP'$ for the type inference algorithm to perform in the syntax
 of core Proto-Quipper.
-We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $bool, qbit, Circ(T, U)$
+We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $bool, qubit, Circ(T, U)$
 in the rule of $\texttt{LinearType}$, along with the typing rules from Figure \ref{exttypeQP'}
 
 \begin{figure}[!ht]
