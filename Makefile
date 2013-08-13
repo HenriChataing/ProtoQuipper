@@ -10,6 +10,7 @@ ALEX = alex
 
 MAIN = ProtoQuipper
 
+PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/ConstraintParser.y Parsing/IParser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
   Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Classes.hs Builtins.hs Interactive.hs Interpret/Circuits.hs		\
@@ -21,6 +22,8 @@ SOURCE_MODULES = Classes.hs Builtins.hs Interactive.hs Interpret/Circuits.hs		\
   Typing/Subtyping.hs Typing/TransSyntax.hs Typing/TypeInference.hs	\
   Typing/TypingContext.hs Utils.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
+
+SUBDIRS = Interpret Monad Typing Parsing
 
 all : $(MODULES)
 	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
@@ -76,3 +79,38 @@ haddock-tmp : $(MODULES)
 
 # ----------------------------------------------------------------------
 # Distribution
+
+
+VERSION = 0.1
+DISTDIR = proto-quipper-$(VERSION)
+DISTZIP = $(DISTDIR).zip
+DISTTAR = $(DISTDIR).tgz
+
+MAKEFILES_DIST = Makefile
+MAKEFILES_PUBLIC = $(MAKEFILEs_DIST:%=%-public)
+
+QLIB_MODULES = qlib/core.qp qlib/qft.qp qlib/list.qp qlib/gates.qp
+QLIB = qlib
+
+# The README, Makefile, etc used for distribution are not the same as
+# the analogous files used by developers.
+PUBLIC = README COPYRIGHT
+#            LICENSE
+
+$(DISTZIP) $(DISTTAR): dist
+
+RIGHT_COPY = maintainer/right_copy
+
+.PHONY: dist
+dist: $(PUBLIC) $(MAKEFILES_PUBLIC)
+	rm -rf "$(DISTDIR)"
+	mkdir "$(DISTDIR)"
+	mkdir "$(DISTDIR)/$(QLIB)"
+	for i in $(SUBDIRS); do mkdir "$(DISTDIR)/$$i" || exit 1; done
+	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
+	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
+	cp -r haddock-doc/ "$(DISTDIR)/haddock-doc/"
+	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
+	rm -f "$(DISTZIP)"
+	zip -r "$(DISTZIP)" "$(DISTDIR)"
+	tar -zcf "$(DISTTAR)" "$(DISTDIR)"

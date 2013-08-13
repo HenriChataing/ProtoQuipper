@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Copies a file while inserting a copyright notice, appropriately
+# formatted for the file type.
+
+FROM="$1"
+TO="$2"
+TMPFILE=`mktemp`
+SCRIPT_DIR="$(dirname "$0")"
+NOTICE="${SCRIPT_DIR}/NOTICE"
+FROM_BASE="$(basename "$FROM")"
+
+# Note: $TO could be a filename or a directory name. If it is a
+# directory, change it to a filename.
+if [ -d "$TO" ]; then
+    TO="$TO"/"$FROM_BASE"
+fi
+
+PREFIX=unknown
+PRESERVE_LINES=
+
+case "$(basename "$FROM")" in
+    *.hs | *.qp | *.y | *.x)
+  PREFIX="-- "
+  ;;
+    *.bat )
+  PREFIX="REM "
+  # WE ASSUME THAT EVERY BAT FILE STARTS WITH @echo off
+  PRESERVE_LINES=1
+  ;;
+    *.awk | *.sh | Makefile* | h_1e_ascii | h_2e_ascii )
+  PREFIX="# "
+  ;;
+    *.qcl )
+  PREFIX="// "
+  ;;
+    QCL-*.out )
+  PREFIX="# "
+  ;;
+    README | INSTALLING.* )
+  PREFIX=""
+  ;;
+    *.gz | *.tgz )
+  # data or third party, do nothing
+  cp -f "$FROM" "$TO"
+        exit $?
+  ;;
+    COPYRIGHT )
+  # already contains a copyright notice, do nothing
+  cp -f "$FROM" "$TO"
+  exit $?
+  ;;
+esac
+
+# check whether the file starts with "#!"
+
+if head -n 1 "${FROM}" | grep -q '^#!'; then
+    PREFIX="# "
+    PRESERVE_LINES=1
+fi
+
+if [ "$PREFIX" = "unknown" ]; then
+    echo "$0: don't know what to do with file $FROM" > /dev/stderr
+    exit 1
+fi
+
+echo -n > "$TMPFILE"
+if [ -n "${PRESERVE_LINES}" ]; then
+    head -n 1 "${FROM}" >> "$TMPFILE"
+    echo >> "$TMPFILE"
+fi
+cat "$NOTICE" | sed "s!^!${PREFIX}!" >> "$TMPFILE"
+echo >> "$TMPFILE"
+if [ -n "${PRESERVE_LINES}" ]; then
+    cat "$FROM" | sed -e '1d' >> "$TMPFILE"
+else
+    cat "$FROM" >> "$TMPFILE"
+fi
+cp -f "$TMPFILE" "$TO" || exit $?
+
+# preserve executable flag
+if [ -x "$FROM" ]; then
+    chmod a+x "$TO"
+fi
+
+# clean up
+rm -f "$TMPFILE"
