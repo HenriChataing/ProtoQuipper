@@ -1,3 +1,24 @@
 
 This is the Proto-Quipper Language, a functional programming language for quantum computation. You can browse the source code and
 documentation from here.
+
+/General/.  The "Main" module is located in the file ProtoQuipper.hs. It uses the command line options defined in the module "Options" to parse
+  the program arguments. When the program detects files, it uses the function 'Typing.Driver.do_everything' to process them. By default, when
+  no file is provided, the program swicthes to interactive mode, described by the module "Interactive".
+
+
+/Evaluation/. All the modules dedicated to the evaluation of Proto-Quipper expressions are located in the folder \"Interpret\".
+  The module "Interpret.Values" gives the definition of the values of Proto-Quipper and "Interpret.Circuits" defines a VERY basic circuit system (the IR export
+  of Circuits is implemented in "Interpret.IRExport"). All the important functions of evaluation are placed in the module "Interpret.Interpret", with the main
+  function 'Interpret.Interpret.interpret'.
+  
+
+/Type inference/. The type inference is organized in four main modules:
+
+  * "Typing.Subtyping": defines some useful constraint manipulating functions.
+
+  * "Typing.Ordering": provides a tool for building a poset, and finding a minimum of this poset.
+
+  * "Typing.TypingContext": definition and manipulation of typing contexts.
+
+  * "Typing.TypeInference": principal module, contains the implementation of both the type inference algorithm and the unification algorithm.
