@@ -362,15 +362,13 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         -- Bind it to the pattern p in the current context
                         Interpret.Interpret.bind_pattern p' v (environment ctx)
            -- End, at last
-           return $ ctx { label = lbl',                -- Label updated with the bindings of p
-                          typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
+           return $ ctx { typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
                           environment = env }          -- Environment updated with the bindings of p
          else
-           return $ ctx { label = lbl',                -- Label updated with the bindings of p
-                          typing = gamma_p <+> gamma } -- Typing context updated with the bindings of p
+           return $ ctx { typing = gamma_p <+> gamma } -- Typing context updated with the bindings of p
 
   -- Remove the variables used by e and non duplicable
-  IMap.foldWithKey (\x a rec -> do
+  ctx <- IMap.foldWithKey (\x a rec -> do
                       ctx <- rec
                       v <- case a of
                              TBang n _ -> flag_value n
@@ -378,12 +376,14 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
                             n <- variable_name x
+                            
                             return $ ctx { label = Map.delete n $ label ctx,
                                            typing = IMap.delete x $ typing ctx,
                                            environment = IMap.delete x $ environment ctx }
                         _ ->
                             return ctx) (return ctx) (typing ctx)
-
+  -- Add the new mappings.
+  return $ ctx { label = Map.union lbl' $ label ctx }
 
 
 
