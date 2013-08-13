@@ -88,7 +88,7 @@ run_command opts prog ctx = do
   ctx <- import_modules (fst opts) (S.imports prog) ctx
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs False $ S.typedefs prog
+  dcons <- import_typedefs $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
   define_user_properties $ S.typedefs prog
  

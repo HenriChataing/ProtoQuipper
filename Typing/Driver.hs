@@ -441,7 +441,7 @@ process_module opts prog = do
   import_globals
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs False $ S.typedefs prog
+  dcons <- import_typedefs $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
   define_user_properties $ S.typedefs prog
   update_module_types

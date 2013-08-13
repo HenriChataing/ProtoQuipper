@@ -112,9 +112,8 @@ import qualified Data.IntMap as IMap
 
 -- | Imports the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
--- The boolean arguments indicates whether the types have to be translated to proto core.
-import_typedefs :: Bool -> [S.Typedef] -> QpState (Map String Int)
-import_typedefs proto typedefs = do
+import_typedefs :: [S.Typedef] -> QpState (Map String Int)
+import_typedefs typedefs = do
   -- Import the names of the types in the current labelling map
   -- This operation permits the writing of inductive types
   List.foldl (\rec (S.Typedef typename args _) -> do
@@ -157,13 +156,7 @@ import_typedefs proto typedefs = do
 
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
-                                                                     -- The same flag is used to mark the argument and the return value of the function
-                                                                     (dt'@(TBang n _), cset) <- if proto then do
-                                                                                                  (t, cset) <- translate_bound_type dt mapargs
-                                                                                                  t' <- unfold_tensors t
-                                                                                                  return (t', cset)
-                                                                                                else
-                                                                                                  translate_bound_type dt mapargs 
+                                                                     (dt'@(TBang n _), cset) <- translate_bound_type dt mapargs
                                                                      return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
