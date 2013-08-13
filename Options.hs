@@ -40,7 +40,7 @@ default_options = Options {
   workWithProto = False,
 
   -- Actions
-  runInterpret = False,
+  runInterpret = True,
 
   -- Others
   circuitFormat = "ir"
@@ -60,7 +60,9 @@ options =
     Option ['i'] ["include"] (ReqArg include_directory "DIR")
       "Include a directory",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
-      "Run the interpret",
+      "Run the proto-quipper code [default]",
+    Option ['t'] ["type"] (NoArg (\opts -> return opts { runInterpret = False }))
+      "Don't run the proto-quipper code",
     Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
       "Authorize approximations in unfication algorithm",
     Option []    ["proto"] (NoArg (\opts -> return opts { workWithProto = True }))
