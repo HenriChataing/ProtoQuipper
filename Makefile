@@ -42,16 +42,9 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 
 clean :
 	rm -f $(GENERATED_MODULES)
-	rm -f _build/*/*
-	rm -rf haddock-doc
-
-distclean : clean
-	rm -f $(MAIN)
-
-test : all
-	for file in test/*.qi; \
-	do ./$(MAIN) -i -t $$file; \
-	done
+	rm -f $(GENERATED_MODULES:%.hs=%.info)
+	rm $(MAIN)
+	rm -rf $(BUILD_DIR)/*
 
 count : clean
 	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y Parsing/IParser.y Parsing/ConstraintParser.y
@@ -70,6 +63,9 @@ haddock-html-sources : $(MODULES:%.hs=haddock-doc/src/%.html)
 haddock-doc/src/%.html: %.hs
 	mkdir -p "$(dir $@)"
 	cat "$<" | HsColour -anchor -html > "$@"
+
+haddock-clean :
+	rm -rf haddock-doc
 
 # ----------------------------------------------------------------------
 # Building documentation without source code links.
@@ -102,15 +98,33 @@ $(DISTZIP) $(DISTTAR): dist
 RIGHT_COPY = maintainer/right_copy
 
 .PHONY: dist
-dist: $(PUBLIC) $(MAKEFILES_PUBLIC)
+dist: $(PUBLIC) $(MAKEFILES_PUBLIC) haddock
 	rm -rf "$(DISTDIR)"
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(QLIB)"
+	mkdir "$(DISTDIR)/$(BUILD_DIR)"
 	for i in $(SUBDIRS); do mkdir "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
-	cp -r haddock-doc/ "$(DISTDIR)/haddock-doc/"
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
+	cp -r haddock-doc/ "$(DISTDIR)/haddock-doc/"
 	rm -f "$(DISTZIP)"
 	zip -r "$(DISTZIP)" "$(DISTDIR)"
 	tar -zcf "$(DISTTAR)" "$(DISTDIR)"
+
+
+distcheck: $(DISTZIP)
+	rm -rf "$(DISTDIR)"
+	rm -rf "$(DISTDIR)-orig"
+	unzip "$(DISTZIP)"
+	cp -rp "$(DISTDIR)" "$(DISTDIR)-orig"
+	cd "$(DISTDIR)"; $(MAKE) all
+	cd "$(DISTDIR)"; $(MAKE) clean
+	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
+	rm -rf "$(DISTDIR)-orig"
+	@echo "$(DISTZIP) seems ready for distribution."
+
+distclean:
+	rm -rf $(DISTDIR)
+	rm -f $(DISTTAR)
+	rm -f $(DISTZIP)
