@@ -68,10 +68,10 @@ with two goals in mind:
   produced circuits are physically meaningful (in particular, 
   properties like no-cloning are respected).
 \end{itemize}
-Proto-Quipper is based on the Quantum Lambda Calculus (QLC, see 
-\cite{SeVa09} respectively). In the QLC, the execution 
+To achieve these goals, we based Proto-Quipper on the Quantum 
+Lambda Calculus (QLC, see \cite{SeVa09}). In the QLC, the execution 
 of programs is modelled by the so-called reduction relation. This 
-relation is defined on \emph{closures}. These closures are 
+relation is defined on \emph{closures}, which are 
 essentially pairs $[C,t]$ consisting of a term of the language 
 $t$ and a quantum state $C$. The state is a unit vector in a 
 complex Hilbert space and $t$ is a term whose free variables are 
@@ -101,10 +101,10 @@ Hadamard gate to wire number 3''.
 \section{The Core Language}
 
 In this section, we define the core of Proto-Quipper. We 
-present in details the syntex, type system and 
+present in details the syntax, type system and 
 operational semantics of the language.
 
-\subsection{Types and terms}
+\subsection{Types and Terms}
 \label{ssec-types-and-terms}
 
 \begin{definition} 
@@ -240,7 +240,7 @@ is defined inductively as follows:
   \item $FV(\ifthenelse{a}{b}{c} = FV(a) \cup FV(b) \cup FV(c)$,
   \item $FV(\letin{\p{x,y}}{a}{b}= FV(a)\cup (FV(b)\setminus \s{x,y})$,
   \item $FV((t,C,a))= FV(a)$ and
-  \item $FV(a)=\emptyset$ in all remaining cases.
+  \item $FV(a)=\varnothing$ in all remaining cases.
 \end{itemize}
 \end{definition}
 
@@ -262,11 +262,11 @@ defined inductively as follows:
   \item $FQ(\lambda x.a)=FQ(a)$,
   \item $FQ(\ifthenelse{a}{b}{c}) = FQ(a) \cup FQ(b) \cup FQ(c)$,
   \item $FQ(\letin{\p{x,y}}{a}{b})= FQ(a)\cup FQ(b)$ and
-  \item $FQ(a)=\emptyset$ in all remaining cases.
+  \item $FQ(a)=\varnothing$ in all remaining cases.
 \end{itemize}
 \end{definition}
 
-Remark that $FQ((t,C,a))=\emptyset$. This reflects the idea that the 
+Remark that $FQ((t,C,a))=\varnothing$. This reflects the idea that the 
 quantum addresses appearing in $t$ and $a$ are ``bound'' in $(t,C,a)$. 
 
 To append circuits, we will need to be able to express the way in 
@@ -298,10 +298,10 @@ defined recursively as follows:
 \[
 bind (t,u)= \left\{
   \begin{array}{ll}
-    \emptyset & \mbox{if}~~ t=u=*, \\
+    \varnothing & \mbox{if}~~ t=u=*, \\
     \s{(q_1,q_2)} & \mbox{if}~~ t=q_1 \mbox{ and } u=q_2, \\        
     bind (t_1,u_1) \cup bind (t_2,u_2) & 
-      \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \\
+      \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \mbox{ and } \\
     \mbox{undefined} & \mbox{in all remaining cases.}
   \end{array}
 \right.
@@ -317,7 +317,7 @@ $\binding (q_1) = q_1$ otherwise.
 \end{remark}
 
 \begin{definition}
-Let $T$ be a QData type and $X$ be a proper subset of $\qset$. 
+Let $T$ be a QData type and $X$ a proper subset of $\qset$. 
 An \emph{$X$-specimen} for $T$ is QData term written $\spec_X(T)$ 
 defined by induction as follows:
 \begin{itemize}
@@ -342,10 +342,10 @@ If $X$ is clear, we simply write $\spec (T)$.
 The fact that a term is reusable should not prevent us from 
 using it exactly once. Intuitively, this should imply that if a 
 term has the type $!A$, then it should also have the type $A$. 
-To capture this idea, we use a subtyping relation on types.
+To capture this idea, we use a sub-typing relation on types.
 
 \begin{definition}
-The \emph{subtyping relation} $<:$ is the smallest relation on 
+The \emph{sub-typing relation} $<:$ is the smallest relation on 
 types satisfying the rules given in 
 figure~\hyperref[subtyping_congruences]{\ref*{subtyping_congruences}}.
 \end{definition}
@@ -392,7 +392,7 @@ figure~\hyperref[subtyping_congruences]{\ref*{subtyping_congruences}}.
 %  \infer[.]{!^n Circ(A', B) <: !^m Circ(A, B')}{A<:A'~~B<:B'}
 %\]
 \end{mdframed}
-\caption{Subtyping rules.}
+\caption{The sub-typing rules of Proto-Quipper.}
 \label{subtyping_congruences}
 \end{figure}
 
@@ -425,7 +425,8 @@ Note that the following equivalence holds:
 \]
 so that, as expected, the following rule is derivable:
 \[
-  \infer[.]{!A <: A}{}
+  \infer[]{!A <: A}{}
+  .
 \]
 
 \begin{definition}
@@ -442,7 +443,7 @@ a quantum context. If $\Gamma =\s{x_1:A_1,\ldots,x_n:A_n}$ is
 a typing context, then $|\Gamma|=\s{x_1,\ldots,x_n}$, 
 $\Gamma (x_i)=A_i$ and we write $!\Gamma$ if $\Gamma(x_i)=!A_i'$ 
 for every $i$. The union of two contexts 
-$|\Gamma|\cap  |\Gamma'|=\emptyset$ is denoted by $\Gamma,\Gamma'$, 
+$|\Gamma|\cap  |\Gamma'|=\varnothing$ is denoted by $\Gamma,\Gamma'$, 
 and similarly for quantum contexts. Finally, we extend the subtyping 
 relation to typing contexts as follows: $\Gamma <: \Gamma'$ if, and 
 only if, $|\Gamma | = |\Gamma'|$ and $\Gamma (x_i)<: \Gamma' (x_i)$ 
@@ -484,7 +485,7 @@ type of a wire might have to be explicitly stated.
 \begin{figure}[!ht]
 \begin{mdframed}
 \[
-\infer[(ax_c)]{!\Delta, x:A;\emptyset\entails x:B}{
+\infer[(ax_c)]{!\Delta, x:A;\varnothing\entails x:B}{
   A<:B
 }
 ~~~~
@@ -492,11 +493,11 @@ type of a wire might have to be explicitly stated.
 } 
 \]
 \[
-\infer[(cst_c)]{!\Delta;\emptyset \entails c:B}{
+\infer[(cst_c)]{!\Delta;\varnothing \entails c:B}{
   A_{c}(T,U,n)<:B
 } 
 ~~~~
-\infer[(unit)]{!\Delta;\emptyset\entails *:!^n 1}{
+\infer[(unit)]{!\Delta;\varnothing\entails *:!^n 1}{
 }
 \]
 \[
@@ -504,8 +505,8 @@ type of a wire might have to be explicitly stated.
   \Gamma,x:A;Q \entails b:B
 }
 ~~~~
-\infer[(\lambda_2)]{!\Delta;\emptyset \entails \lambda x.b:~!^{n+1}(A\loli B)}{
-  !\Delta, x:A;\emptyset \entails b:B
+\infer[(\lambda_2)]{!\Delta;\varnothing \entails \lambda x.b:~!^{n+1}(A\loli B)}{
+  !\Delta, x:A;\varnothing \entails b:B
 }
 \]
 \[
@@ -535,10 +536,10 @@ type of a wire might have to be explicitly stated.
 }
 \]
 \[
-\infer[(\top)]{!\Delta;\emptyset\entails \true:!^n Bool}{
+\infer[(\top)]{!\Delta;\varnothing\entails \true:!^n Bool}{
 } 
 ~~~~
-\infer[(\bot)]{!\Delta;\emptyset\entails \false:!^n Bool}{
+\infer[(\bot)]{!\Delta;\varnothing\entails \false:!^n Bool}{
 }
 \]
 \[
@@ -549,8 +550,8 @@ type of a wire might have to be explicitly stated.
 }
 \]
 \[
-\infer[(circ)]{!\Delta;\emptyset \entails (t,C,a):!^nCirc(T,U)}{
-  \emptyset ; Q_1\entails t:T 
+\infer[(circ)]{!\Delta;\varnothing \entails (t,C,a):!^nCirc(T,U)}{
+  Q_1\entails t:T 
   &
   !\Delta ; Q_2\entails a:U 
   &
@@ -560,7 +561,7 @@ type of a wire might have to be explicitly stated.
 }
 \]
 \end{mdframed}
-\caption{Typing rules.}
+\caption{The typing rules of Proto-Quipper.}
 \label{trules}
 \end{figure}
 
@@ -578,8 +579,8 @@ constructor}. This is a device capable of
 performing certain basic circuit building operations. It is 
 not necessary to have a detailed description of the inner 
 workings of this device. In fact, all that is required for 
-the definition of Quipper's operational semantics is the 
-existence of some primitive operations. These are wrapped 
+the definition of Proto-Quipper's operational semantics is 
+the existence of some primitive operations. These are wrapped 
 in a structure that we take to axiomatize circuit constructors. 
 
 \begin{definition}
@@ -591,8 +592,8 @@ together with the following maps:
   \item $\mathtt{In}\from S\to \pow_f(Q)$,
   \item $\mathtt{Out}\from S\to \pow_f(Q)$,
   \item $\mathtt{Rev}\from S \to S$,
-  \item $\mathtt{Encap}\from S \to  S$,
-  \item $\mathtt{Unencap}\from S\times S\times Q^Q \to S \times Q^Q$ and
+  \item $\mathtt{Encap}\from S \to  S$ and
+  \item $\mathtt{Unencap}\from S\times S\times Q^Q \to S \times Q^Q$
 \end{itemize}
 verifying the following conditions:
 \begin{enumerate}
@@ -639,9 +640,9 @@ figure~\hyperref[rep_new]{\ref*{rep_new}}.
 The $\mathtt{Unencap}$ function can similarly be explained in terms of 
 the usual graphical language for circuits. It inputs two circuit states, 
 say $C$ and $D$, together with a map $\binding\from Q\to Q$ and returns 
-a new circuit $C'$ together with a new map $\binding'$. $C'$ can be 
+a new circuit $C'$ together with a new map $\binding'$. The state $C'$ can be 
 seen as the composition of $C$ and $D$ along $\binding$. An illustration of 
-this process is given in figure~\hyperref[rep_unencap]{\ref*{rep_unencap}}. 
+this is given in figure~\hyperref[rep_unencap]{\ref*{rep_unencap}}. 
 The function $\binding$ is used to specify along which wires to compose $C$ 
 and $D$ while the function $\binding'$ updates the wire names post composition.
 
@@ -709,7 +710,7 @@ and $\mathtt{Name}\from \mathcal{C} \to S$ such that:
 ~\mbox{ and }~ 
 Out=\mathtt{Address}'\circ\mathtt{Out}\circ \mathtt{Name}
 \]
-where $\mathtt{Address}'$ denotes the lifting of $\mathtt{Address}$ 
+where $\mathtt{Address}'$ denotes the lifting of $\mathtt{Address}^{-1}$ 
 from $\mathcal{Q}$ to $\mathcal{P}(\mathcal{Q})$.
 \end{definition}
 
@@ -726,15 +727,16 @@ the following consequences:
 such that $In(C^{-1})=Out(C)$ and 
 $Out(C^{-1})=In(C)$.
   \item If $\binding$ is a binding obtained from QData terms $t,u$ in the 
-  way described in remark~\hyperref{bind_extension}, we can use it to define the 
-  following map (which we call by the same name):
-\[
-\binding = \mathtt{Address}\circ \binding\circ \mathtt{Address}^{-1}\from Q\to Q
-\]
+  way described in Remark~\hyperref[bind_extension]{\ref*{bind_extension}}, 
+  we can use it to define the following map (which we call by the same name):
+  \[
+  \binding = \mathtt{Address}\circ \binding\circ \mathtt{Address}^{-1}\from Q\to Q
+  \]
 \end{itemize}
 
-In what follows, we work under the simplifying assumptions that $\mathcal{Q}=Q$, 
-$\mathtt{Address}=1_Q$ and $\mathtt{Encap}=1_Q$.
+From now on, we always assume an adequate circuit constructor. Moreover, we work 
+under the simplifying assumptions that $\mathcal{Q}=Q$, $\mathtt{Address}=1_Q$ 
+and $\mathtt{Encap}=1_Q$.
 \end{remark}
 
 
@@ -786,13 +788,13 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   }
 \]
 \[
-  \infer[(let)]{[C,let ~ \langle x,y \rangle = a ~in~ b]\to 
-                [C', let ~ \langle x,y \rangle = a' ~in~ b]}{
+  \infer[(let)]{[C,\letin{\p{x,y}}{a}{b}]\to 
+                [C', \letin{\p{x,y}}{a'}{b}]}{
     [C,a]\to [C',a']
   }
 \]
 \[
-  \infer[(cond)]{[C, if ~a~ then ~b~ else ~c~]\to [C', if ~a'~ then ~b~ else ~c~]}{
+  \infer[(cond)]{[C, \ifthenelse{a}{b}{c}]\to [C', \ifthenelse{a'}{b}{c}]}{
     [C,a]\to [C',a']
   }
 \]
@@ -812,13 +814,13 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   \infer[(\beta)]{[C,(\lambda x.a)v]\to [C, a[v/x]]}{}
 \]
 \[
-  \infer[(pair)]{[C,let ~\atuple{x,y}=\atuple{v,w}~ in ~a]\to[C,a[v/x,w/y]]}{}
+  \infer[(pair)]{[C,\letin{\p{x,y}}{\p{v,w}}{a}]\to[C,a[v/x,w/y]]}{}
 \]
 \[
-  \infer[(if\mbox{-}\mathtt{F})]{[C,if ~\mathtt{False}~ then ~a~ else ~b] \to [C, b]}{}
+  \infer[(if\mbox{-}\mathtt{F})]{[C,\ifthenelse{\mathtt{False}}{a}{b}] \to [C, b]}{}
 \]
 \[
-  \infer[(if\mbox{-}\mathtt{T})]{[C,if ~\mathtt{True}~ then ~a~ else ~b] \to [C, a]}{}
+  \infer[(if\mbox{-}\mathtt{T})]{[C,\ifthenelse{\mathtt{True}}{a}{b}] \to [C, a]}{}
 \]
 \end{mdframed}
 \caption{The classical rules.}
@@ -883,8 +885,6 @@ right member of any reduction rule is a unique closure. The following
 proposition establishes that Proto-Quipper's reduction is moreover  
 \emph{deterministic}.
 
-From now on, we always assume an adequate circuit constructor.
-
 \begin{proposition}
 \label{determinicity}
 If $[C,a]$ is a closure, then at most one reduction rule applies
@@ -903,12 +903,12 @@ is a \emph{type safe} language. We follow \cite{WrFe94} in
 considering that a language is type safe if it enjoys the 
 following two properties: 
 \begin{description}
-  \item[Subject Reduction:] this property guarantees 
+  \item[Subject Reduction:] This property guarantees 
   that the type of a term is stable under reduction.
   As a corollary, it also shows that if a term is 
   well-typed, then it never reduces to an ill-typed 
   term.
-  \item[Progress:] this property shows that a 
+  \item[Progress:] This property shows that a 
   well-typed term never reaches an ``error state", 
   which is defined to be a closure $[C,t]$ to which 
   no reduction rule applies but such that 
@@ -930,7 +930,7 @@ typing judgement.
 
 \subsection{Properties of the Type System}
 
-Before proving subject reduction and progress, we record 
+Before proving Subject Reduction and Progress, we record 
 some properties of the type system, including the important 
 \emph{Substitution Lemma}. Note that the typing rules 
 enforce a \emph{strict} linearity on variables and quantum 
@@ -988,7 +988,7 @@ By induction on the typing derivation of $\Gamma;Q \entails a:A$.
 \begin{lemma}
 \label{context_value}
 If $v\in\mathtt{Val}$ and $\Gamma,!\Delta;Q \entails v:!A$ is valid, 
-then $\Gamma=Q=\emptyset$.
+then $\Gamma=Q=\varnothing$.
 \end{lemma}
 
 \begin{proof}
@@ -1011,23 +1011,23 @@ respectively. We prove the Lemma by induction on $\pi_1$.
 \begin{itemize}
  \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=x$, then $\pi_1$ is
  \[
-   \infer[(ax_c)]{!\Delta, x:B;\emptyset\entails x:A}{
+   \infer[(ax_c)]{!\Delta, x:B;\varnothing\entails x:A}{
      B<:A
    }
  \]
- with $\Gamma=Q=\emptyset$. Then $a[v/x]=v$ and can conclude by applying 
+ with $\Gamma=Q=\varnothing$. Then $a[v/x]=v$ and can conclude by applying 
  Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}} to $\pi_2$.
  \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=y\neq x$, then 
  $\pi_1$ is
  \[
-   \infer[(ax_c)]{!\Delta, x:!B',y:A';\emptyset\entails y:A}{
+   \infer[(ax_c)]{!\Delta, x:!B',y:A';\varnothing\entails y:A}{
      A'<:A
    }
  \]
- with $B=!B'$, $Q=\emptyset$ and $\Gamma =\s{y:A'}$ or $\Gamma=\emptyset$ 
+ with $B=!B'$, $Q=\varnothing$ and $\Gamma =\s{y:A'}$ or $\Gamma=\varnothing$ 
  depending on whether or not $A'$ is duplicable. Therefore $v$ is a value of 
  type $!B'$ and by Lemma~\hyperref[context_value]{\ref*{context_value}}, 
- we know that $\Gamma'=Q'=\emptyset$. Since $a[v/x]=y$ and $x\notin FV(y)$ 
+ we know that $\Gamma'=Q'=\varnothing$. Since $a[v/x]=y$ and $x\notin FV(y)$ 
  we can conclude by applying
  Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} to $\pi_1$.
  \item If the last rule of $\pi_1$ is one of $(ax_q)$, $(cst_c)$, 
@@ -1048,16 +1048,16 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \item If the last rule of $\pi_1$ is $(\lambda_2)$ and $a=\lambda y.b$, 
  then $\pi_1$ is
  \[
-  \infer[(\lambda_2)]{!\Delta, x:!B';\emptyset \entails \lambda y.b:~!^{n+1}(A_1\loli A_2)}{
-    \deduce[]{!\Delta, x:!B',y:A_1;\emptyset \entails b:A_2}{
+  \infer[(\lambda_2)]{!\Delta, x:!B';\varnothing \entails \lambda y.b:~!^{n+1}(A_1\loli A_2)}{
+    \deduce[]{!\Delta, x:!B',y:A_1;\varnothing \entails b:A_2}{
       \vdots
     }
   }
  \]
  with $A=!^{n+1}(A_1\loli A_2)$ and $B=!B'$. Hence $v$ is a value of type $!B'$ and  
  by Lemma~\hyperref[context_value]{\ref*{context_value}}, we know that
- $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
- $!\Delta,y:A_1;\emptyset \entails b[v/x]:A_2$ is valid and we can conclude
+ $\Gamma'=Q'=\varnothing$. The induction hypothesis therefore implies that
+ $!\Delta,y:A_1;\varnothing \entails b[v/x]:A_2$ is valid and we can conclude
  by applying $(\lambda_2)$.
  \item If the last rule of $\pi_1$ is $(app)$, and $a=ca'$, then $\pi_1$ can 
  be of one of three forms depending on $B$. If $B$ is duplicable, then $\pi_1$ is
@@ -1074,7 +1074,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \]
  with $B=!B'$. Using 
  Lemma~\hyperref[context_value]{\ref*{context_value}} again, we 
- know that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore 
+ know that $\Gamma'=Q'=\varnothing$. The induction hypothesis therefore 
  implies that $\Gamma_1,!\Delta;Q_1\entails c[v/x]:A'\loli A$ and 
  $\Gamma_2,!\Delta ;Q_2\entails a'[v/x]:A'$ are valid and we can conclude 
  by applying $(app)$. If, instead, $B$ is non-duplicable, then the declaration 
@@ -1113,8 +1113,8 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \item If the last rule of $\pi_1$ is $(circ)$, and $a=(t,C,a')$, then 
  $\pi_1$ is
  \[
- \infer[(circ)]{!\Delta,x:!B';\emptyset \entails (t,\mathbf{c},a'):!^nCirc(T,U)}{
-    \deduce[]{\emptyset ; Q_1\entails t:T}{
+ \infer[(circ)]{!\Delta,x:!B';\varnothing \entails (t,\mathbf{c},a'):!^nCirc(T,U)}{
+    \deduce[]{Q_1\entails t:T}{
       \vdots
     }    
     &
@@ -1129,7 +1129,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \]
  with $A=!^nCirc(T,U)$ and $B=!B'$ for some types $T$, $U$ and $B'$. Using  
  Lemma~\hyperref[context_value]{\ref*{context_value}} again, we know 
- that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
+ that $\Gamma'=Q'=\varnothing$. The induction hypothesis therefore implies that
  $!\Gamma; Q_2\entails a'[v/x]:U$ is valid and we can conclude
  by applying $(circ)$.
 \end{itemize}
@@ -1221,8 +1221,8 @@ $(fun)$ and $(circ)$ cases.
   \]  
   with $a=(t,D,b)$ and $a'=(t,D',b')$. The typing derivation $\pi$ is therefore
   \[
-  \infer[]{!\Delta;\emptyset\entails (t,D,b):!^nCirc(T,U)}{
-    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+  \infer[]{!\Delta;\varnothing\entails (t,D,b):!^nCirc(T,U)}{
+    \deduce[]{FQ(t)\entails t:T}{
       \vdots~\pi_1
     } 
     &
@@ -1235,15 +1235,15 @@ $(fun)$ and $(circ)$ cases.
     }
   }
   \]  
-  and $!\Delta ; \emptyset \entails [C,(t,D,b)]:!^nCirc(T,U),(Q'|Q'')$ is valid. 
+  and $!\Delta ; \varnothing \entails [C,(t,D,b)]:!^nCirc(T,U),(Q'|Q'')$ is valid. 
   Disregarding $\pi_1$, it follows from the assumptions in the above rule 
-  that $!\Delta ; FQ(b)\entails [D,b]:U, (FQ(t)|\emptyset)$ is valid and, 
+  that $!\Delta ; FQ(b)\entails [D,b]:U, (FQ(t)|\varnothing)$ is valid and, 
   by the induction hypothesis, this implies that 
-  $!\Delta,FQ(b')\entails [D',b']:U,(FQ(t)|\emptyset)$ is also valid.
+  $!\Delta,FQ(b')\entails [D',b']:U,(FQ(t)|\varnothing)$ is also valid.
   This, together with the following typing derivation,
   \[
-  \infer[.]{!\Delta;\emptyset\entails (t,D,b'):!^nCirc(T,U)}{
-    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+  \infer[.]{!\Delta;\varnothing\entails (t,D,b'):!^nCirc(T,U)}{
+    \deduce[]{FQ(t)\entails t:T}{
       \vdots~\pi_1
     } 
     &
@@ -1256,7 +1256,7 @@ $(fun)$ and $(circ)$ cases.
     }
   }  
   \]
-  shows that $!\Delta;\emptyset\entails [C,(t,D',b')] :!^nCirc(T,U),(Q'|Q'')$ 
+  shows that $!\Delta;\varnothing\entails [C,(t,D',b')] :!^nCirc(T,U),(Q'|Q'')$ 
   is valid.
 \end{itemize}
 \item[Classical rules:] These rules are also treated uniformly, we illustrate 
@@ -1303,26 +1303,26 @@ We treat them individually.
   Lemma~\hyperref[context_value]{\ref*{context_value}} that the typing 
   derivation $\pi$ is
   \[
-  \infer[]{!\Delta;\emptyset\entails box^T(v):!^nCirc(T,U)}{
-    \infer[]{!\Delta;\emptyset \entails box^T:!(T\loli U)\loli !^nCirc(T,U)}{
+  \infer[]{!\Delta;\varnothing\entails box^T(v):!^nCirc(T,U)}{
+    \infer[]{!\Delta;\varnothing \entails box^T:!(T\loli U)\loli !^nCirc(T,U)}{
     }   
     &
-    \deduce[]{!\Delta ;\emptyset\entails v:!(T\loli U)}{
+    \deduce[]{!\Delta ;\varnothing\entails v:!(T\loli U)}{
      \vdots ~\pi_1
     }
   }
   \]
-  and $!\Delta;\emptyset\entails box^T(v):!^nCirc(T,U),(Q'|Q'')$ is valid.
+  and $!\Delta;\varnothing\entails box^T(v):!^nCirc(T,U),(Q'|Q'')$ is valid.
   By Lemma~\hyperref[specimen]{\ref*{specimen}}, there exists 
   a typing derivation $\pi_2$ of $FQ(t)\entails t:T$ and applying 
   Lemma~\hyperref[weakening]{\ref*{prop_type_syst}.\ref*{weakening}} yields a typing 
   derivation $\pi_2'$ of $!\Delta;FQ(t)\entails t:T$. 
   Applying Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}}
-  to $\pi_1$ we get a derivation $\pi_1'$ of $!\Delta ;\emptyset\entails v:T\loli U$.
+  to $\pi_1$ we get a derivation $\pi_1'$ of $!\Delta ;\varnothing\entails v:T\loli U$.
   We can therefore construct the following derivation:
   \[
   \infer[]{!\Delta;FQ(t)\entails vt : U}{
-    \deduce[]{!\Delta ;\emptyset\entails v:T\loli U}{
+    \deduce[]{!\Delta ;\varnothing\entails v:T\loli U}{
       \vdots ~\pi_1'
     }
     &
@@ -1332,15 +1332,15 @@ We treat them individually.
   }
   \]
   Moreover, $FQ(t)=\mathtt{Out}(\mathtt{New}(FQ(t)))=\mathtt{In}(\mathtt{New}(FQ(t)))$. 
-  It therefore follows that $!\Delta;FQ(t)\entails [\mathtt{New}(FQ(t)),vt]:U,(FQ(t)|\emptyset)$ 
+  It therefore follows that $!\Delta;FQ(t)\entails [\mathtt{New}(FQ(t)),vt]:U,(FQ(t)|\varnothing)$ 
   is a valid typed closure. By the induction hypothesis, this implies that 
-  $!\Delta;FQ(b)\entails [D,b]:U,(FQ(t)|\emptyset)$ is also valid.
+  $!\Delta;FQ(b)\entails [D,b]:U,(FQ(t)|\varnothing)$ is also valid.
   In particular, this means that $\mathtt{In}(D)=FQ(t)$, $\mathtt{Out}(D)=FQ(b)$ 
-  and there exists a typing derivation $\pi_3$ of $!\Delta;FQ(b)\entails b:U$.
+  and that there exists a typing derivation $\pi_3$ of $!\Delta;FQ(b)\entails b:U$.
   We can therefore construct the following typing derivation:
   \[
-  \infer[.]{!\Delta;\emptyset \entails (t,D,b):!^nCirc(T,U)}{
-    \deduce[]{\emptyset ; FQ(t)\entails t:T}{
+  \infer[.]{!\Delta;\varnothing \entails (t,D,b):!^nCirc(T,U)}{
+    \deduce[]{FQ(t)\entails t:T}{
       \vdots~\pi_2
     }
     &
@@ -1353,7 +1353,7 @@ We treat them individually.
     }
   }
   \]  
-  Hence $!\Delta ;\emptyset \entails (t,D,b):!^nCirc(T,U) (Q'|Q'')$ is valid.
+  Hence $!\Delta ;\varnothing \entails (t,D,b):!^nCirc(T,U) (Q'|Q'')$ is valid.
   \item $(unbox)$ the reduction rule is
   \[
     \infer[(unbox)]{[C,(unbox~(t,D,t'))v]\to [C',\binding'(t')]}{
@@ -1369,11 +1369,11 @@ We treat them individually.
   \begin{changemargin}{-4cm}{-2.3cm}
   \[
   \infer[]{!\Delta; FQ(v)\entails (unbox~(t,D,t'))v :U}{
-    \infer[]{!\Delta;\emptyset\entails unbox(t,D,t'):T\loli U}{
-      \infer[]{!\Delta;\emptyset \entails unbox:Circ(T,U)\loli (T\loli U)}{
+    \infer[]{!\Delta;\varnothing\entails unbox(t,D,t'):T\loli U}{
+      \infer[]{!\Delta;\varnothing \entails unbox:Circ(T,U)\loli (T\loli U)}{
       }   
       &
-      \infer[]{!\Delta ;\emptyset\entails (t,D,t'):Circ(T,U)}{
+      \infer[]{!\Delta ;\varnothing\entails (t,D,t'):Circ(T,U)}{
         \deduce[]{FQ(t)\entails t:T}{
           \vdots ~\pi_1
         }
@@ -1419,11 +1419,11 @@ We treat them individually.
   is therefore
   \begin{changemargin}{-2.7cm}{-1.6cm}
   \[
-  \infer[]{!\Delta;\emptyset\entails rev(t,D,t'):!^nCirc(U,T)}{
-    \infer[]{!\Delta;\emptyset \entails rev:Circ(T,U)\loli !^nCirc(U,T)}{
+  \infer[]{!\Delta;\varnothing\entails rev(t,D,t'):!^nCirc(U,T)}{
+    \infer[]{!\Delta;\varnothing \entails rev:Circ(T,U)\loli !^nCirc(U,T)}{
     }   
     &
-    \infer[]{!\Delta ;\emptyset\entails (t,D,t'):Circ(T,U)}{
+    \infer[]{!\Delta ;\varnothing\entails (t,D,t'):Circ(T,U)}{
       \deduce[]{FQ(t)\entails t:T}{
         \vdots ~\pi_1
       }
@@ -1439,7 +1439,7 @@ We treat them individually.
   }
   \]
   \end{changemargin}
-  and $!\Delta;\emptyset\entails rev(t,D,t'):!^nCirc(T,U),(Q'|Q'')$ is 
+  and $!\Delta;\varnothing\entails rev(t,D,t'):!^nCirc(T,U),(Q'|Q'')$ is 
   valid. Now note that since $t'$ is a QData term, it contains no variables. 
   Applying Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} 
   to $\pi_2$ repeatedly we therefore get a derivation $\pi_2'$ of 
@@ -1451,7 +1451,7 @@ We treat them individually.
   we have $Out(D^{-1})=In(D)=t$ and $In(D^{-1})=Out(D)=t'$, we can construct 
   the following typing derivation:
   \[
-  \infer[]{!\Delta ;\emptyset\entails (t',D^{-1},t):Circ(U,T)}{
+  \infer[]{!\Delta ;\varnothing\entails (t',D^{-1},t):Circ(U,T)}{
     \deduce[]{FQ(t')\entails t':U}{
       \vdots ~\pi_2'
     }
@@ -1465,7 +1465,7 @@ We treat them individually.
     }
   }  
   \]
-  Hence $!\Delta;\emptyset\entails (t',D,t):!^nCirc(T,U),(Q'|Q'')$ 
+  Hence $!\Delta;\varnothing\entails (t',D,t):!^nCirc(T,U),(Q'|Q'')$ 
   is valid.    
 \end{itemize}
 \end{description}
@@ -1507,7 +1507,7 @@ form $(t,C,u)$ with $t$ and $u$ values; if it is of type $!^nBool$ it is either
 $\true$ or $\false$; if it is of type $!^n (A\x B)$, it is of the
 form $\p{w,w'}$, with $w$ and $w'$ values; if it is of type $!^n1$, it is 
 precisely the term $*$; if it is of type $!^n (A\loli B)$, it is a 
-lambda-abstraction.
+lambda-abstraction or a constant.
 \end{lemma}
 
 \begin{proof}
@@ -1525,11 +1525,11 @@ First, note that Progress is stated for a typed closure whose typing
 context is empty. This is because the Lemma no longer holds if we allow 
 for a non-empty typing context. Indeed, consider the following counterexample:
 \[
-\infer[.]{x:!(!A\loli B), y:!A;\emptyset\entails xy:B}{
- \infer[]{x:!(!A\loli B);\emptyset\entails x:!A\loli B}{ 
+\infer[.]{x:!(!A\loli B), y:!A;\varnothing\entails xy:B}{
+ \infer[]{x:!(!A\loli B);\varnothing\entails x:!A\loli B}{ 
  }
  &
- \infer[]{y:!A;\emptyset\entails y:A}{ 
+ \infer[]{y:!A;\varnothing\entails y:A}{ 
  }
 }
 \]
@@ -1546,7 +1546,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   \item If $a=(t,D,a')$ with $a'\notin \mathtt{Val}$, then the typing derivation 
   $\pi$ is:
   \[
-  \infer[.]{\emptyset\entails (t,D,a'):Circ(T,U)}{
+  \infer[.]{\varnothing\entails (t,D,a'):Circ(T,U)}{
     \deduce[]{FQ(t)\entails t:T}{
       \vdots ~\pi_1
     }
@@ -1563,7 +1563,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   The typed closure 
   \[
   \begin{array}{rcl}
-  FQ(a') & \entails & [D,a']:U,(FQ(t)|\emptyset)
+  FQ(a') & \entails & [D,a']:U,(FQ(t)|\varnothing)
   \end{array}
   \]
   is therefore valid. Since $a'$ 
@@ -1597,9 +1597,9 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   If on the other hand $a_2\in\mathtt{Val}$, then it must be the case that $a_1\notin\mathtt{Val}$ 
   and we can conclude by reasoning analogously that $[C,\p{a_1,a_2}]$ reduces to 
   some $[C',\p{a_1',a_2}]$ by the $(left)$ reduction rule.. 
-  \item If $a=if ~a_1~ then ~a_2~ else ~a_3$, then the typing derivation $\pi$ is:
+  \item If $a=\ifthenelse{a_1}{a_2}{a_3}$, then the typing derivation $\pi$ is:
   \[
-  \infer[.]{FQ(a_1),Q\entails if ~a_1~ then ~a_2~ else ~a_3:A}{
+  \infer[.]{FQ(a_1),Q\entails \ifthenelse{a_1}{a_2}{a_3}:A}{
     \deduce[]{FQ(a_1)\entails a_1:Bool }{
       \vdots~\pi_1
     }
@@ -1620,14 +1620,14 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   \end{array}
   \]
   is therefore valid. Now if $a_1\notin\mathtt{Val}$, then by the induction hypothesis 
-  $[C,a_1]\to[C',a_1']$ and thus $[C,if ~a_1~ then ~a_2~ else ~a_3]$ reduces 
-  to $[C',if ~a_1'~ then ~a_2~ else ~a_3]$ by the $(cond)$ reduction rule. 
+  $[C,a_1]\to[C',a_1']$ and thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces 
+  to $[C',\ifthenelse{a_1'}{a_2}{a_3}]$ by the $(cond)$ reduction rule. 
   If on the other hand $a_1\in\mathtt{Val}$, then by 
   Lemma~\hyperref[form_values]{\ref*{form_values}} either $a_1=\true$ or $a_1=\false$. 
-  Thus $[C,if ~a_1~ then ~a_2~ else ~a_3]$ reduces either to $[C,a_2]$ by the 
+  Thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces either to $[C,a_2]$ by the 
   $(if\mbox{-}\mathtt{T})$ reduction rule or 
   to $[C,a_3]$ by the $(if\mbox{-}\mathtt{F})$ reduction rule.
-  \item If $a=let ~\atuple{x,y}=a_1~ in ~a_2$, then we can reason as above to show that 
+  \item If $a=\letin{\p{x,y}}{a_1}{a_2}$, then we can reason as above to show that 
   if $a_1$ is not a value, then the $(let)$ congruence rule applies and that if 
   $a$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
   guarantees that the $(pair)$ rule applies.
@@ -1652,14 +1652,15 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   \]
   are therefore valid. There are three cases to treat.
   \begin{itemize}
-    \item If $a\notin\mathtt{Val}$, then by the induction hypothesis 
-    $[C,ab]\to[C',a'b]$.
-    \item If $a\in\mathtt{Val}$ and $b\notin\mathtt{Val}$, then by 
-    the induction hypothesis $[C,ab]\to[C',ab']$.
-    \item $a,b\in\mathtt{Val}$ then by 
-    Lemma~\hyperref[form_values]{\ref*{form_values}}, $a$ is either 
-    an abstraction or a constant. In each case the appropriate rule 
-    among $(\beta)$, $(box)$, $(unbox)$ and $(rev)$ applies. 
+    \item If $a_1\notin\val$, then $[C,a_1a_2]\to[C',a_1'a_2]$
+    by the induction hypothesis and the $(fun)$ rule.
+    \item If $a_1\in\val$ and $a_2\notin\mathtt{Val}$, then 
+    $[C,ab]\to[C',ab']$ by the induction hypothesis and the $(arg)$ 
+    rule.
+    \item If $a_1,a_2\in\val$ then by 
+    Lemma~\hyperref[form_values]{\ref*{form_values}}, $a_1$ is either 
+    an abstraction or a constant. In each case $[]$ by the appropriate 
+    rule among $(\beta)$, $(box)$, $(unbox)$ and $(rev)$. 
   \end{itemize}
 \end{enumerate}
 \end{proof}
@@ -1674,7 +1675,7 @@ at the end of the section, how to extend it.
 \input{algorithm.tex}
 
 
-\section{Extensions}
+\section{Language extensions}
 \label{sec-extensions}
 
 Some features of Proto-Quipper are implemented, and thus available 
@@ -1710,7 +1711,7 @@ User Guide of Section \ref{sec-user-guide}.
     together with the associated typing rule:
     \[
     \infer[(rec)]{!\Delta;Q \entails let~rec~ a ~x = b~ in~ c:C}{
-      !\Delta,a:!(A\loli B), x:A;\emptyset \entails b:B
+      !\Delta,a:!(A\loli B), x:A;\varnothing \entails b:B
       &
       !\Delta, a:!(A\loli B) ;Q \entails c:C      
     }
