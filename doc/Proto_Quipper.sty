@@ -53,6 +53,7 @@
 \theoremstyle{definition}
 \newtheorem{n-definition}[n-lemma]{Definition}
 \newtheorem{n-assumption}[n-lemma]{Assumption}
+\newtheorem{n-algorithm}[n-lemma]{Algorithm}
 \newtheorem{n-openproblem}[n-lemma]{Open Problem}
 \newtheorem*{un-definition}{Definition}
 \newtheorem*{un-assumption}{Assumption}
@@ -84,6 +85,7 @@
 \newenvironment{remarks}{\begin{n-remarks}}{\end{n-remarks}}
 \newenvironment{convention}{\begin{n-convention}}{\end{n-convention}}
 \newenvironment{notation}{\begin{n-notation}}{\end{n-notation}}
+\newenvironment{algorithm}{\begin{n-algorithm}}{\end{n-algorithm}}
 
 \theoremstyle{plain}
 \newtheorem{thm}[n-lemma]{Theorem}     % reset theorem numbering for 
@@ -223,10 +225,11 @@
 
 % ----------------------------------------------------------------------
 % More of Henri's notation. 
-\def\bang{\,!\,}
+\def\bang{{!}}
 \newcommand{\pair}[2]{\langle #1, #2 \rangle}
 \newcommand{\letin}[3]{\text{let}~ #1 = #2 ~\text{in}~ #3}
 \newcommand{\ifthenelse}[3]{\text{if}~ #1 ~\text{then}~ #2 ~\text{else}~ #3}
-\newcommand{\nbang}[1]{\,!^{#1}}
+\newcommand{\nbang}[1]{\bang^{#1}}
 \newcommand{\binding}{\mathfrak{b}}              % Arbitrary binding
 
+\newcommand{\QP}{{\rm QP}}
