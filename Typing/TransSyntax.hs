@@ -1,6 +1,72 @@
--- | This module processes the surface syntax and translates it into the internal syntax. This includes : processing of type definitions, with inference of
--- the type properties : subtyping, qdata type ; translation of the body; with scope analysis, generation of the export list, linking with the interface ; some
--- functions to convert the syntax to rax proto-quipper code.
+-- | This module processes the surface syntax and translates it into the internal syntax. This includes: processing of type definitions, with inference of
+-- the type properties (subtyping, qdata type) ; translation of the body (with scope analysis, generation of the export list, linking with the interface) ; some
+-- functions to convert the syntax to raw proto-quipper code.
+--
+-- The subtyping constraints {user a <: user a'} can't be interpreted as just {a <: a'}. Indeed, the order of the
+-- constraints may be reversed, as is the case with the type:
+--
+-- @
+-- type foo a b =
+--   Bar of a -> b
+-- @
+-- 
+-- Intuitively, a constraint {foo a b <: foo a' b'} is to be reduced as {a' <: a, b <: b'}, which would
+-- correspond to the subtyping reltation rule:
+--
+-- @
+--   a' <: a          b <: b'
+--   -----------------------
+--     foo a b <: foo a' b'
+-- @
+--
+-- One option would be to ask for the user to manually enter these subtyping relation rules.
+-- Another option is to infer them automatically. This last option has been chosen, with the following
+-- (unproved) inference algorithm.
+--
+-- Since algebraic types correspond to sum types (with induction), the natural way to obtain a subtyping relation
+-- rule is to take the set of subtyping relations on the types of the data constructors:
+-- given the type either:
+--
+-- @
+--  type either a b =
+--    Left a
+--  | Right b
+-- @
+--
+-- the relation is, as inferred:
+-- 
+-- @
+--    a <: a'          b <: b'
+--   --------------------------
+--   either a b <: either a' b'
+-- @
+--
+-- and this corresponds to the natural definition. However, when the type is inductive,
+-- as is the case of list, this would give:
+-- 
+-- @
+--   a <: a'    list a <: list a'
+--   ---------------------------
+--        list a  <: list a'
+-- @
+--
+-- This is not quite what we wanted, since the goal was to eliminate the composite constraints.
+-- However, two remarks can be made:
+--
+-- * After reduction of the constraints, only atomic constraints on the type arguments remain.
+--
+-- * The number of possible constraints of this kind is limited: at most 2n (where n is the number of type arguments) can exist.
+--
+-- Thus the idea of the subtyping inference algorithm: to \'unfold\' the subtyping constraints on algebraic types base on the unfolded definition 
+-- of the types until the set of atomic constraints stabilizes. This would give for the type list:
+--
+-- @
+--        a <: a'
+--   -----------------
+--   list a <: list a'
+-- @
+--
+-- which is the expected subtyping relation rule. This algorithm has yet to be proved.
 module Typing.TransSyntax (
   define_user_subtyping,
   define_user_properties,
@@ -44,10 +110,9 @@ import qualified Data.IntMap as IMap
 
 
 
--- | Import the type definitions in the current state
--- The data constructors are labelled during this operation, and included in the field datacons of the state
--- User types are added the same, with an id set to -1 to distinguish them from other type variables
--- The boolean arguments indicates whether the types have to be translated to proto core
+-- | Imports the type definitions in the current state.
+-- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
+-- The boolean arguments indicates whether the types have to be translated to proto core.
 import_typedefs :: Bool -> [S.Typedef] -> QpState (Map String Int)
 import_typedefs proto typedefs = do
   -- Import the names of the types in the current labelling map
@@ -118,22 +183,6 @@ import_typedefs proto typedefs = do
 
 
 
-
--- | The typing constraints  {user a <: user a'} don't make much sense as is, so they need
--- to be converted to some constraints about the arguments, like {user a <: user a'} == {a <: a'}
--- This is done by unfolding the definition of the user type, and comparing the types of the data
--- constructors one on one :
---
--- with the type     either a b = Left of a | Right of b
--- we get   {either a b <: either a' b'} == { a <: a', b <: b' }
---
--- With inductive types, the method is the same, and the type is recursively unfolded, until the
--- constraint set becomes stable :
---
--- with the type     list a = Nil | Cons of a * list a
--- we get   {list a <: list a'} == {a * list a <: a' * list a'}
---                              == {a <: a', list a <: list a'}
---                              == ... == {a <: a'} removing the constraint {list a <: list a'}
 
 
 -- | Unfold the definitions of the types in the subtyping constraints
@@ -218,9 +267,8 @@ unfold_all names = do
   unfold_all finish
 
 
--- | Define the subtyping relations for all the user defined types
--- It basically applies the unfold_all function, after having initialized the contraint sets based
--- on the unfolded definition of the user types
+-- | Infers the subtyping relation rules of all the user defined types.
+-- It uses the algorithm described above.
 define_user_subtyping :: [S.Typedef] -> QpState () 
 define_user_subtyping typedefs = do
   newlog 0 ">> User subtyping relations"
@@ -326,8 +374,11 @@ propagate_prop (n:rest) graph =
           (n:r', False, g')
 
 
--- | Define the user properties : qdatatype, bound type. Those properties can only defined for all the graph, taken at the same time, so this
--- function first build a graph of dependencies indicating which type uses which type in the type of the data constructors.
+-- | Defines the user property: qdatatype. This property can only be defined for all the types taken at the same time.
+-- This function first builds a graph of dependencies indicating which type uses which type in the type of the data
+-- constructors. Some types are clearly marked as being non quantum data types. In the graph of dependencies, all the types
+-- using these non-quantum types cannot in turn be qdata types ; and so on. After all the non qdata types have been eliminated,
+-- all that remain are qdata types.
 define_user_properties :: [S.Typedef] -> QpState ()
 define_user_properties typedefs = do
   -- A specific function is needed to check quantum data types
@@ -382,9 +433,9 @@ define_user_properties typedefs = do
     newlog 0 "<<\n"
 
 
--- | Transfer the type definitions from the state monad to the current module.
+-- | Transfers the type definitions from the state monad to the current module.
 -- This function assumes that the current module already have entries corresponding to its types, and
--- then just updates them.
+-- just updates them.
 update_module_types :: QpState ()
 update_module_types = do
   cmod <- get_module
@@ -396,7 +447,7 @@ update_module_types = do
   set_context $ ctx { cmodule = cmod' }
 
 
--- | Import the builtin values, defined in the Builtin module, in the current context.
+-- | Imports the builtin values, defined in the "Builtins" module.
 import_builtins :: QpState ()
 import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do
@@ -408,10 +459,16 @@ import_builtins = do
 
 
 -- | Translate a type, given a labelling.
--- The arguments of type applications are passed via the function calls
--- The output includes a set of structural constraints : eg !p (!n a * !m b) imposes p <= n and p <= m
--- The boolean associated with the map indicates whether the type variables are bound (type definition) or free (type constraint)
-translate_type :: S.Type -> [Type] -> (Map String Type, Bool) -> QpState (Type, ConstraintSet, Map String Type)
+-- The output includes a set of structural constraints: eg !p (!n a * !m b) imposes p <= n and p <= m.
+translate_type :: S.Type
+               -> [Type]                  -- ^ List of type arguments. Only when the type is algebraic may this list not be empty.
+               -> (Map String Type, Bool) -- ^ A map of bound type variables. The boolean flag indicates how to deal with unbound variables:
+                                          -- they can either:
+                                          --
+                                          -- * generate a typing error (the definition of algebraic types doesn't allow for unbound variables).
+                                          --
+                                          -- * be bound in the map (all other cases).
+               -> QpState (Type, ConstraintSet, Map String Type)
 translate_type S.TUnit [] m = do
   return (TBang anyflag TUnit, emptyset, fst m)
 
@@ -524,8 +581,8 @@ translate_type t args label = do
 
 
 
--- | Function translate_type applied to a bound type
--- The arguments are supposed to be null initially
+-- | The function 'Typing.TransSyntax.translate_type' applied to a bound type.
+-- The arguments are supposed to be null initially.
 translate_bound_type :: S.Type -> Map String Type -> QpState (Type, ConstraintSet)
 translate_bound_type t m = do
   (t', cset, _) <- translate_type t [] (m, True)
@@ -533,9 +590,9 @@ translate_bound_type t m = do
 
 
 
--- | Same for an unbound type
+-- | The function 'Typing.TransSyntax.translate_type' applied to unbound types.
 -- The binding map is initially empty, and is dropped after the translation of the type
--- No argument is passed to the top type
+-- No argument is passed to the top type.
 translate_unbound_type :: S.Type -> QpState (Type, ConstraintSet)
 translate_unbound_type t = do
   (t', cset, _) <- translate_type t [] (Map.empty, False)
@@ -543,8 +600,8 @@ translate_unbound_type t = do
 
 
 
--- | Translate a pattern, given a labelling
--- The map is updated, as the variables are bound in the pattern
+-- | Translates a pattern, given a labelling map.
+-- The map is updated as variables are bound in the pattern.
 translate_pattern :: S.Pattern -> Map String Int -> QpState (Pattern, Map String Int)
 translate_pattern S.PUnit label = do
   return (PUnit, label)
@@ -589,7 +646,8 @@ translate_pattern (S.PConstraint p t) label = do
   return (PConstraint p' t, lbl)
 
 
--- | Translate an expression, given a labelling map
+
+-- | Translates an expression, given a labelling map
 translate_expression :: S.Expr -> Map String Variable -> QpState Expr
 translate_expression S.EUnit _ = do
   return EUnit
@@ -724,10 +782,13 @@ translate_expression (S.EConstraint e t) label = do
 
 
 
--- | Export the variables of a pattern. If an interface file is provided, it first checks
--- whether the variable is part of the accessible variables :
---        if yes, it exports the variables, and modifies the pattern to add a constraint on the type fo this variable
---        if not, does nothing
+-- | Exports the variables of a pattern. If an interface file is provided, it first checks
+-- whether the variables are part of the accessible variables :
+--
+--      *  if yes, it exports the variables, and modifies the pattern to add a constraint on the type fo this variable
+--
+--      *  if not, does nothing
+--
 export_pattern_variables :: S.Program -> Pattern -> QpState Pattern
 export_pattern_variables _ PUnit =
   return PUnit
@@ -858,9 +919,9 @@ unfold_tuples (PTuple plist) =
         PTuple [p', rest']
 
 
--- | Removes all the syntactic sugars of an expression
+-- | Removes all the syntactic sugars of an expression.
 -- This function operates on core expressions. As sugars are removed, new variables are
--- produced, with a default name
+-- produced.
 unsugar :: Expr -> QpState Expr
 
 unsugar (EVar x) =

@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Main module, which contains the main function that patches everything together.
+-- | Main module. It contains the main function, that reads the command line arguments, and runs accordingly.
 module Main where
 
 import Monad.QuipperError
@@ -22,7 +22,14 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
 import Data.List as List
 
--- | Main function. Parses the command line arguments, and acts accordingly.
+-- | Main function. Parses the command line arguments. About the input files:
+--
+-- * If several are given, they are all executed successively (but not necessarily following the order in which they were
+--   given as it may change depending no the dependencies).
+--
+-- * The directory of an input file is automatically added to the list of include directories.
+--
+-- * If no file is specified, Proto-Quipper switches to the interactive mode (see "Interactive").
 main :: IO ()
 main = do
   -- Parse program options

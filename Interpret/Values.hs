@@ -23,19 +23,21 @@ import qualified Data.List as List
 -- | Definition of the type of values.
 data Value =
     VFun (IntMap Value) Pattern Expr     -- ^ fun p -> e (in the context env).
-  | VBuiltin (Value -> Value)            -- ^ builtin function.
+  | VBuiltin (Value -> Value)            -- ^ Builtin function: builtin functions are defined as functions on 'Interpret.Values.Value', but not in terms of
+                                         -- values.
   | VTuple [Value]                       -- ^ (v1, .. , vn)
   | VCirc Value Circuit Value            -- ^ (t, c, u)
   | VSumCirc Value                       -- ^ When the type of a circuit uses user types, a general specimen can't be inferred. A new circuit is produced for
                                          -- all new uses of the box.
-  | VBool Bool                           -- ^ true / false
+  | VBool Bool                           -- ^ true false
   | VInt Int                             -- ^ integer
-  | VBox Type                            -- ^ box [T]
-  | VUnbox                               -- ^ unbox
-  | VUnboxed Value                       -- ^ unbox (t, c, u)
+  | VBox Type                            -- ^ box [T]
+  | VUnbox                               -- ^ Unbox.
+  | VUnboxed Value                       -- ^ Unboxed circuits (can't be reduced any further). Note that the type of the value is not checked
+                                         -- until application of the unboxed circuit.
   | VUnit                                -- ^ ()
-  | VDatacon Datacon (Maybe Value)       -- ^ datacon e
-  | VRev                                 -- ^ rev
+  | VDatacon Datacon (Maybe Value)       -- ^ Datacon v
+  | VRev                                 -- ^ Reverse function.
   | VQbit Int                            -- ^ Quantum addresses.
 
 

@@ -1,6 +1,8 @@
--- | Implementation of a small interpreter of proto-quipper. This module works along the module Circuits that provides all the definitions and operations
--- on circuitss. A circuit stack in the QpState monad give the state of the interpetation. Each term is interpreted in an evaluation context, that contains the
--- values of all the variables in scope : with this, we don't have to explicitly do the term substitution that comes with beta-reduction.
+-- | Implementation of a small interpreter of Proto-Quipper.
+-- This module works along the module "Interpret.Circuits" that provides the definition and operations
+-- on circuits. A circuit stack in the QpState monad give the state of the interpetation.
+-- Each term is interpreted in an evaluation context, that contains the
+-- values of all the variables in scope: with this, we don't have to explicitly do the term substitution that comes with beta-reduction.
 module Interpret.Interpret where
 
 import Classes
@@ -33,7 +35,9 @@ type Environment = IntMap Value
 
 
 -- | The QpState monad contains an id that allows us to generate fresh quantum
--- addresses.
+-- addresses. Note that nothing is done to recycle used and discarded identifiers.
+-- However, the index is reinitialized back to 0 at each box creation.
+-- Thus, the inputs of a box will always be numbered 0..n.
 fresh_qbit :: QpState Int
 fresh_qbit = do
   ctx <- get_context
@@ -43,7 +47,7 @@ fresh_qbit = do
 
 
 -- | This operation resets the counter of qbit values.
--- Since the quantum addresses are bound in a circuit (t, C, u), we can reset the counter for each box construction.
+-- Since the quantum addresses are bound in a circuit (t, C, u), we can reset the counter for each box creation.
 reset_qbits :: QpState ()
 reset_qbits = do
   ctx <- get_context
@@ -52,7 +56,6 @@ reset_qbits = do
 
 -- | Creates a specimen of a given linear type. The quantum addresses of
 -- the specimen range from 0 .. to n, n being the number of qbits in the type.
--- The axiliary function keeps track of the counter.
 linspec :: LinType -> QpState Value
 linspec TQbit = do
   q <- fresh_qbit
@@ -69,12 +72,12 @@ linspec TUnit = do
   return VUnit
 
 
--- | Returns a specimen of a type.
+-- | Returns a specimen of a type (same as linspec).
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
 
 
--- | Creates a new circuit, initialized with a set of wire identifiers, and put it on top
+-- | Creates a new circuit, initialized with a set of wire identifiers, and put on top
 -- of the circuit stack.
 open_box :: [Int] -> QpState ()
 open_box ql = do
@@ -83,9 +86,8 @@ open_box ql = do
   set_context $ ctx { circuits = newc:(circuits ctx) }
 
 
--- | Unstack and returns the top circuit.
--- The list must be non empty. An empty circuit list correspond to a program error (as close_box is called only after
--- an open_box).
+-- | Unstacks and returns the top circuit.
+-- The list must be non empty. An empty circuit list correspond to a program error.
 close_box :: QpState Circuit
 close_box = do
   ctx <- get_context
@@ -98,7 +100,7 @@ close_box = do
         return top
 
 
--- | Appends a circuit, the welding specified by the argument binding
+-- | Appends a circuit, the welding specified by the argument binding.
 -- The action is done on the top circuit. If the circuit list is empty, it corresponds to
 -- a runtime error. The output of unencap is a binding corresponding to the renaming of the
 -- addresses done by the circuit constructor.
@@ -116,8 +118,8 @@ unencap c b = do
         return b'
 
 
--- | Extract the list of bindings x |-> v from a matching between a pattern and a value (supposedly of
--- the same type, and insert all of them in the given environment. This function can be called in three
+-- | Extracts the list of bindings x |-> v from a matching between a pattern and a value (supposedly of
+-- the same type), and insert all of them in the given environment. This function can be called in three
 -- diffrent contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
 -- of from a pattern matching.
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
@@ -167,7 +169,7 @@ bind_pattern p v _ = do
   throw $ MatchingError (show p) (sprint v)
 
 
--- | Try matching a pattern and a value. Return True if the value matches, else False.
+-- | Tries matching a pattern and a value. Returns True if the value matches, else False.
 match_value :: Pattern -> Value -> Bool
 match_value (PLocated p _) v =
   match_value p v
@@ -236,7 +238,7 @@ bind v1 v2 = do
   throw $ MatchingError (sprint v1) (sprint v2)
 
 
--- | Readdress a quantum value using a binding function.
+-- | Readdresses a quantum value using a binding function.
 -- If a qbit is not mapped by the binding, its value is left unchanged.
 readdress :: Value -> [(Int, Int)] -> QpState Value
 readdress (VQbit q) b = do
@@ -279,10 +281,22 @@ extract v = do
 
 
 
--- | Reduce the application of a function to a value. Several configurations can occur. The first is of course the usual beta-reduction.
--- This also includes functions that are recorded as builtin. Then unbox, rev and box[T] are all functions, and so may be data constructors.
--- Unbox v just just returns the value unbox(v) that now has the type of a function ; rev c reverses and returns the circuit c ; box[T] f creates a new circuit
--- initialized on a specimen t of T, evaluates tha application of f to t, closes the box and returns the circuit ; Datacon v returns the value Datacon(v).
+-- | Reduce the application of a function to a value. Several configurations can occur:
+--
+-- *  beta-reduction, i.e. the reduction of the application of a value to an abstraction. This also includes the built-in function
+--    applications.
+--
+-- *  (unbox c) t. Assuming the function is un unboxed circuit (represented by VUnboxed c), applies the unencap function (usual semantics).
+--
+-- * unbox c. Returns the unboxed circuit (i.e VUnboxed c).
+--
+-- * box[T] t. See the operational semantics for more information about this case.
+-- 
+-- * rev c. Reverses the circuit.
+--
+-- A dedicated function was needed to reduce the function applications, because the 'Interpret.Interpret.interpret' function only reduces
+-- function application of the kind : (expr expr), and not (value value). However, the creation of a box implies the application of a function
+-- to a newly created qdata value, which doesn't fit the type of 'Interpret.Interpret.interpret'.
 do_application :: Environment -> Value -> Value -> QpState Value
 do_application env f x =
   case (f, x) of
@@ -352,8 +366,8 @@ do_application env f x =
 -- | Implementation of the evaluation of an expression. The main function, interpret, has type Environment -> Expr -> QpState Value.
 -- Knowing that the monad QpState encloses a circuit stack, the prototype is close to the theoretical semantics describing the
 -- reduction of the closure [C, t]. The main difference is that the substitutions done during the beta reduction are delayed via
--- the passing of the environment : only when the function must evaluate a variable is the associated value retrieved.
--- An auxiliary function, do_application, reduces the application of a function value to an argument value.
+-- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
+-- An auxiliary function, 'Interpret.Interpret.do_application', reduces the application of a function value to an argument value.
 interpret :: Environment -> Expr -> QpState Value
 -- Location handling
 interpret env (ELocated e ex) = do
@@ -496,17 +510,4 @@ interpret _ (EBuiltin s) =
 
 
 
--- | Main function, the only one to be called outside of the module. Its the evaluation of
--- the term in an evaluation context that contains all the global variables, with a circuit stack containing
--- only one empty circuit (no input wires, no gates).
-run_module :: Expr -> QpState Value
-run_module e = do
-  -- Create the initial evaluation context
-  gbls <- global_context
-
-  -- Reset the circuit stack
-  ctx <- get_context
-  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
-
-  interpret gbls e
 

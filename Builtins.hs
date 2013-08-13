@@ -1,5 +1,5 @@
--- | This module contains the definition of some built-in operations that are made available in quipper
--- codes. This includes all the basic gates, listed below ; and some integers operations and comparisons.
+-- | This module contains the definition of the built-in operations that are made available in Proto-Quipper
+-- codes. This includes all the basic gates and some integers operations and comparisons.
 module Builtins where
 
 import Parsing.Syntax
@@ -22,12 +22,31 @@ binary_type = TCirc (TTensor [TQbit, TQbit]) (TTensor [TQbit, TQbit])
 
 
 -- | Generic value of unary gates, parametrized over the name of the gate.
+-- They are all of the form:
+--
+-- @
+--        ___
+--   0 --| N |-- 0
+--        ---
+-- @
+--
+-- where N is the name of the gate.
 unary_value :: String -> Value
 unary_value g =
   VCirc (VQbit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQbit 0) 
 
 
 -- | Generic value of binary gates, parametrized over the name of the gate.
+-- All the binary gate values follow the pattern:
+--
+-- @
+--       ___
+--  0 --| N |-- 0
+--  1 --|   |-- 1
+--       ---
+-- @
+--
+-- where N is the name of the gate.
 binary_value :: String -> Value
 binary_value g =
   VCirc (VTuple [VQbit 0, VQbit 1])
@@ -35,11 +54,17 @@ binary_value g =
         (VTuple [VQbit 0, VQbit 1])
 
 
--- | Map of the built-in gates.
--- Unary gates are : INIT0, INIT1, TERM0, TERM1, PHASE, GATE_H, NOT, GATE_X, GATE_Y, GATE_Z, GATE_S, GATE_S_INV, GATE_T, GATE_T_INV,
--- GATE_E, GATE_E_INV, GATE_OMEGA, GATE_V, GATE_V_INV.
--- Binary gates are : CNOT, SWAP, CONTROL_PHASE, GATE_W.
--- Trinary gates are : TOFFOLI.
+-- | Subset of the builtin values that provides the definitions of the gates.
+-- Below is the exact list of all the defined gates, given by their reference label.
+--
+-- * The unary gates are : INIT0, INIT1, TERM0, TERM1, PHASE, GATE_H, NOT, GATE_X, GATE_Y, GATE_Z, GATE_S, GATE_S_INV, GATE_T, GATE_T_INV,
+--                         GATE_E, GATE_E_INV, GATE_OMEGA, GATE_V, GATE_V_INV.
+--
+-- * The binary gates are : CNOT, SWAP, CONTROL_PHASE, GATE_W.
+--
+-- * One trinary gate is defined: TOFFOLI.
+--
+-- Note that the list of unary and binary gates is actually provided by the "Interpret.Circuits" module.
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
   let init = [("INIT0", (TCirc TUnit TQbit,
@@ -75,7 +100,9 @@ builtin_gates =
 
 
 
--- | Map of the built-in operations. This includes the operators : ADD, SUB, MUL, DIV, POW, LT, GT, EQ.
+-- | Subset of the builtin values that provides the definition of the built-in integer operations.
+-- The list of currently defined operations is: ADD, SUB, MUL, DIV, LT, GT, EQ, POW. It is bound to be extended, for
+-- example with more comparisons.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
   let ops = [ ("ADD", (TArrow TInt (TArrow TInt TInt),

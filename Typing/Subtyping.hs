@@ -1,5 +1,4 @@
--- | Module Subtyping provides useful functions to operate on subtyping constraints
--- and constraint sets
+-- | This module provides functions that operate constraint sets: reduction mostly.
 module Typing.Subtyping where
 
 import Classes
@@ -16,7 +15,7 @@ import qualified Data.List as List
 
 -- | Using the type specifications registered in the state monad, unfolds any subtyping
 -- constraints of the form  user a <: user a'. This functions assumes that the two type
--- names are the same, and that the rigth number of arguments have been given.
+-- names are the same, and that the right number of arguments has been given.
 unfold_user_constraint :: String -> [Type] -> String -> [Type] -> QpState [TypeConstraint]
 unfold_user_constraint utyp arg utyp' arg' = do
   -- Retrieve the specification of the type
@@ -40,9 +39,11 @@ unfold_user_constraint utyp arg utyp' arg' = do
 
 
 
--- | Break the composite constrainst of a constraint set, leaving only atomic constraints
+-- | Reduces the composite constrainst of a constraint set, leaving only atomic
 -- and semi composite constraints. The boolean argument indicates whether to break user
--- type constraints or not.
+-- type constraints or not. When this flag is set, the user type constraints are left untouched:
+-- this is useful for the extension of the subtyping relations to algebraic types, where one wants
+-- to reduce only the non-algebraic type constraints.
 break_composite :: Bool -> ConstraintSet -> QpState ConstraintSet
 
 -- Nothing to do

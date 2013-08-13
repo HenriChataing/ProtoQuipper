@@ -1,4 +1,4 @@
--- | This module defines all the functions needed to run the interactive mode.
+-- | This module installs the interactive mode of Proto-Quipper.
 module Interactive where
 
 import Options
@@ -31,8 +31,19 @@ import qualified Data.IntMap as IMap
 
 
 
--- | Import a module and its dependencies in the current context.
-import_modules :: Options -> [String] -> ExtensiveContext -> QpState ExtensiveContext
+-- | Imports a list of modules in the current context. This function is not stupid: if the modules
+-- were already imported, it does nothing. However, it does 'reload' the names in
+-- the current labelling map: if one of the global variables x was over-written by a declaration
+--
+-- @
+-- let x = ... ;;
+-- @
+--
+-- it will made available again, thus overwriting the above mapping.
+import_modules :: Options                     -- ^ The command line options, it contains in particular the list of include directories.
+               -> [String]                    -- ^ The list of the modules to import.
+               -> ExtensiveContext            -- ^ The context of the interactive mode.
+               -> QpState ExtensiveContext    -- ^ Returns the updated context.
 import_modules opts mnames ctx = do 
   -- Build the dependencies (with a dummy module that is removed immediately)
   deps <- build_dependencies (includes opts) S.dummy_program { S.imports = mnames }
@@ -45,14 +56,18 @@ import_modules opts mnames ctx = do
                 -- Check whether the module has already been imported or not
                 imported <- get_context >>= return . modules
                 case List.lookup (S.module_name p) imported of
-                  -- Do nothing
                   Just m ->
-                      return ctx
+                      -- Insert again the names in the labelling map.
+                      return $  ctx { label = Map.union (global_ids m) (label ctx) }
+
                   Nothing -> do
+                      -- Process the module
                       process_module (opts, mopts) p
+
                       -- Move the module internally onto the modules stack
                       qst <- get_context
                       set_context $ qst { modules = (S.module_name p, cmodule qst):(modules qst) }
+
                       -- Import the declarations in the extensive context
                       cm <- return $ cmodule qst
                       ctx <- return $ ctx { typing = IMap.union (global_types cm) (typing ctx),
@@ -65,14 +80,15 @@ import_modules opts mnames ctx = do
 
 
 
--- | Process the input commands.
+-- | Process a user command. Since the command is like a module implementation, it is dealt with the same way.
+-- The only exception concerns import declarations, that are handled specifically by the function 'Interactive.import_modules'.
 run_command :: (Options, MOptions) -> S.Program -> ExtensiveContext -> QpState ExtensiveContext
 run_command opts prog ctx = do
   -- Import the modules
   ctx <- import_modules (fst opts) (S.imports prog) ctx
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs (workWithProto $ fst opts) $ S.typedefs prog
+  dcons <- import_typedefs False $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
   define_user_properties $ S.typedefs prog
  
@@ -85,10 +101,17 @@ run_command opts prog ctx = do
 
 
 
--- | Run the interactive mode, parsing the intput commands and sending information back
--- accordingly. It keeps track of an extensive context that cumulates labelling, evaluation, typing, constraints.
--- The second string argument is the buffer of the command : the commnad is only flushed and interpreted when a ;;
--- character is read, else the lines are pushed to this buffer.
+-- | Run the interactive mode, parsing the intput commands and sending information back accordingly.
+-- Two kind of commands are interpreted:
+--
+-- * Proto-Quipper code: anything that ends with the suffix ';;'.
+--   Multi-line commands are authorized. Anything that is part of a module implementation can be passed as a command: import statements, 
+--   type definitions, top-level declarations.
+--
+-- * Context commands: any command starting with the prefix ':'. These commands are only of one line, and give information about the
+--   current state of the machine. Typical commands are ':ctx' that lists the variables currently in scope, and ':display' that
+--   displays the top-level circuit (unaccessible otherwise).
+--
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
@@ -171,7 +194,17 @@ run_interactive opts ctx buffer = do
         run_interactive opts ctx (l:buffer) 
  
 
--- | List of valid commands, associated to their description.
+-- | List of valid context commands, associated to their description.
+-- The commands are (for now):
+--
+-- * :help - displays the list of commands.
+--
+-- * :ctx - lists the variables in scope, and their type. Depending on the OS, the duplicable variables may be printed in yellow, the non duplicable in red.
+--
+-- * :exit - quits the interactive mode. Before quitting, a check is performed that sees to it that no non duplicable object is discarded.
+--
+-- * :display - displays the top-level circuit (in visual mode), otherwise inaccessible.
+--
 commands :: [(String, String)]
 commands = [
   (":help", "Display the list of commands"),
@@ -181,8 +214,7 @@ commands = [
 
 
 
--- | Quits the interactive mode. As it tries quitting, it checks
--- the variables that are dropped are indeed duplicable.
+-- | Quits the interactive mode. Before quitting, a check is performed that sees to it that no non duplicable object is discarded.
 exit :: ExtensiveContext -> QpState ()
 exit ctx = do
   -- List all the non-duplicable variables

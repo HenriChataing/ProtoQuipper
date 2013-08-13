@@ -1,12 +1,15 @@
 -- | This module (Ordering) is dedicated to finding the minimum of the poset formed
 -- by the type variables, where the relation is given by the typing constraints.
--- As a reminder, for every constraint :
---   a <: b, the relation Age (a) = Age(b) is added, and for every constraint
---   a <: T or T <: a, a relation Age (a) < Age (b) is added for every b free type variable of T.
--- Variables are later organized in clusters (= classes) of variables with the same age,
+-- As a reminder, for every constraint:
+--
+-- *  a <: b, the relation Age (a) = Age(b) is added, and for every constraint
+--
+-- *  a <: T or T <: a, a relation Age (a) < Age (b) is added for every b free type variable of T.
+--
+-- Variables are later organized in clusters (= equivalence classes) of variables with the same age,
 -- and the relations between variables are changed into relations between the associated
--- clusters. The algorithm for finding the youngest cluster has a complexity O (n + m) where m is the number
--- of relations defined.
+-- clusters. The algorithm for finding the youngest cluster has a complexity O (n) where n is the number of
+-- variables.
 module Typing.Ordering where
 
 import Classes
@@ -29,16 +32,16 @@ import qualified Data.IntMap as IMap
 type Cluster = Int
 
 
--- | Definition of posets : partially ordered sets.
+-- | Definition of posets (partially ordered sets).
 -- Inside of the poset, variables are grouped in age classes (built by atomic constraints), and the relations
 -- are written in term of class.
 data Poset = Poset {
-  cmap :: IntMap Cluster,                                -- ^ Associate each variable to its respective cluster.
+  cmap :: IntMap Cluster,                                -- ^ Associates each variable to its respective cluster.
 
   relations :: IntMap [(Cluster, TypeConstraint)],       -- ^ For any given cluster, gives the related clusters (younger in age). For debugging purposes, the typing contraint
                                                          -- from which originated the relation is added to each edge or relation.
 
-  clusters :: IntMap [Type]                              -- ^ Give the contents of each cluster.
+  clusters :: IntMap [Type]                              -- ^ Gives the contents of each cluster.
 }
 
 
@@ -89,7 +92,8 @@ cluster_relations c poset =
         []
 
 
--- | Merge two clusters. The left cluster remains, and is augmented with the contents and relations of the right one.
+-- | Merges two clusters. The left cluster remains, and is augmented with the contents and relations of the right one.
+-- All the references to the right cluster are also replace by references to the left.
 merge_clusters :: Cluster -> Cluster -> Poset -> Poset
 merge_clusters c c' poset =
   if c == c' then
@@ -110,7 +114,7 @@ merge_clusters c c' poset =
              cmap = IMap.map (\d -> if d == c' then c else d) $ cmap poset' }
 
 
--- | Add an age relation between two clusters.
+-- | Adds an age relation between two clusters.
 new_relation :: Cluster -> Cluster -> TypeConstraint -> Poset -> Poset
 new_relation c c' cst poset =
   poset { relations = IMap.update (\r -> Just $ (c', cst):r) c $ relations poset }
@@ -139,9 +143,13 @@ free_var_with_flag (TBang _ (TCirc t u)) = free_var_with_flag t ++ free_var_with
 free_var_with_flag _ = []
 
 
--- | Register a constraint and its consequences upon the poset. If the constraint is atomic, then
--- the two clusters of the type variables are merged. Else it is of the form a <: T or T <: a. Relations are added from the cluster of a to the clusters of the free
+-- | Registers a constraint and its consequences upon the poset.
+-- 
+-- * If the constraint is atomic, then the two clusters of the type variables are merged.
+--
+-- * Else it is of the form a <: T or T <: a. Relations are added from the cluster of a to the clusters of the free
 -- variables of T.
+--
 register_constraint :: TypeConstraint -> Poset -> Poset
 register_constraint cst poset =
   case cst of
@@ -168,7 +176,7 @@ register_constraint cst poset =
                       new_relation cy cx cst poset') poset' fvt
 
 
--- | Register a list of constraints.
+-- | Registers a list of constraints.
 register_constraints :: [TypeConstraint] -> Poset -> Poset
 register_constraints clist poset =
   List.foldl (\poset c ->
@@ -179,7 +187,7 @@ register_constraints clist poset =
 -- All the following functions serve to find the youngest cluster / variables, given
 -- the relation defined in the cluster
 
--- | Returns a randomly chosen cluster.
+-- | Returns a randomly chosen cluster (fails if the poset is null).
 some_cluster :: Poset -> Cluster
 some_cluster poset =
   case IMap.keys $ clusters poset of
@@ -190,10 +198,14 @@ some_cluster poset =
         c
 
 
--- | Explore the relations graph, starting from any cluster. The first argument is the current cluster, the second a list of already explored clusters.
--- The walk stops as soon as it finds a cluster having no relatives (so locally younger). If at some point it comes upon a cluster it had already
--- visited, that means there is a cycle in the graph : it corresponds to an infinite type, and the walk fails.
-find_minimum :: Cluster -> [(TypeConstraint, Cluster)] -> Poset -> QpState Cluster 
+-- | Explores the relations graph, starting from some cluster.
+-- The walk stops as soon as it finds a cluster having no relatives (local minimum).
+-- If at some point it comes upon a cluster it had already visited, that means there is a
+-- cycle in the graph: the poset is inconsistant, and builds an infinite type (the walk fails).
+find_minimum :: Cluster                     -- ^ Current cluster.
+             -> [(TypeConstraint, Cluster)] -- ^ Historic of the walk (all the explored clusters, and the relations that lead to them).
+             -> Poset                       -- ^ The current poset.
+             -> QpState Cluster             -- ^ A minimum cluster.
 find_minimum c explored poset = do
   case cluster_relations c poset of
     -- No relation, this is a minimum !
@@ -273,7 +285,7 @@ check_cyclic c explored poset = do
 
 
 
--- | Finds a minimum of a poset. it relies on the function find_minimum, applied to start on a random cluster.
+-- | Finds a minimum of a poset. It relies on the function find_minimum, applied to start on a random cluster.
 minimum_cluster :: Poset -> QpState Cluster
 minimum_cluster poset = do
   c <- return $ some_cluster poset
@@ -289,7 +301,7 @@ minimum_cluster poset = do
   return cm
 
 
--- | Removes the cluster a poset : erases the relations involving this cluster, and removes the definition of the cluster.
+-- | Removes a cluster from a poset: all the relations involving this cluster are erased, the definition of the cluster removed.
 remove_cluster :: Cluster -> Poset -> ([Type], Poset)
 remove_cluster c poset =
   let cts = cluster_contents c poset in
@@ -298,7 +310,7 @@ remove_cluster c poset =
                 clusters = IMap.delete c $ clusters poset })
 
                 
--- | Returns the contents of the youngest cluster in a poset, after removing the cluster definition from the poset.
+-- | Returns the contents of a minimum cluster of a poset, after removing the said cluster definition from the poset.
 youngest_variables :: Poset -> QpState ([Type], Poset)
 youngest_variables poset = do
   c <- minimum_cluster poset

@@ -2,8 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module provides the pretty printing functions necessary to render
--- the types and expressions of the core syntax.
+-- | This module contains the 'Classes.PPrint' instance declarations of the types: Type, LinType, Pattern, Expr.
 module Typing.CorePrinter where
 
 import Classes
@@ -135,10 +134,13 @@ instance PPrint Pattern where
 
 
 
--- | Print an expression as a pp document.
--- Similarly to patterns, this expression is parametrized by two functions
--- giving the display of term variables and data constructors.
-print_doc :: Lvl -> Expr -> (Variable -> String) -> (Variable -> String) -> Doc
+-- | The display of expressions relies on the Text.PrettyPrint.HughesPJ library
+-- that allows for nested documents.
+print_doc :: Lvl                   -- ^ Maximum depth.
+          -> Expr                  -- ^ Expression to print.
+          -> (Variable -> String)  -- ^ Rendering of term variables.
+          -> (Variable -> String)  -- ^ Rendering of data constructors.
+          -> Doc                   -- ^ Resulting PP document.
 print_doc _ EUnit _ _ =
   text "()"
 

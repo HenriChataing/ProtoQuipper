@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Defines the program options.
+-- | Defines the command line options.
 module Options where
 
 import System.Console.GetOpt
@@ -10,23 +10,22 @@ import System.Directory
 import qualified Control.Exception as E
 import qualified Data.List as List
 
--- | Definition of the record type carrying the options.
+-- | Definition of the option vector.
 data Options = Options {
-  verbose :: Int,                  -- ^ Set the verbose level.
+  verbose :: Int,                  -- ^ Set the verbose level (default -1).
 
-  approximations :: Bool,          -- ^ If the unifier should make approximations.
-  workWithProto :: Bool,           -- ^ Unsugar the code.
+  approximations :: Bool,          -- ^ Authorizes  approximations in the unification (default nope).
 
-  includes :: [FilePath],          -- ^ Add a ditrectory to the list of includes.
+  includes :: [FilePath],          -- ^ List of include directories (default empty).
  
-  runInterpret :: Bool,            -- ^ Run the code.
+  runInterpret :: Bool,            -- ^ Interprets the code (default yes).
 
-  circuitFormat :: String          -- ^ Specify the output format of circuits (ignore for other values), default is "ir".
+  circuitFormat :: String          -- ^ Specifies the circuit output format (ignore for other values)  (default is \"ir\").
 } deriving Show
 
 
--- | Default set of options. By default, quipper only runs the type inference algorithm,
--- with no approximations during the unification, and no include directories.
+-- | Default set of options.
+-- The default options are defined above.
 default_options :: Options
 default_options = Options {
   -- General options
@@ -37,7 +36,6 @@ default_options = Options {
 
   -- Typing options
   approximations = False,
-  workWithProto = False,
 
   -- Actions
   runInterpret = True,
@@ -47,7 +45,7 @@ default_options = Options {
 }
 
 
--- | Link the actual command line options to modifications of
+-- | Links the actual command line options to modifications of
 -- the option state. 
 options :: [OptDescr (Options -> IO Options)]
 options =
@@ -65,8 +63,6 @@ options =
       "Don't run the proto-quipper code",
     Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
       "Authorize approximations in unfication algorithm",
-    Option []    ["proto"] (NoArg (\opts -> return opts { workWithProto = True }))
-      "Remove all syntactic sugar",
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
       "Specify the output format of circuits. Valid formats are 'visual' 'ir'"
   ]
@@ -100,7 +96,8 @@ prefix_of s names =
   List.filter (List.isPrefixOf s) names
 
 
--- | Read and set the verbose level of an option vector.
+-- | Reads and sets the verbose level of an option vector.
+-- If the level is something other than an integer, it fails via a call to optFail.
 read_verbose :: Maybe String -> Options -> IO Options
 read_verbose n opts =
   case n of
@@ -112,7 +109,9 @@ read_verbose n opts =
         return $ opts { verbose = 5 }
 
 
--- | Read and set the circuit format of an option vector.
+-- | Reads and sets the circuit format of an option vector.
+-- The format must be supported, and supported formats are \"visual\"and \"ir\".
+-- All other cases cause the parsing to fail.
 read_format :: String -> Options -> IO Options
 read_format f opts =
   let formats = ["visual", "ir"] in
@@ -122,7 +121,8 @@ read_format f opts =
     _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
 
 
--- | Add a directory to the list of includes.
+-- | Adds a directory to the list of include directories. It first checks the existence of the directory,
+-- and fails if it doesn't exist.
 include_directory :: String -> Options -> IO Options
 include_directory dir opts = do
   exist <- doesDirectoryExist dir
@@ -144,7 +144,7 @@ version = "Proto Quipper - v0.1"
 
 
 -- | Parses a list of string options, and returns the resulting option state.
--- Initially, the options are set to the default_option state.
+-- Initially, the options are set to the 'Options.default_option' state.
 parseOpts :: [String] -> IO (Options, [String])
 parseOpts argv = 
   case getOpt Permute options argv of

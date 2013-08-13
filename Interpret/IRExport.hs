@@ -1,4 +1,4 @@
--- | Module that defines an IR export tool for circuits. The main function, export_to_IR, inputs a circuit (defined in module Circuit)
+-- | Module that defines an IR export tool for circuits. The main function, export_to_IR, inputs a circuit (defined in module "Interpret.Circuits")
 -- and outputs a string that contains the IR specification of the circuit.
 module Interpret.IRExport where
 
@@ -7,11 +7,11 @@ import Interpret.Circuits
 import qualified Data.List as List
 
 
--- | The type of the IR document file.
+-- | The type of IR document files.
 type IRDoc = String
 
 
--- | Creates a new IR document, and initialized with the input wires.
+-- | Creates a new IR document, initialized with the input wires.
 new_with_inputs :: [Int] -> IRDoc
 new_with_inputs [] =
   "Inputs: none\n"
@@ -64,7 +64,7 @@ append_gate (Controlled g (c:rest)) irdoc =
   irdoc ++ List.init prg ++ " with controls=[+" ++ show c ++ List.foldl (\s w -> s ++ " +" ++ show w) "" rest ++"]\n"
 
 
--- | Prints the outputs of the circuit.
+-- | Adds the list of output wires to the document.
 append_outputs :: [Int] -> IRDoc -> IRDoc
 append_outputs [] irdoc =
   irdoc ++ "Outputs: none\n"
@@ -73,8 +73,8 @@ append_outputs (w:wires) irdoc =
   irdoc ++ List.foldl (\s w -> s ++ ", " ++ show w ++ ":Qbit") ("Outputs: " ++ show w ++ ":Qbit") wires ++ "\n"
 
 
--- | Export a circuit to IR format.
--- Before the export, the circuit is 'reallocated' via a call to allocate (Circuits) that optimises the use of
+-- | Exports a circuit to IR format.
+-- Before the export, the circuit is reallocated via a call to 'Interpret.Circuits.allocate' that optimises the use of
 -- wires.
 export_to_IR :: Circuit -> IRDoc
 export_to_IR circ =

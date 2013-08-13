@@ -35,26 +35,26 @@ instance Show Extent where
        (show $ column $ lend ex))
 
 
--- | Default locus : line and column numbers are set to 0.
+-- | Default locus: line and column numbers are set to 0.
 locus_unknown :: Locus
 locus_unknown =
   Loc { line = 0, column = 0 }
 
 
--- | Default extent : delimited by the default locus.
+-- | Default extent: delimited by the default locus.
 extent_unknown :: Extent
 extent_unknown =
   Ext { lbegin = locus_unknown, lend = locus_unknown }
 
 
 
--- | Default file name : unknown
+-- | Default file name: \"*Unknown*\"
 file_unknown :: String
 file_unknown =
   "*Unknown*"
 
 
--- | Return the union of two extents.
+-- | Returns the union of two extents.
 fromto :: Extent -> Extent -> Extent
 fromto ex1 ex2 =
   let begin = min (lbegin ex1) (lbegin ex2)

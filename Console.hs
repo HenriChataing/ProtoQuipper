@@ -1,7 +1,15 @@
 {-# LANGUAGE CPP #-}
 
--- | All the console commands that may not work on windows terminals are grouped in this
--- module.
+-- | Because mgwin32 doesn't support all the console operations used under linux,
+-- it is necessary to provide replacements to these particular operations.
+-- Are concerned:
+--
+-- * all the operations imported from the System.Console.ReadLine library, which library
+--   is not easily available under windows (and not necessary either, since the purpose of this library, ie command history, is
+--   naturally enforced).
+--
+-- * color display. It is simply removed then.
+--
 module Console where
 
 import Monad.QpState
@@ -14,19 +22,38 @@ import System.Console.Readline
 #endif
 
 
--- | Data type of console colors.
+-- | Definition of some colors.
 data Color = Red | Yellow | Blue
 
 
--- | Wait for a user command, with the prompt given as argument (eg : "# ").
-prompt :: String -> QpState (Maybe String)
+-- | Waits for a user command.
+--
+-- * Under linux, this is implemented by a call to the function readline of the System.Console.ReadLine module.
+--
+-- * Under windows, this is simply a call to the getLine function from the System.IO module. The shell already
+--   provides an historic.
+--
+prompt :: String                  -- ^ A prompt string, like "# " or "$ ".
+       -> QpState (Maybe String)  -- ^ A command line.
 
--- | Add a command to the history.
+
+-- | Adds a command to the history.
+--
+-- * Under linux, this is a call to the function addHistory of the System.Console.ReadLine module.
+-- 
+-- * Under windows, this function does nothing.
+--
 add_history :: String -> QpState ()
 
--- | Print some colored text.
+
+-- | Displays colored text. Again, this function is a simple call to putStr under windows.
 putStrC :: Color -> String -> QpState ()
+
+
+-- | Same as putStrC, expect that the used function is putStrLn instead of putStr.
 putStrLnC :: Color -> String -> QpState ()
+
+
 
 -- Windows or not windows, that is the question...
 #ifdef mingw32_HOST_OS

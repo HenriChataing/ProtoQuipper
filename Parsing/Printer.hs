@@ -1,4 +1,4 @@
--- | Provides all the printing functions of the surface syntax
+-- | Module that contains all the 'Classes.PPrint' instance declaration of the types: Type, Pattern, Expr.
 module Parsing.Printer where
 
 import Classes
@@ -8,7 +8,6 @@ import Parsing.Syntax
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
-{- Type printing -}
 
 instance PPrint Type where
   genprint lv t _ =
@@ -62,7 +61,6 @@ instance PPrint Type where
 
 
 
-{- Pattern printing -}
 
 instance PPrint Pattern where
   genprint lv p _ =
@@ -97,9 +95,9 @@ instance PPrint Pattern where
 
 
 
-{- Expression printing -}
 
--- | Print the expression as a PP document
+-- | The display of expressions relies on the Text.PrettyPrint.HughesPJ library
+-- that allows for nested documents.
 print_doc :: Expr -> Doc
 
 print_doc EUnit = text "()"

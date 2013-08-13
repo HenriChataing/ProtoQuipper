@@ -90,7 +90,7 @@ posn_to_extent (AlexPn p l c) s =
 -- | Definition of the tokens. 
 -- All the tokens are annotated by an extent corresponding to the location of the token
 -- in the original file. This will later serve to locate the parsed expressions.
--- The tokens can be separated in four categories : name tokens (variables),
+-- The tokens can be separated in four categories :name tokens (variables),
 -- punctuation marks, reserved notations, and delimiters.
 data Token =
   -- Name tokens : variables and data constructors

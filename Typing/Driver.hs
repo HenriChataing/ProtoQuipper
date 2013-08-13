@@ -60,13 +60,16 @@ lex_and_parse_interface file = do
   return $ IP.parse tokens
 
 
--- | Find the implementation of a module in a given directory
+-- | Finds the implementation of a module in a given directory
 -- The name of the code file is expected to be dir/module.ext,
--- where dir is the directory, module is the name of the module with
--- the first letter put to lower case, and ext the extension, which can be either .qp (implementation)
--- or .qpi (interface). 'dir' is taken in the provided list of directories.
+-- where dir is the directory, module is the name of the module (with
+-- the first letter put to lower case), and ext the extension, which can be either .qp (implementation)
+-- or .qpi (interface). \'dir\' is taken in the provided list of directories.
 -- If several implementations are found, an error is raised.
-find_in_directories :: String -> [FilePath] -> String -> QpState (Maybe FilePath)
+find_in_directories :: String       -- ^ Module name.
+                    -> [FilePath]   -- ^ List of directories.
+                    -> String       -- ^ Extension.
+                    -> QpState (Maybe FilePath)
 find_in_directories mod@(initial:rest) directories extension = do
   mfile <- return $ (Char.toLower initial):(rest ++ extension)
   existing <- List.foldl (\rec d -> do
@@ -90,9 +93,9 @@ find_in_directories mod@(initial:rest) directories extension = do
         throwQ $ DuplicateImplementation mod m1 m2
 
 
--- | Specifically look for the implementation of a module
+-- | Specifically looks for the implementation of a module.
 -- Since an implementation is expected, the function fails if no matching
--- file is found.
+-- file is found (and also if more than one exists).
 find_implementation_in_directories :: String -> [FilePath] -> QpState FilePath
 find_implementation_in_directories mod directories = do
   f <- find_in_directories mod directories ".qp"
@@ -105,7 +108,7 @@ find_implementation_in_directories mod directories = do
         throwQ $ NotExistingModule mod
 
 
--- | Specifically look for the interface of a module
+-- | Specifically looks for the interface of a module.
 -- Since the interface file is optional, so is the return value.
 find_interface_in_directories :: String -> [FilePath] -> QpState (Maybe FilePath)
 find_interface_in_directories mod directories =
@@ -116,9 +119,15 @@ find_interface_in_directories mod directories =
 -- | Recursively explore the dependencies of the program. It returns
 -- a map linking the modules to their parsed implementation, and a map corresponding
 -- to the dependency graph.
--- It proceeds to sort topologically the dependencies at the same time, using an in-depth exploration of the graph
--- Note that the return list is reversed, with the 'oldest' module first.
-explore_dependencies :: [String] -> S.Program -> [String] -> [S.Program] -> QpState ([S.Program], [String])
+-- It proceeds to sort the dependencies topologically using an in-depth exploration of the graph.
+-- Note that the return list is reversed, with the \'oldest\' module first.
+-- During the exploration, if a module is visited that had already been explored but not yet pushed on
+-- the sorted list, an error is generated (cyclic dependencies).
+explore_dependencies :: [FilePath]            -- ^ List of directories.
+                     -> S.Program             -- ^ Current module.
+                     -> [String]              -- ^ The list of explored modules.
+                     -> [S.Program]           -- ^ The dependencies that have already been sorted.
+                     -> QpState ([S.Program], [String])
 explore_dependencies dirs prog explored sorted = do
   -- Mark the module as explored
   explored <- return $ (S.module_name prog):explored
@@ -160,10 +169,16 @@ explore_dependencies dirs prog explored sorted = do
 -- | Sort the dependencies of file in a topological fashion
 -- The program argument is the main program, on which quipper has been called. The return value
 -- is a list of the dependencies, with the properties :
---      - each module may only appear once.
---      - for each module, every dependent module is placed before in the list.
---      - (as a corollary) the main module is placed last.
-build_dependencies :: [String] -> S.Program -> QpState [S.Program]
+--
+--     * each module may only appear once.
+--
+--     * for each module, every dependent module is placed before it in the sorted list.
+--
+--     * (as a corollary) the main module is placed last.
+--
+build_dependencies :: [FilePath]          -- ^ List of directories.
+                   -> S.Program           -- ^ Main module.
+                   -> QpState [S.Program] -- ^ Returns the total list of dependencies, sorted in a topological fashion.
 build_dependencies dirs main = do
   (deps, _) <- explore_dependencies dirs main [] []
   return $ List.reverse deps
@@ -172,7 +187,7 @@ build_dependencies dirs main = do
 
 
 
--- | Extensive context, used for the processing of declarations.
+-- | Extensive context, used during the processing of top-level declarations.
 data ExtensiveContext = Context {
   label :: Map String Int,        -- ^ A labelling map.
   typing :: TypingContext,        -- ^ A typing context.
@@ -184,16 +199,20 @@ data ExtensiveContext = Context {
 -- | Definition of processing options specific to modules (as is not the case with the program options that affect
 -- the whole program).
 data MOptions = MOptions {
-  toplevel :: Bool,               -- ^ Is the module at toplevel (in the sense : was it given as argument of the program).
+  toplevel :: Bool,               -- ^ Is the module at toplevel (in a sense: was it given as argument of the program).
   disp_decls :: Bool              -- ^ Display the variable declarations or not.
 }
 
 
 
--- | Process a list of declarations (corresponding to either commands in interactive mode or
--- the body of a module). The arguments include os the vector of command options, the current module,
+-- | Processes a list of toplevel declarations (corresponding to either commands in interactive mode or
+-- the body of a module). The arguments include the vector of command options, the current module,
 -- an extensive context, and a declaration.
-process_declaration :: (Options, MOptions) -> S.Program -> ExtensiveContext -> S.Declaration -> QpState ExtensiveContext
+process_declaration :: (Options, MOptions)       -- ^ The command line and module options combined.
+                    -> S.Program                 -- ^ The current module.
+                    -> ExtensiveContext          -- ^ The context.
+                    -> S.Declaration             -- ^ The declaration to process.
+                    -> QpState ExtensiveContext  -- ^ Returns the updated context.
 
 -- EXPRESSIONS
 process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
@@ -387,11 +406,18 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
 
 
--- | Process a module, from the syntax translation to the type inference
--- Every result produced by the type inference is recorded in the module
--- internal representation (type Module)? The module options indicate whether
--- the toplevel expressions must be executed or not (amongst others). 
-process_module :: (Options, MOptions) -> S.Program -> QpState ()
+-- | Processes a module. This implies, in turn:
+--
+-- * processing of the algebraic type definitions.
+--
+-- * processing of each of the toplevel declarations.
+-- 
+-- * linearity check at the end of the module implementation: checks that no
+-- global and non-duplicable variable is discarded.
+--
+process_module :: (Options, MOptions)  -- ^ Command line options and module options combined.
+               -> S.Program            -- ^ Module to process.
+               -> QpState ()
 process_module opts prog = do
 
 -- Configuration part
@@ -415,7 +441,7 @@ process_module opts prog = do
   import_globals
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs (workWithProto $ fst opts) $ S.typedefs prog
+  dcons <- import_typedefs False $ S.typedefs prog
   define_user_subtyping $ S.typedefs prog
   define_user_properties $ S.typedefs prog
   update_module_types
@@ -461,9 +487,11 @@ process_module opts prog = do
 
 -- ==================================== --
 -- | DO EVERYTHING !
--- To sort the dependencies of a list of modules, and e able to reuse the existing functions for single modules,
+-- To sort the dependencies of a list of modules, and be able to reuse the existing functions for single modules,
 -- a dummy module is created that imports all the toplevel modules (never to be executed).
-do_everything :: Options -> [FilePath] -> QpState ()
+do_everything :: Options       -- ^ Command line options.
+              -> [FilePath]    -- ^ List of all the modules to process.
+              -> QpState ()
 do_everything opts files = do
   -- Define the builtins
   import_builtins
@@ -486,32 +514,4 @@ do_everything opts files = do
                 return ()) (return ()) deps
 -- ===================================== --
 
-
--- | A unification test : the unification alogorithm is run
--- on a set of typing constraints. It doesn't return anything, 
--- but prints the constraint after the unification
-unification_test :: [(S.Type, S.Type)] -> IO String
-unification_test set =
-  let run = do
-      set_verbose 2
-
-      -- Translate the types in the internal syntax
-      (constraints, _) <- List.foldl (\rec (t, u) -> do
-                                        (r, lbl) <- rec
-                                        (t', csett, lblt) <- translate_type t [] (lbl, False)
-                                        (u', csetu, lblu) <- translate_type u [] (lblt, False)
-                                        return ([t' <: u'] <> csett <> csetu <> r, lblu)) (return (emptyset, Map.empty)) set
-      newlog 1 $ pprint constraints
-
-      -- Run the unification algorithm
-      constraints <- break_composite True constraints
-      newlog 1 $ pprint constraints
-
-      -- Unification
-      constraints <- unify True constraints
-      return $ pprint constraints
-  in
-  do
-    (_, s) <- runS run empty_context
-    return s
 

@@ -1,4 +1,5 @@
--- | This module describe a data structure used to represent modules internally.
+-- | This module describe a data structure used to represent modules internally, as opposed to the type
+-- 'Parsing.Syntax.Program' that describes modules as parsed by the parser.
 module Monad.Modules where
 
 import Typing.CoreSyntax
@@ -10,30 +11,33 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
 
--- | Internal representation of a module.
+-- | Internal representation of a module. It results from the processing
+-- of a module implementation.
 data Module = Mod {
   -- Module name, and path to code file
   module_name :: String,             -- ^ Module name.
-  filepath :: FilePath,              -- ^ Path to implementation file.
+  filepath :: FilePath,              -- ^ Path to implementation file (no path to interface file).
 
   -- Module dependencies
   dependencies :: [String],          -- ^ List of module dependencies.
 
   -- Specifications of the module types
-  typespecs :: Map String Typespec,  -- ^ List of the module's types definitions.
+  typespecs :: Map String Typespec,  -- ^ List of the type definitions.
 
   -- Ids of the global variables
-  global_ids :: Map String Variable, -- ^ List of the module's global variables.
+  global_ids :: Map String Variable, -- ^ List of the global variables (the global variables are declared
+                                     -- by toplevel declarations, and must appear in the interface file if one
+                                     -- is provided).
 
   -- Types of the global variables
   global_types :: IntMap Type,       -- ^ Types of the global variables.
 
   -- Global variables definitions
-  global_vars :: IntMap Value        -- ^ If the option -r is entered, values of the global variables.
+  global_vars :: IntMap Value        -- ^ Values of the global variables.
 }
 
 
--- | Dummy module, never to be used.
+-- | Dummy module.
 dummy_module :: Module
 dummy_module = Mod {
   module_name = "Dummy",

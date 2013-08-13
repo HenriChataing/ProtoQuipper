@@ -1,4 +1,4 @@
--- | This module implements the constraint typing algorithm, and the unification algorithm.
+-- | This module implements the constraint typing algorithm and the unification algorithm.
 module Typing.TypeInference where
 
 import Prelude hiding (filter)
@@ -58,10 +58,89 @@ filter fc = do
 
 
 
--- | Builds the constraint typing derivation. The algorithm inputs and incomplete constraint typing judgement
+-- | Builds the constraint typing derivation. The algorithm inputs and incomplete constraint typing judgment
 -- G |- t : T_1 .. T_n, and produces the constraint set L such that the relation G |- t : T_1 .. T_n [L] holds.
--- The list of types T_1 .. T_n correponds to a set of upper bounds of the type of t. It is initially of size 1 and
+-- The list of types T_1 .. T_n corresponds to a set of upper bounds of the type of t. It is initially of size 1 and
 -- can be increased via the expressions (e <: T) imposing that the type of e be a subtype of T.
+-- The constraint typing relations are (case by case):
+--
+-- STLC terms:
+--
+-- @
+--   ------------------------------------------- (ax)
+--    !I G, x : T  |- x : U  [{1 <= I, T <: U}]
+-- @
+--
+-- @
+--                   !I G, x : !n a |- t : !m b  [L]
+--   --------------------------------------------------------------- (abs)
+--    !I G |- fun x -> t : T  [L u {p \<= I, !p(!n a -\> !m b) <: T}]
+-- @
+--
+-- @
+--    Gt |- t : !0(!n a -> T)   [L]            
+--    Gu |- u : !n a            [L']        G \\ (t+u) = !I D
+--   -------------------------------------------------------- (app)
+--           G |- t u : T     [L u L' u {1 <= I}]
+-- @
+--
+-- Tensor rules:
+--
+-- @
+--   ---------------------------------------- (1)
+--    !I G  |- * : T  [{1 <= I, !1 () <: T}]
+-- @
+--
+-- @
+--            Gt |- t : !n a   [L]
+--            Gu |- u : !m b   [L']          G \\ (t+u) = !I D
+--   --------------------------------------------------------------------- (*.I)
+--    G |- \<t, u\> : !p(!n a * !m b)   [L u L' u {1 <= I, p <= n, p <= m}]
+-- @
+--
+-- @
+--    Gt |- t : !p(!n a * !m b)           [L]
+--    Gu, x : !n a, y : !m b |- u : T     [L']            G \\ (t+u) = !I D
+--   ----------------------------------------------------------------------- (*.E)
+--    G |-  let \<x, y\> = t in u : T     [L u L' u {1 <= I, p <= n, p <= m}]
+-- @
+--
+-- Booleans rules:
+--
+-- @
+--   --------------------------------------------- (top)
+--    !I G  |- true : T  [{1 <= I, !1 bool <: T}]
+-- @
+--
+-- @
+--   ---------------------------------------------- (bot)
+--    !I G  |- false : T  [{1 <= I, !1 bool <: T}]
+-- @
+--
+-- @
+--    Gt |- t : !0 bool   [L]
+--    Gu,v |- u : T       [L']          
+--    Gu,v |- v : T       [L'']            G \\ (t+(u,v)) = !I D
+--   ------------------------------------------------------------ (if)
+--     G |- if t then u else v : T     [L u L' u L'' u {1 <= I}]
+-- @
+--
+-- Circuit constructors: 
+--
+-- @
+--   ----------------------------------------------------------------------------- (box)
+--    !I G |- box[T] : U   [{1 \<= I, !1(!1(T -> !n a) -> !1 circ(T, !n a)) <: U}]
+-- @
+--
+-- @
+--   ----------------------------------------------------------------------------------- (unbox)
+--    !I G |- unbox : T   [{1 \<= I, !1(!0 circ (!n a, !m b) -> !1(!n a -> !m b)) <: U}]
+-- @
+--
+-- @
+--   -------------------------------------------------------------------------------------- (rev)
+--    !I G |- rev : U   [{1 \<= I, !1(!0 circ (!n a, !m b) -> !1 circ (!m b, !n a)) <: U}]
+-- @
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
 -- | Located things

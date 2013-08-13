@@ -63,7 +63,7 @@ count : clean
 haddock : haddock-documentation haddock-html-sources
 
 haddock-documentation : $(MODULES)
-	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "prologue.txt"
+	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "maintainer/prologue.txt"
 
 haddock-html-sources : $(MODULES:%.hs=haddock-doc/src/%.html)
 

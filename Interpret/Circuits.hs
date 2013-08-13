@@ -1,6 +1,13 @@
 -- | All about working with circuits. Includes the definition of the basic
 -- circuit gates, the data type definition of a circuit along with all the semantic
 -- operations such as encapsulating, printing...
+-- In short:
+--
+-- * Gates are classed in categories: init and term gates together, the phase gate (parametrized over the angle), the unary and the binary gates
+--   together. The controlled gates are not supported by the syntax yet, but still a dedicated constructor is present.
+--
+-- * Circuit are represented by: the lists of input and output wires, the list of building gates.
+--
 module Interpret.Circuits where
 
 import Data.List as List
@@ -9,7 +16,7 @@ import Data.Map as Map
 import Classes
 
 
--- | List of unary gates.
+-- | The list of unary gates.
 -- Unary gates are defined by : their name, the name of the reversed gate, the symbol to use to represent it in
 -- the display of the circuit (three chars).
 unary_gates :: [(String, (String, String))]
@@ -30,7 +37,7 @@ unary_gates =
     ("GATE_V_INV", ("GATE_V", "[\x0305V]")) ]
 
 
--- | List of binary gates.
+-- | The list of binary gates.
 -- The definition of a binary gate is similar to that of a unary one, but for the symbolic
 -- representation which now takes two characters, one for each wire.
 binary_gates :: [(String, (String, (String, String)))]
@@ -44,7 +51,12 @@ binary_gates =
 -- | Class of objects that can be unencapsulated, typically
 -- gates and circuits.
 class Caps a where
-  unencap :: Circuit -> a -> Binding -> (Circuit, Binding)
+  -- | Unencapsulates a circuit (or gate circuit). The type follows the operational semantics of Proto-Quipper.
+  unencap :: Circuit               -- ^ The base circuit.
+          -> a                     -- ^ The circuit (gate circuit) that is to be appended.
+          -> Binding               -- ^ A welding function.
+          -> (Circuit, Binding)    -- ^ Returns the resulting circuit, together with a mapping from the output wires
+                                   -- of the appended circuit to new wire identifers.
 
 
 -- | A binding is defined as a list of mappings q |-> q'.
@@ -60,24 +72,34 @@ apply_binding b a =
   Nothing -> a
 
 
--- | Given the input of a circuit, select an new unused address.
+-- | Given the input of a circuit, selects an new unused address.
+-- Since no list keeps track of the unused wires, new wire identifiers are chosen by taking the smallest value
+-- not yet in use.
 fresh_address :: [Int] -> Int
 fresh_address [] = 0
 fresh_address l = (maximum l) + 1
 
 
--- | Definition of the basic gates
+-- | Definition of the basic gates.
 data Gate =
     Init Int Int            -- ^ The initializers  0|-  and  1|-  are treated as gates.
   | Term Int Int            -- ^ Same thing : gates  -|0  and  -|1.
-  | Phase Int Int           -- ^ The phase gate, with a rotation by Pi / n.
+  | Phase Int Int           -- ^ The phase gate, represented by the matrix:
+                            -- 
+                            -- @
+                            --               | 1        0     |
+                            --        R(n) = |                |
+                            --               | 0   e^(i Pi/n) |
+                            -- @
   | Unary String Int        -- ^ Unary gates. The first argument is the gate name, one of the list unary_gates defined above.
   | Binary String Int Int   -- ^ Binary gates. The first argument is the gate name, one of the list binary_gates.
   | Controlled Gate [Int]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear.
+                            -- This constructor will have to be elaborated as soon as controls are added to Proto-Quipper syntax to
+                            -- be able to distinguish between positive and negative controls.
     deriving Show
 
 
--- | Readdressing of a gate : more specifically, applies the provided binding to the input and output of the gate.
+-- | Readdressing of a gate : more specifically, applies the provided binding to the input and output of a gate.
 readdress :: Gate -> Binding -> Gate
 readdress (Phase n q) b = Phase n (apply_binding b q)
 readdress (Unary s q) b = Unary s (apply_binding b q)
@@ -85,7 +107,7 @@ readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb
 readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (apply_binding b) qlist)
 
 
--- | Gates are reversible objects. The reverse function uses the definition of the unary / binary gates
+-- | The reverse function uses the definition of the unary / binary gates
 -- to know the name of the reversed gate.
 instance Reversible Gate where
   -- Init and term are mutual inverses
@@ -106,8 +128,9 @@ instance Reversible Gate where
   rev (Controlled g qlist) = Controlled (rev g) qlist
 
 
--- | Define the unencapsulating of a gate. The wires of the gate are renamed to match the wires to which the gate is
--- to be appended, and then the gate is added to the list of gates of the circuit. 
+-- | Defines the unencapsulating of a gate. The wires of the gate are renamed to match the wires to which the gate is
+-- to be appended, and then the gate is added to the list of gates of the circuit.
+-- The input and output wires of the circuit may be modified by the appending of init or term gates. 
 instance Caps Gate where
   -- Normal gates
   unencap c g@(Phase _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
@@ -122,9 +145,20 @@ instance Caps Gate where
     (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
 
 
--- | Display the gate on one column, and return the result as a list of associations
--- (line number, output). The wires are placed on even line numbers, and odd line numbers correspond
--- to gaps between lines (ie the wire addresses are multiplied by 2, and additional lines are created to fill the odd line numbers).
+-- | Returns the gate concrete display. More specifically, all gates are printed on one column, and this function
+-- returns what part of a gate appear on what line. For example, considering the gate CNOT (0, 1), its display is:
+--
+-- @
+--  0  (+)
+--  1   |
+--  2  -*-
+-- @
+-- 
+-- and the return value:
+-- @
+--   (0, \"(+)\"), (1, \" | \"), (2, \"-*-\")
+-- @
+-- Note that the wire identifiers are multiplied by two, as interlines are added to lighten the display.
 model :: Gate -> [(Int, String)]
 model (Binary s qa qb) =
   let sym = case List.lookup s binary_gates of
@@ -221,9 +255,9 @@ set_addressing adr =
   AdState (\_ -> (adr, ()))
 
 
--- | Bind the wire to some unused line in the grid.
+-- | Binds a wire to some unused line in the grid.
 -- If an existing line is unused, this one is used preferably, else a new line is
--- create.
+-- created.
 bind_wire :: Int -> AdState Int
 bind_wire q = do
   adr <- get_addressing
@@ -241,7 +275,7 @@ bind_wire q = do
         return w
 
 
--- | Lookup the number of the line a wire has been associated to.
+-- | Looks up the number of the line a wire has been mapped to.
 assoc_wire :: Int -> AdState Int
 assoc_wire q = do
   adr <- get_addressing
@@ -257,7 +291,7 @@ assoc_gate g = do
   return $ readdress g binding
 
 
--- | Delete a wire, and set it up to be reused.
+-- | Deletes a wire, and sets it up to be reused.
 delete_vire :: (Int, Int) -> AdState ()
 delete_vire (q, w) = do
   adr <- get_addressing
@@ -265,7 +299,7 @@ delete_vire (q, w) = do
                          bind = List.delete (q, w) $ bind adr }
 
 
--- | Allocate a list of gates, and returns the list of modified gates.
+-- | Allocates a list of gates, and returns the list of modified gates.
 state_allocate :: [Gate] -> AdState [Gate]
 state_allocate [] = do
   return []
@@ -287,8 +321,8 @@ state_allocate (g:cg) = do
   return (g':cg')
 
 
--- | Allocate a whole circuit, and returns the modified circuit, along with the total number
--- of used lines.
+-- | Allocates a whole circuit, and returns the modified circuit, along with the total number
+-- of lines that are occupied.
 allocate :: Circuit -> (Circuit, Int)
 allocate c =
   let AdState run = do
@@ -315,13 +349,17 @@ allocate c =
 
 
 
--- | If the circuit display can be considered as a grid, this is one of the columns, defined
--- by a map of line numbers to string representation. In reality, each column is three characters wide, and
--- a line can be undefined (it will be interpreted as "   " during the display).
-data Column = Col { chars :: Map Int String }
+-- | Corresponds to a column of the circuit visual display. It is represented by a map
+-- associating each line to its content. The map needn't be complete, and missing lines
+-- will be considered as empty spaces.
+data Column = Col {
+  chars :: Map Int String  -- ^ Line by line representation of the column.
+}
 
 
--- | The max number of columns, set to 80 by default (to be divided by the actual width of a column, ie 3).
+-- | The maximum number of columns that can fit the console screen.
+-- By default, it is set to 80 (to be divided by the actual width of a column, ie 3). It would be possible to use
+-- the library System.Console.ANSI to get the actual width of the creen, however it would mean another library to install...
 maxColumns :: Int
 maxColumns = 80 
 
@@ -332,11 +370,11 @@ data Grid = Grid { gsize :: Int,               -- ^ Number of lines.
                    cut :: Bool }               -- ^ Flag set when the circuit is too long in length.
             
  
--- | Starting from the right of the grid, move left on the line until it finds
+-- | Starting from the right of the grid, moves left on the line until it finds
 -- a column that is not empty. For example, say the line is  [ c b a _ _ _ _ ] where
 -- _ indicates that the line is undefined in the current column. The cursor will start
 -- at the right, and go left until it finds the character "a", at which point it is blocked.
--- The return value is the column number.
+-- The return value is this specific column's number.
 free_depth :: Int -> [Column] -> Int
 free_depth l [] = -1
 free_depth l (c:cl) = case Map.lookup l $ chars c of
@@ -350,7 +388,7 @@ free_common_depth :: [Int] -> [Column] -> Int
 free_common_depth ls c = List.minimum (List.map (\l -> free_depth l c) ls)
 
 
--- | Hide the display grid behind a state monad.
+-- | Hides the display grid behind a state monad.
 newtype GrState a = GrState (Grid -> (Grid, a))
 instance Monad GrState where
   return a = GrState (\gr -> (gr, a))
@@ -410,15 +448,16 @@ print_multi ls = do
     return ()
 
 
--- | Print a gate.
+-- | Prints a gate.
 print_gate :: Gate -> GrState ()
 print_gate g = do
   print_multi $ model g
 
 
--- | Output the whole line, filling the gaps (undefined lines in column definitions) with space characters.
--- The boolean argument indicates whether the line is of the input wires.
-output_line :: Bool -> Int -> GrState String
+-- | Outputs the whole line, filling the gaps (undefined lines in column definitions) with space characters.
+output_line :: Bool             -- ^ Indicates whether the line is one of the input wires (which means it has to be printed).
+            -> Int              -- ^ The line number.
+            -> GrState String   -- ^ The complete line.
 output_line input l = do
   gr <- get_grid
   -- First characters of the line

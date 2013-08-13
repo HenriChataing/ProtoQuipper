@@ -60,20 +60,11 @@ subvar x n =
   x:(subscript $ show n)
 
 
--- | Return the name of the module encoded by the file f.
+-- | Returns the name of the module encoded by the file f.
 module_of_file :: FilePath -> String
 module_of_file f =
   let (init:body) = (P.dropExtension . P.takeFileName) f in
   (Char.toUpper init):body
-
-
--- | Apply a binding function, described as a list of pairs x |-> y, to an integer.
--- The function behaves as the identity if the variable is not mapped.
-apply_binding :: [(Int, Int)] -> Int -> Int
-apply_binding b a =
-  case List.lookup a b of
-  Just a' -> a'
-  Nothing -> a
 
 
 -- | Performs the disjoint union of a list of sets.

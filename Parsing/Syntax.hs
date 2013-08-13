@@ -1,5 +1,5 @@
 -- | This module gives the definition of the syntax of the expressions as parsed by the parser.
--- It includes the syntax of types, patterns, and expression.
+-- It includes the syntax of types, patterns, and expressions.
 module Parsing.Syntax where
 
 import Classes
@@ -30,7 +30,7 @@ data Declaration =
 
 
 
--- | Definition of a program (= module)
+-- | Definition of a program (= module).
 data Program = Prog {
 -- Module name and file
   module_name :: String,                     -- ^ Name of the module.
@@ -89,11 +89,11 @@ data Type =
   | TBang Type                -- ^ !A
 
 -- Quantum related types
-  | TQbit                     -- ^ qbit
+  | TQbit                     -- ^ qbit
   | TCirc Type Type           -- ^ circ (A, B)
 
 -- Sum types : bool and generic type instanciation
-  | TApp Type Type            -- ^ Generic type instanciation, for example 'list int' is 'int' applied to 'list'.
+  | TApp Type Type            -- ^ Generic type instanciation, for example \'list int\' is \'int\' applied to \'list\'.
   | TBool                     -- ^ bool
   | TInt                      -- ^ int
 
@@ -159,7 +159,8 @@ instance Located Type where
 
 -- | Definition of patterns.
 data Pattern =
-    PJoker                               -- ^ _ (any value, causes no bindings)
+    PJoker                               -- ^ _. Is called the joker, the wildcard .. It's an empty pattern used to signify that the value has to be discarded.
+                                         -- It can be used in Proto-Quipper on the condition that it be duplicable.
   | PUnit                                -- ^ ()
   | PVar String                          -- ^ x
   | PTuple [Pattern]                     -- ^ (x1, .., xn). By construction, n must be >= 2.
@@ -209,18 +210,18 @@ data Expr =
 
 -- Addition of tensors
   | ETuple [Expr]                  -- ^ (e1, .., en). Same as patterns, n >= 2.
-  | ELet RecFlag Pattern Expr Expr -- ^ let [rec] p = e in f
+  | ELet RecFlag Pattern Expr Expr -- ^ let [rec] p = e in f
   | EUnit                          -- ^ ()
 
 -- Addition of sum types
   | EDatacon String (Maybe Expr)   -- ^ Datacon e
   | EMatch Expr [(Pattern, Expr)]  -- ^ match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)
-  | EIf Expr Expr Expr             -- ^ if e then f else g
+  | EIf Expr Expr Expr             -- ^ if e then f else g
   | EBool Bool                     -- ^ true / false
-  | EInt Int                       -- ^ Tntegers
+  | EInt Int                       -- ^ Integers
 
 -- Circuit construction
-  | EBox Type                      -- ^ box[A]
+  | EBox Type                      -- ^ box[T]
   | EUnbox                         -- ^ unbox
   | ERev                           -- ^ rev
 
@@ -262,8 +263,8 @@ instance Located Expr where
 
 
 
--- | Translate an pattern into the corresponding expression. For example, the pattern (x, y is transformed
--- into the expression (x, y (...). The location annotations are conserved.
+-- | Translates an pattern into the corresponding expression. For example, the pattern (x, y) is transformed
+-- into the expression (x, y) (...). The location annotations are conserved.
 expr_of_pattern :: Pattern -> Expr
 expr_of_pattern PUnit = EUnit
 expr_of_pattern (PVar x) = EVar x
@@ -271,8 +272,8 @@ expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
 expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
 
 
--- | Function reverse of expr_of_pattern : translate an expression into the corresponding pattern. When
--- expr_of_pattern was sure to succeed, this one may fail if called on smth "not a pattern" : for example
+-- | Function reverse of expr_of_pattern: translates an expression into the corresponding pattern. When
+-- expr_of_pattern was sure to succeed, this one may fail if called on something \"not a pattern\" : for example
 -- a lambda abstraction. The locations are conserved.
 pattern_of_expr :: Expr -> Pattern
 pattern_of_expr EUnit = PUnit
