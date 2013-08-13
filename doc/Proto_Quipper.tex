@@ -100,10 +100,12 @@ Hadamard gate to wire number 3''.
 
 \section{The Core Language}
 
-In this section we present the language for the core of 
-Proto-Quipper.
+In this section, we define the core of Proto-Quipper. We 
+present in details the syntex, type system and 
+operational semantics of the language.
 
 \subsection{Types and terms}
+\label{ssec-types-and-terms}
 
 \begin{definition} 
 The \emph{types} of Proto-Quipper are defined by:
@@ -136,10 +138,13 @@ $!^nA$, with $n\in\N$, to mean:
 \underbrace{!\ldots !}_{n} A.
 \]
 The remaining types are specific to Proto-Quipper. The elements 
-of $qubit$ are (quantum) wire identifiers. The QData types are 
-circuit endpoints, which consist of tuples of wire identifiers. 
-Finally, the type $Circ(T,U)$ is the set of all circuits having 
-$T$-type input and $U$-type output. 
+of $qubit$ are (quantum) wire identifiers. A $qubit$ is essentially 
+a reference to a  logical qubit within a computation. It can be 
+thought of as a reference to a quantum bit on some physical device, 
+or simply as a  reference to a quantum wire within a circuit being 
+generated. The QData types are circuit endpoints, which consist of 
+tuples of wire identifiers. Finally, the type $Circ(T,U)$ is the 
+set of all circuits having $T$-type input and $U$-type output. 
 
 \begin{definition}
 Assume three countable sets: a set $\vset$ of \emph{variables}, a 
@@ -893,8 +898,8 @@ By case distinction on $a$.
 
 \section{Type Safety}
 
-In this section, we establish that Proto-Quipper is a 
-\emph{type safe} language. We follow \cite{WrFe94} in 
+In this section, we establish that the core of  Proto-Quipper 
+is a \emph{type safe} language. We follow \cite{WrFe94} in 
 considering that a language is type safe if it enjoys the 
 following two properties: 
 \begin{description}
@@ -992,7 +997,7 @@ In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape
 \end{proof}
 
 \begin{lemma}
-\emph{(Substitution)}
+{\bf (Substitution).}
 \label{substitution}
 If $v\in\mathtt{Val}$ and both $\Gamma',!\Delta;Q' \entails v:B$ and 
 $\Gamma,!\Delta,x:B;Q \entails a:A$ are valid typing judgements, 
@@ -1361,7 +1366,7 @@ We treat them individually.
   QData type, we know by 
   Lemma~\hyperref[context_value]{\ref*{context_value}}
   that the typing derivation $\pi$ is 
-  \begin{changemargin}{-4.8cm}{-1cm}
+  \begin{changemargin}{-4cm}{-2.3cm}
   \[
   \infer[]{!\Delta; FQ(v)\entails (unbox~(t,D,t'))v :U}{
     \infer[]{!\Delta;\emptyset\entails unbox(t,D,t'):T\loli U}{
@@ -1412,7 +1417,7 @@ We treat them individually.
   \]
   with $a=rev(t,D,t')$ and $a'=(t',D^{-1},t)$. The typing derivation $\pi$ 
   is therefore
-  \begin{changemargin}{-2.7cm}{-1cm}
+  \begin{changemargin}{-2.7cm}{-1.6cm}
   \[
   \infer[]{!\Delta;\emptyset\entails rev(t,D,t'):!^nCirc(U,T)}{
     \infer[]{!\Delta;\emptyset \entails rev:Circ(T,U)\loli !^nCirc(U,T)}{
@@ -1467,7 +1472,7 @@ We treat them individually.
 \end{proof}
 
 \begin{corollary}
-\emph{(Subject Reduction)}
+{\bf (Subject Reduction).}
 If $\Gamma;FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure 
 and $[C,a]\to^* [C',a']$, then $\Gamma;FQ(a')\entails [C',a']:A,(Q'|Q'')$ 
 is also a valid typed closure.
@@ -1510,7 +1515,7 @@ By induction on the typing derivation of $v$.
 \end{proof}
 
 \begin{proposition}
-\emph{(Progress)}
+{\bf (Progress).}
 If $FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure then either 
 $a\in\mathtt{Val}$ or there exists a closure $[C',a']$ such that 
 $[C,a]\to [C',a']$.
@@ -1661,46 +1666,131 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 \section{Type Inference}
 
+In this section, we describe the type inference algorithm 
+for Proto-Quipper. We detail the algorithm and prove its 
+correctness for a fragment of the language and explain, 
+at the end of the section, how to extend it to the rest 
+of the language.
+
 \input{algorithm.tex}
 
 
 \section{Extensions}
+\label{sec-extensions}
 
-\subsection{Algebraic Types, Integers and Lists}
+In this section, we describe some features of Proto-Quipper that 
+are implemented and thus available to the programmer but whose 
+formalization is currently under development. Thus these extensions 
+of the core language have not yet been proven to be type-safe.
 
-\subsection{Polymorphism}
+\paragraph{Polymorphism}
 
-\subsection{Recursion}
+\paragraph{Algebraic Types, Integers and Lists}
+
+\paragraph{Recursion}
 
 
 \section{Future work}
 
-\subsection{Reversibility}
+In this section, we describe some ongoing and future developments 
+of Proto-Quipper.
 
-In the current type system, any circuit can be reversed. 
-This is because the present version of Proto-Quipper does not 
-make a distinction between reversible and irreversible circuits. 
-Of course, this will have to be modified to accommodate non-reversible 
-gates such as measurements.
+\paragraph{Extensions and proof mechanization} We are 
+currently incorporating the language extensions discussed 
+in the previous section (polymorphism, algebraic data types, 
+\ldots) to the type safe fragment of the language. This 
+progressive augmentation process is inherent to Proto-Quipper 
+since the language was defined to be a type safe 
+reconstruction of Quipper. For every extension, the proofs 
+of type safety have to be rewritten. This is both time-consuming 
+and error-prone. We are therefore investigating the use 
+of theorem provers (such as Coq, Abella, Twelf, \ldots) to assist 
+in establishing meta-properties of future versions of 
+Proto-Quipper. 
 
+\paragraph{Reversibility and measurements} In Proto-Quipper 
+0.1, all circuits are reversible. This follows from the 
+definition of the $(rev)$ and $(circ)$ typing rules and will 
+have to be modified to accommodate non-reversible gates such 
+as measurements. Ideally, the type system would ensure that 
+circuits are reversed only if it is meaningful to do so. In 
+particular, if a circuit contains a measurement, then it 
+should not be possible to reverse it. Preliminary research 
+shows this can be attained by extending the language with a 
+new modality $R$ accounting for reversibility. 
 
-\subsection{Classical vs. Quantum Circuits}
-Classical and quantum wires
+\paragraph{Dependent types and parametrized families of circuits} 
+A circuit generating function that inputs a list of qubits does not 
+define a particular circuit but a family of circuits parametrized 
+by the integer $n$ corresponding to the length of the input list.
+To box such a function, a particular value of $n$ has to be given. 
+This is also true of other higher-order functions acting on circuits, 
+such as reversing. In Quipper, this is handled by asking the user 
+to provide a ``shape" specifying the instance of the family on 
+which to act. An alternative solution to this user-specified shape 
+would be to make Proto-Quipper's type system dependent in order to 
+store shape information at the type level.
 
-\subsection{Non-Linear Controls}
+\paragraph{Lingering arguments} In the current version of 
+Proto-Quipper, all the wires manipulated in the body of a function 
+must be explicitly returned. It is not possible to implicitly 
+return the wires that have not been terminated. We plan to 
+give Proto-Quipper the ability to handle such ``lingering 
+arguments" automatically.
 
-\subsection{Dynamic Lifting}
+\paragraph{Non-linear controls} Proto-Quipper handles qubits 
+in a strictly linear fashion. This ensures that qubits are 
+never discarded or duplicated and is therefore key in 
+guaranteeing that the type system enforces physical properties 
+such as no-cloning. However, this discipline is too strict since 
+certain operations, like controlling, can safely use a qubit in 
+non-linear fashion. We plan to add to Quipper the ability to 
+use qubits as controls in a non-linear fashion.
 
-This property might be 
-modified in later versions of the language if a notion of \emph{dynamic lifting} is added.
+\paragraph{Dynamic lifting} The reduction in Proto-Quipper 
+is non-probabilistic. Of course, the hypothetical quantum 
+device running the circuit produced by Proto-Quipper would 
+have to perform probabilistic operations, but the circuit 
+generation itself doesn't have to. This is justified by the 
+``principle of deferred measurement" which states that any 
+quantum circuit is equivalent to one where all measurements 
+are performed as the very last operations (see, e.g., 
+\cite{NC02} p.186). We therefore don't need to rely on the 
+result of a measurement to construct circuits and, in theory, 
+no computational power is lost by making this assumption. In 
+practice, however, this delaying of measurement may 
+significantly increase the size of the circuit. Thus in terms 
+of computational resources it is advantageous to have circuit 
+generating functions that use measurement results. In fact, 
+several existing quantum algorithm, among which the USV 
+algorithm provided to us by the QCS project, rely on such 
+interactive circuit building. In Quipper, this property is 
+captured by the notion of \emph{dynamic lifting} wherein a 
+Bit (a circuit-execution time value) is lifted to a Bool (a 
+circuit-generation time value). Adding such a feature to 
+Proto-Quipper would make the reduction relation probabilistic 
+but at the time of writing, the way in which this extension 
+should be carried through it still unknown. 
 
-\subsection{Dependent types}
 
 \section{Proto-Quipper User Guide}
+
+In this section, we provide a tutorial-style introduction to 
+programming in Proto-Quipper. 
+
 \input{tutorial}
 
-\section*{Acronyms}
-\addcontentsline{toc}{section}{Acronyms}
+\section*{Glossary of Acronyms}
+\addcontentsline{toc}{section}{Glossary of Acronyms}
+
+\begin{itemize}
+  \item QP = Proto-Quipper.
+  \item QP' = Type-inference version of Proto-Quipper.
+  \item QFT = Quantum Fourier Transform.
+  \item QFT3 = Quantum Fourier Transform on three qubits.
+  \item QLC = Quantum Lambda Calculus.
+  \item USV = Unique Shortest Vector.
+\end{itemize}
 
 \bibliography{biblio}{}
 \bibliographystyle{plain}
