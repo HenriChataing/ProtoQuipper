@@ -152,12 +152,12 @@ import_typedefs typedefs = do
                                              (dtype, argtyp, cset) <- case dtype of
                                                                  -- If the constructor takes no argument
                                                                  Nothing -> do
-                                                                     return (TBang 1 (TUser typename args'), TBang 1 TUnit, emptyset)
+                                                                     return (TBang one (TUser typename args'), TBang one TUnit, emptyset)
 
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
                                                                      (dt'@(TBang n _), cset) <- translate_bound_type dt mapargs
-                                                                     return (TBang 1 (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
+                                                                     return (TBang one (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
                                              -- Those variables must also respect the constraints from the construction of the type
@@ -234,8 +234,7 @@ unfold_all names = do
                                                               (lc, (lc', snd after)))
                           
                                  -- Check the stability of the non user constraints of before and after the unfolding
-                                 if fst cnuser List.\\ fst before == [] && fst before List.\\ fst cnuser == [] &&
-                                    snd cnuser List.\\ snd before == [] && snd before List.\\ snd cnuser == [] then do
+                                 if before `equals_set` cnuser then do
                                    -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
                                    newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++ 
                                                     List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++

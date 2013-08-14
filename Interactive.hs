@@ -189,11 +189,6 @@ run_interactive opts ctx buffer = do
               liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
               run_interactive opts ctx []
 
-        else if List.isPrefixOf "+" l then do
-          n <- return $ read $ List.tail l
-          v <- flag_value n
-          liftIO $ putStrLn $ show v
-          run_interactive opts ctx []
         else
           run_interactive opts ctx (l:buffer) 
  

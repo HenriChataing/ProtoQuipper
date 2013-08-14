@@ -354,10 +354,9 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         rec
                         nx <- variable_name x
                         case a of
-                          TForall ff fv cs b -> do
+                          TForall _ _ _ a -> do
                               pa <- pprint_type_noref a
                               liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
-                              --liftIO $ putStrLn $ nx ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa
                           _ -> do
                               pa <- pprint_type_noref a
                               liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
@@ -457,12 +456,6 @@ process_module opts prog = do
   ctx <- get_context
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
 
---  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
---  if proto then
---    unsugar t
---  else
---    return t
-
 -- Type inference part
 
   -- Create the initial typing context
@@ -479,15 +472,6 @@ process_module opts prog = do
   -- All the variables that haven't been used must be duplicable
   duplicable_context (typing ctx)
   _ <- unify True $ constraints ctx
- 
-  -- Export variables
-  globals <- get_module >>= return . global_types
-  IMap.foldWithKey (\x a rec -> do
-                      rec
-                      n <- variable_name x
-                      pa <- pprint_type_noref a
-                      liftIO $ putStrLn $ "val " ++ n ++ " : " ++ pa) (return ()) globals 
-
 
   -- Return
   return ()

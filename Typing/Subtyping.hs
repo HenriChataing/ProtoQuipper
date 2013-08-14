@@ -48,10 +48,12 @@ unfold_user_constraint utyp arg utyp' arg' = do
 -- | Applies the function unfold_user_constraints to the constraints in a constraint set.
 unfold_user_constraints_in_set :: ConstraintSet -> QpState ConstraintSet
 unfold_user_constraints_in_set ([], fc) = return ([], fc)
+
 unfold_user_constraints_in_set ((Sublintype (TUser utyp args) (TUser utyp' args') _):lc, fc) = do
   cset <- unfold_user_constraint utyp args utyp' args'
   cset' <- unfold_user_constraints_in_set (lc, fc)
   return $ cset <> cset'
+
 unfold_user_constraints_in_set (c:lc, fc) = do
   (lc', fc') <- unfold_user_constraints_in_set (lc, fc)
   return (c:lc', fc')

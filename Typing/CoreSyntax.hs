@@ -443,6 +443,13 @@ type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
 
 
+-- | The equality of constraint sets, allowing for substitutions of the constraints.
+equals_set (lc, fc) (lc', fc') = (lc \\ lc' == []) && (lc' \\ lc == []) && (fc \\ fc' == []) && (fc' \\ fc == [])
+
+
+-- | Class of objects (constraints and constraint sets) that carry debug information.
+-- The purpose of this class is to overload the operator (&), that appends debug information
+-- to objects.
 class WithDebugInfo a where
   (&) :: a -> ConstraintInfo -> a
 
