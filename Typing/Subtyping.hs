@@ -72,13 +72,13 @@ break_composite bu ([], lc) = return ([], lc)
 
 -- Subtype constraints
 break_composite bu ((Subtype (TBang n t) (TBang m TQbit) info):lc, fc) = do
-  unset_flag n
-  unset_flag m
+  unset_flag n info
+  unset_flag m info
   break_composite bu ((Sublintype t TQbit info):lc, fc)
 
 break_composite bu ((Subtype (TBang n TQbit) (TBang m t) info):lc, fc) = do
-  unset_flag n
-  unset_flag m
+  unset_flag n info
+  unset_flag m info
   break_composite bu ((Sublintype TQbit t info):lc, fc)
 
 break_composite bu ((Subtype (TBang _ TUnit) (TBang _ TUnit) _):lc, fc) = do
@@ -192,8 +192,11 @@ break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   return (c:lc', fc')
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
-  if non_trivial n m then
-    break_composite bu ((Sublintype a b info):lc, (m,n):fc)
+  if non_trivial n m then do
+    intype <- case in_type info of
+                Nothing -> return $ Just $ if actual info then a else b
+                Just a -> return $ Just a
+    break_composite bu ((Sublintype a b info):lc, (Le m n info { in_type = intype }):fc)
   else
     break_composite bu ((Sublintype a b info):lc, fc)
 

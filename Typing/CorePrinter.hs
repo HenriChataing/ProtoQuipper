@@ -266,7 +266,7 @@ instance PPrint TypeConstraint where
 
 -- | Flag constraints printing. Genprint can't be parametrized.
 instance PPrint FlagConstraint where
-  pprint (m, n) =
+  pprint (Le m n _) =
     (if m < 2 then
        show m
      else

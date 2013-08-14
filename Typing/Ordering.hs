@@ -384,7 +384,7 @@ clean_constraint_set a (lc, fc) =
   let (ctsf, fc') = case ff of
                      [] -> ([], [])
                      (x:_) -> let eqvf = new_with_class ff in
-                              let eqvf' = List.foldl (\eqv c@(n, m) ->
+                              let eqvf' = List.foldl (\eqv c@(Le n m _) ->
                                                         insert_constraint n m c eqv) eqvf fc in
                               let (cf, _) = in_class x eqvf' in
                               class_contents cf eqvf' in

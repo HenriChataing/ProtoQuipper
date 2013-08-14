@@ -434,8 +434,12 @@ t <:: ulist = List.map (\u -> t <: u) ulist
 -- *  (1 <= n)     ==     (n :=: 1)
 --
 -- *  (m \<= n)     ==     (m = 1 =\> n = 1)
-type FlagConstraint =
-  (RefFlag, RefFlag)
+data FlagConstraint =
+   Le RefFlag RefFlag ConstraintInfo
+  deriving Show
+
+instance Eq FlagConstraint where
+  (==) (Le n m _) (Le n' m' _) = n == n' && m == m'
 
 
 -- | A constraint set contains both subtyping and flag constraints.
@@ -459,7 +463,7 @@ instance WithDebugInfo [TypeConstraint] where
                             Subtype t u _ -> Subtype t u info) cset
 
 instance WithDebugInfo [FlagConstraint] where
-  cset & info = cset
+  cset & info = List.map (\(Le n m _) -> (Le n m info)) cset
 
 instance WithDebugInfo ConstraintSet where
   (lc, fc) & info = (lc & info, fc & info)
@@ -656,14 +660,14 @@ instance KType ConstraintSet where
 
   free_flag (lc, fc) =
     let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
-        fff = List.foldl (\fv (n, m) -> List.union [n, m] fv) [] fc in
+        fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
     List.union ffl fff 
 
   subs_flag n m (lc, fc) =
     let lc' = List.map (subs_flag n m) lc
-        fc' = List.map (\(p, q) -> if p == n then (m, q)
-                                   else if q == n then (p, m)
-                                   else (p, q)) fc in
+        fc' = List.map (\(Le p q info) -> if p == n then (Le m q info)
+                                   else if q == n then (Le p m info)
+                                   else (Le p q info)) fc in
     (lc', fc')
 
 

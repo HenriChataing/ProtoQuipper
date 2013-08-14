@@ -534,7 +534,7 @@ translate_type (S.TTensor tlist) [] (label, bound) = do
   (tlist', cset', lbl) <- List.foldr (\t rec -> do
                                         (r, cs, lbl) <- rec
                                         (t'@(TBang m _), cs', lbl') <- translate_type t [] (lbl, bound)
-                                        return ((t':r), [(n, m)] <> cs' <> cs, lbl')) (return ([], emptyset, label)) tlist
+                                        return ((t':r), [(Le n  m no_info)] <> cs' <> cs, lbl')) (return ([], emptyset, label)) tlist
   return (TBang n (TTensor tlist'), cset', lbl)
 
 translate_type (S.TBang t) [] label = do
@@ -593,7 +593,8 @@ translate_pattern S.PJoker label = do
   return (PJoker, label)
 
 translate_pattern (S.PVar x) label = do
-  id <- register_var x
+  ex <- get_location
+  id <- register_var x ex
   return (PVar id, Map.insert x id label)
 
 translate_pattern (S.PTuple plist) label = do
@@ -620,6 +621,7 @@ translate_pattern (S.PDatacon datacon p) label = do
         throw $ LocatedError (UnboundDatacon datacon) (f, ex)
 
 translate_pattern (S.PLocated p ex) label = do
+  set_location ex
   (p', lbl) <- translate_pattern p label
   return (PLocated p' ex, lbl)
 

@@ -224,7 +224,11 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   a@(TBang n _) <- new_type
 
   -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
-  set_flag n
+  ex <- case e' of
+          ELocated _ ex -> return ex
+          _ -> return $ extent_unknown
+  set_flag n no_info { expression = e',
+                       loc = ex }
 
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
@@ -330,14 +334,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   --     if not, set it to 1
                                   v <- flag_value n
                                   case v of
-                                    Unknown -> set_flag n
+                                    Unknown -> set_flag n no_info
                                     _ -> return ()
- 
-                                  (fv, ff, cset') <- return $ clean_constraint_set a' csete
 
-                                  -- Identify the free variables, the free variables form a subset of those used here.
-  --                                fv <- return $ List.union (free_typ_var a') (free_typ_var cset')
-    --                              ff <- return $ List.union (free_flag a') (free_flag cset')
+                                  -- Clean the constraint set 
+                                  (fv, ff, cset') <- return $ clean_constraint_set a' csete
 
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff

@@ -40,17 +40,15 @@ filter fc = do
                 r <- rec
                 case c of
                   -- Useless
-                  (-1, _) -> return r
-                  (_, -1) -> return r
-                  (0, _) -> return r
-                  (_, 1) -> return r
+                  Le 0 _ _ -> return r
+                  Le _ 1 _ -> return r
 
                   -- Direct
-                  (1, n) -> do
-                      set_flag n
+                  Le 1 n info -> do
+                      set_flag n info
                       return r
-                  (n, 0) -> do
-                      unset_flag n
+                  Le n 0 info -> do
+                      unset_flag n info
                       return r
 
                   -- Everything else
@@ -391,7 +389,7 @@ constraint_typing gamma (EFun p e) cst = do
   csete <- constraint_typing (gamma_p <+> gamma) e [b]
 
   -- Build the context constraints : n <= I
-  fconstraints <- (return $ List.map (\(_, f) -> (n, f)) flags) >>= filter
+  fconstraints <- (return $ List.map (\(_, f) -> Le n f info { in_type = Just $ TArrow a b }) flags) >>= filter
 
   return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
@@ -431,7 +429,7 @@ constraint_typing gamma (ETuple elist) cst = do
                             return $ cset <> cset') (return ([], [])) (List.zip3 elist tlist fvlist)
 
   -- Construction of all the constraints p <= f1 ... p <= fn
-  pcons <- (return $ List.map (\(TBang n _) -> (p, n) :: FlagConstraint) tlist) >>= filter
+  pcons <- (return $ List.map (\(TBang n _) -> Le p n info { in_type = Just $ TTensor tlist }) tlist) >>= filter
 
   -- Construction of the constraints of delta
   disunion <- return $ disjoint_union fvlist
@@ -504,12 +502,10 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                   ctx <- rec
                                   -- First apply the substitution
                                   a' <- map_type a
+
+                                  -- Clean the constraint set
                                   (fv, ff, cset') <- return $ clean_constraint_set a' csett
                                   
-                                  -- Identify the free variables, the free variables form a subset of those used here.
---                                  fv <- return $ List.union (free_typ_var a') (free_typ_var cset')
---                                  ff <- return $ List.union (free_flag a') (free_flag cset')
-
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
@@ -910,35 +906,34 @@ apply_flag_constraints [] = do
 
 apply_flag_constraints (c:cc) = do
   case c of
-    (1, 0) -> do
-        -- This case is annoying because it relays absolutely no information about the whereabouts of the error.
-        fail "Absurd constraint 1 <= 0"
+    Le 1 0 info -> do
+        throw_NonDuplicableError info
 
-    (n, 0) -> do
-        unset_flag n
+    Le n 0 info -> do
+        unset_flag n info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
-    (1, m) -> do
-        set_flag m
+    Le 1 m info -> do
+        set_flag m info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
-    (m, n) -> do
+    Le m n info -> do
         vm <- flag_value m
         vn <- flag_value n
         case (vm, vn) of
           (One, Zero) -> do
               -- The error could have been thrown with either reference.
-              throw_NonDuplicableError m
+              throw_NonDuplicableError info
 
           (Unknown, Zero) -> do
-              unset_flag m
+              unset_flag m info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
  
           (One, Unknown) -> do
-              set_flag n
+              set_flag n info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
 
@@ -963,7 +958,7 @@ unify_flags :: [FlagConstraint] -> QpState [FlagConstraint]
 unify_flags fc = do
 
   -- Elimination of trivial constraints f <= 1 and 0 <= f, -1 <= f and f <= -1
-  fc' <- return $ List.filter (\(m, n) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
+  fc' <- return $ List.filter (\(Le m n _) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
 
   -- Application of the constraints 1 <= f and f <= 0
   (_, fc'') <- apply_flag_constraints fc'

@@ -250,10 +250,10 @@ get_file =
 
 -- | Registers a variable in the namespace. A new id is generated, bound to
 -- the given variable, and returned.
-register_var :: String -> QpState Int
-register_var x = do
+register_var :: String -> Extent -> QpState Int
+register_var x ex = do
   ctx <- get_context
-  (id, nspace) <- return $ N.register_var x (namespace ctx)
+  (id, nspace) <- return $ N.register_var x ex (namespace ctx)
   set_context $ ctx { namespace = nspace }
   return id
 
@@ -288,6 +288,16 @@ variable_name x = do
 
     Nothing ->
         return $ subvar 'x' x
+
+
+-- | Retrieves the locationof the variable declaration. if no match is found, the default
+-- extent extent_unknown is returned.
+variable_location :: Variable -> QpState Extent
+variable_location x = do
+  ctx <- get_context
+  case IMap.lookup x $ N.varloc (namespace ctx) of
+    Just ex -> return ex
+    Nothing -> return extent_unknown
 
 
 -- | Retrives the name of the given data constructor. Again, if no match is found in
@@ -544,22 +554,22 @@ flag_value ref =
 
 -- | Set the value of the flag to one.
 -- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = Zero).
-set_flag :: RefFlag-> QpState ()
-set_flag ref = do
+set_flag :: RefFlag -> ConstraintInfo -> QpState ()
+set_flag ref info = do
   case ref of
     0 -> do
         f <- get_file
-        throwQ $ LocatedError (NonDuplicableError "(unknown)") (f, extent_unknown)
+        throw_NonDuplicableError info
     1 -> return ()
     _ -> do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
-          Just info -> do
-              case value info of
+          Just i -> do
+              case value i of
                 Zero -> do
-                    throw_NonDuplicableError ref
+                    throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (info { value = One }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { value = One }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and one
 
@@ -569,23 +579,21 @@ set_flag ref = do
 
 -- | Set the value of the flag to zero.
 -- If the value previously recorded is incompatible with the new one, an error is generated (eg : old val = One).
-unset_flag :: RefFlag -> QpState ()
-unset_flag ref = do
+unset_flag :: RefFlag -> ConstraintInfo -> QpState ()
+unset_flag ref info = do
   case ref of
-    (-1) -> return ()
     0 -> return ()
     1 -> do
-        f <- get_file
-        throwQ $ LocatedError (NonDuplicableError "(unknown)") (f, extent_unknown)
+        throw_NonDuplicableError info
     _ -> do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
-          Just info -> do
-              case value info of
+          Just i -> do
+              case value i of
                 One ->
-                    throw_NonDuplicableError ref
+                    throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (info { value = Zero }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { value = Zero }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and zero
 
@@ -774,11 +782,11 @@ throw_TypingError t u info = do
 
 
 -- | Throw a duplicable error, based on the faulty reference flag.
-throw_NonDuplicableError :: RefFlag -> QpState a
-throw_NonDuplicableError ref = do
+throw_NonDuplicableError :: ConstraintInfo -> QpState a
+throw_NonDuplicableError info = do
   f <- get_file
-  throwQ $ LocatedError (NonDuplicableError "(Unknown)") (f, extent_unknown)
-
+  p <- pprint_expr_noref $ expression info
+  throwQ $ LocatedError (NonDuplicableError p) (f, loc info)
 
 
 

@@ -87,7 +87,7 @@ bind_pattern (PTuple plist) = do
                                        return (a:r, IMap.union ctx' ctx, cset' <> cset)) (return ([], IMap.empty, emptyset)) plist
 
   -- Generate the constraints on the flag of the tuple
-  pflags <- return $ List.map (\(TBang n _) -> (p, n)) ptypes
+  pflags <- return $ List.map (\(TBang n _) -> Le p n no_info) ptypes
 
   return (TBang p (TTensor ptypes), ctx, pflags <> cset)
 
@@ -141,7 +141,7 @@ bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet
 -- The joker can be bound to any type, as long as it is duplicable.
 bind_pattern_to_type PJoker a@(TBang n _) = do
   -- Set the flag to one, and return
-  set_flag n
+  set_flag n no_info
   return (IMap.empty, emptyset)
 
 bind_pattern_to_type (PVar x) t@(TBang n _) = do
@@ -246,9 +246,10 @@ duplicable_context :: TypingContext -> QpState ()
 duplicable_context ctx = do
   IMap.foldWithKey (\x t rec -> do
                       rec
+                      ex <- variable_location x
                       case t of
-                        TBang f _ -> set_flag f
-                        TForall _ _ _ (TBang f _) -> set_flag f) (return ()) ctx
+                        TBang f _ -> set_flag f no_info { expression = EVar x, loc = ex } 
+                        TForall _ _ _ (TBang f _) -> set_flag f no_info { expression = EVar x, loc = ex }) (return ()) ctx
 
 
 -- | Performs the union of two typing contexts. The \<+\> operator respects the order of the arguments
