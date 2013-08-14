@@ -41,7 +41,7 @@ Flags, linear types and types are to be interpreted as follows:
 	\item $\texttt{LinearType}$ corresponds to the subset of $\QP$ types that are always linear at the outermost level.
 	\item $\texttt{Type}$ is set of all types. Depending of the value of its prefixing flag, a $\texttt{Type}$ is duplicable or not.
 		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
-	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parametrize the linearity of a type.
+	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parameterize the linearity of a type.
 		If the value of $n$ is $1$, then $!^n A$ is duplicable; if it is $0$, then $!^n A$ is linear. This idea is that $!^1A=!A$ and $!^0A=A$. For example, the type
 		of any quantum bit will be $!^0 \qubit$.
 \end{itemize}
@@ -774,7 +774,7 @@ The unification algorithm proceeds in two steps:
 	\end{proof}
 \end{lemma}
 
-Before we can define the type unification algorithm (Algorith~\ref{alg-type-uni} below), we need an ordering of type variables that ensures termination and gives an upper
+Before we can define the type unification algorithm (Algorithm~\ref{alg-type-uni} below), we need an ordering of type variables that ensures termination and gives an upper
 bound of its complexity (even though the limit itself is exponential).
 
 \begin{defn} Given a constraint set $\lset$, let $\vset_\lset$ be the set of the free type variables of $\lset$. Every equivalence relation

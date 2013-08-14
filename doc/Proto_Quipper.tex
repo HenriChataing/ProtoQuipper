@@ -36,7 +36,7 @@ certain types of programming errors will not be prevented by the
 compiler; in the worst case, this may lead to ill-formed output or 
 run-time errors in other parts of the tool chain.
 
-We have developed a type-safe version of Quipper as a standalone 
+We have developed a type-safe version of Quipper as a stand-alone 
 (non-embedded) programming language, which we call Proto-Quipper. 
 The Proto-Quipper language is designed to ``enforce the physics'', 
 in the sense that it will detect, at compile-time, programming 
@@ -374,7 +374,7 @@ figure~\hyperref[subtyping_congruences]{\ref*{subtyping_congruences}}.
     (m=0)\vee (n\geq 1)
   }
 \]
-% A not as nice version of the subtping rules:
+% A not as nice version of the subtyping rules:
 %
 %\[
 %  \infer[]{!^n\qubit <: !^m\qubit}{}
@@ -1751,9 +1751,9 @@ of Proto-Quipper.
     should not be possible to reverse it. Preliminary research 
     shows this can be attained by extending the language with a 
     new modality $R$ accounting for reversibility. 
-  \item[Dependent types and parametrized families of circuits:] 
+  \item[Dependent types and parameterized families of circuits:] 
     A circuit generating function that inputs a list of qubits does not 
-    define a particular circuit but a family of circuits parametrized 
+    define a particular circuit but a family of circuits parameterized 
     by the integer $n$ corresponding to the length of the input list.
     To box such a function, a particular value of $n$ has to be given. 
     This is also true of other higher-order functions acting on circuits, 
