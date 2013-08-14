@@ -24,7 +24,7 @@ instance PPrint LinType where
   genprint _ TUnit _ = "()"
   genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
-  genprint _ TQbit _ = "qbit"
+  genprint _ TQubit _ = "qubit"
   genprint lv (TUser n arg) opts = n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
 
   genprint (Nth 0) _ _ = "..."

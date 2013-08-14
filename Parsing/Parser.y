@@ -59,7 +59,7 @@ import Data.List as List
   INTEGER { TkInteger $$ }
   LET { TkLet $$ }
   MATCH { TkMatch $$ }
-  QBIT { TkQBit $$ }
+  QUBIT { TkQuBit $$ }
   REC { TkRec $$ }
   REV { TkRev $$ }
   THEN { TkThen $$ }
@@ -282,7 +282,7 @@ Atom_type :
       BOOL                                      { locate TBool $1 }
     | '!' Atom_type                             { locate_opt (bang $2) (fromto_opt (Just $1) (location $2)) }
     | INTEGER                                   { locate TInt $1 }
-    | QBIT                                      { locate TQbit $1 }
+    | QUBIT                                      { locate TQubit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
     | UID '.' LID                               { locate (TQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }

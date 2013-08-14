@@ -38,28 +38,28 @@ type Environment = IntMap Value
 -- addresses. Note that nothing is done to recycle used and discarded identifiers.
 -- However, the index is reinitialized back to 0 at each box creation.
 -- Thus, the inputs of a box will always be numbered 0..n.
-fresh_qbit :: QpState Int
-fresh_qbit = do
+fresh_qubit :: QpState Int
+fresh_qubit = do
   ctx <- get_context
-  q <- return $ qbit_id ctx
-  set_context $ ctx { qbit_id = q + 1 }
+  q <- return $ qubit_id ctx
+  set_context $ ctx { qubit_id = q + 1 }
   return q
 
 
--- | This operation resets the counter of qbit values.
+-- | This operation resets the counter of qubit values.
 -- Since the quantum addresses are bound in a circuit (t, C, u), we can reset the counter for each box creation.
-reset_qbits :: QpState ()
-reset_qbits = do
+reset_qubits :: QpState ()
+reset_qubits = do
   ctx <- get_context
-  set_context $ ctx { qbit_id = 0 }
+  set_context $ ctx { qubit_id = 0 }
 
 
 -- | Creates a specimen of a given linear type. The quantum addresses of
--- the specimen range from 0 .. to n, n being the number of qbits in the type.
+-- the specimen range from 0 .. to n, n being the number of qubits in the type.
 linspec :: LinType -> QpState Value
-linspec TQbit = do
-  q <- fresh_qbit
-  return (VQbit q)
+linspec TQubit = do
+  q <- fresh_qubit
+  return (VQubit q)
 
 linspec (TTensor tlist) = do
   qlist <- List.foldr (\t rec -> do
@@ -212,10 +212,10 @@ match_value (PDatacon dcon p) (VDatacon dcon' v) =
 match_value _ _ =
   False
 
--- | Extracts the list of associations qbit <-> qbit introduced by the matching
+-- | Extracts the list of associations qubit <-> qubit introduced by the matching
 -- of two qdata values.
 bind :: Value -> Value -> QpState [(Int, Int)]
-bind (VQbit q1) (VQbit q2) = do
+bind (VQubit q1) (VQubit q2) = do
   return [(q1, q2)]
 
 bind (VTuple vlist) (VTuple vlist') = do
@@ -239,14 +239,14 @@ bind v1 v2 = do
 
 
 -- | Readdresses a quantum value using a binding function.
--- If a qbit is not mapped by the binding, its value is left unchanged.
+-- If a qubit is not mapped by the binding, its value is left unchanged.
 readdress :: Value -> [(Int, Int)] -> QpState Value
-readdress (VQbit q) b = do
+readdress (VQubit q) b = do
   case List.lookup q b of
     Just q' ->
-        return (VQbit q')
+        return (VQubit q')
     Nothing ->
-        return (VQbit q)
+        return (VQubit q)
 
 readdress (VTuple vlist) b = do
   vlist' <- List.foldr (\v rec -> do
@@ -264,7 +264,7 @@ readdress v _ = do
 
 -- | Extracts the quantum addresses of a value.
 extract :: Value -> QpState [Int]
-extract (VQbit q) = do
+extract (VQubit q) = do
   return [q]
 
 extract (VTuple vlist) = do
@@ -336,9 +336,9 @@ do_application env f x =
     (VBox typ, _) -> do
         -- If the type is classical, the circuit is readily built
         if not $ is_user_type typ then do
-          -- Creation of a new specimen of type type, with qbits ranging from 0, 1 .. to n,
-          -- n the number of qbits in the type typ
-          reset_qbits
+          -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
+          -- n the number of qubits in the type typ
+          reset_qubits
           s <- spec typ
           -- Open a new circuit, initialized with the quantum addresses of the specimen
           ql <- extract s

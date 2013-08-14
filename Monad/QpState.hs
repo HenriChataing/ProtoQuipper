@@ -101,7 +101,7 @@ data Context = Ctx {
 -- Id generation
   type_id :: Int,                                     -- ^ Used to generate fresh type variables.
   flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
-  qbit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
+  qubit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
      
 -- Substitution from type variable to types
   mappings :: IntMap LinType                          -- ^ The result of the unification : a mapping from type variables to linear types.
@@ -179,7 +179,7 @@ empty_context =  Ctx {
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
-  qbit_id = 0,
+  qubit_id = 0,
       
   mappings = IMap.empty
 }
@@ -947,7 +947,7 @@ map_lintype (TUser typename arg) = do
                         return (a':r)) (return []) arg
   return (TUser typename arg')
 
--- The remainging linear types are unit bool qbit and int, and mapped to themselves.
+-- The remainging linear types are unit bool qubit and int, and mapped to themselves.
 map_lintype typ = do
   return typ
 
@@ -965,7 +965,7 @@ map_type (TForall fv ff cset typ) = do
 
 -- | Checks wheter a linear type is a quantum data type or not.
 is_qdata_lintype :: LinType -> QpState Bool
-is_qdata_lintype TQbit =
+is_qdata_lintype TQubit =
   return True
 
 is_qdata_lintype TUnit =

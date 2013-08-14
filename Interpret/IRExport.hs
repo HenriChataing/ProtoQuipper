@@ -17,7 +17,7 @@ new_with_inputs [] =
   "Inputs: none\n"
 
 new_with_inputs (w:wires) =
-  let irdoc = List.foldl (\irdoc w -> irdoc ++ ", " ++ show w ++ ":Qbit") ("Inputs: " ++ show w ++ ":Qbit") wires in
+  let irdoc = List.foldl (\irdoc w -> irdoc ++ ", " ++ show w ++ ":Qubit") ("Inputs: " ++ show w ++ ":Qubit") wires in
   irdoc ++ "\n"
  
 
@@ -70,7 +70,7 @@ append_outputs [] irdoc =
   irdoc ++ "Outputs: none\n"
 
 append_outputs (w:wires) irdoc =
-  irdoc ++ List.foldl (\s w -> s ++ ", " ++ show w ++ ":Qbit") ("Outputs: " ++ show w ++ ":Qbit") wires ++ "\n"
+  irdoc ++ List.foldl (\s w -> s ++ ", " ++ show w ++ ":Qubit") ("Outputs: " ++ show w ++ ":Qubit") wires ++ "\n"
 
 
 -- | Exports a circuit to IR format.

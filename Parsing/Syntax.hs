@@ -89,7 +89,7 @@ data Type =
   | TBang Type                -- ^ !A
 
 -- Quantum related types
-  | TQbit                     -- ^ qbit
+  | TQubit                     -- ^ qubit
   | TCirc Type Type           -- ^ circ (A, B)
 
 -- Sum types : bool and generic type instanciation
@@ -125,7 +125,7 @@ instance Eq Type where
   (==) TUnit TUnit = True
   (==) TBool TBool = True
   (==) TInt TInt = True
-  (==) TQbit TQbit = True
+  (==) TQubit TQubit = True
   (==) (TCirc t1 t2) (TCirc t1' t2') = (t1 == t1') && (t2 == t2')
   (==) (TTensor tlist) (TTensor tlist') = (tlist == tlist')
   (==) (TArrow t1 t2) (TArrow t1' t2') = (t1 == t1') && (t2 == t2')

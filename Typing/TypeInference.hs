@@ -692,7 +692,7 @@ duplicate_lintype (TCirc t u) = do
   u' <- duplicate_type u
   return (TCirc t' u')
 
--- Remaining cases : bool int qbit
+-- Remaining cases : bool int qubit
 duplicate_lintype typ = do
   return typ
 

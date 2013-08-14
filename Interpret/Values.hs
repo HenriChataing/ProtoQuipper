@@ -4,7 +4,7 @@
 --    The application, if then else, match with, have all been eliminated, with the exception of unboxed circuits.
 --    The function values include a closure in their definition, corresponding to the evaluation context at the time
 --      of the evaluation of the function.
---    The qbits, which weren't included in the input syntax, are added, same for circuits.
+--    The qubits, which weren't included in the input syntax, are added, same for circuits.
 module Interpret.Values where
 
 import Classes
@@ -38,7 +38,7 @@ data Value =
   | VUnit                                -- ^ ()
   | VDatacon Datacon (Maybe Value)       -- ^ Datacon v
   | VRev                                 -- ^ Reverse function.
-  | VQbit Int                            -- ^ Quantum addresses.
+  | VQubit Int                            -- ^ Quantum addresses.
 
 
 instance PPrint Value where
@@ -46,7 +46,7 @@ instance PPrint Value where
   genprint l VRev opts = "rev"
   genprint l VUnbox opts = "unbox"
   genprint l (VBuiltin _) opts = "<fun>"
-  genprint l (VQbit q) opts = subvar 'q' q
+  genprint l (VQubit q) opts = subvar 'q' q
   genprint l (VBool b) opts = if b then "true" else "false"
   genprint l (VInt n) opts = show n
   genprint l (VTuple (v:rest)) opts = "(" ++ genprint l v opts ++ List.foldl (\s w -> s ++ ", " ++ genprint l w opts) "" rest ++ ")"
@@ -80,7 +80,7 @@ instance PPrint Value where
 -- | The equality between values is only about the skeleton. It is only to be used to compare quantum values, and
 -- quantum addresses are ignored.
 instance Eq Value where
-  (==) (VQbit _) (VQbit _) = True
+  (==) (VQubit _) (VQubit _) = True
   (==) VUnit VUnit = True
   (==) (VTuple vlist) (VTuple vlist') =
     if List.length vlist == List.length vlist' then
