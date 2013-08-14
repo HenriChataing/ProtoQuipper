@@ -61,33 +61,17 @@ bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 -- Joker : the joker must have a duplicable type, since
 -- the value is discarded. No binding is generated.
 bind_pattern PJoker = do
-  a@(TBang n _) <- new_type
-  -- The set flag to n (duplicable value)
-  ex <- get_location
-  specify_location n ex
-  specify_expression n $ ActualOfP PJoker
-  set_flag n
-
-  return (a, IMap.empty, emptyset)
+  a <- fresh_type
+  return (TBang 1 $ TVar a, IMap.empty, emptyset)
 
 -- Unit value
 bind_pattern PUnit = do
-  -- Build a reference flag
-  n <- fresh_flag
-  ex <- get_location
-  specify_location n ex
-  specify_expression n (ActualOfP PUnit)
-
-  return (TBang n TUnit, IMap.empty, emptyset)
+  return (TBang 1 TUnit, IMap.empty, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) = do
   -- Create a new type, add some information to the flag
-  a@(TBang n _) <- new_type
-  ex <- get_location
-  specify_expression n $ ActualOfP (PVar x)
-  specify_location n ex
-
+  a <- new_type
   -- The binding is returned in a singleton map, and no constraints are generated
   return (a, IMap.singleton x a, emptyset)
 
@@ -95,9 +79,6 @@ bind_pattern (PVar x) = do
 bind_pattern (PTuple plist) = do
   -- The flag in front of the tensor type : !p (a1 * .. * an)
   p <- fresh_flag
-  ex <- get_location
-  specify_location p ex
-  specify_expression p (ActualOfP $ PTuple plist)
 
   -- Bind the patterns of the tuple
   (ptypes, ctx, cset) <- List.foldr (\p rec -> do
@@ -106,7 +87,7 @@ bind_pattern (PTuple plist) = do
                                        return (a:r, IMap.union ctx' ctx, cset' <> cset)) (return ([], IMap.empty, emptyset)) plist
 
   -- Generate the constraints on the flag of the tuple
-  pflags <- return $ List.map (\(TBang n _) -> (p, n)) ptypes
+  pflags <- return $ List.map (\(TBang n _) -> Le p n no_info) ptypes
 
   return (TBang p (TTensor ptypes), ctx, pflags <> cset)
 
@@ -119,21 +100,16 @@ bind_pattern (PDatacon dcon p) = do
   
   -- Instanciate the type
   (typ, cset) <- instanciate dtype
-  ex <- get_location
 
   -- Check the arguments
   case (typ, p) of
     (TBang _ (TArrow t u@(TBang n _)), Just p) -> do
         -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
         (ctx, cset') <- bind_pattern_to_type p t
-        specify_location n ex
-        specify_expression n (ActualOfP $ PDatacon dcon $ Just p)
         return (u, ctx, cset <> cset')
 
     (TBang n _, Nothing) -> do
         -- No binding
-        specify_location n ex
-        specify_expression n (ActualOfP $ PDatacon dcon Nothing)
         return (typ, IMap.empty, cset)
 
     _ -> do
@@ -164,21 +140,11 @@ bind_pattern (PLocated p ex) = do
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
 -- The joker can be bound to any type, as long as it is duplicable.
 bind_pattern_to_type PJoker a@(TBang n _) = do
-  -- Add information to the flag
-  ex <- get_location
-  specify_location n ex
-  specify_expression n $ ActualOfP PJoker
-
   -- Set the flag to one, and return
-  set_flag n
+  set_flag n no_info
   return (IMap.empty, emptyset)
 
 bind_pattern_to_type (PVar x) t@(TBang n _) = do
-  -- Add some information about the variable to the flag
-  ex <- get_location
-  specify_location n ex
-  specify_expression n (ActualOfP $ PVar x)
-
   return (IMap.singleton x t, emptyset)
 
 -- The unit pattern bound to the unit type
@@ -191,19 +157,23 @@ bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
 bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
   if List.length plist /= List.length tlist then do
     -- Typing error
+
+    -- Location
+    ex <- get_location
+    f <- get_file
     
     -- Build and actual type : a1 * .. * an
     act <- List.foldr (\_ rec -> do
                          r <- rec
                          a <- new_type
                          return $ a:r) (return []) plist
-    ex <- get_location
-    m <- fresh_flag
-    specify_location m ex
-    specify_expression m (ActualOfP $ PTuple plist)
-   
-    -- Throw the typing error 
-    throw_TypingError (TBang m $ TTensor act) (TBang n $ TTensor tlist)
+    act <- pprint_lintype_noref $ TTensor act    
+    nact <- pprint_lintype_noref $ TTensor tlist
+
+    expr <- pprint_pattern_noref $ PTuple plist
+
+    throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) (f, ex)
+ 
 
   else do
     ptlist <- return $ List.zip plist tlist
@@ -248,9 +218,18 @@ bind_pattern_to_type (PLocated p ex) t = do
 
 -- Any other case is a tying error
 bind_pattern_to_type p t = do
+  -- Location
+  ex <- get_location
+  f <- get_file
+
   -- Build the actual type of p
   (a, _, _) <- bind_pattern p
-  throw_TypingError a t
+  act <- pprint_type_noref a
+  nact <- pprint_type_noref t
+
+  expr <- pprint_pattern_noref p
+
+  throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) (f, ex)
 
 
 
@@ -263,11 +242,14 @@ context_annotation ctx = do
 
 
 -- | Returns a set of flag constraints forcing the context to be duplicable.
-force_duplicable_context :: TypingContext -> QpState [FlagConstraint]
-force_duplicable_context ctx = do
-  return $ IMap.fold (\t ann -> case t of
-                                  (TBang f _) -> (one, f):ann
-                                  (TForall _ _ _ (TBang f _)) -> (one, f):ann) [] ctx
+duplicable_context :: TypingContext -> QpState ()
+duplicable_context ctx = do
+  IMap.foldWithKey (\x t rec -> do
+                      rec
+                      ex <- variable_location x
+                      case t of
+                        TBang f _ -> set_flag f no_info { expression = EVar x, loc = ex } 
+                        TForall _ _ _ (TBang f _) -> set_flag f no_info { expression = EVar x, loc = ex }) (return ()) ctx
 
 
 -- | Performs the union of two typing contexts. The \<+\> operator respects the order of the arguments

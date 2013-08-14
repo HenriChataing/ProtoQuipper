@@ -46,10 +46,6 @@ one = 1
 zero :: RefFlag 
 zero = 0
 
--- | The flag with any value.
-anyflag :: RefFlag
-anyflag = -1
-
 
 -- | Represents the value a flag can take. Initially, all flags are set to Unknown, except
 -- for some imposed to zero or one by the typing rules.
@@ -57,37 +53,17 @@ data FlagValue =
     Unknown   -- ^ The value of the flag has not been decided yet.
   | One       -- ^ The value 1.
   | Zero      -- ^ The value 0.
-  | Any       -- ^ Any flag value, typically the flag prefix of circ, bool, unit.
   deriving Show
 
 -- | Information relevant to a flag. This contains the flag value, some debug
 -- information used to throw detailed exceptions. Eventually, it will also contain
 -- various things such as : reversability, control ..
 data FlagInfo = FInfo { 
-  value :: FlagValue,                              -- ^ The value of the flag
-
-  debug :: Maybe (TypeOf, Extent, Maybe Type)      -- ^ Debug information. The first element is the expression it is type of,
-                                                   -- the second the location of the said expression, the third the original type (it is subtree of).
-                                                   -- The third one may be used for example on lists : if an eexpression has type 'list int', but
-                                                   -- but wad expected of type 'list bool', the typing error will be produced on the types 'int' and 'bool', which
-                                                   -- renders it difficult to locate the real error. In this case, the original type will be 'list int'  and the produced
-                                                   -- error : \"couldn't unify the type actual \'int\' with the expected type \'bool\', in the type \'list int\'....\"
+  value :: FlagValue                              -- ^ The value of the flag
 }
 
 
--- | Description a type as the actual type of an expression / pattern.
-data TypeOf =
-    ActualOfE Expr           -- ^ It is the actual type of the expression e.
-  | ActualOfP Pattern        -- ^ It is the actual type of the pattern p.
-  deriving Show
 
-
--- | Access to the debug information of an optional FlagInfo.
-mDebug :: Maybe FlagInfo -> Maybe (TypeOf, Extent, Maybe Type)
-mDebug inf =
-  case inf of
-    Just inf -> debug inf
-    Nothing -> Nothing
 
 
 
@@ -136,6 +112,7 @@ is_user_lintype :: LinType -> Bool
 is_user_lintype (TUser _ _) = True
 is_user_lintype (TCirc t u) = is_user_type t || is_user_type u
 is_user_lintype (TTensor tlist) = List.or $ List.map is_user_type tlist
+is_user_lintype (TArrow t u) = is_user_type t || is_user_type u
 is_user_lintype _ = False
 
 
@@ -158,7 +135,7 @@ data Typespec = Spec {
                                                            -- a list of tuples (Dk, bk, Tk) where Dk is the name of the datacon, bk indicates whether the type contains any
                                                            -- algebraic types, Tk is the type of the data constructor.
 
-  subtype :: ([Type], [Type], [TypeConstraint])            -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+  subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                            -- is automatically inferred during the translation to the core syntax.
 }
 
@@ -299,7 +276,6 @@ instance KType LinType where
   subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
 
 
-  free_flag (TVar x) = [x]
   free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
   free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
   free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
@@ -320,7 +296,7 @@ instance KType Type where
   free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
-  free_flag (TBang n t) = n:(free_flag t)
+  free_flag (TBang n t) = List.insert n (free_flag t)
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
     if n == p then
@@ -400,19 +376,44 @@ instance Param Expr where
   subs_var _ _ e = e
 
 
+-- | Information about a constraint. Includes expression, location, orientation (on what side is the actual type).
+-- It is used in type constraints and flag constraints.
+data ConstraintInfo = Info {
+  expression :: Expr,          -- ^ Original expression.
+  loc :: Extent,          -- ^ Location of the said expression.
+  actual :: Bool,              -- ^ Orientation of the constraint: true means actual to the left, false the inverse.
+  in_type :: Maybe LinType -- ^ Original type (actual type before reduce).
+} deriving Show
+
+
+-- | Empty information.
+no_info :: ConstraintInfo
+no_info = Info {
+  expression = EUnit,
+  loc = extent_unknown,
+  actual = True,
+  in_type = Nothing
+}
+
 
 
 -- | The subtyping relation <: operates on both linear types and types
 -- However, only constraints on types are kept, since it is the kind of constraints generated by the
 -- constraint typing algorithm, and it is also useful to have the flag references at hand.
 data TypeConstraint =
-    Subtype Type Type   -- ^ A sub-typing constraint T <: U
-  deriving (Show, Eq)
+    Subtype Type Type ConstraintInfo              -- ^ A sub-typing constraint T <: U.
+  | Sublintype LinType LinType ConstraintInfo     -- ^ A sub-typing constraint A <: B.
+  deriving Show
+
+instance Eq TypeConstraint where
+  (==) (Subtype t u _) (Subtype t' u' _) = t == t' && u == u'
+  (==) (Sublintype a b _) (Sublintype a' b' _) = a == a' && b == b'
+  (==) _ _ = False
 
 
 -- | Shortcut operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
-t <: u = Subtype t u
+t <: u = Subtype t u no_info                              
 
 
 -- | Another shortcut for writing a set of constraints T1 .. Tn <: U.
@@ -433,13 +434,39 @@ t <:: ulist = List.map (\u -> t <: u) ulist
 -- *  (1 <= n)     ==     (n :=: 1)
 --
 -- *  (m \<= n)     ==     (m = 1 =\> n = 1)
-type FlagConstraint =
-  (RefFlag, RefFlag)
+data FlagConstraint =
+   Le RefFlag RefFlag ConstraintInfo
+  deriving Show
+
+instance Eq FlagConstraint where
+  (==) (Le n m _) (Le n' m' _) = n == n' && m == m'
 
 
 -- | A constraint set contains both subtyping and flag constraints.
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
+
+
+-- | The equality of constraint sets, allowing for substitutions of the constraints.
+equals_set (lc, fc) (lc', fc') = (lc \\ lc' == []) && (lc' \\ lc == []) && (fc \\ fc' == []) && (fc' \\ fc == [])
+
+
+-- | Class of objects (constraints and constraint sets) that carry debug information.
+-- The purpose of this class is to overload the operator (&), that appends debug information
+-- to objects.
+class WithDebugInfo a where
+  (&) :: a -> ConstraintInfo -> a
+
+instance WithDebugInfo [TypeConstraint] where
+  cset & info = List.map (\c -> case c of
+                            Sublintype a b _ -> Sublintype a b info
+                            Subtype t u _ -> Subtype t u info) cset
+
+instance WithDebugInfo [FlagConstraint] where
+  cset & info = List.map (\(Le n m _) -> (Le n m info)) cset
+
+instance WithDebugInfo ConstraintSet where
+  (lc, fc) & info = (lc & info, fc & info)
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
@@ -483,13 +510,14 @@ emptyset = ([], [])
 
 -- | Returns true iff the constraint is of the form T <: T.
 is_trivial :: TypeConstraint -> Bool
-is_trivial (Subtype a b) = a == b
+is_trivial (Subtype t u _) = t == u
+is_trivial (Sublintype a b _) = a == b
 
 
 -- | Returns true iff the constraint T <: U is atomic, meaning
 -- T and U are both of the form !na where a is a type variable.
 is_atomic :: TypeConstraint -> Bool
-is_atomic (Subtype (TBang _ (TVar _)) (TBang _ (TVar _))) = True
+is_atomic (Sublintype (TVar _) (TVar _) _) = True
 is_atomic _ = False
 
 
@@ -504,20 +532,22 @@ is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 -- it is not atomic, and either T or U is of the form !na, making it not
 -- composite.
 is_semi_composite :: TypeConstraint -> Bool
-is_semi_composite (Subtype t u) =
+is_semi_composite (Sublintype t u _) =
   case (t, u) of
-    (TBang _ (TVar _), TBang _ (TVar _)) -> False
-    (TBang _ (TVar _), _) -> True
-    (_, TBang _ (TVar _)) -> True
+    (TVar _, TVar _) -> False
+    (TVar _, _) -> True
+    (_, TVar _) -> True
     _ -> False
+is_semi_composite _ = False
 
 
 -- | Returns true iff the constraint is of the form  user n a <: user n a'.
 is_user :: TypeConstraint -> Bool
-is_user (Subtype t u) =
+is_user (Sublintype t u _) =
   case (t, u) of
-    (TBang _ (TUser _ _), TBang _ (TUser _ _)) -> True
+    (TUser _ _, TUser _ _) -> True
     _ -> False
+is_user _ = False
 
 -- | Checks whether all the constraints of a list have the same property of being right / left sided, ie:
 --
@@ -527,17 +557,18 @@ is_user (Subtype t u) =
 --
 is_one_sided :: [TypeConstraint] -> Bool
 is_one_sided [] = True
-is_one_sided ((Subtype t u):cset) =
+is_one_sided ((Sublintype t u _):cset) =
   case (t, u) of
-    (TBang _ (TVar _), _) -> is_left_sided cset
-    (_, TBang _ (TVar _)) -> is_right_sided cset
+    (TVar _, _) -> is_left_sided cset
+    (_, TVar _) -> is_right_sided cset
     _ -> False
+is_one_sided _ = False
 
 
 -- | Checks whether all the type constraints of a list are left sided or not.
 is_left_sided :: [TypeConstraint] -> Bool
 is_left_sided [] = True
-is_left_sided ((Subtype (TBang _ (TVar _)) _):cset) =
+is_left_sided ((Sublintype (TVar _) _ _):cset) =
   is_left_sided cset
 is_left_sided _ = False
 
@@ -545,7 +576,7 @@ is_left_sided _ = False
 -- | Checks whether all the type constraints of a list are right sided or not.
 is_right_sided :: [TypeConstraint] -> Bool
 is_right_sided [] = True
-is_right_sided ((Subtype _ (TBang _ (TVar _))):cset) =
+is_right_sided ((Sublintype _ (TVar _) _):cset) =
   is_right_sided cset
 is_right_sided _ = False
 
@@ -558,17 +589,17 @@ is_right_sided _ = False
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_constraints l =
   case List.find (\c -> case c of
-                          Subtype (TBang _ (TVar _)) _ -> False
+                          Sublintype (TVar _) _ _ -> False
                           _ -> True) l of
     Just c -> case c of
-                Subtype _ (TBang _ (TVar y)) -> chain_left_to_right [c] y (List.delete c l)
+                Sublintype _ (TVar y) _ -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
   
     Nothing -> case List.find (\c -> case c of
-                                       Subtype _ (TBang _ (TVar _)) -> False
+                                       Sublintype _ (TVar _) _ -> False
                                        _ -> True) l of
                  Just c -> case c of
-                             Subtype (TBang _ (TVar y)) _ -> chain_right_to_left [c] y (List.delete c l)
+                             Sublintype (TVar y) _ _ -> chain_right_to_left [c] y (List.delete c l)
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
@@ -580,10 +611,10 @@ chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
   case List.find (\c -> case c of
-                          Subtype (TBang _ (TVar y)) _ -> y == endvar
+                          Sublintype (TVar y) _ _ -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Subtype (TBang _ (TVar _)) (TBang _ (TVar y)) -> chain_left_to_right (c:chain) y (List.delete c l)
+                Sublintype (TVar _) (TVar y) _ -> chain_left_to_right (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, List.reverse (c:chain))
                      else
@@ -597,10 +628,10 @@ chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
   case List.find (\c -> case c of
-                          Subtype _ (TBang _ (TVar y)) -> y == endvar
+                          Sublintype _ (TVar y) _ -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Subtype (TBang _ (TVar y)) (TBang _ (TVar _)) -> chain_right_to_left (c:chain) y (List.delete c l)
+                Sublintype (TVar y) (TVar _) _ -> chain_right_to_left (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, c:chain)
                      else
@@ -611,11 +642,15 @@ chain_right_to_left chain endvar l =
 
 -- | Type constraints are also of a kind ktype.
 instance KType TypeConstraint where
-  free_typ_var (Subtype t u) = List.union (free_typ_var t) (free_typ_var u)
-  subs_typ_var a b (Subtype t u) = Subtype (subs_typ_var a b t) (subs_typ_var a b u)
+  free_typ_var (Sublintype t u _) = List.union (free_typ_var t) (free_typ_var u)
+  free_typ_var (Subtype t u _) = List.union (free_typ_var t) (free_typ_var u)
+  subs_typ_var a b (Sublintype t u info) = Sublintype (subs_typ_var a b t) (subs_typ_var a b u) info
+  subs_typ_var a b (Subtype t u info) = Subtype (subs_typ_var a b t) (subs_typ_var a b u) info
 
-  free_flag (Subtype t u) = List.union (free_flag t) (free_flag u)
-  subs_flag n m (Subtype t u) = Subtype (subs_flag n m t) (subs_flag n m u)
+  free_flag (Sublintype t u _) = List.union (free_flag t) (free_flag u)
+  free_flag (Subtype t u _) = List.union (free_flag t) (free_flag u)
+  subs_flag n m (Sublintype t u info) = Sublintype (subs_flag n m t) (subs_flag n m u) info
+  subs_flag n m (Subtype t u info) = Subtype (subs_flag n m t) (subs_flag n m u) info
 
 
 -- | .. as are constraint sets.
@@ -625,14 +660,14 @@ instance KType ConstraintSet where
 
   free_flag (lc, fc) =
     let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
-        fff = List.foldl (\fv (n, m) -> List.union [n, m] fv) [] fc in
+        fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
     List.union ffl fff 
 
   subs_flag n m (lc, fc) =
     let lc' = List.map (subs_flag n m) lc
-        fc' = List.map (\(p, q) -> if p == n then (m, q)
-                                   else if q == n then (p, m)
-                                   else (p, q)) fc in
+        fc' = List.map (\(Le p q info) -> if p == n then (Le m q info)
+                                   else if q == n then (Le p m info)
+                                   else (Le p q info)) fc in
     (lc', fc')
 
 
@@ -650,6 +685,6 @@ generalize_type typ (limtype, limflag) cset =
 
   -- An optimisation would separate the constraints relevant
   -- to the type before generalizing, but later
-  TForall fvt' fft' cset typ
+  TForall fft' fvt' cset typ
 
 

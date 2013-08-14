@@ -253,7 +253,10 @@ instance PPrint Expr where
 
 -- | Subtyping constraints printing.
 instance PPrint TypeConstraint where
-  genprint lv (Subtype t u) opts =
+  genprint lv (Subtype t u _) opts =
+    genprint lv t opts ++ " <: " ++ genprint lv u opts
+
+  genprint lv (Sublintype t u _) opts =
     genprint lv t opts ++ " <: " ++ genprint lv u opts
 
   sprintn _ c = pprint c
@@ -263,7 +266,7 @@ instance PPrint TypeConstraint where
 
 -- | Flag constraints printing. Genprint can't be parametrized.
 instance PPrint FlagConstraint where
-  pprint (m, n) =
+  pprint (Le m n _) =
     (if m < 2 then
        show m
      else

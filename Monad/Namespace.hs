@@ -6,6 +6,8 @@ module Monad.Namespace where
 
 import Utils
 
+import Parsing.Localizing
+
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
@@ -13,6 +15,7 @@ import qualified Data.IntMap as IMap
 -- term variables, one for data constructors
 data Namespace = NSpace {
   varcons :: IntMap String,      -- ^ Stores the variable names.
+  varloc :: IntMap Extent,       -- ^ Stores the extent of the variable declaration.
   datacons :: IntMap String,     -- ^ Stores the data constructor names.
 
   vargen :: Int,                 -- ^ Used to generate new variables ids.
@@ -25,6 +28,7 @@ new_namespace :: Namespace
 new_namespace = NSpace {
   varcons = IMap.empty,
   datacons = IMap.empty,
+  varloc = IMap.empty,
 
   vargen = 0,
   datagen = 0
@@ -32,10 +36,12 @@ new_namespace = NSpace {
 
 
 -- | Registers a new variable, and returns the attributed variable id.
-register_var :: String -> Namespace -> (Int, Namespace)
-register_var s namespace =
+register_var :: String -> Extent -> Namespace -> (Int, Namespace)
+register_var s ex namespace =
   let id = vargen namespace in
-  (id, namespace { varcons = IMap.insert id s $ varcons namespace, vargen = id+1 })
+  (id, namespace { varcons = IMap.insert id s $ varcons namespace,
+                   varloc = IMap.insert id ex $ varloc namespace,
+                   vargen = id+1 })
 
 
 -- | Creates a dummy variable: it chooses a fresh id n, and registers it under the name x_n.

@@ -175,8 +175,7 @@ run_interactive opts ctx buffer = do
                                     case v of
                                       Zero -> putStrC Red nm
                                       One -> putStrC Yellow nm
-                                      Any -> putStrC Blue nm
-                                      Unknown -> liftIO $ putStr nm
+                                      Unknown -> putStrC Blue nm
                                     liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
 
@@ -189,9 +188,9 @@ run_interactive opts ctx buffer = do
             _ -> do
               liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
               run_interactive opts ctx []
-     
-      else
-        run_interactive opts ctx (l:buffer) 
+
+        else
+          run_interactive opts ctx (l:buffer) 
  
 
 -- | List of valid context commands, associated to their description.

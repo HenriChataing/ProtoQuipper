@@ -40,17 +40,15 @@ filter fc = do
                 r <- rec
                 case c of
                   -- Useless
-                  (-1, _) -> return r
-                  (_, -1) -> return r
-                  (0, _) -> return r
-                  (_, 1) -> return r
+                  Le 0 _ _ -> return r
+                  Le _ 1 _ -> return r
 
                   -- Direct
-                  (1, n) -> do
-                      set_flag n
+                  Le 1 n info -> do
+                      set_flag n info
                       return r
-                  (n, 0) -> do
-                      unset_flag n
+                  Le n 0 info -> do
+                      unset_flag n info
                       return r
 
                   -- Everything else
@@ -153,12 +151,14 @@ constraint_typing gamma (ELocated e ex) cst = do
 -- | For builtins, get the type registered in the builtins map.
 constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
-  acts@(TBang n _) <- builtin_type s
-  specify_expression n $ ActualOfE (EBuiltin s)
+  ex <- get_location
+  info <- return $ no_info { expression = EBuiltin s,
+                             loc = ex }
+  acts <- builtin_type s
 
-  return $ (acts <:: cst) <> fconstraints
+  return $ ((acts <:: cst) & info, [])
 
 
 -- | Unit typing rule
@@ -169,15 +169,14 @@ constraint_typing gamma (EBuiltin s) cst = do
 
 constraint_typing gamma EUnit cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
   
   -- Generates a referenced flag of the actual type of EUnit
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE EUnit
-  specify_location n ex
+  info <- return $ no_info { expression = EUnit,
+                             loc = ex }
 
-  return $ (TBang n TUnit <:: cst) <> fconstraints
+  return $ ((TBang 1 TUnit <:: cst) & info, [])
 
 
 -- | True / False typing rule
@@ -188,15 +187,14 @@ constraint_typing gamma EUnit cst = do
 
 constraint_typing gamma (EBool b) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EBool b)
-  specify_location n ex
+  info <- return $ no_info { expression = EBool b,
+                             loc = ex }
 
-  return $ (TBang n TBool <:: cst) <> fconstraints
+  return $ ((TBang 1 TBool <:: cst) & info, [])
 
 
 -- | Int typing rule
@@ -207,15 +205,14 @@ constraint_typing gamma (EBool b) cst = do
 
 constraint_typing gamma (EInt p) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EInt p)
-  specify_location n ex
+  info <- return $ no_info { expression = EInt p,
+                             loc = ex }
 
-  return $ (TBang n TInt <:: cst) <> fconstraints
+  return $ ((TBang 1 TInt <:: cst) & info, [])
 
 
 -- | Axiom typing rules
@@ -229,11 +226,18 @@ constraint_typing gamma (EVar x) cst = do
   sa <- type_of x gamma
   (a, csetx) <- instanciate sa
 
+  -- Get the location
+  ex <- get_location
+
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma
-  fconstraints <- force_duplicable_context gamma_nx >>= filter
+  duplicable_context gamma_nx
 
-  return $ (a <:: cst) <> fconstraints <> csetx
+  -- Information
+  info <- return $ no_info { expression = EVar x,
+                             loc = ex }
+
+  return $ ((a <:: cst) & info) <> csetx
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -241,10 +245,17 @@ constraint_typing gamma (EGlobal x) cst = do
   sa <- type_of_global x
   (a, csetx) <- instanciate sa -- In case a is a typing scheme
 
-  -- Have the rest of the context be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  -- Get the location
+  ex <- get_location
 
-  return $ (a <:: cst) <> fconstraints <> csetx
+  -- Have the rest of the context be duplicable
+  duplicable_context gamma
+
+  -- Information
+  info <- return $ no_info { expression = EGlobal x,
+                             loc = ex }
+
+  return $ ((a <:: cst) & info) <> csetx
 
 
 
@@ -256,20 +267,19 @@ constraint_typing gamma (EGlobal x) cst = do
 
 constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
   -- The context must be duplicable 
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
-  -- Flag reference
+  -- Information
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EBox a)
-  specify_location n ex
+  info <- return $ no_info { expression = EBox a,
+                             loc = ex }
 
   -- Build the type of box
-  b <- new_type  
-  arw <- return $ TBang one (TArrow a b)
-  cir <- return $ TBang anyflag (TCirc a b)
+  b <- new_type
+  arw <- return $ TBang 1 (TArrow a b)
+  cir <- return $ TBang 1 (TCirc a b)
 
-  return $ cset <> (TBang n (TArrow arw cir) <:: cst) <> fconstraints
+  return $ cset <> ((TBang 1 (TArrow arw cir) <:: cst) & info)
   
 
 -- | Rev typing rule
@@ -280,21 +290,20 @@ constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
 
 constraint_typing gamma ERev cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
-  -- Flag reference
+  -- Information
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE ERev
-  specify_location n ex
+  info <- return $ no_info { expression = ERev,
+                             loc = ex }
 
   -- Build the type of rev
   a <- new_type
   b <- new_type
-  cirab <- return $ TBang anyflag (TCirc a b)
-  cirba <- return $ TBang anyflag (TCirc b a)
+  cirab <- return $ TBang 0 (TCirc a b)
+  cirba <- return $ TBang 1 (TCirc b a)
 
-  return $ (TBang n (TArrow cirab cirba) <:: cst) <> fconstraints
+  return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info, [])
 
 
 -- | Unbox typing rule
@@ -305,21 +314,20 @@ constraint_typing gamma ERev cst = do
 
 constraint_typing gamma EUnbox cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Flag reference
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE EUnbox
-  specify_location n ex
+  info <- return $ no_info { expression = EUnbox,
+                             loc = ex }
 
   -- Build the type of unbox
   a <- new_type
   b <- new_type
-  arw <- return $ TBang one (TArrow a b)
-  cir <- return $ TBang anyflag (TCirc a b)
+  arw <- return $ TBang 1 (TArrow a b)
+  cir <- return $ TBang 0 (TCirc a b)
 
-  return $ (TBang n (TArrow cir arw) <:: cst) <> fconstraints
+  return $ ((TBang 1 (TArrow cir arw) <:: cst) & info, [])
 
 
 -- App typing rule
@@ -351,9 +359,9 @@ constraint_typing gamma (EApp t u) cst = do
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csett <> csetu <> fconstraints
+  return $ csett <> csetu
 
 
 -- Lambda typing rule
@@ -367,8 +375,8 @@ constraint_typing gamma (EFun p e) cst = do
   -- Detailed information on the type of the function 
   ex <- get_location
   n <- fresh_flag
-  specify_expression n $ ActualOfE (EFun p e)
-  specify_location n ex
+  info <- return $ no_info { expression = EFun p e,
+                             loc = ex }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
@@ -381,9 +389,9 @@ constraint_typing gamma (EFun p e) cst = do
   csete <- constraint_typing (gamma_p <+> gamma) e [b]
 
   -- Build the context constraints : n <= I
-  fconstraints <- (return $ List.map (\(_, f) -> (n, f)) flags) >>= filter
+  fconstraints <- (return $ List.map (\(_, f) -> Le n f info { in_type = Just $ TArrow a b }) flags) >>= filter
 
-  return $ csetp <> csete <> (TBang n (TArrow a b) <:: cst) <> fconstraints
+  return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
 -- Tensor intro typing rule
@@ -398,8 +406,8 @@ constraint_typing gamma (ETuple elist) cst = do
   -- Detailed information of the type of the tuple
   ex <- get_location
   p <- fresh_flag
-  specify_expression p $ ActualOfE (ETuple elist)
-  specify_location p ex 
+  info <- return $ no_info { expression = ETuple elist,
+                             loc = ex }
 
   -- Create n new types
   tlist <- List.foldr (\_ rec -> do
@@ -421,14 +429,14 @@ constraint_typing gamma (ETuple elist) cst = do
                             return $ cset <> cset') (return ([], [])) (List.zip3 elist tlist fvlist)
 
   -- Construction of all the constraints p <= f1 ... p <= fn
-  pcons <- (return $ List.map (\(TBang n _) -> (p, n) :: FlagConstraint) tlist) >>= filter
+  pcons <- (return $ List.map (\(TBang n _) -> Le p n info { in_type = Just $ TTensor tlist }) tlist) >>= filter
 
   -- Construction of the constraints of delta
   disunion <- return $ disjoint_union fvlist
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csetlist <> (TBang p (TTensor tlist) <:: cst) <> pcons <> fconstraints
+  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -494,15 +502,14 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                   ctx <- rec
                                   -- First apply the substitution
                                   a' <- map_type a
-                                  
-                                  -- Identify the free variables, the free variables form a subset of those used here.
-                                  fv <- return $ List.union (free_typ_var a') (free_typ_var csett)
-                                  ff <- return $ List.union (free_flag a') (free_flag csett)
 
+                                  -- Clean the constraint set
+                                  (fv, ff, cset') <- return $ clean_constraint_set a' csett
+                                  
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  gena <- return $ TForall genff genfv csett a'
+                                  gena <- return $ TForall genff genfv cset' a'
 
                                   -- Update the global variables
                                   update_global_type x gena
@@ -516,9 +523,9 @@ constraint_typing gamma (ELet rec p t u) cst = do
   -- Generate the flag constraints for the intersection
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csetu <> fconstraints
+  return csetu
 
 
 -- Data typing rule
@@ -538,6 +545,8 @@ constraint_typing gamma (ELet rec p t u) cst = do
 constraint_typing gamma (EDatacon dcon e) cst = do
   -- Extent of the expression
   ex <- get_location
+  info <- return $ no_info { expression = EDatacon dcon e,
+                             loc = ex }
 
   -- Retrieve the definition of the data constructor, and instanciate its typing scheme
   dtype <- datacon_def dcon
@@ -546,25 +555,17 @@ constraint_typing gamma (EDatacon dcon e) cst = do
   case (dtype', e) of
     -- No argument given, the constructor is typed as is
     (TBang n _, Nothing) -> do
-        -- Some information
-        specify_expression n $ ActualOfE (EDatacon dcon Nothing)
-        specify_location n ex
-
         -- The context must be duplicable
-        fconstraints <- force_duplicable_context gamma >>= filter
+        duplicable_context gamma
 
-        return $ (dtype' <:: cst) <> csetd <> fconstraints
+        return $ ((dtype' <:: cst) & info) <> csetd
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
-        -- Some information
-        specify_expression n $ ActualOfE (EDatacon dcon $ Just e)
-        specify_location n ex
-        
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
 
-        return $ (u <:: cst) <> csete <> csetd
+        return $ ((u <:: cst) & info) <> csete <> csetd
 
 
 -- Match typing rule
@@ -605,9 +606,9 @@ constraint_typing gamma (EMatch e blist) cst = do
   -- Generate the flag constraints for the intersection
   disunion <- return $ disjoint_union [fve, fvlist]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csete <> csetlist <> fconstraints
+  return $ csete <> csetlist
 
 
 -- Typing rule (if)
@@ -626,8 +627,9 @@ constraint_typing gamma (EIf e f g) cst = do
   fvfg <- return $ List.union (free_var f) (free_var g)
   
   -- Filter on the free variables of e and type e : e must have the type bool
+  -- The expected type !0 bool makes the least assumption about the type of e
   (gamma_e, _) <- sub_context fve gamma
-  csete <- constraint_typing gamma_e e [TBang anyflag TBool]
+  csete <- constraint_typing gamma_e e [TBang zero TBool]
 
   -- Filter on the free variables of f an g. f and g must have the same type as the whole expression, so they
   -- inherit the same constraints.
@@ -638,9 +640,9 @@ constraint_typing gamma (EIf e f g) cst = do
   -- Generate the flag constraints for the context delta
   disunion <- return $ disjoint_union [fve, fvfg]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csete <> csetf <> csetg <> fconstraints
+  return $ csete <> csetf <> csetg
 
 
 -- No typing rule, but a constraint on the type of the expression, of the form
@@ -708,8 +710,8 @@ duplicate_type (TBang _ t) = do
 
 -- | Creates a duplicated version of a type, and map the argument type variable to it.
 -- The first type is assumed to be of the form !n x where x is a type variable.
-map_to_duplicate :: Type -> Type -> QpState LinType
-map_to_duplicate (TBang r (TVar x)) (TBang _ t) = do
+map_to_duplicate :: Variable -> LinType -> QpState LinType
+map_to_duplicate x t = do
   t' <- duplicate_lintype t
   mapsto x t'
   return t'
@@ -733,8 +735,8 @@ unify_with_poset exact poset (lc, fc) = do
 
     -- Filter the constraint which have an element of cx as right or left hand side
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
-                                                       Subtype tx@(TBang _ (TVar _)) _ -> List.elem tx cx
-                                                       Subtype _ ty@(TBang _ (TVar _)) -> List.elem ty cx) lc
+                                                       Sublintype (TVar x) _ _ -> List.elem x cx
+                                                       Sublintype _ (TVar y) _ -> List.elem y cx) lc
         
     -- Log
     logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -744,11 +746,6 @@ unify_with_poset exact poset (lc, fc) = do
                                            
     -- Filter the atomic constraints
     (atomx, natomx) <- return $ List.partition is_atomic lcx
-
-    -- The atomic constraints still convey some flag constraints
-    fcatom <- List.foldl (\rec (Subtype (TBang n _) (TBang m _)) -> do
-                            r <- rec
-                            return $ (m, n):r) (return []) atomx
 
     -- Check the next action
     case (atomx, natomx) of
@@ -760,11 +757,11 @@ unify_with_poset exact poset (lc, fc) = do
 
             -- APPROXIMATION :
             -- Of all the variables, keep only one and replace the rest
-            ((TBang n xh):rest) <- return cx
-            List.foldl (\rec (TBang m (TVar x)) -> do 
+            (xh:rest) <- return cx
+            List.foldl (\rec x -> do 
                           rec
-                          mapsto x $ xh) (return ()) rest
-            unify_with_poset exact poset (non_lcx, fcatom ++ fc)
+                          mapsto x $ TVar xh) (return ()) rest
+            unify_with_poset exact poset (non_lcx, fc)
 
           else do
 
@@ -785,42 +782,42 @@ unify_with_poset exact poset (lc, fc) = do
 
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
-                         Subtype t _ -> return $ t
+                         Sublintype t _ _ -> return $ t
             rightend <- case List.last sorted of
-                          Subtype _ t -> return t
+                          Sublintype _ t _ -> return t
 
             -- One of the ends must be composite
             case (leftend, rightend) of
-              (TBang _ (TVar x), _) -> do
+              (TVar x, _) -> do
                   -- Map everything to the right end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                 rec
-                                mapsto x $ no_bang rightend) (return ()) cx
+                                mapsto x rightend) (return ()) cx
 
                   -- Unify the rest
-                  unify_with_poset False poset (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset (non_lcx, fc)
                   
-              (_, TBang _ (TVar x)) -> do
+              (_, TVar x) -> do
                   -- Map everything to the left end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                   rec
-                                  mapsto x $ no_bang leftend) (return ()) cx
+                                  mapsto x leftend) (return ()) cx
 
                   -- Unify the rest
-                  unify_with_poset False poset (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset (non_lcx, fc)
 
               _ -> do
                   -- Map everything to the left end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                 rec
-                                mapsto x $ no_bang leftend) (return ()) cx
+                                mapsto x leftend) (return ()) cx
 
                   -- Add the constraint  leftend <: rightend
-                  cset' <- break_composite True ([leftend <: rightend], [])
+                  cset' <- break_composite True ([Sublintype leftend rightend no_info], [])
                   poset <- return $ register_constraints (fst cset') poset
 
                   -- Unify the rest
-                  unify_with_poset False poset $ cset' <> (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset $ cset' <> (non_lcx, fc)
 
           else do
 
@@ -828,8 +825,8 @@ unify_with_poset exact poset (lc, fc) = do
             -- Select a composite type from the semi-composite constraints
             newlog 1 "EXACT"
             model <- case List.head cset of
-                       Subtype (TBang _ (TVar _)) t -> return t
-                       Subtype t (TBang _ (TVar _)) -> return t
+                       Sublintype (TVar _) t _ -> return t
+                       Sublintype t (TVar _) _ -> return t
 
             -- Map the youngest variables each to a new specimen of the model
             List.foldl (\rec x -> do
@@ -838,25 +835,25 @@ unify_with_poset exact poset (lc, fc) = do
                           return ()) (return ()) cx
 
             -- Rewrite and reduce the atomic constraints
-            atomx' <- List.foldl (\rec (Subtype (TBang n (TVar x)) (TBang m (TVar y))) -> do
+            atomx' <- List.foldl (\rec (Sublintype (TVar x) (TVar y) info) -> do
                                     atom <- rec
                                     xt <- appmap x
                                     yt <- appmap y
-                                    atom' <- break_composite True ([TBang n xt <: TBang m yt], [])
+                                    atom' <- break_composite True ([Sublintype xt yt info], [])
                                     return $ atom' <> atom) (return emptyset) atomx
 
             -- Rewrite and reduce the semi composite constraints
             cset' <- List.foldl (\rec c -> do
                                    cs <- rec
                                    case c of
-                                     Subtype (TBang n (TVar x)) u -> do
+                                     Sublintype (TVar x) u info -> do
                                          xt <- appmap x
-                                         cs' <- break_composite True ([TBang n xt <: u], [])
+                                         cs' <- break_composite True ([Sublintype xt u info], [])
                                          return $ cs' <> cs
 
-                                     Subtype t (TBang m (TVar y)) -> do
+                                     Sublintype t (TVar y) info -> do
                                          yt <- appmap y
-                                         cs' <- break_composite True ([t <: TBang m yt], [])
+                                         cs' <- break_composite True ([Sublintype t yt info], [])
                                          return $ cs' <> cs)  (return emptyset) cset
 
 
@@ -909,35 +906,34 @@ apply_flag_constraints [] = do
 
 apply_flag_constraints (c:cc) = do
   case c of
-    (1, 0) -> do
-        -- This case is annoying because it relays absolutely no information about the whereabouts of the error.
-        fail "Absurd constraint 1 <= 0"
+    Le 1 0 info -> do
+        throw_NonDuplicableError info
 
-    (n, 0) -> do
-        unset_flag n
+    Le n 0 info -> do
+        unset_flag n info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
-    (1, m) -> do
-        set_flag m
+    Le 1 m info -> do
+        set_flag m info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
-    (m, n) -> do
+    Le m n info -> do
         vm <- flag_value m
         vn <- flag_value n
         case (vm, vn) of
           (One, Zero) -> do
               -- The error could have been thrown with either reference.
-              throw_NonDuplicableError m
+              throw_NonDuplicableError info
 
           (Unknown, Zero) -> do
-              unset_flag m
+              unset_flag m info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
  
           (One, Unknown) -> do
-              set_flag n
+              set_flag n info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
 
@@ -962,7 +958,7 @@ unify_flags :: [FlagConstraint] -> QpState [FlagConstraint]
 unify_flags fc = do
 
   -- Elimination of trivial constraints f <= 1 and 0 <= f, -1 <= f and f <= -1
-  fc' <- return $ List.filter (\(m, n) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
+  fc' <- return $ List.filter (\(Le m n _) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
 
   -- Application of the constraints 1 <= f and f <= 0
   (_, fc'') <- apply_flag_constraints fc'
@@ -981,5 +977,3 @@ unify exact cset = do
 
   -- Result
   return (lc', fc'')
-
-

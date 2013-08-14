@@ -222,13 +222,13 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Free variables of the new expression
   fve <- return $ free_var e'
   a@(TBang n _) <- new_type
-  specify_location n $ (case e' of
-                          ELocated _ ex -> ex
-                          _ -> extent_unknown)
-  specify_expression n $ (ActualOfE e')
 
   -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
-  set_flag n
+  ex <- case e' of
+          ELocated _ ex -> return ex
+          _ -> return $ extent_unknown
+  set_flag n no_info { expression = e',
+                       loc = ex }
 
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
@@ -334,35 +334,34 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   --     if not, set it to 1
                                   v <- flag_value n
                                   case v of
-                                    Unknown -> set_flag n
+                                    Unknown -> set_flag n no_info
                                     _ -> return ()
- 
-                                  -- Identify the free variables, the free variables form a subset of those used here.
-                                  fv <- return $ List.union (free_typ_var a') (free_typ_var csete)
-                                  ff <- return $ List.union (free_flag a') (free_flag csete)
+
+                                  -- Clean the constraint set 
+                                  (fv, ff, cset') <- return $ clean_constraint_set a' csete
 
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  gena <- return $ TForall genff genfv csete a'
+                                  gena <- return $ TForall genff genfv cset' a'
                                   -- Update the global variables
                                   update_global_type x gena
                                   -- Update the typing context of u
                                   return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
-  if disp_decls mopts then
+  if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p
     IMap.foldWithKey (\x a rec -> do
                         rec
                         nx <- variable_name x
-                        pa <- case a of
-                                TForall _ _ _ a -> pprint_type_noref a
-                                _ -> pprint_type_noref a
-                        -- No unnecessary printing
-                        if toplevel mopts then
-                          liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
-                        else
-                          return ()) (return ()) gamma_p
+                        case a of
+                          TForall _ _ _ a -> do
+                              pa <- pprint_type_noref a
+                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+                          _ -> do
+                              pa <- pprint_type_noref a
+                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+                        return ()) (return ()) gamma_p
   else
     return ()
 
@@ -458,12 +457,6 @@ process_module opts prog = do
   ctx <- get_context
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
 
---  t <- translate_body prog (S.body prog) (Map.union dcons gbls)
---  if proto then
---    unsugar t
---  else
---    return t
-
 -- Type inference part
 
   -- Create the initial typing context
@@ -478,9 +471,9 @@ process_module opts prog = do
                                                                                    constraints = emptyset }) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
-  fconstraints <- force_duplicable_context (typing ctx) >>= Typing.TypeInference.filter
-  _ <- unify True (fconstraints <> constraints ctx)
- 
+  duplicable_context (typing ctx)
+  _ <- unify True $ constraints ctx
+
   -- Return
   return ()
 
