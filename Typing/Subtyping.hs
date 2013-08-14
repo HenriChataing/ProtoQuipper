@@ -67,6 +67,17 @@ break_composite :: Bool -> ConstraintSet -> QpState ConstraintSet
 -- Nothing to do
 break_composite bu ([], lc) = return ([], lc)
 
+-- Subtype constraints
+break_composite bu ((Subtype (TBang n t) (TBang m TQbit) info):lc, fc) = do
+  unset_flag n
+  unset_flag m
+  break_composite bu ((Sublintype t TQbit info):lc, fc)
+
+break_composite bu ((Subtype (TBang n TQbit) (TBang m t) info):lc, fc) = do
+  unset_flag n
+  unset_flag m
+  break_composite bu ((Sublintype TQbit t info):lc, fc)
+
 
 -- Unit against unit : removed
 break_composite bu ((Sublintype TUnit TUnit _):lc, fc) = do
@@ -165,12 +176,6 @@ break_composite bu (c@(Sublintype (TVar _) _ _):lc, fc) = do
 break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
-
--- Subtype constraints
-break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit) _):lc, fc) = do
-  unset_flag n
-  unset_flag m
-  break_composite bu (lc, fc)
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
   if non_trivial n m then

@@ -346,19 +346,19 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   -- Update the typing context of u
                                   return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
-  if disp_decls mopts then
+  if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p
     IMap.foldWithKey (\x a rec -> do
                         rec
                         nx <- variable_name x
-                        pa <- case a of
-                                TForall _ _ _ a -> pprint_type_noref a
-                                _ -> pprint_type_noref a
-                        -- No unnecessary printing
-                        if toplevel mopts then
-                          liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
-                        else
-                          return ()) (return ()) gamma_p
+                        case a of
+                          TForall ff fv cs a -> do
+                              pa <- pprint_type_noref a
+                              liftIO $ putStrLn $ nx ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa
+                          _ -> do
+                              pa <- pprint_type_noref a
+                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+                        return ()) (return ()) gamma_p
   else
     return ()
 
