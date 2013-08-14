@@ -860,10 +860,10 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \begin{figure}[!ht]
 \begin{mdframed}
 \[
-  \infer[(\boxx)]{[C,\boxx^T(v)]\to [C,(t,D,a)]}{
+  \infer[(\boxx)]{[C,\boxx^T(v)]\to [C,(t,D,vt)]}{
     \spec_{C,v}(T)=t
     &
-    [\mathtt{new}(\FQ(t)), vt] \to [D,a]
+    \mathtt{new}(\FQ(t))=D
   }
 \]
 \[
@@ -1206,13 +1206,14 @@ If $[C,a]\to[C',a']$ then $\mathtt{In}(C)=\mathtt{In}(C')$.
 \end{lemma}
 
 \begin{proof}
-By case distinction on the rule used in the reduction $[C,a]\to[C',a']$. 
+By induction on the derivation of $[C,a]\to[C',a']$. 
 In all but the $(\unbox)$ case, the result follows either from the induction 
 hypothesis or from the fact that $C=C'$. In the $(\unbox)$ case, use 
-Definition~\hyperref[Unencap_In]{\ref*{circuit_constructor}.\ref*{Unencap_In}}.
+Definition~\hyperref[Unencap_In]{\ref*{circuit_constructor}.(\ref*{Unencap_In})}.
 \end{proof}
 
 \begin{proposition}
+{\bf (Subject Reduction).}
 \label{subject_red_one_step}
 If $\Gamma;\FQ(a)\entails [C,a]:A,(Q'|Q'')$ is valid typed closure 
 and $[C,a]\to [C',a']$, then $\Gamma;\FQ(a')\entails [C',a']:A,(Q'|Q'')$ is 
@@ -1225,8 +1226,7 @@ We prove the proposition by induction on the derivation of the reduction
 the unique typing derivation $\pi$ of $\Gamma;\FQ(a)\entails a:A$ and we use 
 it to prove that $\Gamma;\FQ(a')\entails [C',a']:A,(Q'|Q'')$ is valid. 
 By Lemma~\hyperref[Inwires]{\ref*{Inwires}} we never need to 
-verify that $\mathtt{In}(C')=Q'$ so that in each case we only 
-need to show:
+verify that $\mathtt{In}(C')=Q'$ so that we only need to show:
 \begin{itemize}
   \item $\mathtt{Out}(C')=\FQ(a'),Q''$ and
   \item $\Gamma;\FQ(a')\entails a':A$ is valid.
@@ -1273,7 +1273,7 @@ $(fun)$ and $(circ)$ cases.
       } 
     }
   \]  
-  shows that $\Gamma_1,\Gamma_2, !\Delta;\FQ(c'),\FQ(b)\entails c'b:A,(Q',Q'')$ 
+  shows that $\Gamma_1,\Gamma_2, !\Delta;\FQ(c'),\FQ(b)\entails [C',c'b]:A,(Q',Q'')$ 
   is valid.
   \item $(circ)$: the reduction rule is
   \[
@@ -1343,7 +1343,7 @@ the $(\beta)$ case.
       }      
     }
   \]  
-  and $\Gamma_1,\Gamma_2,!\Delta;\FQ(b),\FQ(v)\entails (\lambda x.b)v:A,(Q'|Q'')$ 
+  and $\Gamma_1,\Gamma_2,!\Delta;\FQ(b),\FQ(v)\entails [C,(\lambda x.b)v]:A,(Q'|Q'')$ 
   is valid. By Lemma \hyperref[substitution]{\ref*{substitution}}, we know that
   $\Gamma_1,\Gamma_2,!\Delta;\FQ(b),\FQ(v)\entails b[v/x]:A$ is a valid typing 
   judgement which implies that 
@@ -1355,13 +1355,13 @@ We treat them individually.
 \begin{itemize}
   \item $(\boxx)$: the reduction rule is
   \[
-  \infer[]{[C,\boxx^T(v)]\to [C,(t,D,b)]}{
+  \infer[]{[C,\boxx^T(v)]\to [C,(t,D,vt)]}{
     \spec(T)=t
     &
-    [\mathtt{new}(\FQ(t)), vt] \to [D,b]
+    \mathtt{new}(\FQ(t))=D
   }
   \]
-  with $a=\boxx^T(v)$ and $a'=(t,D,b)$. Since $v$ is a value, we know by  
+  with $a=\boxx^T(v)$ and $a'=(t,D,vt)$. Since $v$ is a value, we know by  
   Lemma~\hyperref[context_value]{\ref*{context_value}} that the typing 
   derivation $\pi$ is
   \[
@@ -1374,14 +1374,12 @@ We treat them individually.
     }
   }
   \]
-  and $!\Delta;\varnothing\entails \boxx^T(v):!^n\Circ(T,U),(Q'|Q'')$ is valid.
-  By Lemma~\hyperref[specimen]{\ref*{specimen}}, there exists 
+  and $!\Delta;\varnothing\entails [C,\boxx^T(v)]:!^n\Circ(T,U),(Q'|Q'')$ is valid.
+  By Lemma \hyperref[specimen]{\ref*{specimen}}, there exists 
   a typing derivation $\pi_2$ of $\FQ(t)\entails t:T$ and applying 
-  Lemma~\hyperref[weakening]{\ref*{prop_type_syst}.\ref*{weakening}} yields a typing 
-  derivation $\pi_2'$ of $!\Delta;\FQ(t)\entails t:T$. 
-  Applying Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}}
+  Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}}
   to $\pi_1$ we get a derivation $\pi_1'$ of $!\Delta ;\varnothing\entails v:T\loli U$.
-  We can therefore construct the following derivation:
+  We can therefore construct the following derivation $\tau$:
   \[
   \infer[]{!\Delta;\FQ(t)\entails vt : U}{
     \deduce[]{!\Delta ;\varnothing\entails v:T\loli U}{
@@ -1393,29 +1391,27 @@ We treat them individually.
     }
   }
   \]
-  Moreover, $\FQ(t)=\mathtt{Out}(\mathtt{New}(\FQ(t)))=\mathtt{In}(\mathtt{New}(\FQ(t)))$. 
-  It therefore follows that $!\Delta;\FQ(t)\entails [\mathtt{New}(\FQ(t)),vt]:U,(\FQ(t)|\varnothing)$ 
-  is a valid typed closure. By the induction hypothesis, this implies that 
-  $!\Delta;\FQ(b)\entails [D,b]:U,(\FQ(t)|\varnothing)$ is also valid.
-  In particular, this means that $\mathtt{In}(D)=\FQ(t)$, $\mathtt{Out}(D)=\FQ(b)$ 
-  and that there exists a typing derivation $\pi_3$ of $!\Delta;\FQ(b)\entails b:U$.
-  We can therefore construct the following typing derivation:
+  where $\pi_2'$ is obtained from $\pi_2$ by Lemma 
+  \hyperref[weakening]{\ref*{prop_type_syst}.\ref*{weakening}}.
+  Moreover, since $\FQ(vt)=\FQ(t)=\mathtt{Out}(D)=\mathtt{In}(D)$, 
+  we have:
   \[
-  \infer[.]{!\Delta;\varnothing \entails (t,D,b):!^n\Circ(T,U)}{
+  \infer[.]{!\Delta;\varnothing \entails (t,D,vt):!^n\Circ(T,U)}{
     \deduce[]{\FQ(t)\entails t:T}{
       \vdots~\pi_2
     }
     &
-    \deduce[]{!\Delta ; \FQ(b)\entails b:U}{
-      \vdots~\pi_3
+    \deduce[]{!\Delta ; \FQ(vt)\entails vt:U}{
+      \vdots~\tau
     } 
     &
     \deduce[]{\In(D)=\FQ(t) }{
-      \Out(D)=\FQ(b)
+      \Out(D)=\FQ(vt)
     }
   }
   \]  
-  Hence $!\Delta ;\varnothing \entails (t,D,b):!^n\Circ(T,U) (Q'|Q'')$ is valid.
+  Hence $!\Delta ;\varnothing \entails [C,(t,D,vt)]:!^n\Circ(T,U) (Q'|Q'')$ is 
+  a valid typed closure.
   \item $(\unbox)$ the reduction rule is
   \[
     \infer[(\unbox)]{[C,(\unbox\,(t,D,t'))v]\to [C',\binding'(t')]}{
@@ -1463,7 +1459,7 @@ We treat them individually.
   \end{footnotesize} 
   and the typed closure
   \[
-  !\Delta; \FQ(v) \entails (\unbox\,(t,D,t'))v :U,(Q'|Q'')
+  !\Delta; \FQ(v) \entails [C,(\unbox\,(t,D,t'))v] :U,(Q'|Q'')
   \] 
   is valid. In the conclusion of $\pi_2$, all the 
   term variables are declared of a duplicable type. This 
@@ -1485,7 +1481,7 @@ We treat them individually.
                    & = & \FQ(\binding(t')),Q''.                   
   \end{array}
   \]
-  Hence $!\Delta; \FQ(\binding(t'))\entails \binding(t') :U,(Q'|Q'')$  is valid.
+  Hence $!\Delta; \FQ(\binding(t'))\entails [C',\binding(t')] :U,(Q'|Q'')$  is valid.
   \item $(\rev)$ the reduction rule is
   \[
     \infer[(\rev)]{[C,\rev\,(t,D,t')]\to [C,(t',D^{-1},t)]}{}
@@ -1544,7 +1540,6 @@ We treat them individually.
 \end{proof}
 
 \begin{corollary}
-{\bf (Subject Reduction).}
 If $\Gamma;\FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure 
 and $[C,a]\to^* [C',a']$, then $\Gamma;\FQ(a')\entails [C',a']:A,(Q'|Q'')$ 
 is also a valid typed closure.
