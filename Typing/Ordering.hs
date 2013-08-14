@@ -134,14 +134,6 @@ null_poset poset =
 --      if the constraint is a <: T or T <: a, for every b free_variable of T, add the edge cluster b -> cluster a
 
 
--- | Returns the free type variables of a type, associated with their flag reference.
-free_var_with_flag :: Type -> [Type]
-free_var_with_flag ta@(TBang _ (TVar _)) = [ta]
-free_var_with_flag (TBang _ (TArrow t u)) = free_var_with_flag t ++ free_var_with_flag u
-free_var_with_flag (TBang _ (TTensor tlist)) = List.concat $ List.map free_var_with_flag tlist
-free_var_with_flag (TBang _ (TCirc t u)) = free_var_with_flag t ++ free_var_with_flag u 
-free_var_with_flag _ = []
-
 
 -- | Registers a constraint and its consequences upon the poset.
 -- 

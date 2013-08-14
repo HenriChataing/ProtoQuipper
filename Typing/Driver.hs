@@ -352,9 +352,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         rec
                         nx <- variable_name x
                         case a of
-                          TForall ff fv cs a -> do
+                          TForall ff fv cs b -> do
                               pa <- pprint_type_noref a
-                              liftIO $ putStrLn $ nx ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa
+                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+                              --liftIO $ putStrLn $ nx ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa
                           _ -> do
                               pa <- pprint_type_noref a
                               liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
@@ -479,11 +480,11 @@ process_module opts prog = do
  
   -- Export variables
   globals <- get_module >>= return . global_types
-  IMap.foldWithKey (\x (TForall ff fv cs a) rec -> do
+  IMap.foldWithKey (\x a rec -> do
                       rec
                       n <- variable_name x
                       pa <- pprint_type_noref a
-                      liftIO $ putStrLn $ n ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa) (return ()) globals 
+                      liftIO $ putStrLn $ "val " ++ n ++ " : " ++ pa) (return ()) globals 
 
 
   -- Return

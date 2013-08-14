@@ -46,10 +46,6 @@ one = 1
 zero :: RefFlag 
 zero = 0
 
--- | The flag with any value.
-anyflag :: RefFlag
-anyflag = -1
-
 
 -- | Represents the value a flag can take. Initially, all flags are set to Unknown, except
 -- for some imposed to zero or one by the typing rules.
@@ -57,7 +53,6 @@ data FlagValue =
     Unknown   -- ^ The value of the flag has not been decided yet.
   | One       -- ^ The value 1.
   | Zero      -- ^ The value 0.
-  | Any       -- ^ Any flag value, typically the flag prefix of circ, bool, unit.
   deriving Show
 
 -- | Information relevant to a flag. This contains the flag value, some debug
@@ -117,6 +112,7 @@ is_user_lintype :: LinType -> Bool
 is_user_lintype (TUser _ _) = True
 is_user_lintype (TCirc t u) = is_user_type t || is_user_type u
 is_user_lintype (TTensor tlist) = List.or $ List.map is_user_type tlist
+is_user_lintype (TArrow t u) = is_user_type t || is_user_type u
 is_user_lintype _ = False
 
 
@@ -280,7 +276,6 @@ instance KType LinType where
   subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
 
 
-  free_flag (TVar x) = [x]
   free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
   free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
   free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
@@ -301,7 +296,7 @@ instance KType Type where
   free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
-  free_flag (TBang n t) = n:(free_flag t)
+  free_flag (TBang n t) = List.insert n (free_flag t)
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
     if n == p then

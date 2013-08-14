@@ -630,8 +630,9 @@ constraint_typing gamma (EIf e f g) cst = do
   fvfg <- return $ List.union (free_var f) (free_var g)
   
   -- Filter on the free variables of e and type e : e must have the type bool
+  -- The expected type !0 bool makes the least assumption about the type of e
   (gamma_e, _) <- sub_context fve gamma
-  csete <- constraint_typing gamma_e e [TBang anyflag TBool]
+  csete <- constraint_typing gamma_e e [TBang zero TBool]
 
   -- Filter on the free variables of f an g. f and g must have the same type as the whole expression, so they
   -- inherit the same constraints.

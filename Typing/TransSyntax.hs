@@ -454,13 +454,13 @@ translate_type :: S.Type
                                           -- * be bound in the map (all other cases).
                -> QpState (Type, ConstraintSet, Map String Type)
 translate_type S.TUnit [] m = do
-  return (TBang anyflag TUnit, emptyset, fst m)
+  return (TBang one TUnit, emptyset, fst m)
 
 translate_type S.TBool [] m = do
-  return (TBang anyflag TBool, emptyset, fst m)
+  return (TBang one TBool, emptyset, fst m)
 
 translate_type S.TInt [] m = do
-  return (TBang anyflag TInt, emptyset, fst m)
+  return (TBang one TInt, emptyset, fst m)
 
 translate_type S.TQbit [] m = do
   return (TBang zero TQbit, emptyset, fst m)
@@ -545,7 +545,7 @@ translate_type (S.TBang t) [] label = do
 translate_type (S.TCirc t u) [] (label, bound) = do
   (t', csett, lblt) <- translate_type t [] (label, bound)
   (u', csetu, lblu) <- translate_type u [] (lblt, bound)
-  return (TBang anyflag (TCirc t' u'), csett <> csetu, lblu)
+  return (TBang one (TCirc t' u'), csett <> csetu, lblu)
 
 -- Case of type application : the argument is pushed onto the arg list
 translate_type (S.TApp t u) args (label, bound) = do

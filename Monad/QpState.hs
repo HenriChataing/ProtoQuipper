@@ -529,7 +529,6 @@ datacon_def id = do
 flag_value :: RefFlag -> QpState FlagValue
 flag_value ref =
   case ref of
-    (-1) -> return Any
     0 -> return Zero
     1 -> return One
     _ -> do
@@ -548,7 +547,6 @@ flag_value ref =
 set_flag :: RefFlag-> QpState ()
 set_flag ref = do
   case ref of
-    (-1) -> return ()
     0 -> do
         f <- get_file
         throwQ $ LocatedError (NonDuplicableError "(unknown)") (f, extent_unknown)
@@ -622,7 +620,6 @@ fresh_flag_with_value v = do
 duplicate_flag :: RefFlag -> QpState RefFlag
 duplicate_flag ref = do
   case ref of
-    (-1) -> return (-1)
     0 -> return 0
     1 -> return 1
     _ -> do
@@ -722,8 +719,6 @@ rewrite_flags (TBang n t) = do
           return (TBang 1 t')
       Zero ->
           return (TBang 0 t')
-      Any ->
-          return (TBang (-1) t')
       Unknown ->
           return (TBang (-2) t')
         
@@ -847,7 +842,11 @@ map_lintype typ = do
 map_type :: Type -> QpState Type
 map_type (TBang f t) = do
   t' <- map_lintype t
-  return $ TBang f t'
+  v <- flag_value f
+  case v of
+    One -> return $ TBang 1 t'
+    Zero -> return $ TBang 0 t'
+    _ -> return $ TBang f t'
 
 map_type (TForall fv ff cset typ) = do
   typ' <- map_type typ

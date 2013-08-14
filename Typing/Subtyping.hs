@@ -78,6 +78,17 @@ break_composite bu ((Subtype (TBang n TQbit) (TBang m t) info):lc, fc) = do
   unset_flag m
   break_composite bu ((Sublintype TQbit t info):lc, fc)
 
+break_composite bu ((Subtype (TBang _ TUnit) (TBang _ TUnit) _):lc, fc) = do
+  break_composite bu (lc, fc)
+
+break_composite bu ((Subtype (TBang _ TBool) (TBang _ TBool) _):lc, fc) = do
+  break_composite bu (lc, fc)
+
+break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt) _):lc, fc) = do
+  break_composite bu (lc, fc)
+
+break_composite bu ((Subtype (TBang _ t@(TCirc _ _)) (TBang _ u@(TCirc _ _)) info):lc, fc) = do
+  break_composite bu ((Sublintype t u info):lc, fc)
 
 -- Unit against unit : removed
 break_composite bu ((Sublintype TUnit TUnit _):lc, fc) = do

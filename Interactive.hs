@@ -175,8 +175,7 @@ run_interactive opts ctx buffer = do
                                     case v of
                                       Zero -> putStrC Red nm
                                       One -> putStrC Yellow nm
-                                      Any -> putStrC Blue nm
-                                      Unknown -> liftIO $ putStr nm
+                                      Unknown -> putStrC Blue nm
                                     liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
 
