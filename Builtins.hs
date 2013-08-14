@@ -62,7 +62,7 @@ binary_value g =
 --
 -- * The binary gates are : CNOT, SWAP, CONTROL_PHASE, GATE_W.
 --
--- * One trinary gate is defined: TOFFOLI.
+-- * One ternary gate is defined: TOFFOLI.
 --
 -- Note that the list of unary and binary gates is actually provided by the "Interpret.Circuits" module.
 builtin_gates :: Map String (Type, Value)

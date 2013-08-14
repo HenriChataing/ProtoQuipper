@@ -47,6 +47,6 @@ let cphase n = unbox (#builtin CONTROL_PHASE n) ;;
 let cnot = unbox (#builtin CNOT) ;;
 let gateW = unbox (#builtin GATE_W) ;;
 
--- TRINARY
+-- TERNARY
 let toffoli = #builtin TOFFOLI ;;
 
