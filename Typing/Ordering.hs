@@ -306,7 +306,7 @@ youngest_variables poset = do
 -- The variables are grouped inside in equivalence classes.
 data Equiv a = Eqv {
   clmap :: IntMap Int,                     -- ^ Map each variable to its respective euivalence class.
-  classes :: IntMap ([Variable], [a])     -- ^ Contents of the equivalence classes.
+  classes :: IntMap ([Variable], [a])      -- ^ Contents of the equivalence classes.
 }
 
 

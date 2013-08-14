@@ -448,6 +448,7 @@ type ConstraintSet =
 
 
 -- | The equality of constraint sets, allowing for substitutions of the constraints.
+equals_set :: ConstraintSet -> ConstraintSet -> Bool
 equals_set (lc, fc) (lc', fc') = (lc \\ lc' == []) && (lc' \\ lc == []) && (fc \\ fc' == []) && (fc' \\ fc == [])
 
 
