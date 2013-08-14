@@ -12,26 +12,26 @@ type inference, please refer to Chapter 22 of Pierce {\cite{pierce02}}.
 
 \begin{defn} The \emph{terms} of $\QP'$ are defined by:
 	\begin{center}
-	\begin{tabular}{rl}
-		$\texttt{Term} ~t,u~ ::=$ & $x ~|~ * ~|~ \lambda x.t ~|~ t \, u ~|~ \pair{t}{u} ~|~ \letin{\pair{x}{y}}{t}{u}. $
+	\begin{tabular}{rrl}
+		$\texttt{Term}$&$ ~t,u~ ::=$ & $x ~|~ * ~|~ \lambda x.t ~|~ t \, u ~|~ \pair{t}{u} ~|~ \letin{\pair{x}{y}}{t}{u}. $
 	\end{tabular}
 	\end{center}
 \end{defn}
 
 For the purpose of type inference, it would seem natural to define the type system of $\QP'$ by extending the types of $\QP$ with type variables. This would give the following grammar for types:
 	\begin{center}
-	\begin{tabular}{rl}
-		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
+	\begin{tabular}{rrl}
+		$\texttt{Type}$&$ ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
 	\end{tabular}
 	\end{center}
 This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $\qubit$, $\bool \otimes \bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
 
 \begin{defn} The \emph{types} of $\QP'$ are defined by:
 	\begin{center}
-	\begin{tabular}{rl}
-		$\texttt{Flag}~ ::=$ & $n ~|~ 0 ~|~ 1$ \\		
-		$\texttt{LinearType} ~A~ ::=$ & $\alpha ~|~ 1 ~|~ T \multimap U ~|~ T \otimes U$ \\
-		$\texttt{Type	} ~T,U~ ::=$ & $!^n A$.
+	\begin{tabular}{rrl}
+		$\texttt{Flag}$&$~i~ ::=$ & $n ~|~ 0 ~|~ 1$ \\		
+		$\texttt{LinearType}$&$ ~A~ ::=$ & $\alpha ~|~ 1 ~|~ T \multimap U ~|~ T \otimes U$ \\
+		$\texttt{Type}$&$ ~T,U~ ::=$ & $!^i A$.
 	\end{tabular}
 	\end{center}
 \end{defn}
@@ -240,13 +240,13 @@ The correspondence between the type systems for $\QP$ and $\QP'$ is established 
 \begin{lemma} The type system satisfies the following properties:
 	\label{QP'prop}
 	\begin{enumerate}
-		\item Suppose $\Gamma \vdash t : T$ is a valid typing judgement in LL. Let $\Delta$ and $U$ be such that
+		\item Suppose $\Gamma \vdash t : T$ is a valid typing judgement in $\QP'$. Let $\Delta$ and $U$ be such that
 			$\Delta <: \Gamma$ and $T <: U$. Then $\Delta \vdash t : U$ is valid.
 	
-		\item Suppose $\Gamma \vdash t : T$ is a valid typing judgement in LL. Then for any context $!^1 \Delta$ distinct from $\Gamma$;
+		\item Suppose $\Gamma \vdash t : T$ is a valid typing judgement in $\QP'$. Then for any context $!^1 \Delta$ distinct from $\Gamma$;
 			$\Gamma, \,!^1\Delta \vdash t : T$ is valid as well.
 	
-		\item Suppose $\Gamma, x : \,!^1 T \vdash t : T$ with $x \notin FV(t)$ is a valid typing judgement in LL.
+		\item Suppose $\Gamma, x : \,!^1 T \vdash t : T$ with $x \notin FV(t)$ is a valid typing judgement in $\QP'$.
 			Then $\Gamma \vdash t : T$ is valid as well.
 	\end{enumerate}
 	
