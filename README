@@ -16,3 +16,49 @@ Building
 
 In the top-level directory, type "make".
 
+Description
+===========
+
+Synopsis: ProtoQuipper [OPTION] .. [FILE] ..
+  Types and interprets FILEs, or if no FILE is given, run the interactive mode.
+
+-t, --type
+    don't run the interpreter.
+
+-r, --run
+    run the interpret (default mode).
+
+-f FORMAT, --format=FORMAT
+    change the circuit output format. Implemented formats are
+      * "visual": display the circuit on the standard output
+      * "ir": print the Intermediate Representation of the circuit
+
+-i DIR, --include=DIR
+    include the directory
+
+-h, --help
+    display this help and exit
+
+-V, --version
+    output version and exit
+
+-v [LVL], --verbose[=LVL]
+    change the verbose level
+
+
+Interactive Mode
+================
+
+The interactive mode accpets some commands:
+
+:help
+    display this help
+
+:display
+    display the toplevel circuit
+
+:ctx
+    output the content of the typing context
+
+:exit
+    quit the interactive mode
