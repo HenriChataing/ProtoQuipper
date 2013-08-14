@@ -49,7 +49,7 @@ Synopsis: ProtoQuipper [OPTION] .. [FILE] ..
 Interactive Mode
 ================
 
-The interactive mode accpets some commands:
+The interactive mode accepts the commands:
 
 :help
     display this help
