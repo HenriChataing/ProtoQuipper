@@ -847,14 +847,16 @@ map_lintype typ = do
 
 
 -- | Recursively applies the mappings recorded in the current state to a linear type.
+-- Qbits are intercepted to check the value of their flag.
 map_type :: Type -> QpState Type
 map_type (TBang f t) = do
   t' <- map_lintype t
-  v <- flag_value f
-  case v of
-    One -> return $ TBang 1 t'
-    Zero -> return $ TBang 0 t'
-    _ -> return $ TBang f t'
+  case t' of
+    TQbit ->
+        unset_flag f no_info
+    _ ->
+        return ()
+  return $ TBang f t'
 
 map_type (TForall fv ff cset typ) = do
   typ' <- map_type typ
