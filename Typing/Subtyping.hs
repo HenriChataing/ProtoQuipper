@@ -75,7 +75,13 @@ break_composite bu ((Sublintype TQbit TQbit _):lc, fc) = do
 -- Into
   -- T' <: T && U <: U'
 break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
-  break_composite bu ((Subtype t' t info { actual = not $ actual info }):(Subtype u u' info):lc, fc)
+  intype <- case in_type info of
+              Just a -> return $ Just a
+              Nothing -> return $ Just $ if actual info then TArrow t u else TArrow t' u'
+
+  break_composite bu ((Subtype t' t info { actual = not $ actual info,
+                                           in_type = intype }):
+                      (Subtype u u' info { in_type = intype }):lc, fc)
  
 
 -- Tensor against tensor
@@ -84,13 +90,15 @@ break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
   -- T <: T' && U <: U'
 break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) = do
   if List.length tlist == List.length tlist' then do
-    comp <- return $ List.map (\(t, u) -> Subtype t u info) $ List.zip tlist tlist'
+    intype <- case in_type info of
+                Just a -> return $ Just a
+                Nothing -> return $ Just $ if actual info then TTensor tlist else TTensor tlist'
+
+    comp <- return $ List.map (\(t, u) -> Subtype t u info { in_type = intype }) $ List.zip tlist tlist'
     break_composite bu (comp ++ lc, fc)
 
   else do
-    fail ""
-    throwQ $ TypingError (pprint $ TTensor tlist) (pprint $ TTensor tlist')
-    -- throw_TypingError (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))
+    throw_TypingError (TTensor tlist) (TTensor tlist') info
 
 
 -- User type against user type
@@ -100,15 +108,21 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
   if utyp == utyp' then do
     
     if bu then do
+      intype <- case in_type info of
+                  Just a -> return $ Just a
+                  Nothing -> return $ Just $ if actual info then TUser utyp arg else TUser utyp' arg'
+
       cset <- unfold_user_constraint utyp arg utyp' arg'
-      break_composite bu $ cset <> (lc, fc)
+
+      -- This one may be reversed : will have to check
+      break_composite bu $ (cset & info { in_type = intype }) <> (lc, fc)
 
     else do
       cset <- break_composite bu (lc, fc)
       return $ [Sublintype (TUser utyp arg) (TUser utyp' arg') info] <> cset
       
   else
-    throwQ $ TypingError (pprint (TUser utyp arg)) (pprint (TUser utyp' arg'))
+    throw_TypingError (TUser utyp arg) (TUser utyp' arg') info
 
 
 -- Circ against Circ
@@ -117,7 +131,12 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
   -- T' <: T && U <: U'
 -- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
 break_composite bu ((Sublintype (TCirc t u) (TCirc t' u') info):lc, fc) = do
-  break_composite bu ((Subtype t' t info { actual = not $ actual info }):(Subtype u u' info):lc, fc)
+  intype <- case in_type info of
+              Just a -> return $ Just a
+              Nothing -> return $ Just $ if actual info then TCirc t u else TCirc t' u'
+
+  break_composite bu ((Subtype t' t info { actual = not $ actual info,
+                                           in_type = intype }):(Subtype u u' info):lc, fc)
 
 
 -- Semi composite (unbreakable) constraints
@@ -135,7 +154,6 @@ break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
 
 
 -- Everything else is a typing error
-break_composite bu ((Subtype t u info):lc, fc) = do
-  throwQ $ TypingError (pprint t) (pprint u)
-  -- throw_TypingError t u info
+break_composite bu ((Sublintype t u info):lc, fc) = do
+  throw_TypingError t u info
 

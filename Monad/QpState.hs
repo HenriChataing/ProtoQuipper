@@ -523,43 +523,6 @@ datacon_def id = do
 
 
 
--- | Access to the information held by a flag. Returns all the information
--- referenced by a flag. If the flag given as argument is not a reference (eg 0 or 1),
--- it returns Nothing, else Just the information of the flag.
-debug_information :: RefFlag -> QpState (Maybe (TypeOf, Extent, Maybe Type))
-debug_information ref = do
-  ctx <- get_context
-  -- If the flag is a value, and not a reference, it will not be in the map 'flags', and
-  -- it will automatically return nothing.
-  return $ mDebug $ IMap.lookup ref $ flags ctx
-
-
--- | Specifies the expression typed by the associated type of an flag.
-specify_expression :: RefFlag -> TypeOf -> QpState ()
-specify_expression ref typof = do
-  ctx <- get_context
-  set_context $ ctx { flags = IMap.update (\info -> case debug info of
-                                                      Just (_, ex, mt) -> Just $ info { debug = Just (typof, ex, mt) }
-                                                      Nothing -> Just $ info { debug = Just (typof, extent_unknown, Nothing) }) ref $ flags ctx }
-
-
--- | Specifies the expression typed by the associated type of an flag.
-specify_location :: RefFlag -> Extent -> QpState ()
-specify_location ref loc = do
-  ctx <- get_context
-  set_context $ ctx { flags = IMap.update (\info -> case debug info of
-                                                      Just (e, _, mt) -> Just $ info { debug = Just (e, loc, mt) }
-                                                      Nothing -> Just $ info { debug = Just (ActualOfE EUnit, loc, Nothing) }) ref $ flags ctx }
-
-
--- | Specifies the original type.
-specify_original_type :: RefFlag -> Type -> QpState ()
-specify_original_type ref typ = do
-  ctx <- get_context
-  set_context $ ctx { flags = IMap.update (\info -> case debug info of
-                                                      Just (e, ex, _) -> Just $ info { debug = Just (e, ex, Just typ) }
-                                                      Nothing -> Just $ info { debug = Just (ActualOfE EUnit, extent_unknown, Just typ) }) ref $ flags ctx } 
-
 
 -- | Access to the information held by flags.
 -- Returns the current value of a flag given by its reference.
@@ -639,8 +602,7 @@ fresh_flag = do
   ctx <- get_context
   id <- return $ flag_id ctx
   set_context $ ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { value = Unknown,
-                                                      debug = Nothing }) $ flags ctx }
+                      flags = IMap.insert id (FInfo { value = Unknown }) $ flags ctx }
   return id 
 
 
@@ -651,8 +613,7 @@ fresh_flag_with_value v = do
   ctx <- get_context
   id <- return $ flag_id ctx
   set_context $ ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { value = v,
-                                                      debug = Nothing }) $ flags ctx }
+                      flags = IMap.insert id (FInfo { value = v }) $ flags ctx }
   return id 
 
 
@@ -676,39 +637,6 @@ duplicate_flag ref = do
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
 
-
--- | The first flag inherits the properties of the second, but for the value.
-inherits :: RefFlag -> RefFlag -> QpState ()
-inherits r0 r1 = do
-  inf0 <- debug_information r0
-  inf1 <- debug_information r1
-  case (inf0, inf1) of
-    (Nothing, Just (e, ex, typ)) -> do
-        specify_expression r0 e
-        specify_location r0 ex
-        case typ of
-          Just typ -> specify_original_type r0 typ
-          Nothing -> return ()
-    _ ->
-        return ()
-
-
--- | States that the first type t is a subtree of the second u. More specifically, if t already possesses its own information, then
--- nothing is done. Else, the information from the u is imported, and if no original type is specified for u, u is marked as the original type of t.
-subtree :: Type -> Type -> QpState ()
-subtree (TBang r0 _) t1@(TBang r1 _) = do
-  inf0 <- debug_information r0
-  inf1 <- debug_information r1
-  case (inf0, inf1) of
-    (Nothing, Just (e, ex, typ)) -> do
-        specify_expression r0 e
-        specify_location r0 ex
-        case typ of
-          Just typ -> specify_original_type r0 typ
-          Nothing -> specify_original_type r0 t1
-
-    _ ->
-        return ()
 
 
 
@@ -823,75 +751,38 @@ new_type = do
 
 -- | Throws a typing error, based on the reference flags of the faulty types.
 -- The return type can be anything, since an exception will be thrown in any case.
-throw_TypingError :: Type -> Type -> QpState a
-throw_TypingError t@(TBang n _) u@(TBang m _) = do
-  -- Retrieve the location / expression of the types
-  infn <- debug_information n
-  infm <- debug_information m
-
+throw_TypingError :: LinType -> LinType -> ConstraintInfo -> QpState a
+throw_TypingError t u info = do
   -- Print the types t and u
-  prt <- pprint_type_noref t
-  pru <- pprint_type_noref u
+  prt <- pprint_lintype_noref t
+  pru <- pprint_lintype_noref u
 
-  -- See what information we have
-  case (infn, infm) of
-    (Just (e, ex, typ), _) -> do
-        -- Print the expression / pattern
-        pre <- case e of
-                 ActualOfE e -> pprint_expr_noref e
-                 ActualOfP p -> pprint_pattern_noref p
-        -- Print the original type
-        mprt <- case typ of
-                  Just typ -> do
-                      typ <- map_type typ
-                      p <- pprint_type_noref typ
-                      return $ Just p
-                  Nothing ->
-                      return $ Nothing
+  -- Get the location / expression
+  f <- get_file
+  ex <- return $ loc info
+  expr <- pprint_expr_noref $ expression info
+  
+  -- Get the original type
+  ori <- case in_type info of
+           Just a -> do
+               p <- pprint_lintype_noref a
+               return $ Just p
+           Nothing ->
+               return $ Nothing
 
-        f <- get_file
-        throwQ $ LocatedError (DetailedTypingError prt pru mprt pre) (f, ex)
+  -- Check which of the type is the actual one
+  if actual info then
+    throwQ $ LocatedError (DetailedTypingError prt pru ori expr) (f, ex)
+  else
+    throwQ $ LocatedError (DetailedTypingError pru prt ori expr) (f, ex)
 
-    (_, Just (e, ex, typ)) -> do
-        -- Print the expression / pattern
-        pre <- case e of
-                 ActualOfE e -> pprint_expr_noref e
-                 ActualOfP p -> pprint_pattern_noref p
-        -- Print the original type
-        mprt <- case typ of
-                  Just typ -> do
-                      p <- pprint_type_noref typ
-                      return $ Just p
-                  Nothing ->
-                      return $ Nothing
-
-        f <- get_file
-        throwQ $ LocatedError (DetailedTypingError pru prt mprt pre) (f, ex)
- 
-    _ ->
-      -- No information available
-      throwQ $ TypingError prt pru
 
 
 -- | Throw a duplicable error, based on the faulty reference flag.
 throw_NonDuplicableError :: RefFlag -> QpState a
 throw_NonDuplicableError ref = do
-  -- Referenced expression / location
-  inf <- debug_information ref
-
-  -- See what information we have
-  case inf of
-    Just (e, ex, typ) -> do
-        -- Print the expression
-        pre <- case e of
-                 ActualOfE e -> pprint_expr_noref e
-                 ActualOfP p -> pprint_pattern_noref p
-        f <- get_file
-        throwQ $ LocatedError (NonDuplicableError pre) (f, ex)
-
-    _ -> do
-        f <- get_file
-        throwQ $ LocatedError (NonDuplicableError "(Unknown)") (f, extent_unknown)
+  f <- get_file
+  throwQ $ LocatedError (NonDuplicableError "(Unknown)") (f, extent_unknown)
 
 
 
@@ -1057,6 +948,30 @@ pprint_type_noref t = do
                                            Nothing -> ""
                              | otherwise -> "")
   return $ genprint Inf t [fflag, fvar]
+
+
+-- | Same as pprint_type_noref.
+pprint_lintype_noref :: LinType -> QpState String
+pprint_lintype_noref a = do
+  -- Printing of type variables
+  fva <- return $ free_typ_var a
+  attr <- return $ List.zip fva available_names
+  fvar <- return (\x -> case List.lookup x attr of
+                          Just n -> n
+                          Nothing -> subvar 'X' x)
+
+  -- Printing of flags
+  refs <- get_context >>= return . flags
+  fflag <- return (\f -> case f of
+                           1 -> "!"
+                           n | n >= 2 -> case IMap.lookup n refs of
+                                           Just fi -> case value fi of
+                                                        One -> "!"
+                                                        _ -> ""
+                                           Nothing -> ""
+                             | otherwise -> "")
+  return $ genprint Inf a [fflag, fvar]
+
 
 
 -- | Same as pprint_expr_noref.

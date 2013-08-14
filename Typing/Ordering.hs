@@ -261,9 +261,9 @@ check_cyclic c explored poset = do
         -- Print the expression
         pre <- pprint_expr_noref $ expression info
         -- Print the original type
-        mprt <- case in_constraint info of
-                  Just (Subtype t u i) -> do
-                      p <- pprint_type_noref (if actual i then t else u)
+        mprt <- case in_type info of
+                  Just a -> do
+                      p <- pprint_lintype_noref a
                       return $ Just p
                   Nothing ->
                       return Nothing

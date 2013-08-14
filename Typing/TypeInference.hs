@@ -155,10 +155,12 @@ constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
   fconstraints <- force_duplicable_context gamma >>= filter
 
-  acts@(TBang n _) <- builtin_type s
-  specify_expression n $ ActualOfE (EBuiltin s)
+  ex <- get_location
+  info <- return $ no_info { expression = EBuiltin s,
+                             loc = ex }
+  acts <- builtin_type s
 
-  return $ (acts <:: cst) <> fconstraints
+  return $ ((acts <:: cst) & info) <> fconstraints
 
 
 -- | Unit typing rule
@@ -173,11 +175,10 @@ constraint_typing gamma EUnit cst = do
   
   -- Generates a referenced flag of the actual type of EUnit
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE EUnit
-  specify_location n ex
+  info <- return $ no_info { expression = EUnit,
+                             loc = ex }
 
-  return $ (TBang n TUnit <:: cst) <> fconstraints
+  return $ ((TBang 1 TUnit <:: cst) & info) <> fconstraints
 
 
 -- | True / False typing rule
@@ -192,11 +193,10 @@ constraint_typing gamma (EBool b) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EBool b)
-  specify_location n ex
+  info <- return $ no_info { expression = EBool b,
+                             loc = ex }
 
-  return $ (TBang n TBool <:: cst) <> fconstraints
+  return $ ((TBang 1 TBool <:: cst) & info) <> fconstraints
 
 
 -- | Int typing rule
@@ -211,11 +211,10 @@ constraint_typing gamma (EInt p) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EInt p)
-  specify_location n ex
+  info <- return $ no_info { expression = EInt p,
+                             loc = ex }
 
-  return $ (TBang n TInt <:: cst) <> fconstraints
+  return $ ((TBang 1 TInt <:: cst) & info) <> fconstraints
 
 
 -- | Axiom typing rules
@@ -229,11 +228,18 @@ constraint_typing gamma (EVar x) cst = do
   sa <- type_of x gamma
   (a, csetx) <- instanciate sa
 
+  -- Get the location
+  ex <- get_location
+
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma
   fconstraints <- force_duplicable_context gamma_nx >>= filter
 
-  return $ (a <:: cst) <> fconstraints <> csetx
+  -- Information
+  info <- return $ no_info { expression = EVar x,
+                             loc = ex }
+
+  return $ ((a <:: cst) & info) <> fconstraints <> csetx
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -241,10 +247,17 @@ constraint_typing gamma (EGlobal x) cst = do
   sa <- type_of_global x
   (a, csetx) <- instanciate sa -- In case a is a typing scheme
 
+  -- Get the location
+  ex <- get_location
+
   -- Have the rest of the context be duplicable
   fconstraints <- force_duplicable_context gamma >>= filter
 
-  return $ (a <:: cst) <> fconstraints <> csetx
+  -- Information
+  info <- return $ no_info { expression = EGlobal x,
+                             loc = ex }
+
+  return $ ((a <:: cst) & info) <> fconstraints <> csetx
 
 
 
@@ -258,18 +271,17 @@ constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
   -- The context must be duplicable 
   fconstraints <- force_duplicable_context gamma >>= filter
 
-  -- Flag reference
+  -- Information
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE (EBox a)
-  specify_location n ex
+  info <- return $ no_info { expression = EBox a,
+                             loc = ex }
 
   -- Build the type of box
-  b <- new_type  
-  arw <- return $ TBang one (TArrow a b)
-  cir <- return $ TBang anyflag (TCirc a b)
+  b <- new_type
+  arw <- return $ TBang 1 (TArrow a b)
+  cir <- return $ TBang 1 (TCirc a b)
 
-  return $ cset <> (TBang n (TArrow arw cir) <:: cst) <> fconstraints
+  return $ cset <> ((TBang 1 (TArrow arw cir) <:: cst) & info) <> fconstraints
   
 
 -- | Rev typing rule
@@ -282,19 +294,18 @@ constraint_typing gamma ERev cst = do
   -- The context must be duplicable
   fconstraints <- force_duplicable_context gamma >>= filter
 
-  -- Flag reference
+  -- Information
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE ERev
-  specify_location n ex
+  info <- return $ no_info { expression = ERev,
+                             loc = ex }
 
   -- Build the type of rev
   a <- new_type
   b <- new_type
-  cirab <- return $ TBang anyflag (TCirc a b)
-  cirba <- return $ TBang anyflag (TCirc b a)
+  cirab <- return $ TBang 0 (TCirc a b)
+  cirba <- return $ TBang 1 (TCirc b a)
 
-  return $ (TBang n (TArrow cirab cirba) <:: cst) <> fconstraints
+  return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info) <> fconstraints
 
 
 -- | Unbox typing rule
@@ -309,17 +320,16 @@ constraint_typing gamma EUnbox cst = do
 
   -- Flag reference
   ex <- get_location
-  n <- fresh_flag_with_value Any
-  specify_expression n $ ActualOfE EUnbox
-  specify_location n ex
+  info <- return $ no_info { expression = EUnbox,
+                             loc = ex }
 
   -- Build the type of unbox
   a <- new_type
   b <- new_type
-  arw <- return $ TBang one (TArrow a b)
-  cir <- return $ TBang anyflag (TCirc a b)
+  arw <- return $ TBang 1 (TArrow a b)
+  cir <- return $ TBang 0 (TCirc a b)
 
-  return $ (TBang n (TArrow cir arw) <:: cst) <> fconstraints
+  return $ ((TBang 1 (TArrow cir arw) <:: cst) & info) <> fconstraints
 
 
 -- App typing rule
@@ -367,8 +377,8 @@ constraint_typing gamma (EFun p e) cst = do
   -- Detailed information on the type of the function 
   ex <- get_location
   n <- fresh_flag
-  specify_expression n $ ActualOfE (EFun p e)
-  specify_location n ex
+  info <- return $ no_info { expression = EFun p e,
+                             loc = ex }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
@@ -383,7 +393,7 @@ constraint_typing gamma (EFun p e) cst = do
   -- Build the context constraints : n <= I
   fconstraints <- (return $ List.map (\(_, f) -> (n, f)) flags) >>= filter
 
-  return $ csetp <> csete <> (TBang n (TArrow a b) <:: cst) <> fconstraints
+  return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
 -- Tensor intro typing rule
@@ -398,8 +408,8 @@ constraint_typing gamma (ETuple elist) cst = do
   -- Detailed information of the type of the tuple
   ex <- get_location
   p <- fresh_flag
-  specify_expression p $ ActualOfE (ETuple elist)
-  specify_location p ex 
+  info <- return $ no_info { expression = ETuple elist,
+                             loc = ex }
 
   -- Create n new types
   tlist <- List.foldr (\_ rec -> do
@@ -428,7 +438,7 @@ constraint_typing gamma (ETuple elist) cst = do
   (_, delta) <- sub_context disunion gamma
   fconstraints <- force_duplicable_context delta >>= filter
   
-  return $ csetlist <> (TBang p (TTensor tlist) <:: cst) <> pcons <> fconstraints
+  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons <> fconstraints
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -538,6 +548,8 @@ constraint_typing gamma (ELet rec p t u) cst = do
 constraint_typing gamma (EDatacon dcon e) cst = do
   -- Extent of the expression
   ex <- get_location
+  info <- return $ no_info { expression = EDatacon dcon e,
+                             loc = ex }
 
   -- Retrieve the definition of the data constructor, and instanciate its typing scheme
   dtype <- datacon_def dcon
@@ -546,25 +558,17 @@ constraint_typing gamma (EDatacon dcon e) cst = do
   case (dtype', e) of
     -- No argument given, the constructor is typed as is
     (TBang n _, Nothing) -> do
-        -- Some information
-        specify_expression n $ ActualOfE (EDatacon dcon Nothing)
-        specify_location n ex
-
         -- The context must be duplicable
         fconstraints <- force_duplicable_context gamma >>= filter
 
-        return $ (dtype' <:: cst) <> csetd <> fconstraints
+        return $ ((dtype' <:: cst) & info) <> csetd <> fconstraints
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
-        -- Some information
-        specify_expression n $ ActualOfE (EDatacon dcon $ Just e)
-        specify_location n ex
-        
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
 
-        return $ (u <:: cst) <> csete <> csetd
+        return $ ((u <:: cst) & info) <> csete <> csetd
 
 
 -- Match typing rule
@@ -976,5 +980,3 @@ unify exact cset = do
 
   -- Result
   return (lc', fc'')
-
-

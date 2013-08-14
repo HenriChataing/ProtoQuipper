@@ -222,10 +222,6 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Free variables of the new expression
   fve <- return $ free_var e'
   a@(TBang n _) <- new_type
-  specify_location n $ (case e' of
-                          ELocated _ ex -> ex
-                          _ -> extent_unknown)
-  specify_expression n $ (ActualOfE e')
 
   -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
   set_flag n

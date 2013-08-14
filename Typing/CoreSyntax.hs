@@ -64,30 +64,11 @@ data FlagValue =
 -- information used to throw detailed exceptions. Eventually, it will also contain
 -- various things such as : reversability, control ..
 data FlagInfo = FInfo { 
-  value :: FlagValue,                              -- ^ The value of the flag
-
-  debug :: Maybe (TypeOf, Extent, Maybe Type)      -- ^ Debug information. The first element is the expression it is type of,
-                                                   -- the second the location of the said expression, the third the original type (it is subtree of).
-                                                   -- The third one may be used for example on lists : if an eexpression has type 'list int', but
-                                                   -- but wad expected of type 'list bool', the typing error will be produced on the types 'int' and 'bool', which
-                                                   -- renders it difficult to locate the real error. In this case, the original type will be 'list int'  and the produced
-                                                   -- error : \"couldn't unify the type actual \'int\' with the expected type \'bool\', in the type \'list int\'....\"
+  value :: FlagValue                              -- ^ The value of the flag
 }
 
 
--- | Description a type as the actual type of an expression / pattern.
-data TypeOf =
-    ActualOfE Expr           -- ^ It is the actual type of the expression e.
-  | ActualOfP Pattern        -- ^ It is the actual type of the pattern p.
-  deriving Show
 
-
--- | Access to the debug information of an optional FlagInfo.
-mDebug :: Maybe FlagInfo -> Maybe (TypeOf, Extent, Maybe Type)
-mDebug inf =
-  case inf of
-    Just inf -> debug inf
-    Nothing -> Nothing
 
 
 
@@ -406,7 +387,7 @@ data ConstraintInfo = Info {
   expression :: Expr,          -- ^ Original expression.
   loc :: Extent,          -- ^ Location of the said expression.
   actual :: Bool,              -- ^ Orientation of the constraint: true means actual to the left, false the inverse.
-  in_constraint :: Maybe TypeConstraint -- ^ Original constraints (before reduce).
+  in_type :: Maybe LinType -- ^ Original type (actual type before reduce).
 } deriving Show
 
 
@@ -416,7 +397,7 @@ no_info = Info {
   expression = EUnit,
   loc = extent_unknown,
   actual = True,
-  in_constraint = Nothing
+  in_type = Nothing
 }
 
 
@@ -449,6 +430,12 @@ tlist <<: u = List.map (\t -> t <: u) tlist
 (<::) :: Type -> [Type] -> [TypeConstraint]
 t <:: ulist = List.map (\u -> t <: u) ulist
 
+
+-- | Adds debug information to a set of type constraints. 
+(&) :: [TypeConstraint] -> ConstraintInfo -> [TypeConstraint]
+cset & info = List.map (\c -> case c of
+                                Sublintype a b _ -> Sublintype a b info
+                                Subtype t u _ -> Subtype t u info) cset
 
 
 -- | Flag constraints, of the form n <= m, to be interpreted as
