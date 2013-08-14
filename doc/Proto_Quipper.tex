@@ -976,7 +976,8 @@ $a$, then it must belong to the quantum addresses of $a$.
   \item If $\Gamma; Q \entails a:A$ is valid, 
   then $Q=\FQ(a)$.\label{q_context}
   \item If $\Gamma,x:B;Q \entails a:A$ is valid, 
-  and $x\notin \FV(a)$, then $\Gamma;Q \entails a:A$ is valid.\label{unused_var}
+  and $x\notin \FV(a)$, then $B=!B'$ and 
+  $\Gamma;Q \entails a:A$ is valid.\label{unused_var}
   \item If $\Gamma; Q \entails a:A$ is valid, 
   then $\Gamma, !\Delta ; Q \entails a:A$ is valid.\label{weakening}
   \item If $\Gamma ; Q \entails a:A$ is valid, $\Delta <: \Gamma$
@@ -1027,6 +1028,35 @@ then $\Gamma=Q=\varnothing$.
 By induction on the typing derivation of $\Gamma,!\Delta;Q \entails v:!A$. 
 In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}.\ref*{subtype_bang}}.
 \end{proof}
+
+\begin{lemma}
+\label{non_values}
+If a term $a$ is not a value then it is of one 
+of the following forms: $(t,C,a')$ with $a'\notin \mathtt{Val}$, 
+$\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$, 
+$\ifthenelse{a_1}{a_2}{a_3}$, $\letin{\p{x,y}}{a_1}{a_2}$, $a_1a_2$.
+\end{lemma}
+
+\begin{lemma}
+\label{form_values}
+A well-typed value $v$ is either a variable, a quantum address, a constant or one 
+of the following case occurs: if it is of type $!^n\Circ(T,U)$, it is of the 
+form $(t,C,u)$ with $t$ and $u$ values; if it is of type $!^n\bool$ it is either 
+$\true$ or $\false$; if it is of type $!^n (A\x B)$, it is of the
+form $\p{w,w'}$, with $w$ and $w'$ values; if it is of type $!^n1$, it is 
+precisely the term $*$; if it is of type $!^n (A\loli B)$, it is a 
+lambda-abstraction or a constant.
+\end{lemma}
+
+\begin{proof}
+By induction on the typing derivation of $v$.
+\end{proof}
+
+\begin{corollary}
+\label{typed_qd_term}
+If $T$ is a QData type and $v$ is a well-typed value of type $T$ then $v$ is 
+a QData term.
+\end{corollary}
 
 \begin{lemma}
 {\bf (Substitution).}
@@ -1394,44 +1424,57 @@ We treat them individually.
       \mathtt{Unencap}(C,D,\binding) = (C',\binding') 
     }
   \]
-  with $a=(\unbox\,(t,D,t'))v$ and $a'=\binding'(t')$. Since $v$ is a value of 
-  QData type, we know by 
-  Lemma~\hyperref[context_value]{\ref*{context_value}}
-  that the typing derivation $\pi$ is 
-  \begin{changemargin}{-4cm}{-2.3cm}
+  with $a=(\unbox\,(t,D,t'))v$ and $a'=\binding'(t')$. 
+  To reconstruct the typing derivation $\pi$, first note 
+  that we have the following derivation $\pi_1$ of    
+  $!\Delta;\varnothing\entails \unbox\,(t,D,t'):T\loli U$
+  \begin{footnotesize}
   \[
-  \infer[]{!\Delta; \FQ(v)\entails (\unbox\,(t,D,t'))v :U}{
     \infer[]{!\Delta;\varnothing\entails \unbox\,(t,D,t'):T\loli U}{
       \infer[]{!\Delta;\varnothing \entails \unbox:\Circ(T,U)\loli (T\loli U)}{
       }   
       &
       \infer[]{!\Delta ;\varnothing\entails (t,D,t'):\Circ(T,U)}{
         \deduce[]{\FQ(t)\entails t:T}{
-          \vdots ~\pi_1
+          \vdots ~\pi_1^1
         }
         &
         \deduce[]{!\Delta;\FQ(t')\entails t':U}{
-          \vdots ~\pi_2     
-        }
-        &
-        \deduce[]{\In(D)=\FQ(t)}{
-          \Out(D)=\FQ(t')
+          \vdots ~\pi_1^2     
         }
       }
     }
+    \]
+    \end{footnotesize} 
+  with $\In(D)=\FQ(t)$, $\Out(D)=\FQ(t')$. We can then use $\pi_1$ 
+  to rebuild $\pi$ as follows:
+  \begin{footnotesize}
+  \[
+  \infer[]{!\Delta; \FQ(v)\entails (\unbox\,(t,D,t'))v :U}{
+    \infer[]{!\Delta;\varnothing\entails \unbox\,(t,D,t'):T\loli U}{
+      \vdots~\pi_1            
+    }
     &
     \infer[]{!\Delta ; \FQ(v)\entails v:T}{
-      \vdots~\pi_3
+      \vdots~\pi_2
     }
   }
   \]
-  \end{changemargin}
-  and $!\Delta; \FQ(v)\entails (\unbox\,(t,D,t'))v :U,(Q'|Q'')$ 
-  is valid. By applying
-  Lemma~\hyperref[binding_judgement]{\ref*{binding_judgement}} 
-  to $\pi_2$ we get a typing derivation $\pi_2'$ of 
-  $!\Delta;\FQ(\binding(t'))\entails \binding(t'):U$.
-  Now note that by 
+  \end{footnotesize} 
+  and the typed closure
+  \[
+  !\Delta; \FQ(v) \entails (\unbox\,(t,D,t'))v :U,(Q'|Q'')
+  \] 
+  is valid. In the conclusion of $\pi_2$, all the 
+  term variables are declared of a duplicable type. This 
+  follows from Corollary \ref{typed_qd_term} and 
+  Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}}. 
+  By applying Lemma~\hyperref[binding_judgement]{\ref*{binding_judgement}} 
+  to $\pi_1^2$ we get a typing derivation $\tau$ of 
+  \[
+  !\Delta;\FQ(\binding(t'))\entails \binding(t'):U.
+  \]
+  Now by 
   Definition~\hyperref[Unencap_cond_3]{\ref*{circuit_constructor}.\ref*{Unencap_cond_3}} 
   we have:
   \[
@@ -1449,7 +1492,7 @@ We treat them individually.
   \]
   with $a=\rev\,(t,D,t')$ and $a'=(t',D^{-1},t)$. The typing derivation $\pi$ 
   is therefore
-  \begin{changemargin}{-2.7cm}{-1.6cm}
+  \begin{footnotesize}
   \[
   \infer[]{!\Delta;\varnothing\entails \rev\,(t,D,t'):!^n\Circ(U,T)}{
     \infer[]{!\Delta;\varnothing \entails \rev:\Circ(T,U)\loli !^n\Circ(U,T)}{
@@ -1463,15 +1506,12 @@ We treat them individually.
       \deduce[]{!\Delta;\FQ(t')\entails t':U}{
         \vdots ~\pi_2     
       }
-      &
-      \deduce[]{\In(D)=\FQ(t)}{
-        \Out(D)=\FQ(t')
-      }
     }
   }
   \]
-  \end{changemargin}
-  and $!\Delta;\varnothing\entails \rev\,(t,D,t'):!^n\Circ(T,U),(Q'|Q'')$ is 
+  \end{footnotesize}  
+  with $\In(D)=\FQ(t)$, $\Out(D)=\FQ(t')$ and 
+  $!\Delta;\varnothing\entails \rev\,(t,D,t'):!^n\Circ(T,U),(Q'|Q'')$ is 
   valid. Now note that since $t'$ is a QData term, it contains no variables. 
   Applying Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} 
   to $\pi_2$ repeatedly we therefore get a derivation $\pi_2'$ of 
@@ -1522,29 +1562,6 @@ remain unchanged through reduction and (2) that a term can only affect
 wires whose identifiers are among its quantum addresses.
 
 \subsection{Progress}
-
-\begin{lemma}
-\label{non_values}
-If a term $a$ is not a value then it is of one 
-of the following forms: $(t,C,a')$ with $a'\notin \mathtt{Val}$, 
-$\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$, 
-$\ifthenelse{a_1}{a_2}{a_3}$, $let ~\atuple{x,y}=a_1~ in ~a_2$, $a_1a_2$.
-\end{lemma}
-
-\begin{lemma}
-\label{form_values}
-A well-typed value $v$ is either a variable, a quantum address, a constant or one 
-of the following case occurs: if it is of type $!^n\Circ(T,U)$, it is of the 
-form $(t,C,u)$ with $t$ and $u$ values; if it is of type $!^n\bool$ it is either 
-$\true$ or $\false$; if it is of type $!^n (A\x B)$, it is of the
-form $\p{w,w'}$, with $w$ and $w'$ values; if it is of type $!^n1$, it is 
-precisely the term $*$; if it is of type $!^n (A\loli B)$, it is a 
-lambda-abstraction or a constant.
-\end{lemma}
-
-\begin{proof}
-By induction on the typing derivation of $v$.
-\end{proof}
 
 \begin{proposition}
 {\bf (Progress).}
