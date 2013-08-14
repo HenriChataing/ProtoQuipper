@@ -299,3 +299,95 @@ youngest_variables poset = do
   return $ remove_cluster c poset
 
 
+
+
+
+-- | Represents a set with an equivalence relation.
+-- The variables are grouped inside in equivalence classes.
+data Equiv a = Eqv {
+  clmap :: IntMap Int,                     -- ^ Map each variable to its respective euivalence class.
+  classes :: IntMap ([Variable], [a])     -- ^ Contents of the equivalence classes.
+}
+
+
+-- | Creates a new set initialized with a list of variables that form the initial class.
+-- Note that this list must not be empty.
+new_with_class :: [Variable] -> Equiv a
+new_with_class c@(a:_) =
+  Eqv { clmap = IMap.fromList $ List.map (\b -> (b, a)) c,
+        classes = IMap.singleton a (c, []) }
+
+
+-- | Returns the equivalence class of a variable, or creates one if it
+-- doesn't exist.
+in_class :: Variable -> Equiv a -> (Int, Equiv a)
+in_class x eqv =
+  case IMap.lookup x $ clmap eqv of
+    Just c -> (c, eqv)
+    Nothing -> (x, eqv { clmap = IMap.insert x x $ clmap eqv,
+                         classes = IMap.insert x ([x],[]) $ classes eqv })
+
+
+-- | Returns the contents of a particular equivalence class.
+class_contents :: Int -> Equiv a -> ([Variable], [a])
+class_contents c eqv =
+  case IMap.lookup c $ classes eqv of
+    Just cts -> cts
+    Nothing -> ([], [])
+
+
+-- | Merges two equivalence classes, based on an equivalence relation passed as argument.
+merge_classes :: Int -> Int -> a -> Equiv a -> Equiv a
+merge_classes c c' a eqv =
+  if c /= c' then
+    let (cts, as) = class_contents c eqv
+        (cts', as') = class_contents c' eqv in 
+    eqv { clmap = IMap.map (\d -> if d == c' then c else d) $ clmap eqv,
+          classes = IMap.update (\_ -> Just (cts ++ cts', a:(as ++ as'))) c $ IMap.delete c' $ classes eqv }
+  else
+    eqv { classes = IMap.update (\(cts, as) -> Just (cts, a:as)) c $ classes eqv }
+
+
+-- | Takes the constraint relation into account in the set.
+insert_constraint :: Variable -> Variable -> a -> Equiv a -> Equiv a
+insert_constraint x y c eqv =
+  let (cx, eqv') = in_class x eqv
+      (cy, eqv'') = in_class y eqv' in
+  merge_classes cx cy c eqv''
+
+
+-- | Application of the equivalence classes:
+-- removes the unaccessible flag and type constraints from a constraint set, based on the variables
+-- appearing in the type. For example, asuming the type contains the flag 0, and given the set:
+--
+-- @
+--  { 0 <= 2, 2 <= 3, 42 <= 24 }
+-- @
+--
+-- The result will be the set { 0 <= 2, 2 <= 3 }. The constraint 42 <= 24 that can't affect the type
+-- is removed.
+clean_constraint_set :: Type -> ConstraintSet -> ([Variable], [RefFlag], ConstraintSet)
+clean_constraint_set a (lc, fc) =
+  let ff = free_flag a
+      fv = free_typ_var a in
+
+  -- Clean the type constraints
+  let (ctsv, lc') = case fv of
+                     [] -> ([], [])
+                     (x:_) -> let eqvl = new_with_class fv in
+                              let eqvl' = List.foldl (\eqv c@(Sublintype (TVar x) (TVar y) _) ->
+                                                        insert_constraint x y c eqv) eqvl lc in
+                              let (cl, _) = in_class x eqvl' in
+                              class_contents cl eqvl' in
+
+  -- Clean the flag constraints
+  let (ctsf, fc') = case ff of
+                     [] -> ([], [])
+                     (x:_) -> let eqvf = new_with_class ff in
+                              let eqvf' = List.foldl (\eqv c@(n, m) ->
+                                                        insert_constraint n m c eqv) eqvf fc in
+                              let (cf, _) = in_class x eqvf' in
+                              class_contents cf eqvf' in
+
+  (ctsv, ctsf, (lc', fc'))
+
