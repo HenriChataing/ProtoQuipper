@@ -49,21 +49,25 @@ This work was performed under U.S. Government contract D12PC00527.
 \clearpage
 \section{Introduction}
 
-Quipper is currently implemented as an embedded language, within 
-the host language Haskell. This has many advantages, for example, 
-the ability to implement a large-scale system very rapidly. However, 
-there are also a few disadvantages. One of these is that the Haskell 
-type system, while providing many  type-safety properties, is not in 
-general strong enough to ensure full type-safety of the quantum 
-programs. In the current implementation, it is therefore the 
-programmer's responsibility to ensure that quantum components are 
-plugged together in physically meaningful ways. This means that 
-certain types of programming errors will not be prevented by the 
-compiler; in the worst case, this may lead to ill-formed output or 
-run-time errors in other parts of the tool chain.
+\subsection{Overview}
 
-We have developed a type-safe version of Quipper as a stand-alone 
-(non-embedded) programming language, which we call Proto-Quipper. 
+The PLATO team's primary quantum programming language, Quipper, is
+currently implemented as an embedded language, within the host
+language Haskell. This has many advantages, for example, the ability
+to implement a large-scale system very rapidly. However, there are
+also a few disadvantages. One of these is that the Haskell type
+system, while providing many type-safety properties, is not in general
+strong enough to ensure full type-safety of the quantum programs. In
+the current Quipper implementation, it is therefore the programmer's
+responsibility to ensure that quantum components are plugged together
+in physically meaningful ways. This means that certain types of
+programming errors will not be prevented by the compiler; in the worst
+case, this may lead to ill-formed output or run-time errors in other
+parts of the tool chain.
+
+In this report, we describe a type-safe version of a small fragment of
+Quipper, which we call {\em Proto-Quipper}. Proto-Quipper has been
+implemented as a stand-alone (non-embedded) programming language. 
 The Proto-Quipper language is designed to ``enforce the physics'', 
 in the sense that it will detect, at compile-time, programming 
 errors that could lead to ill-formed or undefined circuits. 
@@ -72,17 +76,44 @@ We distinguish between the \emph{core} of Proto-Quipper, which
 represents the proved type-safe fragment of the language, and 
 the \emph{extensions} of the language, containing newly 
 implemented features of Proto-Quipper that are currently under 
-development. In what follows, we provide an introduction to 
-Proto-Quipper, prove the type safety of the core language and 
-describe its type inference algorithm. We then discuss already 
-available extensions to the core language and future 
-developments. We conclude with an introduction to programming 
-in Proto-Quipper.
+development. 
 
+\subsection{Outline}
+
+This report is organized as follows. In Section~\ref{sec-design}, we
+briefly explain the rationale behind Proto-Quipper's design, including
+the differences between Quipper, Proto-Quipper, Core Proto-Quipper,
+and the quantum lambda calculus. In Section~\ref{sec-core}, we
+formally define the Core Proto-Quipper language, its type system, and
+its operational semantics. In Section~\ref{sec-type-safety}, we prove
+the type-safety of the language. In Section~\ref{sec-inference}, we
+describe a type inference algorithm for Core Proto-Quipper. In
+Section~\ref{sec-extensions}, we discuss some extensions of
+Proto-Quipper that are already implemented in our language
+implementation, but not yet formalized. In Section~\ref{sec-future},
+we discuss possible future work, including how Proto-Quipper could be
+extended with additional Quipper features.
+Section~\ref{sec-user-guide} provides a user-level tutorial guide to
+the Proto-Quipper implementation.
+
+\subsection{Additional materials}
+
+This document is accompanied by the Proto-Quipper software version
+0.1, including:
+\begin{compactitemize}
+\item the Proto-Quipper language implementation;
+\item the Proto-Quipper browsable documentation.
+\end{compactitemize}
+
+Please also note that a user-level tutorial introduction to the
+Proto-Quipper implementation is given in
+Section~\ref{sec-user-guide}. Readers who are looking for a software
+guide, rather than the theory of Proto-Quipper, should skip ahead to
+Section~\ref{sec-user-guide}.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Design rationale}
+\section{Design rationale}\label{sec-design}
 
 Our approach was to start with a limited (but still expressive) 
 fragment of the Quipper language and make it completely type-safe. 
@@ -128,7 +159,7 @@ Hadamard gate to wire number 3''.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{The core language}
+\section{The core language}\label{sec-core}
 
 In this section, we define the core of Proto-Quipper. We 
 present in details the syntax, type system and 
@@ -928,7 +959,7 @@ By case distinction on $a$.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type safety}
+\section{Type safety}\label{sec-type-safety}
 
 In this section, we establish that the core of  Proto-Quipper 
 is a \emph{type safe} language. We follow \cite{WrFe94} in 
@@ -1712,7 +1743,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type inference}
+\section{Type inference}\label{sec-inference}
 
 In this section, we describe the type inference algorithm 
 for Proto-Quipper. We detail the algorithm and prove its 
@@ -1775,7 +1806,7 @@ user guide of Section \ref{sec-user-guide}.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Future work}
+\section{Future work}\label{sec-future}
 
 In this section, we describe some ongoing and future developments 
 of Proto-Quipper.
