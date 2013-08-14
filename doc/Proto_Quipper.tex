@@ -1,26 +1,52 @@
-\documentclass{article}
+\documentclass[twoside]{article}
 
+\usepackage{times}
+\usepackage{fancyhdr}
 
 \input{Proto_Quipper.sty}
+
+\oddsidemargin 1in
+\evensidemargin 1in
+\topmargin 1in
+\textwidth 4.5in \textheight 6.6in
+\headheight 0in
+\headsep .1in
+\voffset -.35in
 
 
 % ----------------------------------------------------------------------
 % General Information.
-\title{\textbf{Report on Proto-Quipper 0.1}}
-\date{}
-\author{}
+\title{Report on Proto-Quipper 0.1}
+\author{Report authors: \\
+  Henri Chataing (Dalhousie University)\\
+  Neil J. Ross (Dalhousie University)\\
+  Peter Selinger (Dalhousie University)
+}
+\date{Program PI:\\
+  D. Scott Alexander (Applied Communication Sciences)}
 
+\pagestyle{fancy}
+\def\notice{\footnotesize FOR GOVERNMENT AND APPLIED COMMUNICATION SCIENCES
+  (ACS) TEAM USE ONLY}
+\fancyhead{}
+\fancyhead[LO,RE]{\thepage}
+\fancyfoot{}
+\fancyfoot[LE]{\notice}
+
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
 
 % ----------------------------------------------------------------------
 \begin{document}
-
-
 \maketitle
+\thispagestyle{fancy}
 
+This work was performed under U.S. Government contract D12PC00527.
 
 \tableofcontents
 
-
+% ----------------------------------------------------------------------
+\clearpage
 \section{Introduction}
 
 Quipper is currently implemented as an embedded language, within 
@@ -54,6 +80,8 @@ developments. We conclude with an introduction to programming
 in Proto-Quipper.
 
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Design Rationale}
 
 Our approach was to start with a limited (but still expressive) 
@@ -98,6 +126,8 @@ instructions to the circuit constructor. For example: ``Append a
 Hadamard gate to wire number 3''.
 
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{The Core Language}
 
 In this section, we define the core of Proto-Quipper. We 
@@ -896,6 +926,8 @@ By case distinction on $a$.
 \end{proof}
 
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Type Safety}
 
 In this section, we establish that the core of  Proto-Quipper 
@@ -1665,6 +1697,8 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 \end{enumerate}
 \end{proof}
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Type Inference}
 
 In this section, we describe the type inference algorithm 
@@ -1675,6 +1709,8 @@ at the end of the section, how to extend it.
 \input{algorithm.tex}
 
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Language extensions}
 \label{sec-extensions}
 
@@ -1724,6 +1760,8 @@ User Guide of Section \ref{sec-user-guide}.
     with this recursion operator without loosing type-safety. 
 \end{description}
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Future work}
 
 In this section, we describe some ongoing and future developments 
@@ -1803,6 +1841,8 @@ of Proto-Quipper.
     should be carried through it still unknown. 
 \end{description}
 
+% ----------------------------------------------------------------------
+\clearpage
 \section{Proto-Quipper User Guide}
 \label{sec-user-guide}
 
@@ -1811,6 +1851,8 @@ programming in Proto-Quipper.
 
 \input{tutorial}
 
+% ----------------------------------------------------------------------
+\clearpage
 \section*{Glossary of Acronyms}
 \addcontentsline{toc}{section}{Glossary of Acronyms}
 
@@ -1826,6 +1868,9 @@ programming in Proto-Quipper.
   \item $\QP$ = Proto-Quipper.
   \item $\QP'$ = Type-inference version of Proto-Quipper.
 \end{itemize}
+
+% ----------------------------------------------------------------------
+\clearpage
 
 \bibliography{biblio}{}
 \bibliographystyle{plain}
