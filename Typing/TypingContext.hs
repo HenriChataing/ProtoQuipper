@@ -242,11 +242,13 @@ context_annotation ctx = do
 
 
 -- | Returns a set of flag constraints forcing the context to be duplicable.
-force_duplicable_context :: TypingContext -> QpState [FlagConstraint]
-force_duplicable_context ctx = do
-  return $ IMap.fold (\t ann -> case t of
-                                  (TBang f _) -> (one, f):ann
-                                  (TForall _ _ _ (TBang f _)) -> (one, f):ann) [] ctx
+duplicable_context :: TypingContext -> QpState ()
+duplicable_context ctx = do
+  IMap.foldWithKey (\x t rec -> do
+                      rec
+                      case t of
+                        TBang f _ -> set_flag f
+                        TForall _ _ _ (TBang f _) -> set_flag f) (return ()) ctx
 
 
 -- | Performs the union of two typing contexts. The \<+\> operator respects the order of the arguments

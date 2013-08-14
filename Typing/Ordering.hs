@@ -283,7 +283,8 @@ minimum_cluster poset = do
   cts <- return $ cluster_contents cm poset
 
   -- Log the contents of the youngest cluster
-  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cts
+  lastflag <- get_context >>= return . flag_id
+  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" (lastflag:cts)
   newlog 1 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
 
   -- Return the youngest cluster

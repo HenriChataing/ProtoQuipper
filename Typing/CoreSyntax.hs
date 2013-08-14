@@ -139,7 +139,7 @@ data Typespec = Spec {
                                                            -- a list of tuples (Dk, bk, Tk) where Dk is the name of the datacon, bk indicates whether the type contains any
                                                            -- algebraic types, Tk is the type of the data constructor.
 
-  subtype :: ([Type], [Type], [TypeConstraint])            -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+  subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                            -- is automatically inferred during the translation to the core syntax.
 }
 
@@ -431,12 +431,6 @@ tlist <<: u = List.map (\t -> t <: u) tlist
 t <:: ulist = List.map (\u -> t <: u) ulist
 
 
--- | Adds debug information to a set of type constraints. 
-(&) :: [TypeConstraint] -> ConstraintInfo -> [TypeConstraint]
-cset & info = List.map (\c -> case c of
-                                Sublintype a b _ -> Sublintype a b info
-                                Subtype t u _ -> Subtype t u info) cset
-
 
 -- | Flag constraints, of the form n <= m, to be interpreted as
 --
@@ -452,6 +446,21 @@ type FlagConstraint =
 -- | A constraint set contains both subtyping and flag constraints.
 type ConstraintSet =
   ([TypeConstraint], [FlagConstraint])
+
+
+class WithDebugInfo a where
+  (&) :: a -> ConstraintInfo -> a
+
+instance WithDebugInfo [TypeConstraint] where
+  cset & info = List.map (\c -> case c of
+                            Sublintype a b _ -> Sublintype a b info
+                            Subtype t u _ -> Subtype t u info) cset
+
+instance WithDebugInfo [FlagConstraint] where
+  cset & info = cset
+
+instance WithDebugInfo ConstraintSet where
+  (lc, fc) & info = (lc & info, fc & info)
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
@@ -670,6 +679,6 @@ generalize_type typ (limtype, limflag) cset =
 
   -- An optimisation would separate the constraints relevant
   -- to the type before generalizing, but later
-  TForall fvt' fft' cset typ
+  TForall fft' fvt' cset typ
 
 

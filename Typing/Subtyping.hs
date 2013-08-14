@@ -12,11 +12,17 @@ import Monad.QpState
 import qualified Data.List as List
 
 
+-- | Identifies the trivial flag constraints.
+non_trivial :: RefFlag -> RefFlag -> Bool
+non_trivial m n =
+  (m /= n && n /= 1 && m /= 0)
+
+
 
 -- | Using the type specifications registered in the state monad, unfolds any subtyping
 -- constraints of the form  user a <: user a'. This functions assumes that the two type
 -- names are the same, and that the right number of arguments has been given.
-unfold_user_constraint :: String -> [Type] -> String -> [Type] -> QpState [TypeConstraint]
+unfold_user_constraint :: String -> [Type] -> String -> [Type] -> QpState ConstraintSet
 unfold_user_constraint utyp arg utyp' arg' = do
   -- Retrieve the specification of the type
   spec <- type_spec utyp
@@ -26,16 +32,28 @@ unfold_user_constraint utyp arg utyp' arg' = do
   -- Replace the arguments a by arg
   cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
                         cs <- rec
-                        cset <- return $ subs_flag n m ((cs, []) :: ConstraintSet)
-                        return $ fst $ subs_typ_var x b cset) (return cset) (List.zip a arg)
+                        cset <- return $ subs_flag n m cs
+                        return $ subs_typ_var x b cset) (return cset) (List.zip a arg)
   -- Replace the arguments a' by arg'
   cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
                         cs <- rec
-                        cset <- return $ subs_flag n m ((cs, []) :: ConstraintSet)
-                        return $ fst $ subs_typ_var x b cset) (return cset) (List.zip a' arg')
+                        cset <- return $ subs_flag n m cs
+                        return $ subs_typ_var x b cset) (return cset) (List.zip a' arg')
 
   return cset
 
+
+
+-- | Applies the function unfold_user_constraints to the constraints in a constraint set.
+unfold_user_constraints_in_set :: ConstraintSet -> QpState ConstraintSet
+unfold_user_constraints_in_set ([], fc) = return ([], fc)
+unfold_user_constraints_in_set ((Sublintype (TUser utyp args) (TUser utyp' args') _):lc, fc) = do
+  cset <- unfold_user_constraint utyp args utyp' args'
+  cset' <- unfold_user_constraints_in_set (lc, fc)
+  return $ cset <> cset'
+unfold_user_constraints_in_set (c:lc, fc) = do
+  (lc', fc') <- unfold_user_constraints_in_set (lc, fc)
+  return (c:lc', fc')
 
 
 
@@ -149,8 +167,16 @@ break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   return (c:lc', fc')
 
 -- Subtype constraints
+break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit) _):lc, fc) = do
+  unset_flag n
+  unset_flag m
+  break_composite bu (lc, fc)
+
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
-  break_composite bu ((Sublintype a b info):lc, (m,n):fc)
+  if non_trivial n m then
+    break_composite bu ((Sublintype a b info):lc, (m,n):fc)
+  else
+    break_composite bu ((Sublintype a b info):lc, fc)
 
 
 -- Everything else is a typing error

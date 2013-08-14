@@ -153,14 +153,14 @@ constraint_typing gamma (ELocated e ex) cst = do
 -- | For builtins, get the type registered in the builtins map.
 constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   ex <- get_location
   info <- return $ no_info { expression = EBuiltin s,
                              loc = ex }
   acts <- builtin_type s
 
-  return $ ((acts <:: cst) & info) <> fconstraints
+  return $ ((acts <:: cst) & info, [])
 
 
 -- | Unit typing rule
@@ -171,14 +171,14 @@ constraint_typing gamma (EBuiltin s) cst = do
 
 constraint_typing gamma EUnit cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
   
   -- Generates a referenced flag of the actual type of EUnit
   ex <- get_location
   info <- return $ no_info { expression = EUnit,
                              loc = ex }
 
-  return $ ((TBang 1 TUnit <:: cst) & info) <> fconstraints
+  return $ ((TBang 1 TUnit <:: cst) & info, [])
 
 
 -- | True / False typing rule
@@ -189,14 +189,14 @@ constraint_typing gamma EUnit cst = do
 
 constraint_typing gamma (EBool b) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
   info <- return $ no_info { expression = EBool b,
                              loc = ex }
 
-  return $ ((TBang 1 TBool <:: cst) & info) <> fconstraints
+  return $ ((TBang 1 TBool <:: cst) & info, [])
 
 
 -- | Int typing rule
@@ -207,14 +207,14 @@ constraint_typing gamma (EBool b) cst = do
 
 constraint_typing gamma (EInt p) cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
   ex <- get_location
   info <- return $ no_info { expression = EInt p,
                              loc = ex }
 
-  return $ ((TBang 1 TInt <:: cst) & info) <> fconstraints
+  return $ ((TBang 1 TInt <:: cst) & info, [])
 
 
 -- | Axiom typing rules
@@ -233,13 +233,13 @@ constraint_typing gamma (EVar x) cst = do
 
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma
-  fconstraints <- force_duplicable_context gamma_nx >>= filter
+  duplicable_context gamma_nx
 
   -- Information
   info <- return $ no_info { expression = EVar x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> fconstraints <> csetx
+  return $ ((a <:: cst) & info) <> csetx
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -251,13 +251,13 @@ constraint_typing gamma (EGlobal x) cst = do
   ex <- get_location
 
   -- Have the rest of the context be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Information
   info <- return $ no_info { expression = EGlobal x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> fconstraints <> csetx
+  return $ ((a <:: cst) & info) <> csetx
 
 
 
@@ -269,7 +269,7 @@ constraint_typing gamma (EGlobal x) cst = do
 
 constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
   -- The context must be duplicable 
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Information
   ex <- get_location
@@ -281,7 +281,7 @@ constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 1 (TCirc a b)
 
-  return $ cset <> ((TBang 1 (TArrow arw cir) <:: cst) & info) <> fconstraints
+  return $ cset <> ((TBang 1 (TArrow arw cir) <:: cst) & info)
   
 
 -- | Rev typing rule
@@ -292,7 +292,7 @@ constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
 
 constraint_typing gamma ERev cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Information
   ex <- get_location
@@ -305,7 +305,7 @@ constraint_typing gamma ERev cst = do
   cirab <- return $ TBang 0 (TCirc a b)
   cirba <- return $ TBang 1 (TCirc b a)
 
-  return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info) <> fconstraints
+  return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info, [])
 
 
 -- | Unbox typing rule
@@ -316,7 +316,7 @@ constraint_typing gamma ERev cst = do
 
 constraint_typing gamma EUnbox cst = do
   -- The context must be duplicable
-  fconstraints <- force_duplicable_context gamma >>= filter
+  duplicable_context gamma
 
   -- Flag reference
   ex <- get_location
@@ -329,7 +329,7 @@ constraint_typing gamma EUnbox cst = do
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 0 (TCirc a b)
 
-  return $ ((TBang 1 (TArrow cir arw) <:: cst) & info) <> fconstraints
+  return $ ((TBang 1 (TArrow cir arw) <:: cst) & info, [])
 
 
 -- App typing rule
@@ -361,9 +361,9 @@ constraint_typing gamma (EApp t u) cst = do
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csett <> csetu <> fconstraints
+  return $ csett <> csetu
 
 
 -- Lambda typing rule
@@ -436,9 +436,9 @@ constraint_typing gamma (ETuple elist) cst = do
   -- Construction of the constraints of delta
   disunion <- return $ disjoint_union fvlist
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons <> fconstraints
+  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -526,9 +526,9 @@ constraint_typing gamma (ELet rec p t u) cst = do
   -- Generate the flag constraints for the intersection
   disunion <- return $ disjoint_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csetu <> fconstraints
+  return csetu
 
 
 -- Data typing rule
@@ -559,9 +559,9 @@ constraint_typing gamma (EDatacon dcon e) cst = do
     -- No argument given, the constructor is typed as is
     (TBang n _, Nothing) -> do
         -- The context must be duplicable
-        fconstraints <- force_duplicable_context gamma >>= filter
+        duplicable_context gamma
 
-        return $ ((dtype' <:: cst) & info) <> csetd <> fconstraints
+        return $ ((dtype' <:: cst) & info) <> csetd
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
@@ -609,9 +609,9 @@ constraint_typing gamma (EMatch e blist) cst = do
   -- Generate the flag constraints for the intersection
   disunion <- return $ disjoint_union [fve, fvlist]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csete <> csetlist <> fconstraints
+  return $ csete <> csetlist
 
 
 -- Typing rule (if)
@@ -642,9 +642,9 @@ constraint_typing gamma (EIf e f g) cst = do
   -- Generate the flag constraints for the context delta
   disunion <- return $ disjoint_union [fve, fvfg]
   (_, delta) <- sub_context disunion gamma
-  fconstraints <- force_duplicable_context delta >>= filter
+  duplicable_context delta
   
-  return $ csete <> csetf <> csetg <> fconstraints
+  return $ csete <> csetf <> csetg
 
 
 -- No typing rule, but a constraint on the type of the expression, of the form

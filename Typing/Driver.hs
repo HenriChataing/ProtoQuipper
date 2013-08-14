@@ -474,9 +474,18 @@ process_module opts prog = do
                                                                                    constraints = emptyset }) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
-  fconstraints <- force_duplicable_context (typing ctx) >>= Typing.TypeInference.filter
-  _ <- unify True (fconstraints <> constraints ctx)
+  duplicable_context (typing ctx)
+  _ <- unify True $ constraints ctx
  
+  -- Export variables
+  globals <- get_module >>= return . global_types
+  IMap.foldWithKey (\x (TForall ff fv cs a) rec -> do
+                      rec
+                      n <- variable_name x
+                      pa <- pprint_type_noref a
+                      liftIO $ putStrLn $ n ++ ": forall " ++ show ff ++ "\n" ++ show fv ++ "\n[" ++ pprint cs ++ " => " ++ pa) (return ()) globals 
+
+
   -- Return
   return ()
 

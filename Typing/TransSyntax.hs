@@ -122,7 +122,7 @@ import_typedefs typedefs = do
                                         bound = True,                -- Default value is True
                                         qdatatype = True,            -- qdata type by default
                                         unfolded = ([], []),
-                                        subtype = ([], [], []) }
+                                        subtype = ([], [], emptyset) }
 
                 -- Register the type in the current context
                 register_type typename spec
@@ -152,12 +152,12 @@ import_typedefs typedefs = do
                                              (dtype, argtyp, cset) <- case dtype of
                                                                  -- If the constructor takes no argument
                                                                  Nothing -> do
-                                                                     return (TBang anyflag (TUser typename args'), TBang anyflag TUnit, emptyset)
+                                                                     return (TBang 1 (TUser typename args'), TBang 1 TUnit, emptyset)
 
                                                                  -- If the constructor takes an argument
                                                                  Just dt -> do
                                                                      (dt'@(TBang n _), cset) <- translate_bound_type dt mapargs
-                                                                     return (TBang anyflag (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
+                                                                     return (TBang 1 (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
 
                                              -- Generalize the type of the constructor over the free variables and flags
                                              -- Those variables must also respect the constraints from the construction of the type
@@ -182,37 +182,25 @@ import_typedefs typedefs = do
 -- products of the reduction of user a <: user a'
 -- Takes the name of the type as input, and returns the resulting set.
 -- No modification is made to the specification of the type.
-unfold_once :: String -> QpState [TypeConstraint]
+unfold_once :: String -> QpState ConstraintSet
 unfold_once name = do
   spec <- type_spec name
   
   -- Unfolded constraints
   (a, a', current) <- return $ subtype spec
   
-
-  -- Isolate the user type constraints
-  (cuser, cnuser) <- return $ List.partition is_user current
-
   -- unfold the user type constraints
-  cuser <- List.foldl (\rec (Sublintype (TUser utyp arg) (TUser utyp' arg') info) -> do
-                         r <- rec
-                         cset <- unfold_user_constraint utyp arg utyp' arg'
-                         return $ cset <> r) (return emptyset) cuser
+  cuser <- unfold_user_constraints_in_set current
 
   -- Break the composite constraints, although without touching
   -- the user type constraints, thus the false flag in the call to break_composite
-  (cuser, _) <- break_composite False cuser
+  cuser <- break_composite False cuser
 
   -- Add them one by one to the non user constraints, checking
   -- for duplicates
-  cnuser <- List.foldl (\rec c -> do
-                          r <- rec
-                          if List.elem c r then
-                            return r
-                          else
-                            return (c:r)) (return cnuser) cuser
-
-  return cnuser
+  lcuser <- return $ List.nub (fst cuser)
+  fcuser <- return $ List.nub (snd cuser)
+  return (lcuser, fcuser)
 
 
 -- | Unfold the definitions of the types in the subtyping constraints untils the
@@ -241,13 +229,16 @@ unfold_all names = do
   (finish, ctx) <- List.foldl (\rec (n, spec, after) -> do
                                  (b, ctx) <- rec
                                  (a, a', subt) <- return $ subtype spec
-                                 before <- return $ List.filter (not . is_user) subt
-                                 (cuser, cnuser) <- return $ List.partition is_user after
+                                 before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
+                                 (cuser, cnuser) <- return $ (let (lc, lc') = List.partition is_user (fst after) in
+                                                              (lc, (lc', snd after)))
                           
                                  -- Check the stability of the non user constraints of before and after the unfolding
-                                 if cnuser List.\\ before == [] && before List.\\ cnuser == [] then do
+                                 if fst cnuser List.\\ fst before == [] && fst before List.\\ fst cnuser == [] &&
+                                    snd cnuser List.\\ snd before == [] && snd before List.\\ snd cnuser == [] then do
                                    -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
-                                   newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" before ++ " ] => " ++
+                                   newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++ 
+                                                    List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
                                              pprint (TUser n a) ++ " <: " ++ pprint (TUser n a'))
 
                                    return (b, ctx { types = Map.insert n (spec { subtype = (a, a', before) }) $ types ctx })
@@ -285,8 +276,8 @@ define_user_subtyping typedefs = do
                 -- Generate the constraints ufold <: ufold'
                 constraints <- List.foldl (\rec ((_, _, t), (_, _, u)) -> do
                                              r <- rec
-                                             (lc, _) <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
-                                             return $ lc ++ r) (return []) (List.zip ufold ufold')
+                                             cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
+                                             return $ cset <> r) (return emptyset) (List.zip ufold ufold')
 
                 ctx <- get_context
                 set_context $ ctx { types = Map.insert n (spec { subtype = (a, a', constraints) }) $ types ctx }) (return ()) names
