@@ -67,10 +67,13 @@ parts of the tool chain.
 
 In this report, we describe a type-safe version of a small fragment of
 Quipper, which we call {\em Proto-Quipper}. Proto-Quipper has been
-implemented as a stand-alone (non-embedded) programming language. 
-The Proto-Quipper language is designed to ``enforce the physics'', 
-in the sense that it will detect, at compile-time, programming 
-errors that could lead to ill-formed or undefined circuits. 
+implemented as a stand-alone (non-embedded) programming language.  The
+Proto-Quipper language is designed to ``enforce the physics'', in the
+sense that it will detect, at compile-time, programming errors that
+could lead to ill-formed or undefined circuits.  This is in contrast
+to full Quipper, where the well-formedness of programs cannot be
+completely checked by the Haskell compiler, and often remains the
+programmer's responsibility.
 
 We distinguish between the \emph{core} of Proto-Quipper, which 
 represents the proved type-safe fragment of the language, and 
@@ -115,46 +118,75 @@ Section~\ref{sec-user-guide}.
 \clearpage
 \section{Design rationale}\label{sec-design}
 
-Our approach was to start with a limited (but still expressive) 
-fragment of the Quipper language and make it completely type-safe. 
-This provides a basis for extension to the full language in the 
-future. The current version of Proto-Quipper (0.1) was designed 
-with two goals in mind: 
-\begin{itemize}
-  \item incorporate Quipper's ability to generate and act on 
-  quantum circuits, and 
-  \item provide a linear type system to guarantee that the 
-  produced circuits are physically meaningful. In particular, 
-  properties like no-cloning are respected.
-\end{itemize}
-To achieve these goals, we based Proto-Quipper on the quantum 
-lambda calculus {\cite{SeVa09}}. In the quantum lambda calculus, the execution 
-of programs is modelled by the so-called reduction relation. This 
-relation is defined on \emph{closures}, which are 
-essentially pairs $[C,t]$ consisting of a term of the language 
-$t$ and a quantum state $C$. The state is a unit vector in a 
-complex Hilbert space and $t$ is a term whose free variables are 
-linked to the qubits composing $C$. The quantum state is held in 
-a quantum device capable of performing certain operations 
-(applying unitaries, measuring qubits,\ldots). The reduction in 
-the quantum lambda calculus is then defined as a probabilistic rewrite procedure on 
-these closures. Typically, the reduction will be classical until 
-a redex involving a quantum constant is reached. At this point, 
-the quantum device will be instructed to perform the appropriate 
-quantum operation. For example: ``Apply a Hadamard gate to qubit 
-number 3''. 
+\subsection{Design goals}
 
-The reduction in Proto-Quipper is similarly defined on closures. 
-However, a closure $[C,t]$ now consists of a term $t$ and a 
-\emph{circuit state} $C$. This state represents the circuit being 
-currently built. Instead of having a quantum device capable of 
-performing quantum operations, we assume that we have a 
-\emph{circuit constructor} capable or performing certain circuit 
-building operations (appending gates,\ldots). The reduction is 
-then defined as a non-probabilistic rewrite procedure on closures. 
-As in the quantum lambda calculus, some redexes will affect the state by sending 
-instructions to the circuit constructor. For example: ``Append a 
-Hadamard gate to wire number 3''.
+In designing the Proto-Quipper language, our approach was to start
+with a limited (but still expressive) fragment of the Quipper language
+and make it completely type-safe.  This fragment serves as a robust
+basis for future language extensions. The idea is to eventually close
+the gap between Proto-Quipper and Quipper by extending Proto-Quipper
+with one feature at a time while retaining type-safety. 
+
+The current version of Proto-Quipper (0.1) was designed with two goals
+in mind:
+\begin{itemize}
+  \item to incorporate Quipper's ability to generate and act on 
+  quantum circuits, and 
+\item to provide a linear type system to guarantee that the produced
+  circuits are physically meaningful. In particular, properties like
+  no-cloning are respected.
+\end{itemize}
+
+\subsection{Quantum lambda calculus}
+
+An important precursor to Proto-Quipper is the quantum lambda calculus
+{\cite{SeVa09}}. In the quantum lambda calculus, the execution of
+programs is modelled by the so-called {\em reduction relation}. This
+relation is defined on \emph{closures}, which are essentially pairs
+$[C,t]$ consisting of a term of the language $t$ and a quantum state
+$C$. The state is a unit vector in a complex Hilbert space and $t$ is
+a term whose free variables are linked to qubits in $C$. The quantum
+state is held in a quantum device capable of performing certain
+operations (applying unitaries, measuring qubits,\ldots). The
+reduction relation in the quantum lambda calculus is then defined as a
+probabilistic rewrite procedure on these closures. Typically, the
+reduction will be classical until a redex involving a quantum constant
+is reached. At this point, the quantum device will be instructed to
+perform the appropriate quantum operation. For example: ``Apply a
+Hadamard gate to qubit number 3''.
+
+\subsection{From quantum lambda calculus to Proto-Quipper}
+
+One of the main differences between Quipper and the quantum lambda
+calculus is that Quipper acts as a {\em circuit description language}.
+Quipper provides the ability to treat circuits as data, and to
+manipulate them as a whole.  For example, Quipper has operators for
+reversing circuits, decomposing them into gate sets, optimization of
+circuits, resource counting, and so on. By contrast, the quantum
+lambda calculus only manipulates {\em qubits}. In other words, in
+quantum lambda calculus, all quantum operations are immediately
+carried out on a quantum device, and not stored for symbolic
+manipulation.
+
+In the design of Proto-Quipper, we extended the quantum lambda
+calculus with the minimal set of features that makes it Quipper-like.
+Namely, we added the ability to create and manipulate circuits.  As
+detailed later in this report, we equipped this language with a type
+system and proved {\em type-safety}, i.e., the property that no
+well-typed program will perform a non-physical operation.
+
+The execution of Proto-Quipper programs has been formalized as a
+reduction relation on closures, similarly to the quantum lambda
+calculus.  However, a closure $[C,t]$ in Proto-Quipper consists of a
+term $t$ and a \emph{circuit state} $C$. The state $C$ represents the
+circuit currently being built. Instead of having a quantum device
+capable of performing quantum operations, we assume that we have a
+\emph{circuit constructor} capable or performing certain circuit
+building operations (such as appending gates, reversing, etc.). The
+reduction is then defined as a non-probabilistic rewrite procedure on
+closures.  As in the quantum lambda calculus, some redexes will affect
+the state by sending instructions to the circuit constructor. For
+example: ``Append a Hadamard gate to wire number 3''.
 
 
 % ----------------------------------------------------------------------
