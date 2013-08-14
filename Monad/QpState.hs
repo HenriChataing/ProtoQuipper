@@ -567,7 +567,13 @@ set_flag ref info = do
           Just i -> do
               case value i of
                 Zero -> do
-                    throw_NonDuplicableError info
+                    case in_type info of
+                      Just a -> do
+                          a0 <- return $ subs_flag ref 0 a
+                          a1 <- return $ subs_flag ref 1 a
+                          throw_TypingError a0 a1 info { actual = True }
+                      Nothing ->
+                          throw_NonDuplicableError info
                 Unknown ->
                     set_context $ ctx { flags = IMap.insert ref (i { value = One }) $ flags ctx }
                 _ ->
@@ -591,7 +597,13 @@ unset_flag ref info = do
           Just i -> do
               case value i of
                 One ->
-                    throw_NonDuplicableError info
+                    case in_type info of
+                      Just a -> do
+                          a0 <- return $ subs_flag ref 0 a
+                          a1 <- return $ subs_flag ref 1 a
+                          throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
+                      Nothing ->
+                          throw_NonDuplicableError info
                 Unknown ->
                     set_context $ ctx { flags = IMap.insert ref (i { value = Zero }) $ flags ctx }
                 _ ->
@@ -786,7 +798,7 @@ throw_NonDuplicableError :: ConstraintInfo -> QpState a
 throw_NonDuplicableError info = do
   f <- get_file
   p <- pprint_expr_noref $ expression info
-  throwQ $ LocatedError (NonDuplicableError p) (f, loc info)
+  throwQ $ LocatedError (NonDuplicableError p Nothing) (f, loc info)
 
 
 

@@ -60,7 +60,7 @@ data QError =
                                                                                           -- the other one the expected type), the next string locates the actual type inside of a larger one, the
                                                                                           -- last string is the expression cause of the typing error, and the rest is the location.
 
-  | NonDuplicableError String                                                             -- ^ A non duplicable term (eg of type qubit), has been used in a non linear fashion. The string
+  | NonDuplicableError String (Maybe String)                                              -- ^ A non duplicable term (eg of type qubit), has been used in a non linear fashion. The string
                                                                                           -- argument is the expression cause of all this (used in a non linear fashion), the rest the
                                                                                           -- location of the expression.
 
@@ -169,7 +169,7 @@ instance Show QError where
     "    In the type of\n" ++
     e
 
-  show (NonDuplicableError e) =
+  show (NonDuplicableError e _) =
     "the term " ++ e ++ " is not duplicable"
 
   show (InfiniteTypeError t clist mt e) =
