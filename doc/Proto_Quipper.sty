@@ -245,3 +245,17 @@
 \newcommand{\In}{\mathop{\textrm{In}}\nolimits}
 \newcommand{\Out}{\mathop{\textrm{Out}}\nolimits}
 \newenvironment{compactitemize}{\begin{itemize}\itemsep -.8ex}{\end{itemize}}
+\newcommand{\imp}{\Rightarrow}
+\newcommand{\cupdot}{\mathbin{\mathaccent\cdot\cup}}
+\newcommand{\rul}[1]{\textit{#1}}
+
+%----------------------------------------------------------------------         
+% a hack: \m is similar to \vcenter, but works better.                          
+% \mp{0.2}{x}: raise the box x so that 20% of it is below the                   
+% centerline. Unlike \vcenter, don't change the horizontal spacing              
+
+\newlength{\localh}
+\newlength{\locald}
+\newbox\mybox
+\def\mp#1#2{\setbox\mybox\hbox{#2}\localh\ht\mybox\locald\dp\mybox\addtolength{\localh}{-\locald}\raisebox{-#1\localh}{\box\mybox}}
+\def\m#1{\mp{0.5}{#1}}

@@ -143,7 +143,7 @@ As in $\QP$, a typing judgement should be interpreted as stating that under the 
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$x : \,!^1A \vdash \pair{x}{x} : \,!^0(!^1A \otimes !^1A)$}
 			\RightLabel{$(\lambda_2)$}
-			\UnaryInfC{$\varnothing \vdash \lambda x.\pair{x}{x} : \,!^1(!^1 A \multimap !^1(!^1A \otimes !^1A))$}
+			\UnaryInfC{$\emptyset \vdash \lambda x.\pair{x}{x} : \,!^1(!^1 A \multimap !^1(!^1A \otimes !^1A))$}
 		\end{prooftree}
 \end{exmp}
 
@@ -327,7 +327,7 @@ type, and a type is mapped to a type. The substitution $\sigma$ is extended to c
 \end{defn}
 
 The composition is associative: $\sigma \circ (\tau \circ \rho) = (\sigma \circ \tau) \circ \rho$. We say that a substitution
-$\sigma$ is \textit{idempotent} if it satisfies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if $dom(\sigma) \cap range(\sigma) = \varnothing$. Because working with substitutions $\sigma$ such that
+$\sigma$ is \textit{idempotent} if it satisfies $\sigma \circ \sigma = \sigma$. It can be proved in particular that $\sigma \neq Id$ is idempotent if $dom(\sigma) \cap range(\sigma) = \emptyset$. Because working with substitutions $\sigma$ such that
 $\sigma \neq \sigma \circ \sigma$ can be really cumbersome, we consider in the following that all substitutions are chosen idempotent.
 
 Substitutions preserve the validity of typing judgements. If a term $t$ is well-typed with the
@@ -354,7 +354,7 @@ for the following problem:
 	$\sigma \Gamma \vdash t : \sigma T$ is a valid typing judgement.
 \end{defn}
 
-\begin{exmp} Let $f$ be $\lambda x.x$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then the following 	are solutions for $(\varnothing, t, !^p \gamma)$:
+\begin{exmp} Let $f$ be $\lambda x.x$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then the following 	are solutions for $(\emptyset, t, !^p \gamma)$:
   \[
   \begin{array}{l}\relax
     [{!}^n\alpha \mapsto {!}^1({!}^0\intx \multimap {!}^1\intx),~~ {!}^m\beta \mapsto {!}^1\intx,~~ {!}^p\gamma \mapsto {!}^1\intx], \\\relax
@@ -428,13 +428,13 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ T \prec: U\}$}
 		\RightLabel{$(ax)$}
-		\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\varnothing$}
+		\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\emptyset$}
 		\DisplayProof
 		~~
 		~~
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ \,!^1 1 \prec: T \}$}
 		\RightLabel{$(\top)$}
-		\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} * : T ~|_\varnothing$}
+		\UnaryInfC{$!^I \Delta \vdash_\mathcal{L} * : T ~|_\emptyset$}
 		\DisplayProof
 	} $$
 	$$ $$
@@ -450,7 +450,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	$$ \mbox{
 		\AxiomC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \,!^n\alpha ~|_{\chi_2}$} \noLine
 		\UnaryInfC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \,!^0(!^n\alpha \multimap T) ~|_{\chi_1}$} \noLine
-		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
+		\AxiomC{$\chi_1 \cap \chi_2 = \emptyset$} \noLine
     \UnaryInfC{$\alpha, n \notin \Gamma, T$} \noLine
     \UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
     \UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
@@ -462,7 +462,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	$$ \mbox{
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^n\alpha ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \, !^m\beta ~|_{\chi_2}$}
-		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
+		\AxiomC{$\chi_1 \cap \chi_2 = \emptyset$} \noLine
 		\AxiomC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
 		\BinaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\BinaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m ~!^p(!^n\alpha \otimes \,!^m\beta) \prec: T \}$}
@@ -474,7 +474,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	$$ \mbox{
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^p (!^n\alpha \otimes \,!^m\beta) ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u, x : \,!^n\alpha, y : \,!^m\beta \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}
-		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
+		\AxiomC{$\chi_1 \cap \chi_2 = \emptyset$} \noLine
 		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
 		\BinaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ p \le n, p \le m, 1 \le I \}$}
@@ -505,7 +505,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	  		                                        \end{array} \right\}}
 			                                        \pair{x}{x} : \,!^{n_2}\gamma$}
 			\RightLabel{$(\lambda)$}
-			\UnaryInfC{$\varnothing \vdash_{\left\{ \scriptsize
+			\UnaryInfC{$\emptyset \vdash_{\left\{ \scriptsize
 			                                          \begin{array}{lll} 
 			                                            !^{n_1}\beta \prec: \,!^{n_4}\delta, & n_6 \le n_4 &
 			                                            	 !^{n_6}(!^{n_4}\delta \otimes \,!^{n_5}\epsilon) \prec: !^{n_2}\gamma \\
@@ -515,7 +515,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	  		                                        \end{array} \right\}} \lambda x.\pair{x}{x} : \,!^{n_0} \alpha$}
 		\end{prooftree}
 	The annotations $\chi$ are omitted to avoid cluttering the notation. Thus, we have
-		$$ \text{ConstraintTyping}\,(\varnothing \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \hspace{1in}$$ $$\left\{ \scriptsize
+		$$ \text{ConstraintTyping}\,(\emptyset \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \hspace{1in}$$ $$\left\{ \scriptsize
 			                                          \begin{array}{lll} 
 			                                            !^{n_1}\beta \prec: \,!^{n_4}\delta, & n_6 \le n_4 &
 			                                            	 !^{n_6}(!^{n_4}\delta \otimes \,!^{n_5}\epsilon) \prec: !^{n_2}\gamma \\
@@ -595,7 +595,7 @@ by the Completeness Theorem.
 			  \end{tabular}
 			  \end{center}
 			By definition, the contexts $\Gamma|_t$ and $\Gamma|_u$ can be written as $\Gamma_1, \Delta|_{t, u}$ and $\Gamma_2, \Delta |_{t, u}$,
-			with $\Gamma_1 \cap \Gamma_2 = \varnothing$. By property of $\sigma$ ($\sigma I = 1 \dots 1$),
+			with $\Gamma_1 \cap \Gamma_2 = \emptyset$. By property of $\sigma$ ($\sigma I = 1 \dots 1$),
 			$\sigma \Delta|_{t, u} = \,!^1 \sigma \Delta|_{t, u}$. Hence by application of the rule $(app)$,
 			the typing judgement $\sigma\Gamma_1, \sigma\Gamma_2, \,!^1\sigma\Delta|_{t, u} \vdash t \, u : \sigma T$ is valid.
 			Consequently, using the lemma \ref{weakening} with the set $\sigma\Delta \backslash_{t, u}$, a derivation can be built of the judgement
@@ -609,7 +609,7 @@ by the Completeness Theorem.
 
 \begin{prop}{\bf (Completeness).} \\
 	Suppose $\Gamma \vdash_\mathcal{L} t : T ~|_\chi$. If $\sigma$ is a solution for $(\Gamma, t, T)$ such that
-	$dom(\sigma) \cap \chi = \varnothing$, then there 	is some solution $\sigma'$ of $\mathcal{L}$ such that
+	$dom(\sigma) \cap \chi = \emptyset$, then there 	is some solution $\sigma'$ of $\mathcal{L}$ such that
 	$\sigma' \backslash \chi = \sigma$.
 	
 	\begin{proof}
@@ -628,13 +628,13 @@ by the Completeness Theorem.
 					\RightLabel{$(\lambda_1)$}
 					\UnaryInfC{$!^1 \sigma\Gamma \vdash \lambda x.t : \,!^1(T_1 \multimap T_2)$}
 				\end{prooftree}
-				Since $dom(\sigma) \cap \{\alpha, \beta, m, n, p\} = \varnothing$, $\sigma$ can be extended as $\sigma'$ with
+				Since $dom(\sigma) \cap \{\alpha, \beta, m, n, p\} = \emptyset$, $\sigma$ can be extended as $\sigma'$ with
 					$$\sigma' = \sigma, [p \mapsto 1, \,!^n\alpha \mapsto T_1, \,!^m\beta \mapsto T_2]$$
 				By construction, $\sigma' (\Gamma, x : \,!^n\alpha) \equiv \sigma\Gamma, x : T_1$ and $\sigma' (!^m \beta) = T_2$. Hence
 				$\sigma' \Gamma, x : \sigma'(!^n\alpha) \vdash t : \sigma'(!^m \beta)$ is valid. Finally,
-				$dom(\sigma') \cap \chi = (dom(\sigma) \cup \{\alpha, \beta, n, m, p\}) \cap \chi = \varnothing$.
+				$dom(\sigma') \cap \chi = (dom(\sigma) \cup \{\alpha, \beta, n, m, p\}) \cap \chi = \emptyset$.
 				This means $\sigma'$ is a solution for $(\Gamma,x : \,!^n\alpha, t, \,!^m\beta)$ with the right property
-				$dom(\sigma') \cap \chi = \varnothing$. By the induction hypothesis, $\sigma^*$ solution of $\mathcal{L'}$ can be constructed
+				$dom(\sigma') \cap \chi = \emptyset$. By the induction hypothesis, $\sigma^*$ solution of $\mathcal{L'}$ can be constructed
 				with the property $\sigma^* \backslash_\chi = \sigma'$.
 				$\sigma^*$ also satisfies $\sigma^*\backslash_{\chi \cup \{\alpha, \beta, n, m , p\}} =
 				\sigma' \backslash_{\{\alpha, \beta, n, m, p \}} = \sigma$ and $\sigma^* \mathcal{L}$ solved. \\
@@ -653,7 +653,7 @@ by the Completeness Theorem.
 			\end{array} \right.$$
 			we get $\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$ and
 			$\chi = \chi_1 \cup \chi_2 \cup \{ \alpha, n\}$. We are given $\sigma$ solution for $(\Gamma, t \, u, T)$ such that
-			$dom(\alpha) \cap \chi = \varnothing$.
+			$dom(\alpha) \cap \chi = \emptyset$.
 			The typing derivation for $\sigma \Gamma \vdash t \, u : \sigma T$ must be
 				\begin{prooftree}
 					\AxiomC{$\sigma\Gamma_1, !^1 \sigma\Delta \vdash t : \,!^0 (U \multimap \sigma T)$}
@@ -665,15 +665,15 @@ by the Completeness Theorem.
 			$\Gamma|_t = \Gamma_1, \Delta|_t$ and $\Gamma|_u = \Gamma_2, \Delta|_u$. More importantly, the context
 			$\Delta$ from the constraint typing rule is the same as the one from the regular typing rules. This means
 			that by definition $\sigma I = 1 \dots 1$. \\
-			By hypothesis, $dom(\sigma) \cap \{ \alpha, n \} = \varnothing$. Thus $\sigma$ can be extended as
+			By hypothesis, $dom(\sigma) \cap \{ \alpha, n \} = \emptyset$. Thus $\sigma$ can be extended as
 			$\sigma' = \sigma, [!^n\alpha \mapsto U]$. \\
 			By construction of $\sigma'$, the following properties are satisfied
 				$$\left\{ \begin{array}{l}
 									   \sigma' \Gamma = \sigma \Gamma \\
 									   \sigma'(!^0(!^n \alpha \multimap T)) = \,!^0 (U \multimap \sigma T) \\
-									   dom(\sigma') \cap \chi_1 = dom(\sigma) \cap \chi_1 = \varnothing
+									   dom(\sigma') \cap \chi_1 = dom(\sigma) \cap \chi_1 = \emptyset
 									 \end{array} \right.$$
-		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ satisfying $dom(\sigma') \cap \chi_1 = \varnothing$.
+		  Consequently, $\sigma'$ is a solution for $((\Gamma_1, \Delta), ~t, ~!^0(!^n \multimap T))$ satisfying $dom(\sigma') \cap \chi_1 = \emptyset$.
 			But this statement has to be adjusted to match the problem $(\Gamma|_t, t, \,!^0 (!^n \alpha\multimap T), \mathcal{L}_1)$.
 			This is done by applying the lemma \ref{QP'prop} which states that $\sigma'$ is also a solution for
 			$(\Gamma_1, \Delta|_t, ~t, ~!^0(!^n\alpha \multimap T)) \equiv (\Gamma|_t, ~t, ~!^0(!^n\alpha \multimap T))$.
@@ -683,10 +683,10 @@ by the Completeness Theorem.
 				$$\left\{ \begin{array}{l}
 										 \sigma^* \Gamma = \sigma' \Gamma = \sigma \Gamma \\
 										 \sigma^* (!^n \alpha) = \sigma' (!^n \alpha) = U \\
-										 dom(\sigma^*) \cap \chi_2 = dom(\sigma) \cap \chi_2 = \varnothing ~~(\text{because} ~\chi_1 \cap \chi_2 = \varnothing)
+										 dom(\sigma^*) \cap \chi_2 = dom(\sigma) \cap \chi_2 = \emptyset ~~(\text{because} ~\chi_1 \cap \chi_2 = \emptyset)
 					  			 \end{array}\right.$$
 			Thus $\sigma^*$ is a solution for $((\Gamma_2, \Delta), ~u, ~!^n\alpha)$, which means for $(\Gamma|_u, ~u, ~!^n\alpha)$ as well.
-			It also satisfies $dom(\sigma^*) \cap \chi_2 = \varnothing$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
+			It also satisfies $dom(\sigma^*) \cap \chi_2 = \emptyset$. By the induction hypothesis, there exists $\sigma^{**}$ solution of
 			$\mathcal{L}_2$ such that $\sigma^{**} \backslash_{\chi_2} = \sigma^*$. \\
 			Overall, $\sigma^{**}$ is a solution of $\mathcal{L}_1$, $\mathcal{L}_2$ and $\{ 1 \le I \}$, which means it solves $\mathcal{L}$.
 			Moreover, $\sigma^{**} \backslash_{\chi_1 \cup \chi_2 \cup \{\alpha, n\}} = \sigma^* \backslash_{\chi_1 \cup \{\alpha, n\}} =
@@ -962,7 +962,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 		used to justify the use of the induction hypothesis as in the proof of termination, so this spares us the trouble of having to write
 		them again. By induction on indexed sets. If the index is
 		\begin{itemize}
-			\item $(0, N_\lset)$. $\lset$ is composed only of atomic constraints, and TypeUnification returns $\varnothing, \lset$.
+			\item $(0, N_\lset)$. $\lset$ is composed only of atomic constraints, and TypeUnification returns $\emptyset, \lset$.
 				The properties (a) and (b) are trivially satisfied.
 				
 			\item $(C_\lset, N_\lset)$, and $\lset = \lset' \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k$. \\
@@ -1154,12 +1154,12 @@ In the same way, the constraint typing relation has to be extended to cover the 
 	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
 		\RightLabel{$(\textit{true})$}
-		\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
+		\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\emptyset$}
 		\DisplayProof
                 \quad
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
 		\RightLabel{$(\textit{false})$}
-		\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
+		\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\emptyset$}
 		\DisplayProof
 	} $$
 	\begin{prooftree}
