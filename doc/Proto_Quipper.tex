@@ -49,92 +49,155 @@ This work was performed under U.S. Government contract D12PC00527.
 \clearpage
 \section{Introduction}
 
-Quipper is currently implemented as an embedded language, within 
-the host language Haskell. This has many advantages, for example, 
-the ability to implement a large-scale system very rapidly. However, 
-there are also a few disadvantages. One of these is that the Haskell 
-type system, while providing many  type-safety properties, is not in 
-general strong enough to ensure full type-safety of the quantum 
-programs. In the current implementation, it is therefore the 
-programmer's responsibility to ensure that quantum components are 
-plugged together in physically meaningful ways. This means that 
-certain types of programming errors will not be prevented by the 
-compiler; in the worst case, this may lead to ill-formed output or 
-run-time errors in other parts of the tool chain.
+\subsection{Overview}
 
-We have developed a type-safe version of Quipper as a stand-alone 
-(non-embedded) programming language, which we call Proto-Quipper. 
-The Proto-Quipper language is designed to ``enforce the physics'', 
-in the sense that it will detect, at compile-time, programming 
-errors that could lead to ill-formed or undefined circuits. 
+The PLATO team's primary quantum programming language, Quipper, is
+currently implemented as an embedded language, within the host
+language Haskell. This has many advantages, for example, the ability
+to implement a large-scale system very rapidly. However, there are
+also a few disadvantages. One of these is that the Haskell type
+system, while providing many type-safety properties, is not in general
+strong enough to ensure full type-safety of the quantum programs. In
+the current Quipper implementation, it is therefore the programmer's
+responsibility to ensure that quantum components are plugged together
+in physically meaningful ways. This means that certain types of
+programming errors will not be prevented by the compiler; in the worst
+case, this may lead to ill-formed output or run-time errors in other
+parts of the tool chain.
+
+In this report, we describe a type-safe version of a small fragment of
+Quipper, which we call {\em Proto-Quipper}. Proto-Quipper has been
+implemented as a stand-alone (non-embedded) programming language.  The
+Proto-Quipper language is designed to ``enforce the physics'', in the
+sense that it will detect, at compile-time, programming errors that
+could lead to ill-formed or undefined circuits.  This is in contrast
+to full Quipper, where the well-formedness of programs cannot be
+completely checked by the Haskell compiler, and often remains the
+programmer's responsibility.
 
 We distinguish between the \emph{core} of Proto-Quipper, which 
 represents the proved type-safe fragment of the language, and 
 the \emph{extensions} of the language, containing newly 
 implemented features of Proto-Quipper that are currently under 
-development. In what follows, we provide an introduction to 
-Proto-Quipper, prove the type safety of the core language and 
-describe its type inference algorithm. We then discuss already 
-available extensions to the core language and future 
-developments. We conclude with an introduction to programming 
-in Proto-Quipper.
+development. 
 
+\subsection{Outline}
+
+This report is organized as follows. In Section~\ref{sec-design}, we
+briefly explain the rationale behind Proto-Quipper's design, including
+the differences between Quipper, Proto-Quipper, Core Proto-Quipper,
+and the quantum lambda calculus. In Section~\ref{sec-core}, we
+formally define the Core Proto-Quipper language, its type system, and
+its operational semantics. In Section~\ref{sec-type-safety}, we prove
+the type-safety of the language. In Section~\ref{sec-inference}, we
+describe a type inference algorithm for Core Proto-Quipper. In
+Section~\ref{sec-extensions}, we discuss some extensions of
+Proto-Quipper that are already implemented in our language
+implementation, but not yet formalized. In Section~\ref{sec-future},
+we discuss possible future work, including how Proto-Quipper could be
+extended with additional Quipper features.
+Section~\ref{sec-user-guide} provides a user-level tutorial guide to
+the Proto-Quipper implementation.
+
+\subsection{Additional materials}
+
+This document is accompanied by the Proto-Quipper software version
+0.1, including:
+\begin{compactitemize}
+\item the Proto-Quipper language implementation;
+\item the Proto-Quipper browsable documentation.
+\end{compactitemize}
+
+Please also note that a user-level tutorial introduction to the
+Proto-Quipper implementation is given in
+Section~\ref{sec-user-guide}. Readers who are looking for a software
+guide, rather than the theory of Proto-Quipper, should skip ahead to
+Section~\ref{sec-user-guide}.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Design Rationale}
+\section{Design rationale}\label{sec-design}
 
-Our approach was to start with a limited (but still expressive) 
-fragment of the Quipper language and make it completely type-safe. 
-This provides a basis for extension to the full language in the 
-future. The current version of Proto-Quipper (0.1) was designed 
-with two goals in mind: 
+\subsection{Design goals}
+
+In designing the Proto-Quipper language, our approach was to start
+with a limited (but still expressive) fragment of the Quipper language
+and make it completely type-safe.  This fragment serves as a robust
+basis for future language extensions. The idea is to eventually close
+the gap between Proto-Quipper and Quipper by extending Proto-Quipper
+with one feature at a time while retaining type-safety. 
+
+The current version of Proto-Quipper (0.1) was designed with two goals
+in mind:
 \begin{itemize}
-  \item incorporate Quipper's ability to generate and act on 
+  \item to incorporate Quipper's ability to generate and act on 
   quantum circuits, and 
-  \item provide a linear type system to guarantee that the 
-  produced circuits are physically meaningful. In particular, 
-  properties like no-cloning are respected.
+\item to provide a linear type system to guarantee that the produced
+  circuits are physically meaningful. In particular, properties like
+  no-cloning are respected.
 \end{itemize}
-To achieve these goals, we based Proto-Quipper on the quantum 
-lambda calculus {\cite{SeVa09}}. In the quantum lambda calculus, the execution 
-of programs is modelled by the so-called reduction relation. This 
-relation is defined on \emph{closures}, which are 
-essentially pairs $[C,t]$ consisting of a term of the language 
-$t$ and a quantum state $C$. The state is a unit vector in a 
-complex Hilbert space and $t$ is a term whose free variables are 
-linked to the qubits composing $C$. The quantum state is held in 
-a quantum device capable of performing certain operations 
-(applying unitaries, measuring qubits,\ldots). The reduction in 
-the quantum lambda calculus is then defined as a probabilistic rewrite procedure on 
-these closures. Typically, the reduction will be classical until 
-a redex involving a quantum constant is reached. At this point, 
-the quantum device will be instructed to perform the appropriate 
-quantum operation. For example: ``Apply a Hadamard gate to qubit 
-number 3''. 
 
-The reduction in Proto-Quipper is similarly defined on closures. 
-However, a closure $[C,t]$ now consists of a term $t$ and a 
-\emph{circuit state} $C$. This state represents the circuit being 
-currently built. Instead of having a quantum device capable of 
-performing quantum operations, we assume that we have a 
-\emph{circuit constructor} capable or performing certain circuit 
-building operations (appending gates,\ldots). The reduction is 
-then defined as a non-probabilistic rewrite procedure on closures. 
-As in the quantum lambda calculus, some redexes will affect the state by sending 
-instructions to the circuit constructor. For example: ``Append a 
-Hadamard gate to wire number 3''.
+\subsection{Quantum lambda calculus}
+
+An important precursor to Proto-Quipper is the quantum lambda calculus
+{\cite{SeVa09}}. In the quantum lambda calculus, the execution of
+programs is modelled by the so-called {\em reduction relation}. This
+relation is defined on \emph{closures}, which are essentially pairs
+$[C,t]$ consisting of a term of the language $t$ and a quantum state
+$C$. The state is a unit vector in a complex Hilbert space and $t$ is
+a term whose free variables are linked to qubits in $C$. The quantum
+state is held in a quantum device capable of performing certain
+operations (applying unitaries, measuring qubits,\ldots). The
+reduction relation in the quantum lambda calculus is then defined as a
+probabilistic rewrite procedure on these closures. Typically, the
+reduction will be classical until a redex involving a quantum constant
+is reached. At this point, the quantum device will be instructed to
+perform the appropriate quantum operation. For example: ``Apply a
+Hadamard gate to qubit number 3''.
+
+\subsection{From quantum lambda calculus to Proto-Quipper}
+
+One of the main differences between Quipper and the quantum lambda
+calculus is that Quipper acts as a {\em circuit description language}.
+Quipper provides the ability to treat circuits as data, and to
+manipulate them as a whole.  For example, Quipper has operators for
+reversing circuits, decomposing them into gate sets, optimization of
+circuits, resource counting, and so on. By contrast, the quantum
+lambda calculus only manipulates {\em qubits}. In other words, in
+quantum lambda calculus, all quantum operations are immediately
+carried out on a quantum device, and not stored for symbolic
+manipulation.
+
+In the design of Proto-Quipper, we extended the quantum lambda
+calculus with the minimal set of features that makes it Quipper-like.
+Namely, we added the ability to create and manipulate circuits.  As
+detailed later in this report, we equipped this language with a type
+system and proved {\em type-safety}, i.e., the property that no
+well-typed program will perform a non-physical operation.
+
+The execution of Proto-Quipper programs has been formalized as a
+reduction relation on closures, similarly to the quantum lambda
+calculus.  However, a closure $[C,t]$ in Proto-Quipper consists of a
+term $t$ and a \emph{circuit state} $C$. The state $C$ represents the
+circuit currently being built. Instead of having a quantum device
+capable of performing quantum operations, we assume that we have a
+\emph{circuit constructor} capable or performing certain circuit
+building operations (such as appending gates, reversing, etc.). The
+reduction is then defined as a non-probabilistic rewrite procedure on
+closures.  As in the quantum lambda calculus, some redexes will affect
+the state by sending instructions to the circuit constructor. For
+example: ``Append a Hadamard gate to wire number 3''.
 
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{The Core Language}
+\section{The core language}\label{sec-core}
 
 In this section, we define the core of Proto-Quipper. We 
 present in details the syntax, type system and 
 operational semantics of the language.
 
-\subsection{Types and Terms}
+\subsection{Types and terms}
 \label{ssec-types-and-terms}
 
 \begin{definition} 
@@ -255,7 +318,7 @@ The notational conventions used throughout these notes are:
 Additions to these conventions will be provided throughout.
 
 
-\subsection{Operations on Types and Terms}
+\subsection{Operations on types and terms}
 
 We now introduce some useful operations on types and terms. 
 
@@ -367,7 +430,7 @@ Informally, an $X$-specimen for $T$ is a QData term $t$ that is
 If $X$ is clear, we simply write $\spec (T)$.
 
 
-\subsection{The Type System}
+\subsection{The type system}
 
 The fact that a term is reusable should not prevent us from 
 using it exactly once. Intuitively, this should imply that if a 
@@ -601,7 +664,7 @@ $\lambda x. \p{x,x}$ cannot be given the type
 $\qubit\loli \qubit \x \qubit$.
 
 
-\subsection{Circuit Constructors}
+\subsection{Circuit constructors}
 
 As mentioned in Section 2, the reduction relation for 
 Proto-Quipper is defined in the presence of a \emph{circuit
@@ -770,7 +833,7 @@ and $\mathtt{Encap}=1_Q$.
 \end{remark}
 
 
-\subsection{Operational Semantics}
+\subsection{Operational semantics}
 
 We are now in a position to define Proto-Quipper's operational 
 semantics.
@@ -928,7 +991,7 @@ By case distinction on $a$.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type Safety}
+\section{Type safety}\label{sec-type-safety}
 
 In this section, we establish that the core of  Proto-Quipper 
 is a \emph{type safe} language. We follow \cite{WrFe94} in 
@@ -960,7 +1023,7 @@ It is \emph{valid} if $\Gamma;Q\entails a:A$ is a valid
 typing judgement.
 \end{definition}
 
-\subsection{Properties of the Type System}
+\subsection{Properties of the type system}
 
 Before proving Subject Reduction and Progress, we record 
 some properties of the type system, including the important 
@@ -1198,7 +1261,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
 \end{proof}
 
 
-\subsection{Subject Reduction}
+\subsection{Subject reduction}
 
 \begin{lemma}
 \label{Inwires}
@@ -1712,7 +1775,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type Inference}
+\section{Type inference}\label{sec-inference}
 
 In this section, we describe the type inference algorithm 
 for Proto-Quipper. We detail the algorithm and prove its 
@@ -1732,20 +1795,32 @@ to the programmer, but not formalized. This means that the proofs
 of type-safety for these extensions of the core language are 
 currently under development. We briefly describe these features 
 here. Further explanations and sample code can be found in the 
-User Guide of Section \ref{sec-user-guide}.
+user guide of Section \ref{sec-user-guide}.
 \begin{description}
   \item[Polymorphism:] Our implementation of Proto-Quipper is 
     equipped with a polymorphic $let$ binder. This means that 
     expressions such as:
     \[
-    \letin{a}{x}{b}
+    \letin{x}{a}{b}
     \]
     are valid expressions of the syntax (note that $a$ is not required 
     to be a pair). Moreover, such $let$ expressions are not simply 
     syntactic sugar for $(\lambda x.b)a$. In fact, the expression
-    will not be attributed a type but rather a \emph{type schema}.
-    This schema can then be instantiated in various ways depending 
-    on the context in which the term is used. 
+    will not be attributed a type but rather a \emph{type schema} that
+    describes the possible types of this expression.
+    Type schemas follow the pattern:
+    	$$\forall \vec{\alpha}~ \vec{i}, \lset \Rightarrow T$$
+    It is to be interpreted as: \textit{for every type variables $\vec{\alpha'}$ and flag variables $\vec{i'}$ satisfying
+    the constraints $\lset[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$, the expression
+    ``$a$" can have the type $T[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$}.
+		This is illustrated by the following constraint typing rule:
+			\begin{prooftree}
+				\AxiomC{$\vec{\alpha'}, \vec{i'} \notin \Delta, (\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T)$} \noLine
+				\UnaryInfC{$\lset = \lset_T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \cup
+				            \{ 1 \le I, T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \prec: U \}$}
+				\RightLabel{$(ax.S)$}
+				\UnaryInfC{$!^I \Delta, x: ~(\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T) \vdash_\lset x : U ~|_{\{\vec{\alpha'}, \vec{i'}\}}$}
+			\end{prooftree}
   \item[Algebraic Types, Integers and Lists:] Built-in List and 
     Integer types are provided with our implementation of Proto-Quipper.
     These are accompanied by basic functions such as equality testing, 
@@ -1775,7 +1850,7 @@ User Guide of Section \ref{sec-user-guide}.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Future work}
+\section{Future work}\label{sec-future}
 
 In this section, we describe some ongoing and future developments 
 of Proto-Quipper.
@@ -1856,7 +1931,7 @@ of Proto-Quipper.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Proto-Quipper User Guide}
+\section{Proto-Quipper user guide}
 \label{sec-user-guide}
 
 In this section, we provide a tutorial-style introduction to 
@@ -1866,7 +1941,7 @@ programming in Proto-Quipper.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section*{Glossary of Acronyms}
+\section*{Glossary of acronyms}
 \addcontentsline{toc}{section}{Glossary of Acronyms}
 
 \begin{itemize}
