@@ -504,15 +504,16 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                   ctx <- rec
                                   -- First apply the substitution
                                   a' <- map_type a
+                                  (fv, ff, cset') <- return $ clean_constraint_set a' csett
                                   
                                   -- Identify the free variables, the free variables form a subset of those used here.
-                                  fv <- return $ List.union (free_typ_var a') (free_typ_var csett)
-                                  ff <- return $ List.union (free_flag a') (free_flag csett)
+--                                  fv <- return $ List.union (free_typ_var a') (free_typ_var cset')
+--                                  ff <- return $ List.union (free_flag a') (free_flag cset')
 
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  gena <- return $ TForall genff genfv csett a'
+                                  gena <- return $ TForall genff genfv cset' a'
 
                                   -- Update the global variables
                                   update_global_type x gena

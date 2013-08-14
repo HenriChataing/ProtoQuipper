@@ -333,14 +333,16 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                     Unknown -> set_flag n
                                     _ -> return ()
  
+                                  (fv, ff, cset') <- return $ clean_constraint_set a' csete
+
                                   -- Identify the free variables, the free variables form a subset of those used here.
-                                  fv <- return $ List.union (free_typ_var a') (free_typ_var csete)
-                                  ff <- return $ List.union (free_flag a') (free_flag csete)
+  --                                fv <- return $ List.union (free_typ_var a') (free_typ_var cset')
+    --                              ff <- return $ List.union (free_flag a') (free_flag cset')
 
                                   genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  gena <- return $ TForall genff genfv csete a'
+                                  gena <- return $ TForall genff genfv cset' a'
                                   -- Update the global variables
                                   update_global_type x gena
                                   -- Update the typing context of u
