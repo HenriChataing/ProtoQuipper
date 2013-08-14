@@ -132,13 +132,14 @@ run_interactive opts ctx buffer = do
           -- Add the command to the history
           add_history $ List.foldl (\r c -> c ++ "\n" ++ r) l buffer
 
-          tokens <- liftIO $ mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
-          prog <- return $ parse tokens
           -- Process the 'module'
-          ctx <- (run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx
-                 )`catchQ` (\e -> do
-                              liftIO $ putStrLn $ show e
-                              return ctx)
+          ctx <- (do
+            tokens <- mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
+            prog <- return $ parse tokens
+
+            run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
+                                                                                                      liftIO $ putStrLn $ show e
+                                                                                                      return ctx)
 
           -- Resume the command input
           run_interactive opts ctx []

@@ -46,7 +46,7 @@ import Data.Char as Char
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
-  tokens <- liftIO $ mylex contents
+  tokens <- mylex contents
   mod <- return $ module_of_file file
   return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
 
@@ -55,7 +55,7 @@ lex_and_parse_implementation file = do
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
   contents <- liftIO $ readFile file
-  tokens <- liftIO $ mylex contents
+  tokens <- mylex contents
   mod <- return $ module_of_file file
   return $ IP.parse tokens
 

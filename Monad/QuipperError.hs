@@ -27,7 +27,7 @@ data QError =
 
 -- LEXICAL ERRORS
     
-  | LexicalError (String, Extent)                                                         -- ^ Lexical error, thrown when an unknown token is read.
+  | LexicalError String Extent                                                            -- ^ Lexical error, thrown when an unknown token is read.
 
 -- SYNTAX ERRORS
 
@@ -115,8 +115,8 @@ instance Show QError where
     List.foldl (\rec m ->
                   rec ++ "\n  which imports " ++ m) "" includes
 
-  show (LexicalError (f, ex)) =
-    f ++ ":" ++ show ex ++ ": unknown token"
+  show (LexicalError msg ex) =
+    show ex ++": " ++ "unknown token " ++ msg
 
   show (ParsingError tk) =
     "Parsing error: on token " ++ tk
