@@ -77,10 +77,10 @@ the core syntax.
 \begin{tabular}{|c|c|}
   \hline
   \textbf{Formalization}    & \textbf{Implementation} \\\hline
-  $qubit$, $bool, 1$         & \verb#qubit#, \verb#bool#, \verb#()# \\\hline
+  $\qubit$, $\bool$, $1$    & \verb#qubit#, \verb#bool#, \verb#()# \\\hline
   $A \otimes B$             & \verb# A * B# \\\hline
   $A \multimap B$           & \verb# A -> B # \\\hline
-  $Circ(T, U)$              & \verb# circ(T,U)# \\\hline
+  $\Circ(T, U)$              & \verb# circ(T,U)# \\\hline
   ${!} A$                   & \verb# !A# \\\hline
 \end{tabular}
 \end{center}
@@ -95,15 +95,15 @@ the core syntax.
   \hline
   \textbf{Formalization}          & \textbf{Implementation} \\\hline
   $x$                             & \verb# x# \\\hline
-  $\texttt{True}, \texttt{False}$ & \verb#true#, \verb#false# \\\hline
+  $\true$, $\false$               & \verb#true#, \verb#false# \\\hline
   $\pair{a}{b}$                   & \verb# (a,b) # \\\hline
   $*$                             & \verb# ()# \\\hline
   $\lambda x.a$                   & \verb# fun x -> a# \\\hline
   $a \, b$                        & \verb#a b# \\\hline
-  $box^T$                         & \verb# box[T]# \\\hline
-  $unbox, rev$                    & \verb#unbox#, \verb#rev# \\\hline
-  $if ~a~ then ~b~ else ~c$       & \verb# if a then b else c# \\\hline
-  $let \pair{x}{y} = a ~in~ b$    & \verb# let (x,y) = a in b# \\\hline
+  $\boxx^T$                       & \verb# box[T]# \\\hline
+  $\unbox$, $\rev$                & \verb#unbox#, \verb#rev# \\\hline
+  $\ifthenelse{a}{b}{c}$          & \verb# if a then b else c# \\\hline
+  $\letin{\p{x,y}}{a}{b}$         & \verb# let (x,y) = a in b# \\\hline
 \end{tabular}
 \end{center}
 \caption{Proto-Quipper Terms.}

@@ -24,7 +24,7 @@ For the purpose of type inference, it would seem natural to define the type syst
 		$\texttt{Type} ~A,B~ ::=$ & $\alpha ~|~ 1 ~|~ A \multimap B ~|~ A \otimes B ~|~ \bang A$.
 	\end{tabular}
 	\end{center}
-This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $qubit$, $bool \otimes bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
+This would have been sufficient if the types were not linear. However, we need to be able to separately discuss the \textit{form} of a type (for example $\qubit$, $\bool \otimes \bool$) and its \textit{linearity} (whether the type is duplicable or not). We therefore introduce a new grammar which, though less intuitive, offers more control over the form of a type.
 
 \begin{defn} The \emph{types} of $\QP'$ are defined by:
 	\begin{center}
@@ -43,7 +43,7 @@ Flags, linear types and types are to be interpreted as follows:
 		In practice, the type of a term will always be represented by a \texttt{Type}, never by a \texttt{LinearType}.
 	\item $\texttt{Flag}$ consists of \textit{flag variables} and the constants $0$ and $1$. They parametrize the linearity of a type.
 		If the value of $n$ is $1$, then $!^n A$ is duplicable; if it is $0$, then $!^n A$ is linear. This idea is that $!^1A=!A$ and $!^0A=A$. For example, the type
-		of any quantum bit will be $!^0 qubit$.
+		of any quantum bit will be $!^0 \qubit$.
 \end{itemize}
 Using a grammar that distinguishes linear types and types also allows us to unambiguously define substitutions as mappings from type variables to \textit{linear} types. This distinction was impossible to make in $\QP$. We will use the following notation:
 \begin{itemize}
@@ -358,7 +358,7 @@ for the following problem:
 	\begin{center}
 	\begin{tabular}{l}
 		$[!^n\alpha ~\mapsto~ !^1(!^0int \multimap !^1int),~~ !^m\beta ~\mapsto~ !^1int,~~ !^p\gamma ~\mapsto~ !^1int]$ \\
-		$[!^n\alpha ~\mapsto~ !^0(!^0qubit \multimap !^0bit),~~ !^m\beta ~\mapsto~ !^0qubit,~~ !^p\gamma ~\mapsto~ !^0qubit]$ \\
+		$[!^n\alpha ~\mapsto~ !^0(!^0\qubit \multimap !^0bit),~~ !^m\beta ~\mapsto~ !^0\qubit,~~ !^p\gamma ~\mapsto~ !^0\qubit]$ \\
 		$[!^n\alpha ~\mapsto~ !^0(!^1int \multimap !^0(!^1int \otimes !^1int)),
 			~~ !^m\beta ~\mapsto~ !^1int,
 			~~ !^p\gamma ~\mapsto~ !^0(!^1int \otimes !^1int)]$
@@ -1089,44 +1089,44 @@ We propose some approximations that keep the satisfiability of the constraint se
 
 This section gives the additions that have to be made to the grammar of $\QP'$ for the type inference algorithm to perform in the syntax
 of core Proto-Quipper.
-We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $bool, qubit, Circ(T, U)$
+We now consider that all the terms of Proto-Quipper have been added to $\QP'$. First, we need to include the types $\bool, \qubit, \Circ(T, U)$
 in the rule of $\texttt{LinearType}$, along with the typing rules from Figure \ref{exttypeQP'}
 
 \begin{figure}[!ht]
 \begin{mdframed}
 	\begin{prooftree}
 		\AxiomC{}
-		\RightLabel{$(rev)$}
-		\UnaryInfC{$!^1 \Gamma \vdash rev : ~!^1 (!^1Circ(T, U) \multimap~ !^1Circ(U, T))$}
+		\RightLabel{$(\rev)$}
+		\UnaryInfC{$!^1 \Gamma \vdash \rev : ~!^1 (!^1\Circ(T, U) \multimap~ !^1\Circ(U, T))$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
-		\RightLabel{$(unbox)$}
-		\UnaryInfC{$!^1\Gamma \vdash unbox : ~!^1 (!^1Circ(T, U) \multimap~ !^1(T \multimap U))$}
+		\RightLabel{$(\unbox)$}
+		\UnaryInfC{$!^1\Gamma \vdash \unbox : ~!^1 (!^1\Circ(T, U) \multimap~ !^1(T \multimap U))$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{}
-		\RightLabel{$(box)$}
-		\UnaryInfC{$!^1\Gamma \vdash box^T : ~!^1(!^1(T \multimap U) \multimap~ !^1Circ (T, U))$}
+		\RightLabel{$(\boxx)$}
+		\UnaryInfC{$!^1\Gamma \vdash \boxx^T : ~!^1(!^1(T \multimap U) \multimap~ !^1\Circ (T, U))$}
 	\end{prooftree}
 	$$ \mbox{
 		\AxiomC{}
 		\RightLabel{$(\texttt{True})$}
-		\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 bool$}
+		\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 \bool$}
 		\DisplayProof
 		~~
 		~~
 		\AxiomC{}
 		\RightLabel{$(\texttt{False})$}
-		\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 bool$}
+		\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 \bool$}
 		\DisplayProof
 	} $$
 	\begin{prooftree}
-		\AxiomC{$\Gamma_1, ~!^1\Delta \vdash t : ~!^0 bool$}
+		\AxiomC{$\Gamma_1, ~!^1\Delta \vdash t : ~!^0 \bool$}
 		\AxiomC{$\Gamma_2, ~!^1\Delta \vdash u : T$}		\noLine
 		\UnaryInfC{$\Gamma_2, ~!^1\Delta \vdash v : T$}
 		\RightLabel{$(if)$}
-		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T$}
+		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \ifthenelse{t}{u}{v} : T$}
 	\end{prooftree}
 \end{mdframed}
 \caption{Additional typing rules.}
@@ -1138,43 +1138,43 @@ In the same way, the constraint typing relation has to be extended to cover the 
 \begin{mdframed}
 	\begin{prooftree}
 	  \AxiomC{$\alpha, \beta, n, m \notin \Gamma, T$} \noLine
-		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 Circ(!^n\beta, \,!^m\alpha)) \prec: T\}$}
-		\RightLabel{$(rev)$}
-		\UnaryInfC{$!^I \Gamma \vdash_\mathcal{L} rev : T ~|_{\{\alpha, \beta, m, n\}}$}
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1\Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 \Circ(!^n\beta, \,!^m\alpha)) \prec: T\}$}
+		\RightLabel{$(\rev)$}
+		\UnaryInfC{$!^I \Gamma \vdash_\mathcal{L} \rev : T ~|_{\{\alpha, \beta, m, n\}}$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\alpha, \beta, n, m \notin \Gamma, T$} \noLine
-		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 (!^n\alpha \multimap \,!^m\beta)) \prec: T\}$}
-		\RightLabel{$(unbox)$}
-		\UnaryInfC{$!^I\Gamma \vdash_\mathcal{L} unbox : T ~|_{\{\alpha, \beta, m, n\}}$}
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1 (!^1\Circ(!^n\alpha, \,!^m\beta) \multimap~ !^1 (!^n\alpha \multimap \,!^m\beta)) \prec: T\}$}
+		\RightLabel{$(\unbox)$}
+		\UnaryInfC{$!^I\Gamma \vdash_\mathcal{L} \unbox : T ~|_{\{\alpha, \beta, m, n\}}$}
 	\end{prooftree}
 	\begin{prooftree}
 		\AxiomC{$\alpha, n \notin \Gamma, T, U$} \noLine
-		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1(!^1(T \multimap \,!^n\alpha) \multimap~ !^1 Circ (T, !^n\alpha)) \prec: U\}$}
-		\RightLabel{$(box)$}
-		\UnaryInfC{$!^I\Gamma \vdash box^T : U ~|_{\{\alpha, n\}}$}
+		\UnaryInfC{$\mathcal{L} = \{1 \le I, ~ !^1(!^1(T \multimap \,!^n\alpha) \multimap~ !^1 \Circ (T, !^n\alpha)) \prec: U\}$}
+		\RightLabel{$(\boxx)$}
+		\UnaryInfC{$!^I\Gamma \vdash \boxx^T : U ~|_{\{\alpha, n\}}$}
 	\end{prooftree}
 	$$ \mbox{
-		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
+		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
 		\RightLabel{$(\texttt{True})$}
 		\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
 		\DisplayProof
 		~~
 		~~
-		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 bool \prec: T\}$}
+		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
 		\RightLabel{$(\texttt{False})$}
 		\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
 		\DisplayProof
 	} $$
 	\begin{prooftree}
-		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : ~!^0 bool ~|_{\chi_1}$} \noLine
+		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : ~!^0 \bool ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_{u, v} \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}	 \noLine
 		\UnaryInfC{$\Gamma|_{u, v} \vdash_{\mathcal{L}_3} v : T ~|_{\chi_3}$}
 		\AxiomC{$\chi_1$, $\chi_2$, $\chi_3$ mutually disjoint} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus (u,v)} = \,!^I \Delta$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \mathcal{L}_3 \cup \{ 1 \le I \}$}
 		\RightLabel{$(if)$}
-		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \text{if}~ t ~\text{then}~ u ~\text{else}~ v : T ~|_{\chi_1 \cup \chi_2 \cup \chi_3}$}
+		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \ifthenelse{t}{u}{v} : T ~|_{\chi_1 \cup \chi_2 \cup \chi_3}$}
 	\end{prooftree}
 \end{mdframed}
 \caption{Additional constraint typing relation rule.}
