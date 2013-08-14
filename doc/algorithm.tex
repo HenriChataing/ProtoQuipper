@@ -1,5 +1,5 @@
 
-\subsection{The $\QP'$ Language}
+\subsection{The language $\QP'$}
 
 The grammar of core Proto-Quipper is rather extensive, so in the interest of readability, we formalize the type inference algorithm on a smaller fragment of the language. In Section~\ref{ssec-extending-to-QP}, we will explain how to extend type inference to all of core Proto-Quipper. To avoid confusion, we will denote core Proto-Quipper by $\QP$, and the smaller fragment by $\QP'$.
 
@@ -284,7 +284,7 @@ $\lambda x.t$ requires a relation of sub-typing on the context, and thus require
 	\end{prooftree}
 \end{coro}
 
-\subsection{Constraint Typing}
+\subsection{Constraint typing}
 
 Unless otherwise stated, $\QP'$ is the default language for the rest of this section.
 
@@ -366,7 +366,7 @@ for the following problem:
   \]
 \end{exmp}
 
-\subsubsection{The Constraint Typing Relation}
+\subsubsection{The constraint typing relation}
 
 \begin{defn} We introduce {\em sub-typing constraints} $X \prec: Y$ for $X, Y \in \texttt{Type}$ or $X, Y \in \texttt{LinearType}$.
 We say that a constraint $X \prec: Y$ is:
@@ -745,7 +745,7 @@ The unification algorithm proceeds in two steps:
 			and returns a complementary substitution $\tau$, along with an atomic constraint set.
 	\end{enumerate}
 
-\subsubsection{Type Unification}
+\subsubsection{Type unification}
 
 \begin{algorithm}{\bf (Reduction).}
   Given a constraint set $\lset$, we define its {\em reduction} $\lset^*$ by repeated application of the following rules.
@@ -1014,7 +1014,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 	\end{proof}
 \end{thm}
 
-\subsubsection{Flag Unification}\label{sssec-flag}
+\subsubsection{Flag unification}\label{sssec-flag}
 
 \begin{algorithm}{\bf (Flag unification).} \\
 	The algorithm inputs a set of constraints that contains only atomic type constraints, and returns a substitution
@@ -1081,7 +1081,7 @@ We propose some approximations that keep the satisfiability of the constraint se
 	\item The same for the case $\mathcal{L} = \mathcal{L'} \cup \{\alpha_{i_k} \prec: \alpha_{j_k}\}_k \cup \{\alpha_{i_m} \prec: U_m\}_m$.
 \end{itemize}
 
-\subsection{Extending Type Inference to Core Proto-Quipper}
+\subsection{Extending type inference to core Proto-Quipper}
 \label{ssec-extending-to-QP}
 
 This section gives the additions that have to be made to the grammar of $\QP'$ for the type inference algorithm to perform in the syntax

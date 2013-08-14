@@ -82,7 +82,7 @@ in Proto-Quipper.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Design Rationale}
+\section{Design rationale}
 
 Our approach was to start with a limited (but still expressive) 
 fragment of the Quipper language and make it completely type-safe. 
@@ -128,13 +128,13 @@ Hadamard gate to wire number 3''.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{The Core Language}
+\section{The core language}
 
 In this section, we define the core of Proto-Quipper. We 
 present in details the syntax, type system and 
 operational semantics of the language.
 
-\subsection{Types and Terms}
+\subsection{Types and terms}
 \label{ssec-types-and-terms}
 
 \begin{definition} 
@@ -255,7 +255,7 @@ The notational conventions used throughout these notes are:
 Additions to these conventions will be provided throughout.
 
 
-\subsection{Operations on Types and Terms}
+\subsection{Operations on types and terms}
 
 We now introduce some useful operations on types and terms. 
 
@@ -367,7 +367,7 @@ Informally, an $X$-specimen for $T$ is a QData term $t$ that is
 If $X$ is clear, we simply write $\spec (T)$.
 
 
-\subsection{The Type System}
+\subsection{The type system}
 
 The fact that a term is reusable should not prevent us from 
 using it exactly once. Intuitively, this should imply that if a 
@@ -601,7 +601,7 @@ $\lambda x. \p{x,x}$ cannot be given the type
 $\qubit\loli \qubit \x \qubit$.
 
 
-\subsection{Circuit Constructors}
+\subsection{Circuit constructors}
 
 As mentioned in Section 2, the reduction relation for 
 Proto-Quipper is defined in the presence of a \emph{circuit
@@ -770,7 +770,7 @@ and $\mathtt{Encap}=1_Q$.
 \end{remark}
 
 
-\subsection{Operational Semantics}
+\subsection{Operational semantics}
 
 We are now in a position to define Proto-Quipper's operational 
 semantics.
@@ -928,7 +928,7 @@ By case distinction on $a$.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type Safety}
+\section{Type safety}
 
 In this section, we establish that the core of  Proto-Quipper 
 is a \emph{type safe} language. We follow \cite{WrFe94} in 
@@ -960,7 +960,7 @@ It is \emph{valid} if $\Gamma;Q\entails a:A$ is a valid
 typing judgement.
 \end{definition}
 
-\subsection{Properties of the Type System}
+\subsection{Properties of the type system}
 
 Before proving Subject Reduction and Progress, we record 
 some properties of the type system, including the important 
@@ -1198,7 +1198,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
 \end{proof}
 
 
-\subsection{Subject Reduction}
+\subsection{Subject reduction}
 
 \begin{lemma}
 \label{Inwires}
@@ -1712,7 +1712,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Type Inference}
+\section{Type inference}
 
 In this section, we describe the type inference algorithm 
 for Proto-Quipper. We detail the algorithm and prove its 
@@ -1732,7 +1732,7 @@ to the programmer, but not formalized. This means that the proofs
 of type-safety for these extensions of the core language are 
 currently under development. We briefly describe these features 
 here. Further explanations and sample code can be found in the 
-User Guide of Section \ref{sec-user-guide}.
+user guide of Section \ref{sec-user-guide}.
 \begin{description}
   \item[Polymorphism:] Our implementation of Proto-Quipper is 
     equipped with a polymorphic $let$ binder. This means that 
@@ -1856,7 +1856,7 @@ of Proto-Quipper.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section{Proto-Quipper User Guide}
+\section{Proto-Quipper user guide}
 \label{sec-user-guide}
 
 In this section, we provide a tutorial-style introduction to 
@@ -1866,7 +1866,7 @@ programming in Proto-Quipper.
 
 % ----------------------------------------------------------------------
 \clearpage
-\section*{Glossary of Acronyms}
+\section*{Glossary of acronyms}
 \addcontentsline{toc}{section}{Glossary of Acronyms}
 
 \begin{itemize}
