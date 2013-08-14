@@ -354,17 +354,16 @@ for the following problem:
 	$\sigma \Gamma \vdash t : \sigma T$ is a valid typing judgement.
 \end{defn}
 
-\begin{exmp} Let $f$ be $\lambda x.x$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then
-	\begin{center}
-	\begin{tabular}{l}
-		$[!^n\alpha ~\mapsto~ !^1(!^0\intx \multimap !^1\intx),~~ !^m\beta ~\mapsto~ !^1\intx,~~ !^p\gamma ~\mapsto~ !^1\intx]$ \\
-		$[!^n\alpha ~\mapsto~ !^0(!^0\qubit \multimap !^0\bit),~~ !^m\beta ~\mapsto~ !^0\qubit,~~ !^p\gamma ~\mapsto~ !^0\qubit]$ \\
-		$[!^n\alpha ~\mapsto~ !^0(!^1\intx \multimap !^0(!^1\intx \otimes !^1\intx)),
-			~~ !^m\beta ~\mapsto~ !^1\intx,
-			~~ !^p\gamma ~\mapsto~ !^0(!^1\intx \otimes !^1\intx)]$
-	\end{tabular}
-	\end{center}
-	are solutions for $(\varnothing, t, !^p \gamma)$.
+\begin{exmp} Let $f$ be $\lambda x.x$ of type $!^n \alpha$, $a$ of type $!^m \beta$ and $t = f \, a$. Then the following 	are solutions for $(\varnothing, t, !^p \gamma)$:
+  \[
+  \begin{array}{l}\relax
+    [{!}^n\alpha \mapsto {!}^1({!}^0\intx \multimap {!}^1\intx),~~ {!}^m\beta \mapsto {!}^1\intx,~~ {!}^p\gamma \mapsto {!}^1\intx], \\\relax
+    [{!}^n\alpha \mapsto {!}^0({!}^0\qubit \multimap {!}^0\bit),~~ {!}^m\beta \mapsto {!}^0\qubit,~~ {!}^p\gamma \mapsto {!}^0\qubit], \\\relax
+    [{!}^n\alpha \mapsto {!}^0({!}^1\intx \multimap {!}^0({!}^1\intx \otimes {!}^1\intx)),
+    ~~ {!}^m\beta \mapsto {!}^1\intx,
+    ~~ {!}^p\gamma \mapsto {!}^0({!}^1\intx \otimes {!}^1\intx)].
+  \end{array}
+  \]
 \end{exmp}
 
 \subsubsection{The Constraint Typing Relation}
@@ -392,7 +391,7 @@ Though all flag constraints are written in the same form $(. \le .)$, they can h
  	\end{tabular}
  	\end{center}
 
-\begin{defn} We define constraint sets $\lset$ as sets of constraints $\{ A \prec: B \dots, T \prec: U \dots, n \le m \dots\}$
+\begin{defn} A {\em constraint set} $\lset$ is a set of constraints $\{ A \prec: B \dots, T \prec: U \dots, n \le m \dots\}$
 	over linear types, types and flags.
   A constraint set can have the following properties:
   \begin{itemize}
@@ -461,28 +460,26 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	} $$
 	$$ $$	
 	$$ \mbox{
-		\footnotesize
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^n\alpha ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u \vdash_{\mathcal{L}_2} u : \, !^m\beta ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
 		\AxiomC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
 		\BinaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
-		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m ~!^p(!^n\alpha \otimes \,!^m\beta) \prec: T \}$}
+		\BinaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I, p \le n, p \le m ~!^p(!^n\alpha \otimes \,!^m\beta) \prec: T \}$}
 		\RightLabel{$(\otimes.I)$}
-		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \pair{t}{u} \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha, \beta, n, m, p \}}$}
+		\UnaryInfC{$\Gamma \vdash_\mathcal{L} \, \pair{t}{u} \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha, \beta, n, m, p \}}$}
 		\DisplayProof
 	} $$
 	$$ $$
 	$$ \mbox{
-		\footnotesize
 		\AxiomC{$\Gamma|_t \vdash_{\mathcal{L}_1} t : \, !^p (!^n\alpha \otimes \,!^m\beta) ~|_{\chi_1}$} \noLine
 		\UnaryInfC{$\Gamma|_u, x : \,!^n\alpha, y : \,!^m\beta \vdash_{\mathcal{L}_2} u : T ~|_{\chi_2}$}
 		\AxiomC{$\chi_1 \cap \chi_2 = \varnothing$} \noLine
 		\UnaryInfC{$\alpha, \beta, n, m, p \notin \Gamma, T$} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
-		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ p \le n, p \le m, 1 \le I \}$}
+		\BinaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ p \le n, p \le m, 1 \le I \}$}
 		\RightLabel{$(\otimes.E)$}
-		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \, \text{let} \pair{x}{y} = t ~ \text{in} ~ u \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha,\beta,m,n,p \}}$}
+		\UnaryInfC{$\Gamma \vdash_\mathcal{L} \, \text{let} \pair{x}{y} = t ~ \text{in} ~ u \, : T ~|_{\chi_1 \cup \chi_2 \cup \{\alpha,\beta,m,n,p \}}$}
 		\DisplayProof
 	} $$
 	$$ $$
@@ -518,7 +515,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	  		                                        \end{array} \right\}} \lambda x.\pair{x}{x} : \,!^{n_0} \alpha$}
 		\end{prooftree}
 	The annotations $\chi$ are omitted to avoid cluttering the notation. Thus, we have
-		$$ \text{ConstraintTyping}\,(\varnothing \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \left\{ \scriptsize
+		$$ \text{ConstraintTyping}\,(\varnothing \vdash \lambda x.\pair{x}{x} : \,!^{n_0} \alpha) = \hspace{1in}$$ $$\left\{ \scriptsize
 			                                          \begin{array}{lll} 
 			                                            !^{n_1}\beta \prec: \,!^{n_4}\delta, & n_6 \le n_4 &
 			                                            	 !^{n_6}(!^{n_4}\delta \otimes \,!^{n_5}\epsilon) \prec: !^{n_2}\gamma \\
@@ -885,7 +882,7 @@ In the definition of the algorithm, the notation $\{ A_k \prec: B_k \}_k$ denote
 				the youngest variables. Since $\mathcal{L'} \subsetneq \mathcal{L}$, it ensues that $N_\lset' = |\mathcal{L'}| < N_\lset$.
 				Moreover, because all the constraints of $\mathcal{L} \,\backslash\, \mathcal{L'}$ are atomic, $C_\lset' = \#\mathcal{L'} = C_\lset$.
 				Consequently, the index $(C_\lset', N_\lset')$ of $\mathcal{L'}$ is such that $(C_\lset', N_\lset') \lneq (C_\lset, N_\lset)$.
-				Thus, the induction hypothesis applies, and the function call $\text{TypeUnification}\,(\mathcal{L'})$ terminates, and the same
+				Thus, the induction hypothesis applies, and thus we know that the function call $\text{TypeUnification}\,(\mathcal{L'})$ terminates, and the same
 				for $\text{TypeUnification}\,(\mathcal{L})$.
 			
 			\item $(C_\lset, N_\lset)$ and $\lset = \lset' \cup \{ \alpha_{i_k} \prec: \alpha_{j_k} \}_k \cup \{ \alpha_{i_l} \prec: B_l \}_l
@@ -1111,13 +1108,13 @@ in the rule of $\texttt{LinearType}$, along with the typing rules from Figure \r
 	\end{prooftree}
 	$$ \mbox{
 		\AxiomC{}
-		\RightLabel{$(\texttt{True})$}
+		\RightLabel{$(\textit{true})$}
 		\UnaryInfC{$!^1 \Gamma \vdash \texttt{True} : ~!^1 \bool$}
 		\DisplayProof
 		~~
 		~~
 		\AxiomC{}
-		\RightLabel{$(\texttt{False})$}
+		\RightLabel{$(\textit{false})$}
 		\UnaryInfC{$!^1 \Gamma \vdash \texttt{False} : ~!^1 \bool$}
 		\DisplayProof
 	} $$
@@ -1125,7 +1122,7 @@ in the rule of $\texttt{LinearType}$, along with the typing rules from Figure \r
 		\AxiomC{$\Gamma_1, ~!^1\Delta \vdash t : ~!^0 \bool$}
 		\AxiomC{$\Gamma_2, ~!^1\Delta \vdash u : T$}		\noLine
 		\UnaryInfC{$\Gamma_2, ~!^1\Delta \vdash v : T$}
-		\RightLabel{$(if)$}
+		\RightLabel{$(\textit{if})$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash \ifthenelse{t}{u}{v} : T$}
 	\end{prooftree}
 \end{mdframed}
@@ -1156,13 +1153,12 @@ In the same way, the constraint typing relation has to be extended to cover the 
 	\end{prooftree}
 	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
-		\RightLabel{$(\texttt{True})$}
+		\RightLabel{$(\textit{true})$}
 		\UnaryInfC{$!^I \Gamma \vdash \texttt{True} : T ~|_\varnothing$}
 		\DisplayProof
-		~~
-		~~
+                \quad
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ !^1 \bool \prec: T\}$}
-		\RightLabel{$(\texttt{False})$}
+		\RightLabel{$(\textit{false})$}
 		\UnaryInfC{$!^I \Gamma \vdash \texttt{False} : T ~|_\varnothing$}
 		\DisplayProof
 	} $$
@@ -1173,11 +1169,11 @@ In the same way, the constraint typing relation has to be extended to cover the 
 		\AxiomC{$\chi_1$, $\chi_2$, $\chi_3$ mutually disjoint} \noLine
 		\UnaryInfC{$\Gamma \backslash_{t \oplus (u,v)} = \,!^I \Delta$} \noLine
 		\UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \mathcal{L}_3 \cup \{ 1 \le I \}$}
-		\RightLabel{$(if)$}
+		\RightLabel{$(\textit{if})$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} \ifthenelse{t}{u}{v} : T ~|_{\chi_1 \cup \chi_2 \cup \chi_3}$}
 	\end{prooftree}
 \end{mdframed}
-\caption{Additional constraint typing relation rule.}
+\caption{Additional constraint typing relation rules.}
 \label{extctypeQP'}
 \end{figure}
 

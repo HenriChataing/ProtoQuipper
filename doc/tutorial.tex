@@ -5,7 +5,10 @@ To build the code type \verb#make# in the main Proto-Quipper directory.
 
 The \verb#qlib# directory contains some basic modules and examples that can 
 be used to test the install. To invoke Proto-Quipper on a file, call 
-\verb#./ProtoQuipper qlib/qft.qp -fv#. This will run Proto-Quipper on the sample code \verb#qft.qp#. The \verb#-fv# option selects the visual format. 
+\begin{verbatim}
+./ProtoQuipper qlib/qft.qp -fv.
+\end{verbatim}
+This will run Proto-Quipper on the sample code \verb#qft.qp#. The \verb#-fv# option selects the visual format. 
 This should produce the following output, representing the circuit for the 
 Quantum Fourier Transform on three qubits together with its inferred 
 type:
@@ -33,7 +36,10 @@ In interactive mode, all commands must end with \verb#;;#. This mode accepts:
 \begin{itemize}
   \item import statements, e.g., \verb#import Gates ;;#,
   \item type definitions, e.g., 
-  \verb#type list a = Nil | Cons of a * list a ;;# and
+\begin{verbatim}
+type list a = Nil | Cons of a * list a ;;
+\end{verbatim} 
+    and
   \item top-level declarations, e.g., \verb#let x = 1 ;;# or \verb#1+1 ;;#.
 \end{itemize}
 Commands in interactive mode always start with a \verb#:#. For example, 
@@ -58,7 +64,7 @@ extension. For example, the module {\tt List} will be implemented in
 {\tt list.qp}. Modules are organized as follows.
 \begin{enumerate}
   \item The module starts with a list of import declarations, written 
-  {\tt import Module}.
+  in the form {\tt import Module}.
   \item All the type definitions of the module are placed after the list 
   of imports.
   \item The rest of the file forms the body of the module, organized as a 
@@ -199,19 +205,19 @@ defined by the grammar
 	\end{center}
 
 \begin{figure}[!ht]
-\begin{tabular}{ll}
-  \verb#let p = a in b#       & Binds the variables of the pattern 
-                                \verb#p# \\
-  \verb#p <- a; b#            & Same as \verb#let p = a in b# \\
-  \verb#p <-* a; b#           & Used to compute \verb#let p = a p in b#
-                                (\verb#a# must be a function)\\
-  \verb#fun p -> a#           & Equivalent of 
-                                \verb#fun x -> let p = x in a# \\
-  \verb#fun x y z -> a#       & Equivalent of 
-                                \verb#fun x -> fun y -> fun z -> a# \\
-  \verb#let f x y z = a in b# & Equivalent of 
-                                \verb#let f = (fun x y z -> a) in b#
-\end{tabular}
+\begin{itemize}
+\item \verb#let p = a in b#:\\ Binds the variables of the pattern 
+  \verb#p#.
+\item \verb#p <- a; b#:\\ Same as \verb#let p = a in b#.
+\item \verb#p <-* a; b#: \\ Used to compute \verb#let p = a p in b#
+                                (\verb#a# must be a function).
+\item  \verb#fun p -> a#: \\ Equivalent to
+                                \verb#fun x -> let p = x in a#.
+\item  \verb#fun x y z -> a#: \\ Equivalent to
+                                \verb#fun x -> fun y -> fun z -> a#.
+\item  \verb#let f x y z = a in b#: \\ Equivalent to
+  \verb#let f = (fun x y z -> a) in b#.
+\end{itemize}
 \label{sugar}
 \caption{Syntactic sugars.}
 \end{figure}
@@ -264,8 +270,14 @@ box[qubit * qubit] (fun (q, r) ->
 ) ;;
 \end{verbatim}
 The first occurrence of \verb#double# has the type 
-\verb#!(qubit -> qubit) -> qubit -> qubit#, while the second occurrence has type 
-\verb#!(qubit * qubit -> qubit * qubit) -> qubit * qubit -> qubit * qubit#.
+\begin{verbatim}
+!(qubit -> qubit) -> qubit -> qubit,
+\end{verbatim}
+while the second occurrence has type 
+\begin{verbatim}
+!(qubit * qubit -> qubit * qubit) -> 
+              qubit * qubit -> qubit * qubit.
+\end{verbatim}
 
 \subsubsection{Algebraic types, integers and lists}
 
@@ -306,8 +318,8 @@ These are
 \begin{tabular}{ll}
   \verb#[]#               & for ~ \verb#Nil# \\
   \verb#x:xs#             & for ~ \verb#Cons (x, xs)# \\
-  \verb#[x1, x2, .., xn]# & for ~ 
-                            \verb#Cons (x1, Cons (x2, .. Cons (xn, Nil) ..))#
+  \verb#[x1, ..., xn]# & for ~ 
+                            \verb#Cons (x1, ... Cons (xn, Nil) ...)#
 \end{tabular}
 \end{center}
 and can be used in either expressions or patterns.
@@ -339,14 +351,15 @@ also the rest of the list. The module \verb#Core# provides some basic integer
 operations like \verb#+ ^ - * ..#. The \verb#Gates# module you already known 
 about.
 
-The implementation of the algorithm is as follow:
+The implementation of the algorithm is as follows:
 
 \begin{verbatim}
 import Core
 import Gates
 import List
 
--- Apply the nth phase gate to each qubit of the list, controlled by a parameter
+-- Apply the nth phase gate to each qubit of the list, 
+-- controlled by a parameter.
 let rec appphase n q qn =
   match qn with
    [] -> (q, [])
@@ -356,7 +369,7 @@ let rec appphase n q qn =
      (q, q0:qr)
 ;;
 
--- Quantum Fourier Transform
+-- Quantum Fourier Transform.
 let rec qft qreg =
   match qreg with
     [] -> []

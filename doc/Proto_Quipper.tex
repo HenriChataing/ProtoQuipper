@@ -93,8 +93,8 @@ with two goals in mind:
   \item incorporate Quipper's ability to generate and act on 
   quantum circuits, and 
   \item provide a linear type system to guarantee that the 
-  produced circuits are physically meaningful (in particular, 
-  properties like no-cloning are respected).
+  produced circuits are physically meaningful. In particular, 
+  properties like no-cloning are respected.
 \end{itemize}
 To achieve these goals, we based Proto-Quipper on the quantum 
 lambda calculus {\cite{SeVa09}}. In the quantum lambda calculus, the execution 
@@ -331,7 +331,7 @@ bind (t,u)= \left\{
     \varnothing & \mbox{if}~~ t=u=*, \\
     \s{(q_1,q_2)} & \mbox{if}~~ t=q_1 \mbox{ and } u=q_2, \\        
     bind (t_1,u_1) \cup bind (t_2,u_2) & 
-      \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \mbox{ and } \\
+      \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \\
     \mbox{undefined} & \mbox{in all remaining cases.}
   \end{array}
 \right.
@@ -1652,7 +1652,8 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   \end{array}
   \]
   is therefore valid. Now if $a_1\notin\mathtt{Val}$, then by the induction hypothesis 
-  $[C,a_1]\to[C',a_1']$ and thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces 
+  $[C,a_1]\to[C',a_1']$ and thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ can
+  be seen to reduce
   to $[C',\ifthenelse{a_1'}{a_2}{a_3}]$ by the $(cond)$ reduction rule. 
   If on the other hand $a_1\in\mathtt{Val}$, then by 
   Lemma~\hyperref[form_values]{\ref*{form_values}} either $a_1=\true$ or $a_1=\false$. 
