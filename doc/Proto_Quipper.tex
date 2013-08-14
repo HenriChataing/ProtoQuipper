@@ -68,8 +68,8 @@ with two goals in mind:
   produced circuits are physically meaningful (in particular, 
   properties like no-cloning are respected).
 \end{itemize}
-To achieve these goals, we based Proto-Quipper on the Quantum 
-Lambda Calculus (QLC, see \cite{SeVa09}). In the QLC, the execution 
+To achieve these goals, we based Proto-Quipper on the quantum 
+lambda calculus {\cite{SeVa09}}. In the quantum lambda calculus, the execution 
 of programs is modelled by the so-called reduction relation. This 
 relation is defined on \emph{closures}, which are 
 essentially pairs $[C,t]$ consisting of a term of the language 
@@ -78,7 +78,7 @@ complex Hilbert space and $t$ is a term whose free variables are
 linked to the qubits composing $C$. The quantum state is held in 
 a quantum device capable of performing certain operations 
 (applying unitaries, measuring qubits,\ldots). The reduction in 
-the QLC is then defined as a probabilistic rewrite procedure on 
+the quantum lambda calculus is then defined as a probabilistic rewrite procedure on 
 these closures. Typically, the reduction will be classical until 
 a redex involving a quantum constant is reached. At this point, 
 the quantum device will be instructed to perform the appropriate 
@@ -93,7 +93,7 @@ performing quantum operations, we assume that we have a
 \emph{circuit constructor} capable or performing certain circuit 
 building operations (appending gates,\ldots). The reduction is 
 then defined as a non-probabilistic rewrite procedure on closures. 
-As in the QLC, some redexes will affect the state by sending 
+As in the quantum lambda calculus, some redexes will affect the state by sending 
 instructions to the circuit constructor. For example: ``Append a 
 Hadamard gate to wire number 3''.
 
@@ -123,7 +123,7 @@ $\qdatatype~T,U$ & $\bnf$ & $\qubit \bor 1 \bor T \tensor U.$
 \end{center}
 \end{definition}
 
-The type system of Proto-Quipper, like the type system of the QLC, 
+The type system of Proto-Quipper, like the type system of the quantum lambda calculus, 
 is based on intuitionistic linear logic (see \cite{Gir87}). 
 It can be helpful to think of types as sets of values. Under this 
 interpretation, the types can be understood as follows. $\bool$ is 
@@ -1791,7 +1791,8 @@ of Proto-Quipper.
     significantly increase the size of the circuit. Thus in terms 
     of computational resources it is advantageous to have circuit 
     generating functions that use measurement results. In fact, 
-    several existing quantum algorithm, among which the USV 
+    several existing quantum algorithm, among which the Unique
+    Shortest Vectors
     algorithm provided to us by the QCS project, rely on such 
     interactive circuit building. In Quipper, this property is 
     captured by the notion of \emph{dynamic lifting} wherein a 
@@ -1814,12 +1815,16 @@ programming in Proto-Quipper.
 \addcontentsline{toc}{section}{Glossary of Acronyms}
 
 \begin{itemize}
-  \item QP = Proto-Quipper.
-  \item QP' = Type-inference version of Proto-Quipper.
+  \item $\FQ$ = Free quantum addresses.
+  \item $\FV$ = Free quantum variables.
+  \item GFI = Government Furnished Information
+  \item IARPA = Intelligence Advanced Research Projects Activity
+  \item $IH$ = Induction hypothesis.
+  \item ML = A family of functional programming languages.
+  \item QCS = The IARPA Quantum Computer Science program.
   \item QFT = Quantum Fourier Transform.
-  \item QFT3 = Quantum Fourier Transform on three qubits.
-  \item QLC = Quantum Lambda Calculus.
-  \item USV = Unique Shortest Vector.
+  \item $\QP$ = Proto-Quipper.
+  \item $\QP'$ = Type-inference version of Proto-Quipper.
 \end{itemize}
 
 \bibliography{biblio}{}
