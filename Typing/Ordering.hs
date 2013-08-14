@@ -41,7 +41,7 @@ data Poset = Poset {
   relations :: IntMap [(Cluster, TypeConstraint)],       -- ^ For any given cluster, gives the related clusters (younger in age). For debugging purposes, the typing contraint
                                                          -- from which originated the relation is added to each edge or relation.
 
-  clusters :: IntMap [Type]                              -- ^ Gives the contents of each cluster.
+  clusters :: IntMap [Variable]                          -- ^ Gives the contents of each cluster.
 }
 
 
@@ -58,20 +58,20 @@ empty_poset = Poset {
 
 -- | Given a variable, finds to which cluster it has been added. If the variable's cluster is undefined, a new singleton cluster is created
 -- with the variable id as reference.
-cluster_of :: Type -> Poset -> (Cluster, Poset)
-cluster_of ta@(TBang _ (TVar a)) poset =
-  case IMap.lookup a $ cmap poset of
+cluster_of :: Variable -> Poset -> (Cluster, Poset)
+cluster_of x poset =
+  case IMap.lookup x $ cmap poset of
     Just c ->
         (c, poset)
 
     Nothing -> do
-        (a, poset { relations = IMap.insert a [] $ relations poset,
-                    clusters = IMap.insert a [ta] $ clusters poset,
-                    cmap = IMap.insert a a $ cmap poset })
+        (x, poset { relations = IMap.insert x [] $ relations poset,
+                    clusters = IMap.insert x [x] $ clusters poset,
+                    cmap = IMap.insert x x $ cmap poset })
 
 
 -- | Returns the contents of a cluster.
-cluster_contents :: Cluster -> Poset -> [Type]
+cluster_contents :: Cluster -> Poset -> [Variable]
 cluster_contents c poset =
   case IMap.lookup c $ clusters poset of
     Just cts ->
@@ -154,25 +154,25 @@ register_constraint :: TypeConstraint -> Poset -> Poset
 register_constraint cst poset =
   case cst of
     -- Case of an atomic constraint
-    Subtype tx@(TBang _ (TVar _)) ty@(TBang _ (TVar _)) ->
-        let (cx, poset') = cluster_of tx poset
-            (cy, poset'') = cluster_of ty poset' in
+    Sublintype (TVar x) (TVar y) _ ->
+        let (cx, poset') = cluster_of x poset
+            (cy, poset'') = cluster_of y poset' in
         -- Merge the clusters of x and y
         merge_clusters cx cy poset''
 
     -- Case of semi-composite constraints
-    Subtype tx@(TBang _ (TVar _)) u ->
-        let (cx, poset') = cluster_of tx poset
-            fvu = free_var_with_flag u in
-        List.foldl (\poset ty ->
-                      let (cy, poset') = cluster_of ty poset in
+    Sublintype (TVar x) u _ ->
+        let (cx, poset') = cluster_of x poset
+            fvu = free_typ_var u in
+        List.foldl (\poset y ->
+                      let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvu
         
-    Subtype t tx@(TBang _ (TVar _)) ->
-        let (cx, poset') = cluster_of tx poset
-            fvt = free_var_with_flag t in
-        List.foldl (\poset ty ->
-                      let (cy, poset') = cluster_of ty poset in
+    Sublintype t (TVar x) _ ->
+        let (cx, poset') = cluster_of x poset
+            fvt = free_typ_var t in
+        List.foldl (\poset y ->
+                      let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvt
 
 
@@ -235,9 +235,9 @@ check_cyclic c explored poset = do
         -- Put all the constraints one after the other
         cloop <- return $ List.map fst loop ++ [cst]
         -- Identify the infinite type
-        (n, infinite) <- case cst of
-                           Subtype t@(TBang n (TVar _)) _ -> return (n, t)
-                           Subtype _ t@(TBang n (TVar _)) -> return (n, t)
+        (infinite, info) <- case cst of
+                              Sublintype (TVar x) _ info -> return (x, info)
+                              Sublintype _ (TVar x) info -> return (x, info)
 
         -- Printing flags
         refs <- get_context >>= return . flags
@@ -257,30 +257,19 @@ check_cyclic c explored poset = do
         ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar]) cloop
         prt <- return $ genprint Inf infinite [fflag, fvar]
 
-        -- Referenced expression / location
-        inf <- debug_information n 
-
         -- See what information we have
-        case inf of
-          Just (e, ex, typ) -> do
-              -- Print the expression
-              pre <- case e of
-                       ActualOfE e -> pprint_expr_noref e
-                       ActualOfP p -> pprint_pattern_noref p
-              -- Print the original type
-              mprt <- case typ of
-                        Just typ -> do
-                            p <- pprint_type_noref typ
-                            return $ Just p
-                        Nothing ->
-                            return Nothing
+        -- Print the expression
+        pre <- pprint_expr_noref $ expression info
+        -- Print the original type
+        mprt <- case in_constraint info of
+                  Just (Subtype t u i) -> do
+                      p <- pprint_type_noref (if actual i then t else u)
+                      return $ Just p
+                  Nothing ->
+                      return Nothing
 
-              f <- get_file
-              throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (f, ex)
-
-          _ -> do
-              f <- get_file
-              throwQ $ LocatedError (InfiniteTypeError prt ploop Nothing "(Unknown)") (f, extent_unknown)
+        f <- get_file
+        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (f, loc info)
 
 
 
@@ -294,7 +283,7 @@ minimum_cluster poset = do
   cts <- return $ cluster_contents cm poset
 
   -- Log the contents of the youngest cluster
-  log_cts <- return $ List.foldl (\s (TBang _ (TVar x)) -> show x ++ " " ++ s) "" cts
+  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" cts
   newlog 1 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
 
   -- Return the youngest cluster
@@ -302,16 +291,16 @@ minimum_cluster poset = do
 
 
 -- | Removes a cluster from a poset: all the relations involving this cluster are erased, the definition of the cluster removed.
-remove_cluster :: Cluster -> Poset -> ([Type], Poset)
+remove_cluster :: Cluster -> Poset -> ([Variable], Poset)
 remove_cluster c poset =
   let cts = cluster_contents c poset in
-  (cts, poset { cmap = List.foldl (\m (TBang _ (TVar x)) -> IMap.delete x m) (cmap poset) cts,
+  (cts, poset { cmap = List.foldl (\m x -> IMap.delete x m) (cmap poset) cts,
                 relations = IMap.map (List.filter (\(c', _) -> c /= c')) $ IMap.delete c $ relations poset,
                 clusters = IMap.delete c $ clusters poset })
 
                 
 -- | Returns the contents of a minimum cluster of a poset, after removing the said cluster definition from the poset.
-youngest_variables :: Poset -> QpState ([Type], Poset)
+youngest_variables :: Poset -> QpState ([Variable], Poset)
 youngest_variables poset = do
   c <- minimum_cluster poset
   return $ remove_cluster c poset

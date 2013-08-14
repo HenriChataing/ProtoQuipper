@@ -51,28 +51,22 @@ break_composite bu ([], lc) = return ([], lc)
 
 
 -- Unit against unit : removed
-break_composite bu ((Subtype (TBang _ TUnit) (TBang _ TUnit)):lc, fc) = do
+break_composite bu ((Sublintype TUnit TUnit _):lc, fc) = do
   break_composite bu (lc, fc)
 
 
 -- Bool against bool : removed
-break_composite bu ((Subtype (TBang _ TBool) (TBang _ TBool)):lc, fc) = do
+break_composite bu ((Sublintype TBool TBool _):lc, fc) = do
   break_composite bu (lc, fc)
 
 
 -- Int against int : removed
-break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt)):lc, fc) = do
+break_composite bu ((Sublintype TInt TInt _):lc, fc) = do
   break_composite bu (lc, fc)
 
 
 -- Qbit against QBit : removed
-break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
-  -- Make sure the qbit type is not banged
-  if n >= 2 then unset_flag n
-  else return ()
-  if m >= 2 then unset_flag m
-  else return ()
-  
+break_composite bu ((Sublintype TQbit TQbit _):lc, fc) = do
   break_composite bu (lc, fc)
 
 
@@ -80,45 +74,38 @@ break_composite bu ((Subtype (TBang n TQbit) (TBang m TQbit)):lc, fc) = do
   -- T -> U <: T' -> U' 
 -- Into
   -- T' <: T && U <: U'
-break_composite bu ((Subtype arw@(TBang n (TArrow t u)) arw'@(TBang m (TArrow t' u'))):lc, fc) = do
-  -- Import the information
-  t `subtree` arw
-  u `subtree` arw
-  t' `subtree` arw'
-  u' `subtree` arw'
-  break_composite bu ((Subtype t' t):(Subtype u u'):lc, (m, n):fc)
+break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
+  break_composite bu ((Subtype t' t info { actual = not $ actual info }):(Subtype u u' info):lc, fc)
  
 
 -- Tensor against tensor
   -- T * U <: T' * U'
 -- Into
   -- T <: T' && U <: U'
-break_composite bu ((Subtype ot@(TBang p (TTensor tlist)) ot'@(TBang q (TTensor tlist'))):lc, fc) = do
+break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) = do
   if List.length tlist == List.length tlist' then do
-    comp <- return $ List.map (\(t, u) -> t <: u) $ List.zip tlist tlist'
-    List.foldl (\rec (Subtype t u) -> do
-                  rec
-                  t `subtree` ot
-                  u `subtree` ot') (return ()) comp
-    break_composite bu $ (comp, [(q, p)]) <> (lc, fc)
+    comp <- return $ List.map (\(t, u) -> Subtype t u info) $ List.zip tlist tlist'
+    break_composite bu (comp ++ lc, fc)
 
   else do
-    throw_TypingError (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))
+    fail ""
+    throwQ $ TypingError (pprint $ TTensor tlist) (pprint $ TTensor tlist')
+    -- throw_TypingError (TBang p (TTensor tlist)) (TBang q (TTensor tlist'))
 
 
 -- User type against user type
 -- The result of breaking this kind of constraints has been placed in the specification of the user type
 -- It need only be instanciated with the current type arguments
-break_composite bu ((Subtype (TBang n (TUser utyp arg)) (TBang m (TUser utyp' arg'))):lc, fc) = do
+break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc) = do
   if utyp == utyp' then do
     
     if bu then do
       cset <- unfold_user_constraint utyp arg utyp' arg'
-      break_composite bu $ [(m, n)] <> (cset <> (lc, fc))
+      break_composite bu $ cset <> (lc, fc)
 
     else do
-      cset <- break_composite bu $ (lc, fc)
-      return $ [TBang n (TUser utyp arg) <: TBang m (TUser utyp' arg')] <> cset
+      cset <- break_composite bu (lc, fc)
+      return $ [Sublintype (TUser utyp arg) (TUser utyp' arg') info] <> cset
       
   else
     throwQ $ TypingError (pprint (TUser utyp arg)) (pprint (TUser utyp' arg'))
@@ -129,25 +116,26 @@ break_composite bu ((Subtype (TBang n (TUser utyp arg)) (TBang m (TUser utyp' ar
 -- Into
   -- T' <: T && U <: U'
 -- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
-break_composite bu ((Subtype typ@(TBang _ (TCirc t u)) typ'@(TBang _ (TCirc t' u'))):lc, fc) = do
-  t `subtree` typ
-  u `subtree` typ
-  t' `subtree` typ'
-  u' `subtree` typ'
-  break_composite bu ((Subtype t' t):(Subtype u u'):lc, fc)
+break_composite bu ((Sublintype (TCirc t u) (TCirc t' u') info):lc, fc) = do
+  break_composite bu ((Subtype t' t info { actual = not $ actual info }):(Subtype u u' info):lc, fc)
 
 
 -- Semi composite (unbreakable) constraints
-break_composite bu (c@(Subtype (TBang _ (TVar _)) _):lc, fc) = do
+break_composite bu (c@(Sublintype (TVar _) _ _):lc, fc) = do
   (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
 
-break_composite bu (c@(Subtype _ (TBang _ (TVar _))):lc, fc) = do
+break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
+
+-- Subtype constraints
+break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
+  break_composite bu ((Sublintype a b info):lc, (m,n):fc)
 
 
 -- Everything else is a typing error
-break_composite bu ((Subtype t u):lc, fc) = do
-  throw_TypingError t u
+break_composite bu ((Subtype t u info):lc, fc) = do
+  throwQ $ TypingError (pprint t) (pprint u)
+  -- throw_TypingError t u info
 

@@ -194,7 +194,7 @@ unfold_once name = do
   (cuser, cnuser) <- return $ List.partition is_user current
 
   -- unfold the user type constraints
-  cuser <- List.foldl (\rec (Subtype (TBang n (TUser utyp arg)) (TBang m (TUser utyp' arg'))) -> do
+  cuser <- List.foldl (\rec (Sublintype (TUser utyp arg) (TUser utyp' arg') info) -> do
                          r <- rec
                          cset <- unfold_user_constraint utyp arg utyp' arg'
                          return $ cset <> r) (return emptyset) cuser

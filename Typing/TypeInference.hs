@@ -708,8 +708,8 @@ duplicate_type (TBang _ t) = do
 
 -- | Creates a duplicated version of a type, and map the argument type variable to it.
 -- The first type is assumed to be of the form !n x where x is a type variable.
-map_to_duplicate :: Type -> Type -> QpState LinType
-map_to_duplicate (TBang r (TVar x)) (TBang _ t) = do
+map_to_duplicate :: Variable -> LinType -> QpState LinType
+map_to_duplicate x t = do
   t' <- duplicate_lintype t
   mapsto x t'
   return t'
@@ -733,8 +733,8 @@ unify_with_poset exact poset (lc, fc) = do
 
     -- Filter the constraint which have an element of cx as right or left hand side
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
-                                                       Subtype tx@(TBang _ (TVar _)) _ -> List.elem tx cx
-                                                       Subtype _ ty@(TBang _ (TVar _)) -> List.elem ty cx) lc
+                                                       Sublintype (TVar x) _ _ -> List.elem x cx
+                                                       Sublintype _ (TVar y) _ -> List.elem y cx) lc
         
     -- Log
     logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -744,11 +744,6 @@ unify_with_poset exact poset (lc, fc) = do
                                            
     -- Filter the atomic constraints
     (atomx, natomx) <- return $ List.partition is_atomic lcx
-
-    -- The atomic constraints still convey some flag constraints
-    fcatom <- List.foldl (\rec (Subtype (TBang n _) (TBang m _)) -> do
-                            r <- rec
-                            return $ (m, n):r) (return []) atomx
 
     -- Check the next action
     case (atomx, natomx) of
@@ -760,11 +755,11 @@ unify_with_poset exact poset (lc, fc) = do
 
             -- APPROXIMATION :
             -- Of all the variables, keep only one and replace the rest
-            ((TBang n xh):rest) <- return cx
-            List.foldl (\rec (TBang m (TVar x)) -> do 
+            (xh:rest) <- return cx
+            List.foldl (\rec x -> do 
                           rec
-                          mapsto x $ xh) (return ()) rest
-            unify_with_poset exact poset (non_lcx, fcatom ++ fc)
+                          mapsto x $ TVar xh) (return ()) rest
+            unify_with_poset exact poset (non_lcx, fc)
 
           else do
 
@@ -785,42 +780,42 @@ unify_with_poset exact poset (lc, fc) = do
 
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
-                         Subtype t _ -> return $ t
+                         Sublintype t _ _ -> return $ t
             rightend <- case List.last sorted of
-                          Subtype _ t -> return t
+                          Sublintype _ t _ -> return t
 
             -- One of the ends must be composite
             case (leftend, rightend) of
-              (TBang _ (TVar x), _) -> do
+              (TVar x, _) -> do
                   -- Map everything to the right end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                 rec
-                                mapsto x $ no_bang rightend) (return ()) cx
+                                mapsto x rightend) (return ()) cx
 
                   -- Unify the rest
-                  unify_with_poset False poset (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset (non_lcx, fc)
                   
-              (_, TBang _ (TVar x)) -> do
+              (_, TVar x) -> do
                   -- Map everything to the left end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                   rec
-                                  mapsto x $ no_bang leftend) (return ()) cx
+                                  mapsto x leftend) (return ()) cx
 
                   -- Unify the rest
-                  unify_with_poset False poset (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset (non_lcx, fc)
 
               _ -> do
                   -- Map everything to the left end
-                  List.foldl (\rec (TBang n (TVar x)) -> do
+                  List.foldl (\rec x -> do
                                 rec
-                                mapsto x $ no_bang leftend) (return ()) cx
+                                mapsto x leftend) (return ()) cx
 
                   -- Add the constraint  leftend <: rightend
-                  cset' <- break_composite True ([leftend <: rightend], [])
+                  cset' <- break_composite True ([Sublintype leftend rightend no_info], [])
                   poset <- return $ register_constraints (fst cset') poset
 
                   -- Unify the rest
-                  unify_with_poset False poset $ cset' <> (non_lcx, fcatom ++ fc)
+                  unify_with_poset False poset $ cset' <> (non_lcx, fc)
 
           else do
 
@@ -828,8 +823,8 @@ unify_with_poset exact poset (lc, fc) = do
             -- Select a composite type from the semi-composite constraints
             newlog 1 "EXACT"
             model <- case List.head cset of
-                       Subtype (TBang _ (TVar _)) t -> return t
-                       Subtype t (TBang _ (TVar _)) -> return t
+                       Sublintype (TVar _) t _ -> return t
+                       Sublintype t (TVar _) _ -> return t
 
             -- Map the youngest variables each to a new specimen of the model
             List.foldl (\rec x -> do
@@ -838,25 +833,25 @@ unify_with_poset exact poset (lc, fc) = do
                           return ()) (return ()) cx
 
             -- Rewrite and reduce the atomic constraints
-            atomx' <- List.foldl (\rec (Subtype (TBang n (TVar x)) (TBang m (TVar y))) -> do
+            atomx' <- List.foldl (\rec (Sublintype (TVar x) (TVar y) info) -> do
                                     atom <- rec
                                     xt <- appmap x
                                     yt <- appmap y
-                                    atom' <- break_composite True ([TBang n xt <: TBang m yt], [])
+                                    atom' <- break_composite True ([Sublintype xt yt info], [])
                                     return $ atom' <> atom) (return emptyset) atomx
 
             -- Rewrite and reduce the semi composite constraints
             cset' <- List.foldl (\rec c -> do
                                    cs <- rec
                                    case c of
-                                     Subtype (TBang n (TVar x)) u -> do
+                                     Sublintype (TVar x) u info -> do
                                          xt <- appmap x
-                                         cs' <- break_composite True ([TBang n xt <: u], [])
+                                         cs' <- break_composite True ([Sublintype xt u info], [])
                                          return $ cs' <> cs
 
-                                     Subtype t (TBang m (TVar y)) -> do
+                                     Sublintype t (TVar y) info -> do
                                          yt <- appmap y
-                                         cs' <- break_composite True ([t <: TBang m yt], [])
+                                         cs' <- break_composite True ([Sublintype t yt info], [])
                                          return $ cs' <> cs)  (return emptyset) cset
 
 

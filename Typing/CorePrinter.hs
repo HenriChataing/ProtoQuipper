@@ -253,7 +253,10 @@ instance PPrint Expr where
 
 -- | Subtyping constraints printing.
 instance PPrint TypeConstraint where
-  genprint lv (Subtype t u) opts =
+  genprint lv (Subtype t u _) opts =
+    genprint lv t opts ++ " <: " ++ genprint lv u opts
+
+  genprint lv (Sublintype t u _) opts =
     genprint lv t opts ++ " <: " ++ genprint lv u opts
 
   sprintn _ c = pprint c
