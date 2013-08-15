@@ -1,6 +1,6 @@
 -- -- LIST MODULE -- --
 -- Defines the type of lists, and provides basic
--- list manipulation
+-- list manipulation.
 
 import Core
 

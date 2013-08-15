@@ -1,6 +1,6 @@
 -- -- QUANTUM FOURIER TRANSFORM -- --
--- Implements the quantum fourier transform as a function
--- from a list of qubits to a list of qubits
+-- Implements the Quantum Fourier Transform as a function
+-- from a list of qubits to a list of qubits.
 
 import Core
 import Gates

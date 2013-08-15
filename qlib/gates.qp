@@ -1,8 +1,7 @@
 -- -- GATES MODULE -- --
--- Provides the definition of the gate operations
--- All the gates are aplied the unbox operator, which
--- gives the type T -> U rather than Circ (T, U), making
--- them readily available.
+-- Provides the definition of basic gates.
+-- All the gates are unboxed, which gives the type T -> U rather than
+-- Circ (T, U), making them readily useable.
 
 -- INIT AND TERM
 let init0 = unbox (#builtin INIT0) ;;

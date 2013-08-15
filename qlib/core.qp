@@ -1,5 +1,5 @@
 -- -- CORE MODULE -- --
--- Contains all the basic integers and boolean operations
+-- Contains all the basic integer and boolean operations.
 
 -- INTEGER OPERATIONS
 let (+) = #builtin ADD ;;
