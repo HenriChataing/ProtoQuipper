@@ -1845,63 +1845,91 @@ at the end of the section, how to extend it.
 \section{Language extensions}
 \label{sec-extensions}
 
-Some features of Proto-Quipper are implemented, and thus available 
-to the programmer, but not formalized. This means that the proofs 
+The implementation of Proto-Quipper provides all of the features of
+Core Proto-Quipper described in Sections~\ref{sec-core} and
+{\ref{sec-type-safety}}, and also includes the type inference
+algorithm of Section~\ref{sec-inference}. The implementation also
+includes some additional features that are not part of Core
+Proto-Quipper. These extensions are provided for the convenience of
+the programmer, but are not yet formalized. This means that the proofs 
 of type-safety for these extensions of the core language are 
 currently under development. We briefly describe these features 
 here. Further explanations and sample code can be found in the 
 user guide of Section \ref{sec-user-guide}.
-\begin{description}
-  \item[Polymorphism:] Our implementation of Proto-Quipper is 
-    equipped with a polymorphic $let$ binder. This means that 
-    expressions such as:
-    \[
-    \letin{x}{a}{b}
-    \]
-    are valid expressions of the syntax (note that $a$ is not required 
-    to be a pair). Moreover, such $let$ expressions are not simply 
-    syntactic sugar for $(\lambda x.b)a$. In fact, the expression
-    will not be attributed a type but rather a \emph{type schema} that
-    describes the possible types of this expression.
-    Type schemas follow the pattern:
-    	$$\forall \vec{\alpha}~ \vec{i}, \lset \Rightarrow T$$
-    It is to be interpreted as: \textit{for every type variables $\vec{\alpha'}$ and flag variables $\vec{i'}$ satisfying
-    the constraints $\lset[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$, the expression
-    ``$a$" can have the type $T[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$}.
-		This is illustrated by the following constraint typing rule:
-			\begin{prooftree}
-				\AxiomC{$\vec{\alpha'}, \vec{i'} \notin \Delta, (\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T)$} \noLine
-				\UnaryInfC{$\lset = \lset_T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \cup
-				            \{ 1 \le I, T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \prec: U \}$}
-				\RightLabel{$(ax.S)$}
-				\UnaryInfC{${!}^I \Delta, x: ~(\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T) \vdash_\lset x : U ~|_{\{\vec{\alpha'}, \vec{i'}\}}$}
-			\end{prooftree}
-  \item[Algebraic Types, Integers and Lists:] Built-in List and 
-    Integer types are provided with our implementation of Proto-Quipper.
-    These are accompanied by basic functions such as equality testing, 
-    comparison,\ldots Moreover, Proto-Quipper supports custom defined
-    recursive types (in fact, lists are defined in this way).
-  \item[Recursion:] Our implementation of Proto-Quipper allows 
-    recursive function definitions. To do this, we add the following 
-    term constructor to the language:
-    \[
-    let~rec~ a ~x = b~ in~ c
-    \]    
-    together with the associated typing rule:
-    \[
-    \infer[(rec)]{{!}\Delta;Q \entails let~rec~ a ~x = b~ in~ c:C}{
-      {!}\Delta,a:{!}(A\loli B), x:A;\emptyset \entails b:B
-      &
-      {!}\Delta, a:{!}(A\loli B) ;Q \entails c:C      
-    }
-    \]
-    and reduction rule:
-    \[
-    \infer[(rec).]{[C,let~rec~ a ~x = b~ in~ c]\to [C, c[\lambda x.(let~rec~ a ~x = b~ in~ b)/a]}{}
-    \]
-    Preliminary research shows that the core language can be extended 
-    with this recursion operator without loosing type-safety. 
-\end{description}
+
+\subsection{Polymorphism} 
+
+Our implementation of Proto-Quipper is equipped with a polymorphic
+$\textit{let}$ binder. This means that expressions such as:
+\[
+\letin{x}{a}{b}
+\]
+are valid expressions of the syntax (note that $a$ is not required
+to be a pair). Moreover, such $\textit{let}$ expressions are not
+simply syntactic sugar for $(\lambda x.b)a$. In fact, the
+expression will not be attributed a type but rather a \emph{type
+  scheme} (also known as a {\em polymorphic type}), which
+describes all possible types of this expression.  Type schemas
+follow the pattern:
+$$\forall \vec{\alpha}~ \vec{i}, \lset \Rightarrow T$$
+This is to be interpreted as: 
+\begin{quote} For all type variables
+  $\vec{\alpha'}$ and flag variables $\vec{i'}$ satisfying the
+  constraints $\lset[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/
+  \vec{i}]$, the expression ``$a$" can have the type
+  $T[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$.
+\end{quote}
+This is illustrated by the following constraint typing rule:
+\begin{prooftree}
+  \AxiomC{$\vec{\alpha'}, \vec{i'} \notin \Delta, (\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T)$} \noLine
+  \UnaryInfC{$\lset = \lset_T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \cup
+    \{ 1 \le I, T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \prec: U \}$}
+  \RightLabel{$(ax.S)$}
+  \UnaryInfC{${!}^I \Delta, x: ~(\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T) \vdash_\lset x : U ~|_{\{\vec{\alpha'}, \vec{i'}\}}$}
+\end{prooftree}
+For example, in the term 
+\[ \letin{f}{\lambda x.x}{b},
+\]
+the expression $f$ will be given the type scheme 
+\[ \forall \alpha, \beta,k,n,m,\s{\alpha<:\beta, m\leq n} \imp {!}^k({!}^n\alpha\loli{!}^m\beta),
+\]
+Some possible types for this expressions are $A\loli A$, ${!}A\loli
+A$, ${!}A\loli{!}A$, ${!}(A\loli B)\loli ({!}A\loli B)$, and so on. 
+Since $f$ can be typed differently at each calls site, a term such as
+\[ \letin{f}{\lambda x.x}{f(f)}
+\]
+is typeable in polymorphic Proto-Quipper.
+
+\subsection{Algebraic types, integers and lists}
+
+Our implementation of Proto-Quipper provides built-in types of
+integers and lists. These are accompanied by basic functions such as
+equality testing, comparison, etc. Moreover, Proto-Quipper supports
+user-definable recursive types (in fact, lists are a special case of
+this, and are defined using this general mechanism).
+
+\subsection{Recursion}
+
+Our implementation of Proto-Quipper allows recursive function
+definitions. To do this, we add the following term constructor to the
+language:
+\[
+\letrecin{a\,x}{b}{c}
+\]    
+together with the associated typing rule:
+\[
+\infer[(rec)]{{!}\Delta;Q \entails \letrecin{a\,x}{b}{c}:C}{
+  {!}\Delta,a:{!}(A\loli B), x:A;\emptyset \entails b:B
+  &
+  {!}\Delta, a:{!}(A\loli B) ;Q \entails c:C      
+}
+\]
+and reduction rule:
+\[
+\infer[(rec).]{[C,\letrecin{a\,x}{b}{c}]\to [C, c[\lambda x.(\letrecin{a\,x}{b}{b})/a]}{}
+\]
+Preliminary research shows that the core language can be extended 
+with this recursion operator without losing type-safety. 
 
 % ----------------------------------------------------------------------
 \clearpage
