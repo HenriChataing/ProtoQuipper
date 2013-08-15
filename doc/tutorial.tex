@@ -1,6 +1,6 @@
 \subsection{Installing and invoking Proto-Quipper}
 
-Install instructions can be found in the README file accompanying the code. 
+Installation instructions can be found in the README file accompanying the code. 
 To build the code type \verb#make# in the main Proto-Quipper directory. 
 
 The \verb#qlib# directory contains some basic modules and examples that can 
@@ -22,13 +22,13 @@ $ ./ProtoQuipper qlib/qft.qp -fv
 
  : !circ(qubit * qubit * qubit, qubit * qubit * qubit)
 \end{verbatim}
-The output format is determined by the option provided to \verb#-f#. In the above case, \verb#v# selected the visual format. The default format option is \verb#ir#, which outputs the intermediate representation of quantum circuits specified in the context of the QCS program. 
+The output format is determined by the option provided to \verb#-f#. In the above case, we used \verb#v# to select the visual format. The default format option is \verb#ir#, which outputs the intermediate representation of quantum circuits specified in the context of the QCS program. This output format is compatible with the other tools in the PLATO tool chain, including Quipper.
 
 The \verb#-h# option displays the list of available command line options. 
 
 \subsection{Primitives}
 
-Our implementation of Proto-Quipper was developed in Haskell. However, the 
+Our implementation of Proto-Quipper was written in Haskell. However, the 
 syntax might be more familiar to programmers having experience with OCaml.
 
 Code in Proto-Quipper is organized in modules. Module names always start 
@@ -87,22 +87,23 @@ the core syntax.
 \label{terms}
 \end{figure}
 
-Note that no term of the form $(t,C,a)$ appears in table 
-\hyperref[terms]{\ref*{terms}}. This is because the $(t,C,a)$ construct is 
+Note that no term of the form $(t,C,a)$ appears in
+Figure~\hyperref[terms]{\ref*{terms}}. This is because the $(t,C,a)$
+construct is
 not accessible to the programmer. In its place, we provide a set of 
-primitive quantum gates. The module \verb#Gates#, that can be found in the 
+primitive quantum gates. The module \verb#Gates#, which can be found in the 
 \verb#qlib# directory, contains a set of basic gates. 
 These include: \verb#init0#, \verb#init1#, \verb#term0#, \verb#term1#, 
 \verb#not#, \verb#hadamard#, \verb#T#, \verb#S#, \verb#Y#, \verb#Z#, 
-\verb#phase#, \verb#W#, \verb#E#, \verb#toffoli#, \ldots Please refer to 
-the documentation for a complete list.
+\verb#phase#, \verb#W#, \verb#E#, \verb#toffoli#, among others. Please
+refer to the documentation for a complete list.
 
 \subsection{Bell states}
 \label{ssec-quipper-by-e}
 
-Now that we have introduced the primitive functions that can be used in Quipper programs, we can combine them into a larger program. We start with 
+Now that we have introduced the primitive functions that can be used in Proto-Quipper programs, we can combine them into a larger program. We start with 
 a basic example: a circuit producing two qubits in the Bell state. Below is
-the code of the module \verb#Bell# contained in a file \verb#bell.qp#.
+the code of the module \verb#Bell# contained in the file \verb#bell.qp#.
 
 %\begin{figure}[!ht]
 \begin{verbatim}
@@ -127,67 +128,68 @@ the line:
 \end{center}
 The \verb#box[]# constructor starts a new circuit of type \verb#circ((), T)#. 
 Note that no type annotation was provided. The type is then assumed to be 
-the unit type \verb#()#, so that \verb#box[]# is shorthand for 
+the unit type \verb#()#, so that \verb#box[]# is a shorthand for 
 \verb#box[()]#. The first step is to create a new qubit, initialized in the 
-state $\ket{0}$. This is done by a call to \verb#init0#, which is defined as 
-\verb#unbox INIT0#, where \verb#INIT0# corresponds to the following circuit 
+state $\ket{0}$. This is done by a call to \verb#init0#, which is
+defined to produce the following circuit
 
 $$\Qcircuit @C=1em @R=.7em {
   & \lstick{\ket{0}} & \qw
 }$$
 
-In fact, \verb#unbox# has been applied to all the primitive gates provided 
-in the module \verb#Gates# so that they can be directly used as functions. 
-In this manner, the \verb#hadamard# gate is applied to the newly created 
-\verb#qubit# and the result is stored in the variable \verb#q0#. Similarly, 
-another \verb#qubit# is initialized in the state $\ket{0}$ and stored in the 
-variable \verb#q1#. The rest of the code is straightforward. A \verb#cnot# 
-gate is applied to the pair \verb#(q1,q0)# and the pair is then returned. 
-Remark that the pair \verb#(q0,q1)# \emph{must} be returned as the end of 
-the box definition to respect the strict linearity of Proto-Quipper. The 
-hypothetical code where \verb#q0, q1# are not returned would generate a 
-typing error. Finally, every top-level expression in the body of the 
-module must be suffixed by \verb#;;#. 
+In the same manner, the \verb#hadamard# gate is applied to the newly
+created \verb#qubit# and the result is stored in the variable
+\verb#q0#. Similarly, another \verb#qubit# is initialized in the state
+$\ket{0}$ and stored in the variable \verb#q1#. The rest of the code
+is straightforward. A \verb#cnot# gate is applied to the pair
+\verb#(q1,q0)# and the pair is then returned.  Note that the pair
+\verb#(q0,q1)# \emph{must} be returned as the end of the box
+definition to respect the strict linearity of Proto-Quipper. The
+hypothetical code where \verb#q0, q1# are not returned would generate
+a type error. Finally, every top-level expression in the body of the
+module must be terminated by ``\verb#;;#''.
 
 \subsection{Shorthand notations}
 
-In the code of the module \verb#Bell# above, the first two occurrences of 
-the \verb#let# binder are not instances of the formal binder defined 
-in subsection \hyperref[ssec-types-and-terms]{\ref*{ssec-types-and-terms}} 
-as they do not bind a pair. Rather, the binding introduces let-polymorphism (an integral part of all the ML-based languages). In fact, we authorize binding 
-on arbitrary \emph{patterns} which are defined by the following grammar:
+In the code of the module \verb#Bell# above, we saw several uses of
+the \verb#let# binder. In addition to binding a value to a variable,
+the \verb#let# construct also introduces let-polymorphism (an integral
+part of all the ML-based languages). Moreover, Proto-Quipper permits
+arbitrary \emph{patterns} to be used in place of variables in
+bindings. These are defined by the following grammar:
 \begin{center}
-\begin{tabular}{rcl}
-  $\mathtt{Pattern}$ $p_1 \dots p_n$ & ::= & $x$ \\
-                                     & $|$ & $(p_1, \dots, p_n)$ \\
-		                     & $|$ & $()$
+\begin{tabular}{rrcl}
+  $\mathtt{Pattern}$& $p_1 \dots p_n$ & ::= & $x$ \\
+                     &                & $|$ & $(p_1, \dots, p_n)$ \\
+		     &                & $|$ & $()$
 \end{tabular}
 \end{center}
-As is common in functional programming languages, we introduce shorthand notations to simplify the code. Figure \ref{sugar} gives the list of the notations introduced in Proto-Quipper. 
+As is common in functional programming languages, we introduce shorthand notations to simplify the code. Figure~\ref{sugar} lists the notations introduced in Proto-Quipper. 
 
 \begin{figure}[!ht]
-\begin{itemize}
+\begin{compactitemize}
 \item \verb#let p = a in b#:\\ Binds the variables of the pattern 
   \verb#p#.
-\item \verb#p <- a; b#:\\ Same as \verb#let p = a in b#.
-\item \verb#p <-* a; b#: \\ Used to compute \verb#let p = a p in b#
-                                (\verb#a# must be a function).
+\item \verb#p <- a; b#:\\ Equivalent to \verb#let p = a in b#.
+\item \verb#p <-* a; b#: \\ Equivalent to \verb#let p = a p in b#.
+  Here, \verb#a# must be a function.
 \item  \verb#fun p -> a#: \\ Equivalent to
                                 \verb#fun x -> let p = x in a#.
 \item  \verb#fun x y z -> a#: \\ Equivalent to
                                 \verb#fun x -> fun y -> fun z -> a#.
 \item  \verb#let f x y z = a in b#: \\ Equivalent to
   \verb#let f = (fun x y z -> a) in b#.
-\end{itemize}
+\end{compactitemize}
+\caption{Syntactic sugar.}
 \label{sugar}
-\caption{Syntactic sugars.}
 \end{figure}
 
 \subsection{The Quantum Fourier Transform on three qubits}
 
 With the help of the shorthand notations introduced above, we can write 
 larger programs. For example, an implementation of the Quantum Fourier 
-Transform of three qubits is given below:
+Transform on three qubits is given in Figure~\ref{fig-qft3}.
+\begin{figure}[!ht]
 \begin{verbatim}
 box[qubit * qubit * qubit] (
   fun (q0, q1, q2) ->
@@ -200,12 +202,17 @@ box[qubit * qubit * qubit] (
     (q0, q1, q2)
 ) ;;
 \end{verbatim}
-This code illustrate the usefulness of the \verb#p <-* a# notation, since 
-the result of the application of quantum gates to qubits is usually stored 
-in the same variables. Note that the type annotation in \verb#box# is 
-\verb#qubit *qubit * qubit#, rather than \verb#qubit * (qubit * qubit)# or 
-\verb#(qubit * qubit) * qubit#. This is because our implementation of 
-Proto-Quipper allows the use unparenthesized tuples of arbitrary size. 
+\caption{An implementation of the Quantum Fourier
+Transform on three qubits}
+\label{fig-qft3}
+\end{figure}
+This code illustrates the usefulness of the \verb#p <-* a# notation,
+since it is often convenient to store the output of a quantum gate in
+a variable of the same name as that of the input. Also note that the
+type annotation in \verb#box# is $\qutt\ttt\qutt\ttt\qutt$, rather
+than $\qutt\ttt(\qutt\ttt\qutt)$ or $(\qutt\ttt\qutt)\ttt\qutt$.
+This is because our implementation of Proto-Quipper allows the use
+unparenthesized tuples of arbitrary size.
 
 \subsection{Interactive mode}
 
@@ -218,7 +225,7 @@ $ ./ProtoQuipper
 # 
 \end{verbatim}
 In interactive mode, all commands must end with \verb#;;#. This mode accepts:
-\begin{itemize}
+\begin{compactitemize}
   \item import statements, e.g., \verb#import Gates ;;#,
   \item type definitions, e.g., 
 \begin{verbatim}
@@ -226,21 +233,21 @@ type list a = Nil | Cons of a * list a ;;
 \end{verbatim} 
     and
   \item top-level declarations, e.g., \verb#let x = 1 ;;# or \verb#1+1 ;;#.
-\end{itemize}
-Commands in interactive mode always start with a \verb#:#. For example, 
-\verb#:help# will display a list of available commands. These are (other 
-than \verb#:help# itself): 
-\begin{itemize}
-  \item \verb#:ctx# which lists the variables declared in the current context, 
-  \item \verb#:exit# which quits the interactive mode and
-  \item \verb#:display# which displays the top-level circuit.
-\end{itemize}
-To invoke a command any one of the corresponding prefix will suffice.
+\end{compactitemize}
+In addition, it is possible to enter commands for the
+interpreter. These always start with a \verb#:#. The possible commands are:
+\begin{compactitemize}
+  \item \verb#:help# displays a list of available commands;
+  \item \verb#:ctx# lists the variables declared in the current context;
+  \item \verb#:exit# quits the interactive mode;
+  \item \verb#:display# displays the current top-level circuit.
+\end{compactitemize}
+Commands can also be abbreviated, for example \verb#:h# or \verb#:c#.
 
 \subsection{Extensions}
 
-The extensions discussed here were introduced in section 
-\hyperref[sec-extensions]{\ref*{sec-extensions}}. 
+The extensions discussed here were introduced in
+Section~\hyperref[sec-extensions]{\ref*{sec-extensions}}.
 
 \subsubsection{Polymorphism}
 
@@ -269,11 +276,14 @@ while the second occurrence has type
 
 \subsubsection{Algebraic types, integers and lists}
 
-The formal definition of sum types, with $left$ and $right$ constructors, 
-is not particularly user-friendly. We therefore authorize algebraic types, 
-which can be seen as a generalization of sum types. The definitions of such 
-types have to be placed at the beginning of the source file, immediately 
-following the \verb#import# statements. These definitions follow the pattern: 
+In the lambda calculus, sum types $A+B$ are usually introduced with
+constructors $\leftx : A\to A+B$ and $\rightx : B\to A+B$ and an
+operator for case distinctions. This is not particularly
+user-friendly. Proto-Quipper therefore provides algebraic types, which
+can be seen as a generalization of sum types. The definitions of such
+types have to be placed at the beginning of the source file,
+immediately following the \verb#import# statements. These definitions
+follow the pattern:
 \begin{verbatim}
 type typename [a b ..] =
     Datacon1 [of T1]
@@ -284,25 +294,24 @@ type typename [a b ..] =
 where \verb#a#, \verb#b#, \ldots are type variables and \verb#T1#, \ldots, 
 \verb#TN# are type expressions possibly involving the variables \verb#a#, 
 \verb#b#, \ldots In particular:
-\begin{itemize}
-  \item The name of the type must start with a lower case character
-  \item The type is followed by a list of type arguments (the list can 
-  be empty) 
-  \item The name of the data constructors starts with an upper case  
+\begin{compactitemize}
+  \item The name of the type must start with a lower case character.
+  \item The type is followed by zero or more type arguments.
+  \item The name of the data constructors starts with an upper case
   character. Each data constructor can take one argument type, introduced 
   by \verb#of#.
-\end{itemize}
-
-All the types defined in the same module are assumed to be co-inductive. For 
-example, the type of lists included in the module \verb#List# has the 
+  \item Moreover, all the types defined in the same module are assumed
+  to be mutually recursive.
+\end{compactitemize}
+For example, the type of lists included in the module \verb#List# has the 
 definition
 \begin{verbatim}
 type list a =
     Nil
   | Cons of a * list a
 \end{verbatim}
-Since lists are part of the basic objects, some notations have been introduced in the syntax to simplify the writing and manipulation of lists. 
-These are
+Since lists are a very common data structure, special notation has been introduced in the syntax to simplify the writing and manipulation of lists. 
+These notations can be used in either expressions or patterns. They are:
 \begin{center}
 \begin{tabular}{ll}
   \verb#[]#               & for ~ \verb#Nil# \\
@@ -311,7 +320,6 @@ These are
                             \verb#Cons (x1, ... Cons (xn, Nil) ...)#
 \end{tabular}
 \end{center}
-and can be used in either expressions or patterns.
 
 \subsubsection{Recursion}
 
@@ -319,27 +327,34 @@ Recursive functions can be defined as follows:
 \begin{verbatim}
 let rec f x y z = a in b
 \end{verbatim}
-In Proto-Quipper, only functions may be recursively defined. In this respect, 
-Proto-Quipper differs from Haskell since the latter allows recursive values 
-like lists of infinite size.
+In Proto-Quipper, only functions may be recursively defined. In this
+respect, Proto-Quipper differs from Haskell since the latter allows
+recursive values like lists of infinite size. This is because
+Proto-Quipper follows a strict evaluation strategy (arguments to
+functions are evaluated immediately), whereas Haskell follows a lazy
+strategy (arguments are evaluated only as needed).
 
 \subsection{The Quantum Fourier Transform}
 
 With the extensions given in the previous subsection, we can write an 
 algorithm for the Quantum Fourier Transform for quantum registers encoded 
 as lists of qubits. The QFT is now defined as a recursive function that 
-inputs a quantum register. The output is the list of resulting qubits. 
+inputs and outputs a list of qubits.
 
 We need to import the \verb#List#, \verb#Gates# and \verb#Core# modules. 
-The \verb#List# module contains, among others, the \verb#sf_last# function, whose type is:
+The \verb#List# module contains, among other things, the function \verb#sf_last#. Its type is:
 \begin{verbatim}
 val sf_last <: !(list a -> (a, list a))
 \end{verbatim}
-The function imputs a list and returns returns the last element of a list. Due to linearity, it also returns the rest of the list. The module \verb#Core#
-provides basic integer operations including \verb#+ ^ - * ..#. 
+This function imputs a list and returns returns its last element. To
+satisfy linearity, it also returns the rest of the list. The module
+\verb#Core# provides basic integer operations including
+\verb#+#, \verb#^#, \verb#-#, \verb#*#, etc. 
 
-The implementation of the algorithm is as follows:
+The implementation of the algorithm is shown in Figure~\ref{fig-qft}.
+It is also contained in the file \verb#qft.qp#.
 
+\begin{figure}[!ht]
 \begin{verbatim}
 import Core
 import Gates
@@ -368,3 +383,7 @@ let rec qft qreg =
       qn:qn1
 ;;
 \end{verbatim}
+  \caption{An implementation of the Quantum Fourier Transform on lists
+    of qubits}
+  \label{fig-qft}
+\end{figure}
