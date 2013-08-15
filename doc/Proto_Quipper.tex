@@ -1891,7 +1891,7 @@ For example, in the term
 \[ \letin{f}{\lambda x.x}{b},
 \]
 the expression $f$ will be given the type scheme 
-\[ \forall \alpha, \beta,k,n,m,\s{\alpha<:\beta, m\leq n} \imp {!}^k({!}^n\alpha\loli{!}^m\beta),
+\[ \forall \alpha, \beta,k,n,m,\s{\alpha \prec:\beta, m\leq n} \imp {!}^k({!}^n\alpha\loli{!}^m\beta),
 \]
 Some possible types for this expressions are $A\loli A$, ${!}A\loli
 A$, ${!}A\loli{!}A$, ${!}(A\loli B)\loli ({!}A\loli B)$, and so on. 
