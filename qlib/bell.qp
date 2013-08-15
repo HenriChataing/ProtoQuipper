@@ -1,0 +1,11 @@
+-- -- BELL MODULE -- --
+-- From the Proto-Quipper tutorial.
+
+import Gates
+
+box[] (fun x ->
+  let q0 = hadamard (init0 ()) in
+  let q1 = init0 () in
+  let (q1, q0) = cnot (q1, q0) in
+  (q0, q1)
+) ;;
