@@ -6,10 +6,9 @@ To build the code type \verb#make# in the main Proto-Quipper directory.
 The \verb#qlib# directory contains some basic modules and examples that can 
 be used to test the install. To invoke Proto-Quipper on a file, call 
 \begin{verbatim}
-./ProtoQuipper qlib/qft.qp -fv.
+./ProtoQuipper qlib/qft.qp -fv
 \end{verbatim}
-This will run Proto-Quipper on the sample code \verb#qft.qp#. The \verb#-fv# option selects the visual format. 
-This should produce the following output, representing the circuit for the 
+This will run Proto-Quipper on the sample code \verb#qft.qp# and should produce the following output, representing the circuit for the 
 Quantum Fourier Transform on three qubits together with its inferred 
 type:
 \begin{verbatim}
@@ -23,34 +22,9 @@ $ ./ProtoQuipper qlib/qft.qp -fv
 
  : !circ(qubit * qubit * qubit, qubit * qubit * qubit)
 \end{verbatim}
-The default format option is \verb#ir# which outputs the intermediate representation of quantum circuits specified in the context of the QCS program. The \verb#-h# option displays the list of available command line 
-options. If multiple files are passed as arguments to Proto-Quipper, they 
-are sequentially executed. If no argument file is given, Proto-Quipper 
-enters its interactive mode:
-\begin{verbatim}
-$ ./ProtoQuipper
-### Proto-Quipper -- Interactive Mode ###
-# 
-\end{verbatim}
-In interactive mode, all commands must end with \verb#;;#. This mode accepts:
-\begin{itemize}
-  \item import statements, e.g., \verb#import Gates ;;#,
-  \item type definitions, e.g., 
-\begin{verbatim}
-type list a = Nil | Cons of a * list a ;;
-\end{verbatim} 
-    and
-  \item top-level declarations, e.g., \verb#let x = 1 ;;# or \verb#1+1 ;;#.
-\end{itemize}
-Commands in interactive mode always start with a \verb#:#. For example, 
-\verb#:help# will display a list of available commands. These are (other 
-than \verb#:help# itself): 
-\begin{itemize}
-  \item \verb#:ctx# which lists the variables of the current context, 
-  \item \verb#:exit# which quits the interactive mode and
-  \item \verb#:display# which displays the top-level circuit.
-\end{itemize}
-To invoke a command any one of the corresponding prefix will suffice.
+The output format is determined by the option provided to \verb#-f#. In the above case, \verb#v# selected the visual format. The default format option is \verb#ir#, which outputs the intermediate representation of quantum circuits specified in the context of the QCS program. 
+
+The \verb#-h# option displays the list of available command line options. 
 
 \subsection{Primitives}
 
@@ -120,11 +94,42 @@ Note that no term of the form $(t,C,u)$ appears in table
 \hyperref[terms]{\ref*{terms}}. This is because the $(t,C,u)$ construct is 
 not accessible to the programmer. In its place, we provide a set of 
 primitive quantum gates. The module \verb#Gates#, that can be found in the 
-\verb#qlib# directory, contains the definition of a set of basic gates. 
+\verb#qlib# directory, contains a set of basic gates. 
 These include: \verb#init0#, \verb#init1#, \verb#term0#, \verb#term1#, 
 \verb#not#, \verb#hadamard#, \verb#T#, \verb#S#, \verb#Y#, \verb#Z#, 
 \verb#phase#, \verb#W#, \verb#E#, \verb#toffoli#, \ldots Please refer to 
 the documentation for a complete list.
+
+\subsection{Interactive mode}
+
+If multiple files are passed as arguments to Proto-Quipper, they 
+are sequentially executed. If no argument file is given, Proto-Quipper 
+enters its interactive mode:
+\begin{verbatim}
+$ ./ProtoQuipper
+### Proto-Quipper -- Interactive Mode ###
+# 
+\end{verbatim}
+In interactive mode, all commands must end with \verb#;;#. This mode accepts:
+\begin{itemize}
+  \item import statements, e.g., \verb#import Gates ;;#,
+  \item type definitions, e.g., 
+\begin{verbatim}
+type list a = Nil | Cons of a * list a ;;
+\end{verbatim} 
+    and
+  \item top-level declarations, e.g., \verb#let x = 1 ;;# or \verb#1+1 ;;#.
+\end{itemize}
+Commands in interactive mode always start with a \verb#:#. For example, 
+\verb#:help# will display a list of available commands. These are (other 
+than \verb#:help# itself): 
+\begin{itemize}
+  \item \verb#:ctx# which lists the variables declared in the current context, 
+  \item \verb#:exit# which quits the interactive mode and
+  \item \verb#:display# which displays the top-level circuit.
+\end{itemize}
+To invoke a command any one of the corresponding prefix will suffice.
+
 
 \subsection{Bell states}
 \label{ssec-quipper-by-e}
