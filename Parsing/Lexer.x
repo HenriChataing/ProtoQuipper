@@ -4,6 +4,11 @@
 module Parsing.Lexer (Token(..), mylex) where
 
 import Parsing.Localizing
+
+import Monad.QuipperError
+import Monad.QpState
+
+import qualified Data.List as List
 }
 
 %wrapper "posn"
@@ -58,7 +63,7 @@ tokens :-
   let                                 { locate_token TkLet }
   match                               { locate_token TkMatch }
   of                                  { locate_token TkOf }
-  qubit                                { locate_token TkQuBit }
+  qubit                               { locate_token TkQuBit }
   rec                                 { locate_token TkRec }
   rev                                 { locate_token TkRev }
   then                                { locate_token TkThen }
@@ -79,6 +84,8 @@ tokens :-
   $infix2 $symbolchar*                { locate_named_token TkInfix2 } 
   $infix3 $symbolchar*                { locate_named_token TkInfix3 } 
 
+  [^tokens]                           { locate_named_token TkError }
+
 {
 
 -- | Converts alex's positions to extents
@@ -97,6 +104,7 @@ data Token =
     TkLId (Extent, String)       -- ^ Variable names starting with a lower case character.
   | TkUId (Extent, String)       -- ^ Variable names starting with an upper case character.
   | TkInt (Extent, String)       -- ^ Integers. The value of the integer is left unparsed.
+  | TkError (Extent, String)     -- ^ Error token.
 
   -- Reserved notations : list of reserved names
   | TkBool Extent          -- ^ bool.
@@ -164,7 +172,12 @@ locate_named_token tk p s = tk (posn_to_extent p s, s)
 
 -- | Lexing function. Inputs an unparsed string, and returns the corresponding list of tokens.
 -- The lexer can fail if an recognized token is encountered, in which case it throws a LexicaError exception.
-mylex :: String -> IO [Token]
-mylex contents =
-  return $ alexScanTokens contents
+mylex :: String -> QpState [Token]
+mylex contents = do
+  tokens <- return $ alexScanTokens contents
+  case List.find (\tk -> case tk of
+                           TkError _ -> True
+                           _ -> False) tokens of
+    Just (TkError (ex, s)) -> throwQ $ LexicalError s ex
+    Nothing -> return tokens 
 }
