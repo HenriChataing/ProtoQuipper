@@ -1743,14 +1743,26 @@ User Guide of Section \ref{sec-user-guide}.
     equipped with a polymorphic $let$ binder. This means that 
     expressions such as:
     \[
-    \letin{a}{x}{b}
+    \letin{x}{a}{b}
     \]
     are valid expressions of the syntax (note that $a$ is not required 
     to be a pair). Moreover, such $let$ expressions are not simply 
     syntactic sugar for $(\lambda x.b)a$. In fact, the expression
-    will not be attributed a type but rather a \emph{type schema}.
-    This schema can then be instantiated in various ways depending 
-    on the context in which the term is used. 
+    will not be attributed a type but rather a \emph{type schema} that
+    describes the possible types of this expression.
+    Type schemas follow the pattern:
+    	$$\forall \vec{\alpha}~ \vec{i}, \lset \Rightarrow T$$
+    It is to be interpreted as: \textit{for every type variables $\vec{\alpha'}$ and flag variables $\vec{i'}$ satisfying
+    the constraints $\lset[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$, the expression
+    ``$a$" can have the type $T[\vec{\alpha'} / \vec{\alpha}, \vec{i'}/ \vec{i}]$}.
+		This is illustrated by the following constraint typing rule:
+			\begin{prooftree}
+				\AxiomC{$\vec{\alpha'}, \vec{i'} \notin \Delta, (\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T)$} \noLine
+				\UnaryInfC{$\lset = \lset_T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \cup
+				            \{ 1 \le I, T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \prec: U \}$}
+				\RightLabel{$(ax.S)$}
+				\UnaryInfC{$!^I \Delta, x: ~(\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T) \vdash_\lset x : U ~|_{\{\vec{\alpha'}, \vec{i'}\}}$}
+			\end{prooftree}
   \item[Algebraic Types, Integers and Lists:] Built-in List and 
     Integer types are provided with our implementation of Proto-Quipper.
     These are accompanied by basic functions such as equality testing, 
