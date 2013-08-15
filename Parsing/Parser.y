@@ -203,6 +203,7 @@ Atom_expr :
     | UID '.' LID                               { locate (EQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
+    | '(' Infix_op ')'                          { locate (EVar (snd $2)) (fst $2) }
     | '(' Expr_sep_list ')'                     { case $2 of
                                                     [x] -> x
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
