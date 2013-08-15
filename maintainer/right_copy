@@ -28,7 +28,7 @@ case "$(basename "$FROM")" in
   # WE ASSUME THAT EVERY BAT FILE STARTS WITH @echo off
   PRESERVE_LINES=1
   ;;
-    *.awk | *.sh | Makefile* | h_1e_ascii | h_2e_ascii )
+    *.awk | *.sh | Makefile* )
   PREFIX="# "
   ;;
     *.qcl )

@@ -103,12 +103,12 @@ dist: $(PUBLIC) $(MAKEFILES_PUBLIC) haddock
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(QLIB)"
 	mkdir "$(DISTDIR)/$(BUILD_DIR)"
-	mkdir "$(DISTDIR)/haddock-doc"
+	mkdir "$(DISTDIR)/doc"
 	for i in $(SUBDIRS); do mkdir "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
-	cp -r haddock-doc/ "$(DISTDIR)/haddock-doc/"
+	cp -r haddock-doc/ "$(DISTDIR)/doc/"
 	rm -f "$(DISTZIP)"
 	zip -r "$(DISTZIP)" "$(DISTDIR)"
 	tar -zcf "$(DISTTAR)" "$(DISTDIR)"
