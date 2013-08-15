@@ -50,6 +50,11 @@ case "$(basename "$FROM")" in
   cp -f "$FROM" "$TO"
   exit $?
   ;;
+    prologue.txt )
+  # format may not allow comments? Do nothing.
+  cp -f "$FROM" "$TO"
+  exit $?
+  ;;
 esac
 
 # check whether the file starts with "#!"

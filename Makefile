@@ -56,7 +56,7 @@ count : clean
 haddock : haddock-documentation haddock-html-sources
 
 haddock-documentation : $(MODULES)
-	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "maintainer/prologue.txt"
+	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "prologue.txt"
 
 haddock-html-sources : $(MODULES:%.hs=haddock-doc/src/%.html)
 
@@ -90,7 +90,7 @@ QLIB = qlib
 
 # The README, Makefile, etc used for distribution are not the same as
 # the analogous files used by developers.
-PUBLIC = README COPYRIGHT
+PUBLIC = README COPYRIGHT prologue.txt
 #            LICENSE
 
 $(DISTZIP) $(DISTTAR): dist
@@ -121,6 +121,9 @@ distcheck: $(DISTZIP)
 	cp -rp "$(DISTDIR)" "$(DISTDIR)-orig"
 	cd "$(DISTDIR)"; $(MAKE) all
 	cd "$(DISTDIR)"; $(MAKE) clean
+	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
+	cd "$(DISTDIR)"; $(MAKE) haddock
+	cd "$(DISTDIR)"; $(MAKE) haddock-clean
 	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
 	rm -rf "$(DISTDIR)-orig"
 	@echo "$(DISTZIP) seems ready for distribution."
