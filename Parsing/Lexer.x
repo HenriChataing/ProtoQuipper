@@ -160,7 +160,68 @@ data Token =
   | TkInfix1 (Extent, String)   -- ^ All operators starting with [\@ '^']
   | TkInfix2 (Extent, String)   -- ^ All operators starting with ['+' '-']
   | TkInfix3 (Extent, String)   -- ^ All operators starting with ['*' '/']
-    deriving Show
+
+
+instance Show Token where
+  show (TkLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkError (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+
+  show (TkBool ex) = "'bool' (" ++ show ex ++ ")"
+  show (TkBox ex) = "'box' (" ++ show ex ++ ")"
+  show (TkCirc ex) = "'circ' (" ++ show ex ++ ")"
+  show (TkElse ex) = "'else' (" ++ show ex ++ ")"
+  show (TkFalse ex) = "'false' (" ++ show ex ++ ")"
+  show (TkFun ex) = "'fun' (" ++ show ex ++ ")"
+  show (TkIf ex) = "'if' (" ++ show ex ++ ")"
+  show (TkImport ex) = "'import' (" ++ show ex ++ ")"
+  show (TkIn ex) = "'in' (" ++ show ex ++ ")"
+  show (TkInteger ex) = "'int' (" ++ show ex ++ ")"
+  show (TkLet ex) = "'let' (" ++ show ex ++ ")"
+  show (TkMatch ex) = "'match' (" ++ show ex ++ ")"
+  show (TkOf ex) = "'of' (" ++ show ex ++ ")"
+  show (TkQuBit ex) = "'qubit' (" ++ show ex ++ ")"
+  show (TkRec ex) = "'rec' (" ++ show ex ++ ")"
+  show (TkRev ex) = "'rev' (" ++ show ex ++ ")"
+  show (TkThen ex) = "'then' (" ++ show ex ++ ")"
+  show (TkTrue ex) = "'true' (" ++ show ex ++ ")"
+  show (TkType ex) = "'type' (" ++ show ex ++ ")"
+  show (TkUnbox ex) = "'unbox' (" ++ show ex ++ ")"
+  show (TkVal ex) = "'val' (" ++ show ex ++ ")"
+  show (TkWith ex) = "'with' (" ++ show ex ++ ")" 
+  show (TkBuiltin ex) = "'#builtin' (" ++ show ex ++ ")"
+
+  show (TkJoker ex) = "'_' (" ++ show ex ++ ")"
+  show (TkStar ex) = "'*' (" ++ show ex ++ ")"
+  show (TkBar ex) = "'|' (" ++ show ex ++ ")"
+  show (TkComma ex) = "',' (" ++ show ex ++ ")"
+  show (TkColon ex) = "':' (" ++ show ex ++ ")"
+  show (TkSemiColon ex) = "';' (" ++ show ex ++ ")"
+  show (TkEq ex) = "'=' (" ++ show ex ++ ")"
+  show (TkBang ex) = "'!' (" ++ show ex ++ ")"
+  show (TkRArrow ex) = "'->' (" ++ show ex ++ ")"
+  show (TkLArrow ex) = "'<-' (" ++ show ex ++ ")"
+  show (TkSubType ex) = "'<:' (" ++ show ex ++ ")"
+  show (TkDblSemiColon ex) = "';;' (" ++ show ex ++ ")"
+  show (TkDot ex) = "'^' (" ++ show ex ++ ")"
+  show (TkLArrowStar ex) = "'<-*' (" ++ show ex ++ ")"
+
+  -- Delimiters
+  show (TkLParen ex) = "'(' (" ++ show ex ++ ")"
+  show (TkRParen ex) = "')' (" ++ show ex ++ ")"
+  show (TkLBracket ex) = "'[' (" ++ show ex ++ ")"
+  show (TkRBracket ex) = "']' (" ++ show ex ++ ")"
+  show (TkLCurlyBracket ex) = "'{' (" ++ show ex ++ ")"
+  show (TkRCurlyBracket ex) = "'}' (" ++ show ex ++ ")"
+
+  -- Operators
+  show (TkInfix0 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkInfix1 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkInfix2 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkInfix3 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+
+
 
 -- | Locate a token. The type signatures matches the one expected of lexing actions.
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
