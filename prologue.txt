@@ -4,7 +4,7 @@ documentation from here.
 
 /General/.  The "Main" module is located in the file ProtoQuipper.hs. It uses the command line options defined in the module "Options" to parse
   the program arguments. When the program detects files, it uses the function 'Typing.Driver.do_everything' to process them. By default, when
-  no file is provided, the program swicthes to interactive mode, described by the module "Interactive".
+  no file is provided, the program switches to interactive mode, described by the module "Interactive".
 
 
 /Evaluation/. All the modules dedicated to the evaluation of Proto-Quipper expressions are located in the folder \"Interpret\".

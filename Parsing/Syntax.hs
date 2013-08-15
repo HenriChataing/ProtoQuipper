@@ -92,8 +92,8 @@ data Type =
   | TQubit                     -- ^ qubit
   | TCirc Type Type           -- ^ circ (A, B)
 
--- Sum types : bool and generic type instanciation
-  | TApp Type Type            -- ^ Generic type instanciation, for example \'list int\' is \'int\' applied to \'list\'.
+-- Sum types : bool and generic type instantiation
+  | TApp Type Type            -- ^ Generic type instantiation, for example \'list int\' is \'int\' applied to \'list\'.
   | TBool                     -- ^ bool
   | TInt                      -- ^ int
 

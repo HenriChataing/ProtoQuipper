@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
--- | Definition of an internal syntax, which consideraly modifies the grammar of types
+-- | Definition of an internal syntax, which considerably modifies the grammar of types
 -- so as to facilitate the working of the type inference algorithm. For more efficiency, all
 -- the term and type variables are labelled by a unique id, which serves as reference in maps
 -- and other structures.
@@ -31,7 +31,7 @@ type Variable = Int
 -- *    1 : is the flag equal to one (meaning duplicable), 
 --
 -- *    -1 : can be either zero or one, for example with types like bool or unit,
---          implicitely equal to !bool and !unit. Typically, the flag constraints
+--          implicitly equal to !bool and !unit. Typically, the flag constraints
 --          where the left or right hand side is -1 are dropped.
 --
 -- *    Any other value is a flag reference.
@@ -57,7 +57,7 @@ data FlagValue =
 
 -- | Information relevant to a flag. This contains the flag value, some debug
 -- information used to throw detailed exceptions. Eventually, it will also contain
--- various things such as : reversability, control ..
+-- various things such as : reversibility, control ..
 data FlagInfo = FInfo { 
   value :: FlagValue                              -- ^ The value of the flag
 }
@@ -84,7 +84,7 @@ data LinType =
 -- Sum types
   | TBool                      -- ^ bool
   | TInt                       -- ^ int
-  | TUser String [Type]        -- ^ Algebraic type, parametrized over the variables a1 .. an.
+  | TUser String [Type]        -- ^ Algebraic type, parameterized over the variables a1 .. an.
 
 -- Quantum related types
   | TQubit                      -- ^ qubit
@@ -96,7 +96,7 @@ data LinType =
 -- for polymorphism.
 data Type =
     TBang RefFlag LinType                                  -- ^ !n A
-  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A typing scheme : a type is parametrized over the type variables a1 .. an and
+  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A typing scheme : a type is parameterized over the type variables a1 .. an and
                                                            -- the flags f1 .. fk, which must satisfy the constraints of L.
   deriving Show
 
@@ -131,9 +131,9 @@ data Typespec = Spec {
                                                            -- what it says exactly is: assuming the type arguments are quantum data types, then it is a quantum data type.
                                                            -- For example, \"list a\" is a qdata type on the condition that \"a\" is itself a qdata type.
 
-  unfolded :: ([Type], [(Datacon, Bool, Type)]),           -- ^ The unfolded defintion of the type, with on the left the type arguments, on the right the unfolded type :
-                                                           -- a list of tuples (Dk, bk, Tk) where Dk is the name of the datacon, bk indicates whether the type contains any
-                                                           -- algebraic types, Tk is the type of the data constructor.
+  unfolded :: ([Type], [(Datacon, Bool, Type)]),           -- ^ The unfolded definition of the type, with on the left the type arguments, on the right the unfolded type :
+                                                           -- a list of tuples (/Dk/, /bk/, /Tk/) where /Dk/ is the name of the data constructor, /bk/ indicates whether the type contains any
+                                                           -- algebraic types, /Tk/ is the type of the data constructor.
 
   subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                            -- is automatically inferred during the translation to the core syntax.
@@ -148,8 +148,8 @@ type Datacon = Int
 -- | Definition of the core patterns.
 -- The definition do not differ much from that of the surface syntax, the only difference lying
 -- in variables, now represented by ids.
--- Although the syntax of proto quipper doesn't make use of patterns, keeping them as syntactic sugars
--- reduces the number of variables, since the unsugaring process produces new variables, one for each
+-- Although the syntax of Proto-Quipper doesn't make use of patterns, keeping them as syntactic sugars
+-- reduces the number of variables, since the desugaring process produces new variables, one for each
 -- pair in the pattern. Some desugared code:
 -- 
 -- @
@@ -197,7 +197,7 @@ instance Constraint Pattern where
 
 
 -- | Definition of the core expressions. The core syntax introduces global variables, imported from the dependency modules.
--- Since the global variables are suposed to be duplicable, it is not necessary to overload the typing context with
+-- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
 -- more variables that are duplicable anyway.
 data Expr =
 -- STLC
@@ -471,7 +471,7 @@ instance WithDebugInfo ConstraintSet where
 
 
 -- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
--- The only purpose of this class is to overload the <> operator to be able to use it on either constaint
+-- The only purpose of this class is to overload the <> operator to be able to use it on either constraint
 -- sets, lists of type constraints, or lists of flag constraints.
 class Constraints a b where
   (<>) :: a -> b -> ConstraintSet        -- ^ Concatenation of two constraint sets. This function doesn't check for duplicates.
@@ -515,22 +515,22 @@ is_trivial (Subtype t u _) = t == u
 is_trivial (Sublintype a b _) = a == b
 
 
--- | Returns true iff the constraint T <: U is atomic, meaning
--- T and U are both of the form !na where a is a type variable.
+-- | Returns true iff the constraint /T/ <: /U/ is atomic, meaning
+-- /T/ and /U/ are both of the form !/na/, where /a/ is a type variable.
 is_atomic :: TypeConstraint -> Bool
 is_atomic (Sublintype (TVar _) (TVar _) _) = True
 is_atomic _ = False
 
 
--- | Returns true iff the constraint T <: U is composite, meaning
+-- | Returns true iff the constraint /T/ <: /U/ is composite, meaning
 -- it can be reduced by application of one or more of the subtyping
 -- relations.
 is_composite :: TypeConstraint -> Bool
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
 
--- | Returns true iff the constraint T <: U is semi composite, meaning
--- it is not atomic, and either T or U is of the form !na, making it not
+-- | Returns true iff the constraint /T/ <: /U/ is semi composite, meaning
+-- it is not atomic, and either /T/ or /U/ is of the form !/na/, making it not
 -- composite.
 is_semi_composite :: TypeConstraint -> Bool
 is_semi_composite (Sublintype t u _) =
@@ -542,7 +542,7 @@ is_semi_composite (Sublintype t u _) =
 is_semi_composite _ = False
 
 
--- | Returns true iff the constraint is of the form  user n a <: user n a'.
+-- | Returns true iff the constraint is of the form user /n/ /a/ <: user /n/ /a/'.
 is_user :: TypeConstraint -> Bool
 is_user (Sublintype t u _) =
   case (t, u) of
@@ -550,11 +550,11 @@ is_user (Sublintype t u _) =
     _ -> False
 is_user _ = False
 
--- | Checks whether all the constraints of a list have the same property of being right / left sided, ie:
+-- | Checks whether all the constraints of a list have the same property of being right \/ left sided, i.e.:
 --
--- *   of the form a <: T : left-sided
+-- *   of the form /a/ <: /T/ : left-sided;
 --
--- *   of the from T <: a : right-sided
+-- *   of the from /T/ <: /a/ : right-sided.
 --
 is_one_sided :: [TypeConstraint] -> Bool
 is_one_sided [] = True
@@ -582,11 +582,11 @@ is_right_sided ((Sublintype _ (TVar _) _):cset) =
 is_right_sided _ = False
 
 
--- | Attempts to link together the input constraints, for example the set { b <: U, a <: b, T <: a } can
---  be rearranged as { T <: a <: b <: U }
+-- | Attempts to link together the input constraints, for example the set { /b/ <: /U/, /a/ <: /b/, /T/ <: /a/ } can
+--  be rearranged as { /T/ <: /a/ <: /b/ <: /U/ }
 --
 --  The result is used in the unification algorithm: if the constraints can be linked, the approximation
---    { T \<: a \<: b \<: U }  \<=\>  a :=: b :=: T, { T \<: U } can be made
+--    { /T/ \<: /a/ \<: /b/ \<: /U/ }  \<=\>  /a/ :=: /b/ :=: /T/, { /T/ \<: /U/ } can be made.
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_constraints l =
   case List.find (\c -> case c of
@@ -641,7 +641,7 @@ chain_right_to_left chain endvar l =
 
 
 
--- | Type constraints are also of a kind ktype.
+-- | Type constraints are an instance of 'KType'.
 instance KType TypeConstraint where
   free_typ_var (Sublintype t u _) = List.union (free_typ_var t) (free_typ_var u)
   free_typ_var (Subtype t u _) = List.union (free_typ_var t) (free_typ_var u)
@@ -654,7 +654,7 @@ instance KType TypeConstraint where
   subs_flag n m (Subtype t u info) = Subtype (subs_flag n m t) (subs_flag n m u) info
 
 
--- | .. as are constraint sets.
+-- | Constraint sets are an instance of 'KType'.
 instance KType ConstraintSet where
   free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
   subs_typ_var a b (lc, fc) = (List.map (subs_typ_var a b) lc, fc)

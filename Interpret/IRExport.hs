@@ -74,7 +74,7 @@ append_outputs (w:wires) irdoc =
 
 
 -- | Exports a circuit to IR format.
--- Before the export, the circuit is reallocated via a call to 'Interpret.Circuits.allocate' that optimises the use of
+-- Before the export, the circuit is reallocated via a call to 'Interpret.Circuits.allocate' that optimizes the use of
 -- wires.
 export_to_IR :: Circuit -> IRDoc
 export_to_IR circ =

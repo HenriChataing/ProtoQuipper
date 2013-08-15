@@ -26,7 +26,7 @@ data Module = Mod {
 
   -- Ids of the global variables
   global_ids :: Map String Variable, -- ^ List of the global variables (the global variables are declared
-                                     -- by toplevel declarations, and must appear in the interface file if one
+                                     -- by top-level declarations, and must appear in the interface file if one
                                      -- is provided).
 
   -- Types of the global variables

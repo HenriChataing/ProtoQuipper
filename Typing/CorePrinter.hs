@@ -15,7 +15,7 @@ import Typing.CoreSyntax hiding ((<>))
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
--- | Linear type printing. The generic function genprint paramtrizes the printing
+-- | Linear type printing. The generic function genprint parameterizes the printing
 -- over the display of flags and type variables.
 instance PPrint LinType where
   -- Generic printing
@@ -65,8 +65,8 @@ instance PPrint LinType where
   sprint a = sprintn defaultLvl a
 
 
--- | Type printing. The genric function genprint parametrizes the printing over
--- the display of flag and type variables.
+-- | Type printing. The generic function 'genprint' parameterizes the
+-- printing over the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
   genprint lv (TBang n a) opts@[fflag, _] =
@@ -96,7 +96,7 @@ instance PPrint Type where
 
 
 
--- | Pattern printing. The function genprint paramtrizes the printing over the display of data constructors and term
+-- | Pattern printing. The function genprint parameterizes the printing over the display of data constructors and term
 -- variables.
 instance PPrint Pattern where
   -- Generic printing
@@ -264,7 +264,7 @@ instance PPrint TypeConstraint where
   pprint c = genprint Inf c [pprint, subvar 'x']
 
 
--- | Flag constraints printing. Genprint can't be parametrized.
+-- | Flag constraints printing. Genprint can't be parameterized.
 instance PPrint FlagConstraint where
   pprint (Le m n _) =
     (if m < 2 then

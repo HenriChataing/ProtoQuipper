@@ -1,6 +1,6 @@
 -- | Implementation of a small interpreter of Proto-Quipper.
 -- This module works along the module "Interpret.Circuits" that provides the definition and operations
--- on circuits. A circuit stack in the QpState monad give the state of the interpetation.
+-- on circuits. A circuit stack in the QpState monad give the state of the interpretation.
 -- Each term is interpreted in an evaluation context, that contains the
 -- values of all the variables in scope: with this, we don't have to explicitly do the term substitution that comes with beta-reduction.
 module Interpret.Interpret where
@@ -120,7 +120,7 @@ unencap c b = do
 
 -- | Extracts the list of bindings x |-> v from a matching between a pattern and a value (supposedly of
 -- the same type), and insert all of them in the given environment. This function can be called in three
--- diffrent contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
+-- different contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
 -- of from a pattern matching.
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
 bind_pattern (PLocated p ex) v env = do
@@ -212,8 +212,8 @@ match_value (PDatacon dcon p) (VDatacon dcon' v) =
 match_value _ _ =
   False
 
--- | Extracts the list of associations qubit <-> qubit introduced by the matching
--- of two qdata values.
+-- | Extracts the list of associations qubit @<->@ qubit introduced by the matching
+-- of two quantum data values.
 bind :: Value -> Value -> QpState [(Int, Int)]
 bind (VQubit q1) (VQubit q2) = do
   return [(q1, q2)]
@@ -238,7 +238,7 @@ bind v1 v2 = do
   throw $ MatchingError (sprint v1) (sprint v2)
 
 
--- | Readdresses a quantum value using a binding function.
+-- | Re-addresses a quantum value using a binding function.
 -- If a qubit is not mapped by the binding, its value is left unchanged.
 readdress :: Value -> [(Int, Int)] -> QpState Value
 readdress (VQubit q) b = do
@@ -283,16 +283,16 @@ extract v = do
 
 -- | Reduce the application of a function to a value. Several configurations can occur:
 --
--- *  beta-reduction, i.e. the reduction of the application of a value to an abstraction. This also includes the built-in function
+-- *  beta-reduction, i.e., the reduction of the application of a value to an abstraction. This also includes the built-in function
 --    applications.
 --
--- *  (unbox c) t. Assuming the function is un unboxed circuit (represented by VUnboxed c), applies the unencap function (usual semantics).
+-- *  @(unbox c) t@. Assuming the function is an unboxed circuit (represented by VUnboxed c), applies the 'unencap' function (usual semantics).
 --
--- * unbox c. Returns the unboxed circuit (i.e VUnboxed c).
+-- * @unbox c@. Returns the unboxed circuit (i.e VUnboxed c).
 --
--- * box[T] t. See the operational semantics for more information about this case.
+-- * @box[T] t@. See the operational semantics for more information about this case.
 -- 
--- * rev c. Reverses the circuit.
+-- * @rev c@. Reverses the circuit.
 --
 -- A dedicated function was needed to reduce the function applications, because the 'Interpret.Interpret.interpret' function only reduces
 -- function application of the kind : (expr expr), and not (value value). However, the creation of a box implies the application of a function

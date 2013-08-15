@@ -11,17 +11,17 @@ import Data.Map as Map
 import Data.List as List
 
 
--- | Type of all the unary gates: i.e circ (qubit, qubit).
+-- | Type of all the unary gates, i.e., circ (qubit, qubit).
 unary_type :: Type
 unary_type = TCirc TQubit TQubit
 
 
--- | Type of all the binary gates: i.e circ (qubit * qubit, qubit * qubit).
+-- | Type of all the binary gates, i.e., circ (qubit * qubit, qubit * qubit).
 binary_type :: Type
 binary_type = TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])
 
 
--- | Generic value of unary gates, parametrized over the name of the gate.
+-- | Generic value of unary gates, parameterized over the name of the gate.
 -- They are all of the form:
 --
 -- @
@@ -36,7 +36,7 @@ unary_value g =
   VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQubit 0) 
 
 
--- | Generic value of binary gates, parametrized over the name of the gate.
+-- | Generic value of binary gates, parameterized over the name of the gate.
 -- All the binary gate values follow the pattern:
 --
 -- @
@@ -54,7 +54,7 @@ binary_value g =
         (VTuple [VQubit 0, VQubit 1])
 
 
--- | Subset of the builtin values that provides the definitions of the gates.
+-- | Subset of the built-in values that provides the definitions of the gates.
 -- Below is the exact list of all the defined gates, given by their reference label.
 --
 -- * The unary gates are : INIT0, INIT1, TERM0, TERM1, PHASE, GATE_H, NOT, GATE_X, GATE_Y, GATE_Z, GATE_S, GATE_S_INV, GATE_T, GATE_T_INV,
@@ -100,7 +100,7 @@ builtin_gates =
 
 
 
--- | Subset of the builtin values that provides the definition of the built-in integer operations.
+-- | Subset of the built-in values that provides the definition of the built-in integer operations.
 -- The list of currently defined operations is: ADD, SUB, MUL, DIV, LT, GT, EQ, POW. It is bound to be extended, for
 -- example with more comparisons.
 builtin_operations :: Map String (Type, Value)

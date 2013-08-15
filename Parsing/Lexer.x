@@ -171,7 +171,7 @@ locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> String -> Token
 locate_named_token tk p s = tk (posn_to_extent p s, s)
 
 -- | Lexing function. Inputs an unparsed string, and returns the corresponding list of tokens.
--- The lexer can fail if an recognized token is encountered, in which case it throws a LexicaError exception.
+-- The lexer can fail if an recognized token is encountered, in which case it throws a LexicalError exception.
 mylex :: String -> QpState [Token]
 mylex contents = do
   tokens <- return $ alexScanTokens contents

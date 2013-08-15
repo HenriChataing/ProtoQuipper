@@ -55,6 +55,7 @@ count : clean
 # Building documentation with source code links. This requires a
 # patched version of Haddock, as well as HsColour.
 
+.PHONY: doc
 doc haddock : haddock-documentation haddock-html-sources
 
 haddock-documentation : $(MODULES)
@@ -135,3 +136,9 @@ distclean:
 	rm -rf $(DISTDIR)
 	rm -f $(DISTTAR)
 	rm -f $(DISTZIP)
+
+# ----------------------------------------------------------------------
+# Spell-checking
+
+spellcheck: doc
+	ispell -d american -p ./dictionary.txt -H doc/*.html

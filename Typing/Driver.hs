@@ -61,10 +61,10 @@ lex_and_parse_interface file = do
 
 
 -- | Finds the implementation of a module in a given directory
--- The name of the code file is expected to be dir/module.ext,
--- where dir is the directory, module is the name of the module (with
--- the first letter put to lower case), and ext the extension, which can be either .qp (implementation)
--- or .qpi (interface). \'dir\' is taken in the provided list of directories.
+-- The name of the code file is expected to be /dir/\//module/./ext/,
+-- where /dir/ is the directory, /module/ is the name of the module (with
+-- the first letter put to lower case), and /ext/ the extension, which can be either @.qp@ (implementation)
+-- or @.qpi@ (interface). \'/dir/\' is taken in the provided list of directories.
 -- If several implementations are found, an error is raised.
 find_in_directories :: String       -- ^ Module name.
                     -> [FilePath]   -- ^ List of directories.
@@ -105,7 +105,7 @@ find_implementation_in_directories mod directories = do
 
     Nothing ->
         -- The module doesn't exist
-        throwQ $ NotExistingModule mod
+        throwQ $ NonExistingModule mod
 
 
 -- | Specifically looks for the interface of a module.
@@ -167,7 +167,7 @@ explore_dependencies dirs prog explored sorted = do
 
 
 -- | Sort the dependencies of file in a topological fashion
--- The program argument is the main program, on which quipper has been called. The return value
+-- The program argument is the main program, on which Quipper has been called. The return value
 -- is a list of the dependencies, with the properties :
 --
 --     * each module may only appear once.
@@ -192,20 +192,20 @@ data ExtensiveContext = Context {
   label :: Map String Int,        -- ^ A labelling map.
   typing :: TypingContext,        -- ^ A typing context.
   environment :: Environment,     -- ^ An evaluation context.
-  constraints :: ConstraintSet    -- ^ An atomic constraint set that cumulates the constraints of all the toplevel expressions.
+  constraints :: ConstraintSet    -- ^ An atomic constraint set that cumulates the constraints of all the top-level expressions.
 }
 
 
 -- | Definition of processing options specific to modules (as is not the case with the program options that affect
 -- the whole program).
 data MOptions = MOptions {
-  toplevel :: Bool,               -- ^ Is the module at toplevel (in a sense: was it given as argument of the program).
+  toplevel :: Bool,               -- ^ Is the module at top level (in a sense: was it given as argument of the program).
   disp_decls :: Bool              -- ^ Display the variable declarations or not.
 }
 
 
 
--- | Processes a list of toplevel declarations (corresponding to either commands in interactive mode or
+-- | Processes a list of top-level declarations (corresponding to either commands in interactive mode or
 -- the body of a module). The arguments include the vector of command options, the current module,
 -- an extensive context, and a declaration.
 process_declaration :: (Options, MOptions)       -- ^ The command line and module options combined.
@@ -223,7 +223,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   fve <- return $ free_var e'
   a@(TBang n _) <- new_type
 
-  -- ALL TOPLEVEL EXPRESSIONS MUST BE DUPLICABLE :
+  -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE :
   ex <- case e' of
           ELocated _ ex -> return ex
           _ -> return $ extent_unknown
@@ -365,7 +365,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   else
     return ()
 
-  -- Evaluation (even if the module is not toplevel, if the general optons want it to be evaluated, then so be it)
+  -- Evaluation (even if the module is not top-level, if the general optons want it to be evaluated, then so be it)
   ctx <- if runInterpret opts then do
            -- Reduce the argument e1
            v <- interpret (environment ctx) e'
@@ -409,7 +409,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 --
 -- * processing of the algebraic type definitions.
 --
--- * processing of each of the toplevel declarations.
+-- * processing of each of the top-level declarations.
 -- 
 -- * linearity check at the end of the module implementation: checks that no
 -- global and non-duplicable variable is discarded.
@@ -481,7 +481,7 @@ process_module opts prog = do
 -- ==================================== --
 -- | DO EVERYTHING !
 -- To sort the dependencies of a list of modules, and be able to reuse the existing functions for single modules,
--- a dummy module is created that imports all the toplevel modules (never to be executed).
+-- a dummy module is created that imports all the top-level modules (never to be executed).
 do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.
               -> QpState ()

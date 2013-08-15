@@ -1,6 +1,6 @@
 -- | This module processes the surface syntax and translates it into the internal syntax. This includes: processing of type definitions, with inference of
 -- the type properties (subtyping, qdata type) ; translation of the body (with scope analysis, generation of the export list, linking with the interface) ; some
--- functions to convert the syntax to raw proto-quipper code.
+-- functions to convert the syntax to raw Proto-Quipper code.
 --
 -- The subtyping constraints {user a <: user a'} can't be interpreted as just {a <: a'}. Indeed, the order of the
 -- constraints may be reversed, as is the case with the type:
@@ -11,7 +11,7 @@
 -- @
 -- 
 -- Intuitively, a constraint {foo a b <: foo a' b'} is to be reduced as {a' <: a, b <: b'}, which would
--- correspond to the subtyping reltation rule:
+-- correspond to the subtyping relation rule:
 --
 -- @
 --   a' <: a          b <: b'
@@ -76,7 +76,7 @@ module Typing.TransSyntax (
   translate_expression,
   translate_pattern,
   export_pattern_variables,
-  unsugar,
+  desugar,
   import_builtins,
   import_typedefs,
   update_module_types) where
@@ -430,7 +430,7 @@ update_module_types = do
   set_context $ ctx { cmodule = cmod' }
 
 
--- | Imports the builtin values, defined in the "Builtins" module.
+-- | Imports the built-in values, defined in the "Builtins" module.
 import_builtins :: QpState ()
 import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do
@@ -442,7 +442,7 @@ import_builtins = do
 
 
 -- | Translate a type, given a labelling.
--- The output includes a set of structural constraints: eg !p (!n a * !m b) imposes p <= n and p <= m.
+-- The output includes a set of structural constraints: e.g., !p (!n a * !m b) imposes p <= n and p <= m.
 translate_type :: S.Type
                -> [Type]                  -- ^ List of type arguments. Only when the type is algebraic may this list not be empty.
                -> (Map String Type, Bool) -- ^ A map of bound type variables. The boolean flag indicates how to deal with unbound variables:
@@ -750,13 +750,13 @@ translate_expression (S.ELocated e ex) label = do
   return $ ELocated e' ex
 
 translate_expression (S.EBuiltin s) _ = do
-  -- Check the existence of the builtin value before translating it
+  -- Check the existence of the built-in value before translating it
   ctx <- get_context
   if Map.member s $ builtins ctx then
-    -- Ok, the builtin s exists
+    -- Ok, the built-in s exists
     return $ EBuiltin s
   else do
-    -- Wrong, no builtin of name s has been defined
+    -- Wrong, no built-in of name s has been defined
     ex <- get_location
     f <- get_file
     throwQ $ LocatedError (UndefinedBuiltin s) (f, ex)
@@ -770,9 +770,9 @@ translate_expression (S.EConstraint e t) label = do
 -- | Exports the variables of a pattern. If an interface file is provided, it first checks
 -- whether the variables are part of the accessible variables :
 --
---      *  if yes, it exports the variables, and modifies the pattern to add a constraint on the type fo this variable
+--      *  if yes, it exports the variables, and modifies the pattern to add a constraint on the type for this variable;
 --
---      *  if not, does nothing
+--      *  if not, does nothing.
 --
 export_pattern_variables :: S.Program -> Pattern -> QpState Pattern
 export_pattern_variables _ PUnit =
@@ -813,8 +813,8 @@ export_pattern_variables prog (PTuple plist) = do
   return $ PTuple plist
 
 
--- | All the following functions serve to translate the program implementatioin and
--- types into the proto core, meaning without all the syntactic sugars
+-- $ All the following functions serve to translate the program implementation and
+-- types into the Proto-Quipper core, meaning without all the syntactic sugar.
 
 
 -- | Transform a type A * B * C * D into A * (B * (C * D))
@@ -907,155 +907,155 @@ unfold_tuples (PTuple plist) =
 -- | Removes all the syntactic sugars of an expression.
 -- This function operates on core expressions. As sugars are removed, new variables are
 -- produced.
-unsugar :: Expr -> QpState Expr
+desugar :: Expr -> QpState Expr
 
-unsugar (EVar x) =
+desugar (EVar x) =
   return $ EVar x
 
-unsugar (EGlobal x) =
+desugar (EGlobal x) =
   return $ EGlobal x
 
-unsugar (EFun p e) = do
-   -- Check whether the expression is already unsugared or not
+desugar (EFun p e) = do
+   -- Check whether the expression is already desugared or not
   case p of
     -- The pattern is only one variable : do nothing
     PVar _ -> do
-      e' <- unsugar e
+      e' <- desugar e
       return $ EFun p e'
 
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
       x <- dummy_var
-      e' <- unsugar $ ELet Nonrecursive p (EVar x) e
+      e' <- desugar $ ELet Nonrecursive p (EVar x) e
       return $ EFun (PVar x) e'
 
-unsugar (EApp e f) = do
-  e' <- unsugar e
-  f' <- unsugar f
+desugar (EApp e f) = do
+  e' <- desugar e
+  f' <- desugar f
   return $ EApp e' f'
 
-unsugar EUnit = do
+desugar EUnit = do
   return EUnit
 
 -- Tuples are a syntactic sugar for chained pairs :
 -- the tuple <a, b, c, d> is the pattern <a, <b, <c, d>>>
-unsugar (ETuple elist) = do
+desugar (ETuple elist) = do
   case elist of
     -- This is the minimum size tuple, and is left as is
     [e,f] -> do
-        e' <- unsugar e
-        f' <- unsugar f
+        e' <- desugar e
+        f' <- desugar f
         return $ ETuple [e', f']
 
-    -- With more elements : unsugar the rest, and 'append' the head on the left
+    -- With more elements : desugar the rest, and 'append' the head on the left
     (e:rest) -> do
-        e' <- unsugar e
-        rest' <- unsugar $ ETuple rest
+        e' <- desugar e
+        rest' <- desugar $ ETuple rest
         return $ ETuple [e', rest']
 
     -- The other cases of empty and sinleton tuples shouldn't appear
 
-unsugar (ELet r p e f) = do
+desugar (ELet r p e f) = do
   p' <- return $ unfold_tuples p
-  e' <- unsugar e
+  e' <- desugar e
   case p' of
     -- If the pattern is unit : do nothing
     PUnit -> do
-        f' <- unsugar f
+        f' <- desugar f
         return $ ELet r p' e' f'
 
     -- If the pattern is one variable, do nothing
     -- The let binding can't be removed because of let-polymorphism
     PVar _ -> do
-        f' <- unsugar f
+        f' <- desugar f
         return $ ELet r p' e' f'
 
     -- If the pattern is a pair of variables, this is the case of tensor elimination
     PTuple [PVar _, PVar _] -> do
-        f' <- unsugar f
+        f' <- desugar f
         return $ ELet r p' e' f'
 
-    -- If one of the elements of the pattern is not a variable, unsugar
+    -- If one of the elements of the pattern is not a variable, desugar
     PTuple [PVar x, q] -> do
         y <- dummy_var
-        f' <- unsugar $ ELet r q (EVar y) f
+        f' <- desugar $ ELet r q (EVar y) f
         return $ ELet r (PTuple [PVar x, PVar y]) e' f'
 
     PTuple [p, PVar x] -> do
         y <- dummy_var
-        f' <- unsugar $ ELet r p (EVar y) f
+        f' <- desugar $ ELet r p (EVar y) f
         return $ ELet r (PTuple [PVar y, PVar x]) e' f'
 
     PTuple [p, q] -> do
         x <- dummy_var
         y <- dummy_var
-        f' <- unsugar $ ELet r p (EVar x) (ELet r q (EVar y) f)
+        f' <- desugar $ ELet r p (EVar x) (ELet r q (EVar y) f)
         return $ ELet Nonrecursive (PTuple [PVar x, PVar y]) e' f'
 
-    -- If the pattern is a datacon, unsugar by adding a pattern matching
+    -- If the pattern is a datacon, desugar by adding a pattern matching
     PDatacon dcon Nothing -> do
-        f' <- unsugar f
+        f' <- desugar f
         return $ EMatch e' [(PDatacon dcon Nothing, f')]
 
     PDatacon dcon (Just p) -> do
         case p of
           PVar x -> do
-              f' <- unsugar f
+              f' <- desugar f
               return $ EMatch e' [(PDatacon dcon $ Just p, f')]
 
           _ -> do
               x <- dummy_var
-              f' <- unsugar (ELet Nonrecursive p (EVar x) f)
+              f' <- desugar (ELet Nonrecursive p (EVar x) f)
               return $ EMatch e' [(PDatacon dcon $ Just (PVar x), f')]
 
     _ -> return $ ELet r p e f
 
-unsugar (EBool b) = do
+desugar (EBool b) = do
   return $ EBool b
 
-unsugar (EInt n) = do
+desugar (EInt n) = do
   return $ EInt n
 
-unsugar (EIf e f g) = do
-  e' <- unsugar e
-  f' <- unsugar f
-  g' <- unsugar g
+desugar (EIf e f g) = do
+  e' <- desugar e
+  f' <- desugar f
+  g' <- desugar g
   return $ EIf e' f' g'
 
-unsugar (EDatacon dcon Nothing) = do
+desugar (EDatacon dcon Nothing) = do
   return $ EDatacon dcon Nothing
 
-unsugar (EDatacon dcon (Just e)) = do
-  e' <- unsugar e
+desugar (EDatacon dcon (Just e)) = do
+  e' <- desugar e
   return $ EDatacon dcon $ Just e'
 
-unsugar (EMatch e blist) = do
-  e' <- unsugar e
+desugar (EMatch e blist) = do
+  e' <- desugar e
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
                           case p of
                             PDatacon dcon Nothing -> do
-                                f' <- unsugar f
+                                f' <- desugar f
                                 return $ (PDatacon dcon Nothing, f'):r
 
                             PDatacon dcon (Just p) -> do
                                 x <- dummy_var
-                                f' <- unsugar $ ELet Nonrecursive p (EVar x) f
+                                f' <- desugar $ ELet Nonrecursive p (EVar x) f
                                 return $ (PDatacon dcon $ Just (PVar x), f'):r) (return []) blist
 
                             -- The other cases are ignored for now, as syntactic equlity hasn't been developped yet
   return $ EMatch e' blist'
 
-unsugar (EBox typ) = do
+desugar (EBox typ) = do
   return $ EBox typ
 
-unsugar EUnbox = do
+desugar EUnbox = do
   return EUnbox
 
-unsugar ERev = do
+desugar ERev = do
   return ERev
 
-unsugar (ELocated e ex) = do
-  e' <- unsugar e
+desugar (ELocated e ex) = do
+  e' <- desugar e
   return $ ELocated e' ex 
 

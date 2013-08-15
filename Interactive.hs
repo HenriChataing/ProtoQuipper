@@ -101,15 +101,15 @@ run_command opts prog ctx = do
 
 
 
--- | Run the interactive mode, parsing the intput commands and sending information back accordingly.
+-- | Run the interactive mode, parsing the input commands and sending information back accordingly.
 -- Two kind of commands are interpreted:
 --
--- * Proto-Quipper code: anything that ends with the suffix ';;'.
+-- * Proto-Quipper code: anything that ends with the suffix \";;\".
 --   Multi-line commands are authorized. Anything that is part of a module implementation can be passed as a command: import statements, 
 --   type definitions, top-level declarations.
 --
--- * Context commands: any command starting with the prefix ':'. These commands are only of one line, and give information about the
---   current state of the machine. Typical commands are ':ctx' that lists the variables currently in scope, and ':display' that
+-- * Context commands: any command starting with the prefix \":\". These commands are only of one line, and give information about the
+--   current state of the machine. Typical commands are \":ctx\", which lists the variables currently in scope, and \":display\", which
 --   displays the top-level circuit (unaccessible otherwise).
 --
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()

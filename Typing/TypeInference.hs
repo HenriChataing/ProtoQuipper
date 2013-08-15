@@ -62,7 +62,7 @@ filter fc = do
 -- can be increased via the expressions (e <: T) imposing that the type of e be a subtype of T.
 -- The constraint typing relations are (case by case):
 --
--- STLC terms:
+-- Terms of the simply-typed lambda calculus:
 --
 -- @
 --   ------------------------------------------- (ax)
@@ -224,7 +224,7 @@ constraint_typing gamma (EInt p) cst = do
 constraint_typing gamma (EVar x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of x gamma
-  (a, csetx) <- instanciate sa
+  (a, csetx) <- instantiate sa
 
   -- Get the location
   ex <- get_location
@@ -243,7 +243,7 @@ constraint_typing gamma (EVar x) cst = do
 constraint_typing gamma (EGlobal x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of_global x
-  (a, csetx) <- instanciate sa -- In case a is a typing scheme
+  (a, csetx) <- instantiate sa -- In case a is a typing scheme
 
   -- Get the location
   ex <- get_location
@@ -548,9 +548,9 @@ constraint_typing gamma (EDatacon dcon e) cst = do
   info <- return $ no_info { expression = EDatacon dcon e,
                              loc = ex }
 
-  -- Retrieve the definition of the data constructor, and instanciate its typing scheme
+  -- Retrieve the definition of the data constructor, and instantiate its typing scheme
   dtype <- datacon_def dcon
-  (dtype', csetd) <- instanciate dtype
+  (dtype', csetd) <- instantiate dtype
 
   case (dtype', e) of
     -- No argument given, the constructor is typed as is
@@ -886,8 +886,8 @@ unify_with_poset exact poset (lc, fc) = do
               -}
 
 
--- | Type unification. Applies the function unfify_with_poset on a poset freshly created with the constraints
--- of the provided set. The boolean flag is the same as the argument of unify_with_poset.
+-- | Type unification. Applies the function 'unify_with_poset' to a poset freshly created with the constraints
+-- of the provided set. The boolean flag is the same as the argument of 'unify_with_poset'.
 unify_types :: Bool -> ConstraintSet -> QpState ConstraintSet
 unify_types exact cset = do
   poset <- return $ register_constraints (fst cset) empty_poset

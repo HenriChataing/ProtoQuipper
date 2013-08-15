@@ -1,6 +1,7 @@
--- | This module gives the definition of custom Proto-Quipper type classes.
--- Amongst these are: PPrint, Constraint, Reversible, Param. These classes
--- were created specifically to be able to overload one or more operations.
+-- | This module gives the definition of custom Proto-Quipper type
+-- classes.  Among these are: 'PPrint', 'Constraint', 'Reversible',
+-- 'Param'. These classes were created specifically to be able to
+-- overload one or more operations.
 module Classes where
 
 import Parsing.Localizing
@@ -52,14 +53,14 @@ class PPrint a where
   sprint  :: a -> String
 
   -- | Basic printing function. It prints everything, and provides default rendering functions for the variables.
-  -- Typically, they will be rendered as c_n, where n is the unique id, and c a character that changes depending on the kind of variables (x for term variables, X for type variables, !
-  -- for flag variables, D for data constructors).
+  -- Typically, they will be rendered as /c_n/, where /n/ is the unique id, and /c/ a character that changes depending on the kind of variable (/x/ for term variables, /X/ for type variables, !
+  -- for flag variables, /D/ for data constructors).
   pprint :: a -> String
 
 
 
--- | Type class that indentifies the objects carrying type constraints of the form (e <: A).
--- Ths only purpose of this class, except from marking 'constricted' objects, is to overload the
+-- | Type class that identifies the objects carrying type constraints of the form (e <: A).
+-- The only purpose of this class, except from marking \"constricted\" objects, is to overload the
 -- drop_constraints function, used to removed all these annotations.
 class Constraint a where
   -- | Removes all the type constraint annotations.
@@ -72,7 +73,7 @@ class Reversible a where
   rev :: a -> a
 
 
--- | Class of objects parametrized over some integer variable.
+-- | Class of objects parameterized over some integer variable.
 -- The limit of this class is that it can only relay one kind of variable, when types for
 -- example have two : type variables and flag variables. This is why the types will be given their own
 -- class 'Typing.CoreSyntax.KType'.

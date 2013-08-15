@@ -60,7 +60,7 @@ unfold_user_constraints_in_set (c:lc, fc) = do
 
 
 
--- | Reduces the composite constrainst of a constraint set, leaving only atomic
+-- | Reduces the composite constraints of a constraint set, leaving only atomic
 -- and semi composite constraints. The boolean argument indicates whether to break user
 -- type constraints or not. When this flag is set, the user type constraints are left untouched:
 -- this is useful for the extension of the subtyping relations to algebraic types, where one wants
@@ -145,7 +145,7 @@ break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) =
 
 -- User type against user type
 -- The result of breaking this kind of constraints has been placed in the specification of the user type
--- It need only be instanciated with the current type arguments
+-- It need only be instantiated with the current type arguments
 break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc) = do
   if utyp == utyp' then do
     

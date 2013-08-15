@@ -22,8 +22,8 @@ import qualified Data.List as List
 
 -- | Definition of the type of values.
 data Value =
-    VFun (IntMap Value) Pattern Expr     -- ^ fun p -> e (in the context env).
-  | VBuiltin (Value -> Value)            -- ^ Builtin function: builtin functions are defined as functions on 'Interpret.Values.Value', but not in terms of
+    VFun (IntMap Value) Pattern Expr     -- ^ @fun p -> e@ (in the given context).
+  | VBuiltin (Value -> Value)            -- ^ Built-in function: built-in functions are defined as functions on 'Interpret.Values.Value', but not in terms of
                                          -- values.
   | VTuple [Value]                       -- ^ (v1, .. , vn)
   | VCirc Value Circuit Value            -- ^ (t, c, u)

@@ -21,7 +21,7 @@ data QError =
 
 -- FILE ERRORS
 
-  | NotExistingModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
+  | NonExistingModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
   | DuplicateImplementation String String String                                          -- ^ Thrown if two implementation files of the same module are found.
   | CyclicDependencies String [String]                                                    -- ^ Thrown when it is found that the module dependencies form a cycle.
 
@@ -31,7 +31,7 @@ data QError =
 
 -- SYNTAX ERRORS
 
-  | ParsingError String                                                                   -- ^ Parsing error, the argument is the token on which the error occured.
+  | ParsingError String                                                                   -- ^ Parsing error, the argument is the token on which the error occurred.
   | ErrorEndOfFile                                                                        -- ^ Thrown when the parser arrived at the end of a file with an incomplete expression.
   | WrongTypeArguments String Int Int                                                     -- ^ An algebraic type has been called with a wrong number of arguments. The first
                                                                                           -- argument is the name of the type, the two next the actual and expected number of
@@ -41,7 +41,7 @@ data QError =
   | UnboundVariable String                                                                -- ^ Variable not in scope. The arguments are name and location of the variable.
   | UnboundDatacon String                                                                 -- ^ Data constructor not in scope. The arguments are name and location of the constructor.
 
-  | UndefinedBuiltin String                                                               -- ^ As the name indicates, the program tried to used an undefined builtin, of name 
+  | UndefinedBuiltin String                                                               -- ^ As the name indicates, the program tried to used an undefined built-in, of name 
                                                                                           -- the first argument, at the location the second.
 
 -- RUN TIME ERRORS
@@ -50,7 +50,7 @@ data QError =
   | NoMatchError String                                                                   -- ^ During execution, non exhaustive pattern matching.
   | NotFunctionError String                                                               -- ^ During execution, something not a function has been applied to an argument.
   | MatchingError String String                                                           -- ^ During execution, a pattern and a value from a binding (let, fun, match) are found to have
-                                                                                          -- unmatching structures.
+                                                                                          -- non-matching structures.
  
 -- TYPING ERRORS
 
@@ -60,20 +60,20 @@ data QError =
                                                                                           -- the other one the expected type), the next string locates the actual type inside of a larger one, the
                                                                                           -- last string is the expression cause of the typing error, and the rest is the location.
 
-  | NonDuplicableError String (Maybe String)                                              -- ^ A non duplicable term (eg of type qubit), has been used in a non linear fashion. The string
+  | NonDuplicableError String (Maybe String)                                              -- ^ A non duplicable term (e.g., of type qubit), has been used in a non linear fashion. The string
                                                                                           -- argument is the expression cause of all this (used in a non linear fashion), the rest the
                                                                                           -- location of the expression.
 
   | InfiniteTypeError String [String] (Maybe String) String                               -- ^ Trying to build an infinite type. The first string is the type variable cause of the error,
                                                                                           -- the list is the sequence of type constraints which caused the error. The optional string
                                                                                           -- locate the variable inside of a larger type, and the last string is the expression in which the error
-                                                                                          -- occured, the rest is location information.
+                                                                                          -- occurred, the rest is location information.
 
   | WrongDataArguments String                                                             -- ^ Thrown when a data constructor expecting no arguments is given one.
 
 -- MISC
 
-  | MiscError String                                                                      -- ^ Misc errors. The argument is an error message.
+  | MiscError String                                                                      -- ^ Miscellaneous errors. The argument is an error message.
   | ProgramError String                                                                   -- ^ Grave : programming errors, thrown when something that shouldn't have happened did.
   deriving (Typeable)
 
@@ -101,7 +101,7 @@ instance Show QError where
     else
       f ++ ":" ++ show ex ++ ": " ++ show err
 
-  show (NotExistingModule mod) =
+  show (NonExistingModule mod) =
     "Error: couldn't find the implementation of the module " ++ mod
 
   show (DuplicateImplementation mod p1 p2) =

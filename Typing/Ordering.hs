@@ -38,7 +38,7 @@ type Cluster = Int
 data Poset = Poset {
   cmap :: IntMap Cluster,                                -- ^ Associates each variable to its respective cluster.
 
-  relations :: IntMap [(Cluster, TypeConstraint)],       -- ^ For any given cluster, gives the related clusters (younger in age). For debugging purposes, the typing contraint
+  relations :: IntMap [(Cluster, TypeConstraint)],       -- ^ For any given cluster, gives the related clusters (younger in age). For debugging purposes, the typing constraint
                                                          -- from which originated the relation is added to each edge or relation.
 
   clusters :: IntMap [Variable]                          -- ^ Gives the contents of each cluster.
@@ -193,7 +193,7 @@ some_cluster poset =
 -- | Explores the relations graph, starting from some cluster.
 -- The walk stops as soon as it finds a cluster having no relatives (local minimum).
 -- If at some point it comes upon a cluster it had already visited, that means there is a
--- cycle in the graph: the poset is inconsistant, and builds an infinite type (the walk fails).
+-- cycle in the graph: the poset is inconsistent, and builds an infinite type (the walk fails).
 find_minimum :: Cluster                     -- ^ Current cluster.
              -> [(TypeConstraint, Cluster)] -- ^ Historic of the walk (all the explored clusters, and the relations that lead to them).
              -> Poset                       -- ^ The current poset.
@@ -305,7 +305,7 @@ youngest_variables poset = do
 -- | Represents a set with an equivalence relation.
 -- The variables are grouped inside in equivalence classes.
 data Equiv a = Eqv {
-  clmap :: IntMap Int,                     -- ^ Map each variable to its respective euivalence class.
+  clmap :: IntMap Int,                     -- ^ Map each variable to its respective equivalence class.
   classes :: IntMap ([Variable], [a])      -- ^ Contents of the equivalence classes.
 }
 
@@ -358,7 +358,7 @@ insert_constraint x y c eqv =
 
 -- | Application of the equivalence classes:
 -- removes the unaccessible flag and type constraints from a constraint set, based on the variables
--- appearing in the type. For example, asuming the type contains the flag 0, and given the set:
+-- appearing in the type. For example, assuming the type contains the flag 0, and given the set:
 --
 -- @
 --  { 0 <= 2, 2 <= 3, 42 <= 24 }

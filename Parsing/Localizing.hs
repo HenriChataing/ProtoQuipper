@@ -1,5 +1,5 @@
 -- | This module provides types and functions useful to work with location in files.
--- A location is represented by an extent, which is an interval between two locii.
+-- A location is represented by an extent, which is an interval between two loci.
 module Parsing.Localizing where
 
 -- | Definition of a locus as a point in a file located
@@ -10,12 +10,12 @@ data Locus = Loc {
 } deriving Eq
 
 
--- | Locii are ordered using the lexical order on pairs (line, column).
+-- | Loci are ordered using the lexical order on pairs (line, column).
 instance Ord Locus where
   compare l1 l2 = compare (line l1, column l1) (line l2, column l2)
 
 
--- | Definition of an extent as an interval delimited by two locii.
+-- | Definition of an extent as an interval delimited by two loci.
 data Extent = Ext {
   lbegin :: Locus,   -- ^ Beginning of the extent.
   lend :: Locus      -- ^ End of the extent.

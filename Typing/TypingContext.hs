@@ -53,7 +53,7 @@ type_of x ctx = do
 
 -- | Given a pattern, creates a type matching the pattern, and binds in a new typing context the term variables of the pattern
 -- to new type variables created as needed. The construction of the type can generate typing constraints, be they structural flag constraints
--- or constraints coming from the instanciation of some type (eg with data constructors).
+-- or constraints coming from the instantiation of some type (e.g., with data constructors).
 -- For example, consider the pattern (x, y). This function is going to generate the type !p(!n a * !m b), with the constraints {p <= n, p <= m}
 -- and the bindings [x : !n a, y : !m b].
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
@@ -99,7 +99,7 @@ bind_pattern (PDatacon dcon p) = do
   dtype <- datacon_def dcon
   
   -- Instanciate the type
-  (typ, cset) <- instanciate dtype
+  (typ, cset) <- instantiate dtype
 
   -- Check the arguments
   case (typ, p) of
@@ -185,9 +185,9 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
 -- In the case of a datacon constructor, one has to check that the data type it is from is correct (ensured by a subtyping constraint),
 -- then bind the (maybe) argument to the type of the data constructor.
 bind_pattern_to_type (PDatacon dcon p) typ = do
-  -- Retrieves and instanciates the type of the data constructor
+  -- Retrieves and instantiates the type of the data constructor
   dtype <- datacon_def dcon
-  (dtype', cset) <- instanciate dtype
+  (dtype', cset) <- instantiate dtype
   
   -- Check the argument
   case (dtype', p) of

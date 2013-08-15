@@ -297,7 +297,7 @@ parse :: [Token] -> Program
 
 -- | Function called by the parser when coming upon an unexpected sequence of tokens.
 -- The argument corresponds to the list of remaining tokens. If this list is empty, the error
--- is 'Unexpected end of file', and appears on uncomplete expression. If not, the head corresponds to the location where
+-- is 'Unexpected end of file', and appears on incomplete expression. If not, the head corresponds to the location where
 -- the parsing failed.
 parseError :: [Token] -> a
 parseError [] = throw $ ErrorEndOfFile

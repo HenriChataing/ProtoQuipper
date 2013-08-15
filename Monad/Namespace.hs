@@ -1,5 +1,5 @@
 -- | This module provides a structure that stores the original name of the variables.
--- Each variable, when read by the parser, is registered in this struture, and attributed
+-- Each variable, when read by the parser, is registered in this structure, and attributed
 -- a unique id at the same time. 
 
 module Monad.Namespace where
@@ -23,7 +23,7 @@ data Namespace = NSpace {
 }
 
 
--- | Creates a new namespace, with the counters initialized to zero, and the consing maps empty.
+-- | Creates a new namespace, with the counters initialized to zero, and the various maps empty.
 new_namespace :: Namespace
 new_namespace = NSpace {
   varcons = IMap.empty,

@@ -3,7 +3,7 @@
 -- operations such as encapsulating, printing...
 -- In short:
 --
--- * Gates are classed in categories: init and term gates together, the phase gate (parametrized over the angle), the unary and the binary gates
+-- * Gates are classed in categories: init and term gates together, the phase gate (parameterized over the angle), the unary and the binary gates
 --   together. The controlled gates are not supported by the syntax yet, but still a dedicated constructor is present.
 --
 -- * Circuit are represented by: the lists of input and output wires, the list of building gates.
@@ -56,7 +56,7 @@ class Caps a where
           -> a                     -- ^ The circuit (gate circuit) that is to be appended.
           -> Binding               -- ^ A welding function.
           -> (Circuit, Binding)    -- ^ Returns the resulting circuit, together with a mapping from the output wires
-                                   -- of the appended circuit to new wire identifers.
+                                   -- of the appended circuit to new wire identifiers.
 
 
 -- | A binding is defined as a list of mappings q |-> q'.
@@ -99,7 +99,7 @@ data Gate =
     deriving Show
 
 
--- | Readdressing of a gate : more specifically, applies the provided binding to the input and output of a gate.
+-- | Re-addressing of a gate : more specifically, applies the provided binding to the input and output of a gate.
 readdress :: Gate -> Binding -> Gate
 readdress (Phase n q) b = Phase n (apply_binding b q)
 readdress (Unary s q) b = Unary s (apply_binding b q)
@@ -128,7 +128,7 @@ instance Reversible Gate where
   rev (Controlled g qlist) = Controlled (rev g) qlist
 
 
--- | Defines the unencapsulating of a gate. The wires of the gate are renamed to match the wires to which the gate is
+-- | Defines the unencapsulation of a gate. The wires of the gate are renamed to match the wires to which the gate is
 -- to be appended, and then the gate is added to the list of gates of the circuit.
 -- The input and output wires of the circuit may be modified by the appending of init or term gates. 
 instance Caps Gate where
@@ -218,7 +218,7 @@ instance Reversible Circuit where
       gates = List.map rev $ reverse $ gates c
     }
 
--- | A circuit is unencaped by unencaping all the gates successively.
+-- | A circuit is unencapsulated by unencapsulating all the gates successively.
 instance Caps Circuit where
   unencap c c' b =
     List.foldl (\(nc, b) g -> unencap nc g b) (c, b) (gates c')
@@ -358,8 +358,8 @@ data Column = Col {
 
 
 -- | The maximum number of columns that can fit the console screen.
--- By default, it is set to 80 (to be divided by the actual width of a column, ie 3). It would be possible to use
--- the library System.Console.ANSI to get the actual width of the creen, however it would mean another library to install...
+-- By default, it is set to 80 (to be divided by the actual width of a column, i.e., 3). It would be possible to use
+-- the library System.Console.ANSI to get the actual width of the screen, however it would mean another library to install...
 maxColumns :: Int
 maxColumns = 80 
 
