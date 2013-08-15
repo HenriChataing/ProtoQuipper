@@ -10,16 +10,18 @@ ALEX = alex
 
 MAIN = ProtoQuipper
 
-PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/ConstraintParser.y Parsing/IParser.y Parsing/Lexer.x
+PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/ConstraintParser.y	\
+  Parsing/IParser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
   Parsing/Lexer.hs Parsing/Parser.hs
-SOURCE_MODULES = Classes.hs Builtins.hs Interactive.hs Interpret/Circuits.hs		\
-  Interpret/Interpret.hs Interpret/Values.hs Monad/Modules.hs Interpret/IRExport.hs		\
-  Monad/Namespace.hs Monad/QpState.hs Monad/QuipperError.hs		\
-  Console.hs Options.hs Parsing/Localizing.hs Parsing/Printer.hs			\
-  Console.hs Parsing/Syntax.hs ProtoQuipper.hs Typing/CorePrinter.hs			\
-  Typing/CoreSyntax.hs Typing/Driver.hs Typing/Ordering.hs		\
-  Typing/Subtyping.hs Typing/TransSyntax.hs Typing/TypeInference.hs	\
+SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
+  Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
+  Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
+  Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
+  Parsing/Localizing.hs Parsing/Printer.hs Parsing/Syntax.hs		\
+  ProtoQuipper.hs Typing/CorePrinter.hs Typing/CoreSyntax.hs		\
+  Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
+  Typing/TransSyntax.hs Typing/TypeInference.hs				\
   Typing/TypingContext.hs Utils.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
@@ -58,9 +60,13 @@ doc haddock : haddock-documentation haddock-html-sources
 haddock-documentation : $(MODULES)
 	$(HADDOCK) -o doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "prologue.txt"
 
-haddock-html-sources : $(MODULES:%.hs=doc/src/%.html)
+haddock-html-sources : $(MODULES:%.hs=doc/src/%.html) doc/src/Main.html
 
 doc/src/%.html: %.hs
+	mkdir -p "$(dir $@)"
+	cat "$<" | HsColour -anchor -html > "$@"
+
+doc/src/Main.html: ProtoQuipper.hs
 	mkdir -p "$(dir $@)"
 	cat "$<" | HsColour -anchor -html > "$@"
 
@@ -103,12 +109,11 @@ $(DISTZIP) $(DISTTAR): $(PUBLIC) $(MAKEFILES_PUBLIC)
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(QLIB)"
 	mkdir "$(DISTDIR)/$(BUILD_DIR)"
-	mkdir "$(DISTDIR)/doc"
 	for i in $(SUBDIRS); do mkdir "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
-	cp -r doc/ "$(DISTDIR)/"
+	cd "$(DISTDIR)"; make doc
 	rm -f "$(DISTZIP)"
 	zip -r "$(DISTZIP)" "$(DISTDIR)"
 	tar -zcf "$(DISTTAR)" "$(DISTDIR)"
