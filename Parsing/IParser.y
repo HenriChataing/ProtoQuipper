@@ -98,7 +98,7 @@ parse :: [Token] -> [(String, Type)]
 -- | Function called by the parser when coming upon an unexpected sequence of tokens.
 -- The argument corresponds to the list of remaining tokens. If this list is empty, the error
 -- is 'Unexpected end of file', and appears on incomplete expression. If not, the head corresponds to the location where
--- the parsing failed
+-- the parsing failed.
 parseError :: [Token] -> a
 parseError [] = throw $ ParsingError "Unknown"
 parseError tokens = throw $ ParsingError (show $ head tokens)

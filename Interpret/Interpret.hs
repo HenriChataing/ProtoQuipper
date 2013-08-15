@@ -85,7 +85,7 @@ open_box ql = do
   set_context $ ctx { circuits = newc:(circuits ctx) }
 
 
--- | Unstacks and return the top circuit from the circuit stack.
+-- | Unstack and return the top circuit from the circuit stack.
 -- The stack must be non empty. An empty circuit stack causes a runtime error.
 close_box :: QpState Circuit
 close_box = do

@@ -51,7 +51,7 @@ binary_gates =
 -- | A type class for objects that can be unencapsulated. Typical examples are
 -- gates and circuits.
 class Caps a where
-  -- | Unencapsulates a circuit (or gate circuit). The type follows the operational semantics of Proto-Quipper.
+  -- | Unencapsulate a circuit (or gate circuit). The type follows the operational semantics of Proto-Quipper.
   unencap :: Circuit               -- ^ The base circuit.
           -> a                     -- ^ The circuit (gate circuit) that is to be appended.
           -> Binding               -- ^ A binding function.
