@@ -45,7 +45,7 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
-	rm $(MAIN)
+	rm -f $(MAIN)
 	rm -rf $(BUILD_DIR)/*
 
 count : clean
@@ -115,6 +115,7 @@ $(DISTZIP) $(DISTTAR): $(PUBLIC) $(MAKEFILES_PUBLIC)
 	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
 	cd "$(DISTDIR)"; make doc
+	cd "$(DISTDIR)"; make clean
 	rm -f "$(DISTZIP)"
 	zip -r "$(DISTZIP)" "$(DISTDIR)"
 	tar -zcf "$(DISTTAR)" "$(DISTDIR)"
