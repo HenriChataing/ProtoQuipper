@@ -1060,22 +1060,21 @@ the notions of typing judgement and validity to closures.
 \begin{definition}
 A \emph{typed closure} is an expression of the form:
 \[
-\Gamma;Q\entails [C,a]:A,(Q'|Q'')
+\Gamma;Q\entails [C,a]:A,(Q'|Q'').
 \]
-where $\mathtt{In}(C)=Q'$ and $\mathtt{Out}(C)=Q,Q''$. 
-It is \emph{valid} if $\Gamma;Q\entails a:A$ is a valid 
-typing judgement.
+It is \emph{valid} if $\mathtt{In}(C)=Q'$ and $\mathtt{Out}(C)=Q,Q''$,
+and $\Gamma;Q\entails a:A$ is a valid typing judgement.
 \end{definition}
 
 \subsection{Properties of the type system}
 
-Before proving Subject Reduction and Progress, we record 
-some properties of the type system, including the important 
-\emph{Substitution Lemma}. Note that the typing rules 
-enforce a \emph{strict} linearity on variables and quantum 
-variables. In particular, if a quantum variable appears in 
-the quantum context of a valid typing judgement for a term 
-$a$, then it must belong to the quantum variables of $a$.
+Before proving the Subject Reduction and Progress properties, we
+record some properties of the type system, including the technical but
+important \emph{Substitution Lemma}. Note that the typing rules
+enforce a \emph{strict} linearity on variables and quantum
+variables. In particular, if a quantum variable appears in the quantum
+context of a valid typing judgement for a term $a$, then it must
+belong to the free quantum variables of $a$.
 
 \begin{lemma}~
 \label{prop_type_syst}
@@ -1098,8 +1097,8 @@ By induction on the corresponding typing derivation.
 
 \begin{lemma}
 \label{specimen}
-If $T$ is a quantum data type and $X\subset \mathcal{Q}$, then 
-$\FQ(t)\entails \spec_X(T):T$ is valid.
+If $T$ is a quantum data type and $X$ is a finite subset of
+$\mathcal{Q}$, then $\FQ(t)\entails \spec_X(T):T$ is valid.
 \end{lemma}
 
 \begin{proof}
@@ -1127,32 +1126,49 @@ By induction on the typing derivation of $\Gamma;Q \entails a:A$.
 
 \begin{lemma}
 \label{context_value}
-If $v\in\mathtt{Val}$ and $\Gamma,{!}\Delta;Q \entails v:{!}A$ is valid, 
-then $\Gamma=Q=\emptyset$.
+If $v\in\mathtt{Val}$ and $\Gamma;Q \entails v:{!}A$ is valid, 
+then $Q=\emptyset$ and $\Gamma={!}\Delta$ for some $\Delta$.
 \end{lemma}
 
 \begin{proof}
-By induction on the typing derivation of $\Gamma,{!}\Delta;Q \entails v:{!}A$. 
-In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}.\ref*{subtype_bang}}.
+By induction on the typing derivation of $\Gamma;Q \entails v:{!}A$. 
+In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}(\ref*{subtype_bang})}.
 \end{proof}
 
 \begin{lemma}
 \label{non_values}
 If a term $a$ is not a value then it is of one 
-of the following forms: $(t,C,a')$ with $a'\notin \mathtt{Val}$, 
-$\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$, 
-$\ifthenelse{a_1}{a_2}{a_3}$, $\letin{\p{x,y}}{a_1}{a_2}$, $a_1a_2$.
+of the following forms: 
+\begin{compactitemize}
+\item $(t,C,a')$ with $a'\notin \mathtt{Val}$, 
+\item $\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin
+  \mathtt{Val}$, 
+\item $\ifthenelse{a_1}{a_2}{a_3}$,
+\item $\letin{\p{x,y}}{a_1}{a_2}$, or
+\item $a_1a_2$.
+\end{compactitemize}
 \end{lemma}
+
+\begin{proof}
+Trivial, by the definition of terms and values.
+\end{proof}
 
 \begin{lemma}
 \label{form_values}
 A well-typed value $v$ is either a variable, a quantum variable, a constant or one 
-of the following case occurs: if it is of type ${!}^n\Circ(T,U)$, it is of the 
-form $(t,C,u)$ with $t$ and $u$ values; if it is of type ${!}^n\bool$ it is either 
-$\true$ or $\false$; if it is of type ${!}^n (A\x B)$, it is of the
-form $\p{w,w'}$, with $w$ and $w'$ values; if it is of type ${!}^n1$, it is 
-precisely the term $*$; if it is of type ${!}^n (A\loli B)$, it is a 
+of the following case occurs: 
+\begin{compactitemize}
+\item if it is of type ${!}^n\Circ(T,U)$, it is of the 
+form $(t,C,u)$ with $t$ and $u$ values; 
+\item if it is of type ${!}^n\bool$ it is either 
+$\true$ or $\false$; 
+\item if it is of type ${!}^n (A\x B)$, it is of the
+form $\p{w,w'}$, with $w$ and $w'$ values; 
+\item if it is of type ${!}^n1$, it is 
+precisely the term $*$; 
+\item if it is of type ${!}^n (A\loli B)$, it is a 
 lambda-abstraction or a constant.
+\end{compactitemize}
 \end{lemma}
 
 \begin{proof}
@@ -1316,19 +1332,19 @@ If $[C,a]\to[C',a']$ then $\mathtt{In}(C)=\mathtt{In}(C')$.
 By induction on the derivation of $[C,a]\to[C',a']$. 
 In all but the $(\unbox)$ case, the result follows either from the induction 
 hypothesis or from the fact that $C=C'$. In the $(\unbox)$ case, use 
-Definition~\hyperref[Append_In]{\ref*{circuit_constructor}.(\ref*{Append_In})}.
+Definition~\hyperref[Append_cond_2b]{\ref*{circuit_constructor}(\ref*{Append_cond_2b})}.
 \end{proof}
 
-\begin{proposition}
+\begin{theorem}
 {\bf (Subject Reduction).}
-\label{subject_red_one_step}
-If $\Gamma;\FQ(a)\entails [C,a]:A,(Q'|Q'')$ is valid typed closure 
+\label{thm-subject-red}
+If $\Gamma;\FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure 
 and $[C,a]\to [C',a']$, then $\Gamma;\FQ(a')\entails [C',a']:A,(Q'|Q'')$ is 
 a valid typed closure.
-\end{proposition}
+\end{theorem}
 
 \begin{proof}
-We prove the proposition by induction on the derivation of the reduction 
+We prove the theorem by induction on the derivation of the reduction 
  $[C,a]\to[C',a']$. In each case, we start by reconstructing 
 the unique typing derivation $\pi$ of $\Gamma;\FQ(a)\entails a:A$ and we use 
 it to prove that $\Gamma;\FQ(a')\entails [C',a']:A,(Q'|Q'')$ is valid. 
@@ -1454,7 +1470,9 @@ the $(\beta)$ case.
   is valid. By Lemma \hyperref[substitution]{\ref*{substitution}}, we know that
   $\Gamma_1,\Gamma_2,{!}\Delta;\FQ(b),\FQ(v)\entails b[v/x]:A$ is a valid typing 
   judgement which implies that 
-  $\Gamma_1,\Gamma_2,{!}\Delta;\FQ(b),\FQ(v)\entails [C,b[v/x]]:A,(Q'|Q'')$ is a valid
+  \[ \Gamma_1,\Gamma_2,{!}\Delta;\FQ(b),\FQ(v)\entails
+  [C,b[v/x]]:A,(Q'|Q'')\]
+  is a valid
   typed closure.
 \end{itemize}
 \item[Circuit generating rules:] These rules represent the most interesting cases. 
@@ -1654,10 +1672,10 @@ is also a valid typed closure.
 
 \begin{proof}
 By induction on the length of the reduction sequence. The base case is 
-provided by Lemma~~\hyperref[subject_red_one_step]{\ref*{subject_red_one_step}}
+provided by Theorem~\hyperref[thm-subject-red]{\ref*{thm-subject-red}}
 \end{proof}
 
-This formulation of Subject Reduction explains why a typed closure contains 
+The above formulation of Subject Reduction explains why a typed closure contains 
 information about the input and output wires of the circuit state. Indeed, 
 Subject Reduction now guarantees (1) that the input wires of a circuit 
 remain unchanged through reduction and (2) that a term can only affect 
@@ -1665,29 +1683,22 @@ wires whose identifiers are among its quantum variables.
 
 \subsection{Progress}
 
-\begin{proposition}
+\begin{theorem}
 {\bf (Progress).}
 If $\FQ(a)\entails [C,a]:A,(Q'|Q'')$ is a valid typed closure then either 
 $a\in\mathtt{Val}$ or there exists a closure $[C',a']$ such that 
 $[C,a]\to [C',a']$.
-\end{proposition}
+\end{theorem}
 
-First, note that Progress is stated for a typed closure whose typing 
-context is empty. This is because the Lemma no longer holds if we allow 
-for a non-empty typing context. Indeed, consider the following counterexample:
-\[
-\infer[.]{x:{!}({!}A\loli B), y:{!}A;\emptyset\entails xy:B}{
- \infer[]{x:{!}({!}A\loli B);\emptyset\entails x:{!}A\loli B}{ 
- }
- &
- \infer[]{y:{!}A;\emptyset\entails y:A}{ 
- }
-}
-\]
-We now prove the Proposition.
+First, note that the Progress property is stated for a typed closure
+whose typing context is empty. This is because the property is not
+expected to hold if we allow for a non-empty typing context. Indeed,
+it is easy to see that there are well-typed, non-closed closures such
+as $[C,xy]$, which are neither values nor reduce. 
+We now prove the theorem.
 
 \begin{proof}
-We prove the proposition by induction on the typing derivation $\pi$ of 
+We prove the theorem by induction on the typing derivation $\pi$ of 
 $\FQ(a)\entails a:A$. If $a$ is a value then there is nothing 
 to prove. If $a$ is not a value, then by 
 Lemma~\hyperref[non_values]{\ref*{non_values}} there are 5 cases to consider. 
