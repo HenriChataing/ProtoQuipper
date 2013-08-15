@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Main module. It contains the main function, that reads the command line arguments, and runs accordingly.
+-- | This is the main module of Proto-Quipper. It contains the 'main' function, which reads the command line arguments, and runs accordingly.
 module Main where
 
 import Monad.QuipperError
@@ -25,7 +25,7 @@ import Data.List as List
 -- | Main function. Parses the command line arguments. About the input files:
 --
 -- * If several are given, they are all executed successively (but not necessarily following the order in which they were
---   given as it may change depending no the dependencies).
+--   given as it may change depending on the dependencies).
 --
 -- * The directory of an input file is automatically added to the list of include directories.
 --

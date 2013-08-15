@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Defines the command line options.
+-- | This module defines the command line options.
 module Options where
 
 import System.Console.GetOpt
@@ -10,22 +10,21 @@ import System.Directory
 import qualified Control.Exception as E
 import qualified Data.List as List
 
--- | Definition of the option vector.
-data Options = Options {
-  verbose :: Int,                  -- ^ Set the verbose level (default -1).
+-- | A data structure to hold command line options. 
+data Options = Options {
+  verbose :: Int,                  -- ^ The verbosity level (default: -1).
 
-  approximations :: Bool,          -- ^ Authorizes  approximations in the unification (default nope).
+  approximations :: Bool,          -- ^ Permit approximations in the unification? (default: no).
 
-  includes :: [FilePath],          -- ^ List of include directories (default empty).
+  includes :: [FilePath],          -- ^ List of include directories (default: empty).
  
-  runInterpret :: Bool,            -- ^ Interprets the code (default yes).
+  runInterpret :: Bool,            -- ^ Interpret the code? (default: yes).
 
-  circuitFormat :: String          -- ^ Specifies the circuit output format (ignore for other values)  (default is \"ir\").
+  circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
 } deriving Show
 
 
--- | Default set of options.
--- The default options are defined above.
+-- | The default set of options.
 default_options :: Options
 default_options = Options {
   -- General options
@@ -45,7 +44,7 @@ default_options = Options {
 }
 
 
--- | Links the actual command line options to modifications of
+-- | Link the actual command line options to modifications of
 -- the option state. 
 options :: [OptDescr (Options -> IO Options)]
 options =
@@ -68,14 +67,14 @@ options =
   ]
 
 
--- | Displays the help screen, and exits.
+-- | Display the help screen, and exit.
 show_help :: Options -> IO a
 show_help _ = do
   putStrLn $ usageInfo header options
   exitSuccess
 
 
--- | Shows the version number, and exits.
+-- | Show the version number, and exit.
 show_version :: Options -> IO a
 show_version _ = do
   putStrLn $ version
@@ -96,8 +95,8 @@ prefix_of s names =
   List.filter (List.isPrefixOf s) names
 
 
--- | Reads and sets the verbose level of an option vector.
--- If the level is something other than an integer, it fails via a call to optFail.
+-- | Read a verbosity level and update the option vector.
+-- If the level is something other than an integer, fail via a call to 'optFail'.
 read_verbose :: Maybe String -> Options -> IO Options
 read_verbose n opts =
   case n of
@@ -109,7 +108,7 @@ read_verbose n opts =
         return $ opts { verbose = 5 }
 
 
--- | Reads and sets the circuit format of an option vector.
+-- | Read a circuit format and update the option vector.
 -- The format must be supported, and supported formats are \"visual\"and \"ir\".
 -- All other cases cause the parsing to fail.
 read_format :: String -> Options -> IO Options
@@ -121,7 +120,7 @@ read_format f opts =
     _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
 
 
--- | Adds a directory to the list of include directories. It first checks the existence of the directory,
+-- | Add a directory to the list of include directories. This first checks the existence of the directory,
 -- and fails if it doesn't exist.
 include_directory :: String -> Options -> IO Options
 include_directory dir opts = do
@@ -143,7 +142,7 @@ version :: String
 version = "Proto Quipper - v0.1"
 
 
--- | Parses a list of string options, and returns the resulting option state.
+-- | Parse a list of string options, and return the resulting option state.
 -- Initially, the options are set to the 'Options.default_option' state.
 parseOpts :: [String] -> IO (Options, [String])
 parseOpts argv = 

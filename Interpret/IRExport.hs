@@ -1,4 +1,4 @@
--- | Module that defines an IR export tool for circuits. The main function, export_to_IR, inputs a circuit (defined in module "Interpret.Circuits")
+-- | This module defines a tool for exporting circuits to the Intermediate Representation. The main function, 'export_to_IR', inputs a circuit (defined in module "Interpret.Circuits")
 -- and outputs a string that contains the IR specification of the circuit.
 module Interpret.IRExport where
 
@@ -11,7 +11,7 @@ import qualified Data.List as List
 type IRDoc = String
 
 
--- | Creates a new IR document, initialized with the input wires.
+-- | Create a new IR document, initialized with the input wires.
 new_with_inputs :: [Int] -> IRDoc
 new_with_inputs [] =
   "Inputs: none\n"
@@ -21,7 +21,7 @@ new_with_inputs (w:wires) =
   irdoc ++ "\n"
  
 
--- | Appends a single gate to the specification.
+-- | Append a single gate to the specification.
 append_gate :: Gate -> IRDoc -> IRDoc
 -- Init and term
 append_gate (Init b w) irdoc = irdoc ++ "QInit" ++ show b ++ "(" ++ show w ++ ")\n"
@@ -64,7 +64,7 @@ append_gate (Controlled g (c:rest)) irdoc =
   irdoc ++ List.init prg ++ " with controls=[+" ++ show c ++ List.foldl (\s w -> s ++ " +" ++ show w) "" rest ++"]\n"
 
 
--- | Adds the list of output wires to the document.
+-- | Add the list of output wires to the document.
 append_outputs :: [Int] -> IRDoc -> IRDoc
 append_outputs [] irdoc =
   irdoc ++ "Outputs: none\n"
@@ -73,7 +73,7 @@ append_outputs (w:wires) irdoc =
   irdoc ++ List.foldl (\s w -> s ++ ", " ++ show w ++ ":Qbit") ("Outputs: " ++ show w ++ ":Qbit") wires ++ "\n"
 
 
--- | Exports a circuit to IR format.
+-- | Export a circuit to IR format.
 -- Before the export, the circuit is reallocated via a call to 'Interpret.Circuits.allocate' that optimizes the use of
 -- wires.
 export_to_IR :: Circuit -> IRDoc

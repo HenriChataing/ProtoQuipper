@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | This module provides a data type sampling the errors thrown during the execution of the program,
---  from the lexing, parsing, to the type inference and interpretation of the code.
+-- | This module provides a type enumerating the errors that can be thrown by the lexer, parser, type inference algorithm, or interpreter. 
 module Monad.QuipperError where
 
 import Parsing.Localizing
@@ -12,7 +11,7 @@ import Data.Typeable
 import Data.List as List
 
 
--- | Data type of the program exceptions.
+-- | The type of program exceptions.
 data QError =
 
 -- LOCATED ERRORS
@@ -56,7 +55,7 @@ data QError =
 
   | TypingError String String                                                             -- ^ Typing error, but missing detailed information. The goal is to have as few of them as possible.
 
-  | DetailedTypingError String String (Maybe String) String                               -- ^ Typing error : the two first arguments are the types that couldn't be matched (the first the actual type, 
+  | DetailedTypingError String String (Maybe String) String                               -- ^ Typing error: the two first arguments are the types that couldn't be matched (the first the actual type, 
                                                                                           -- the other one the expected type), the next string locates the actual type inside of a larger one, the
                                                                                           -- last string is the expression cause of the typing error, and the rest is the location.
 
@@ -74,7 +73,7 @@ data QError =
 -- MISC
 
   | MiscError String                                                                      -- ^ Miscellaneous errors. The argument is an error message.
-  | ProgramError String                                                                   -- ^ Grave : programming errors, thrown when something that shouldn't have happened did.
+  | ProgramError String                                                                   -- ^ Grave: programming errors, thrown when something that shouldn't have happened did.
   deriving (Typeable)
 
 
@@ -93,7 +92,7 @@ instance Located QError where
 
 
 
--- | Error pretty printing
+-- | Pretty printing of errors.
 instance Show QError where
   show (LocatedError err (f,ex)) =
     if f == file_unknown then
@@ -192,5 +191,5 @@ instance Show QError where
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg
 
 
--- | The type QError must be declared as an exception to be thrown/caught in the IO monad.
+-- | A 'QError' is an exception, to be thrown\/caught in the 'IO' monad.
 instance Exception QError

@@ -1,5 +1,5 @@
--- | This module contains the definition of the built-in operations that are made available in Proto-Quipper
--- codes. This includes all the basic gates and some integers operations and comparisons.
+-- | This module contains the definition of the built-in operations that are made available to Proto-Quipper
+-- code. This includes all the basic gates and some integer operations and comparisons.
 module Builtins where
 
 import Parsing.Syntax
@@ -11,12 +11,12 @@ import Data.Map as Map
 import Data.List as List
 
 
--- | Type of all the unary gates, i.e., circ (qubit, qubit).
+-- | The type of all unary gates, i.e., @circ (qubit, qubit)@.
 unary_type :: Type
 unary_type = TCirc TQubit TQubit
 
 
--- | Type of all the binary gates, i.e., circ (qubit * qubit, qubit * qubit).
+-- | The type of all binary gates, i.e., @circ (qubit * qubit, qubit * qubit)@.
 binary_type :: Type
 binary_type = TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])
 
@@ -30,7 +30,7 @@ binary_type = TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])
 --        ---
 -- @
 --
--- where N is the name of the gate.
+-- where /N/ is the name of the gate.
 unary_value :: String -> Value
 unary_value g =
   VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQubit 0) 
@@ -46,7 +46,7 @@ unary_value g =
 --       ---
 -- @
 --
--- where N is the name of the gate.
+-- where /N/ is the name of the gate.
 binary_value :: String -> Value
 binary_value g =
   VCirc (VTuple [VQubit 0, VQubit 1])

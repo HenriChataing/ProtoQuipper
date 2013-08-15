@@ -1,4 +1,4 @@
--- | This module installs the interactive mode of Proto-Quipper.
+-- | This module implements the interactive mode of Proto-Quipper.
 module Interactive where
 
 import Options
@@ -32,16 +32,16 @@ import qualified Data.IntMap as IMap
 
 
 -- | Imports a list of modules in the current context. This function is not stupid: if the modules
--- were already imported, it does nothing. However, it does 'reload' the names in
--- the current labelling map: if one of the global variables x was over-written by a declaration
+-- were already imported, it does nothing. However, it does \"reload\" the names in
+-- the current labelling map: if one of the global variables /x/ was over-written by a declaration
 --
 -- @
 -- let x = ... ;;
 -- @
 --
 -- it will made available again, thus overwriting the above mapping.
-import_modules :: Options                     -- ^ The command line options, it contains in particular the list of include directories.
-               -> [String]                    -- ^ The list of the modules to import.
+import_modules :: Options                     -- ^ The command line options. This contains, in particular, the list of include directories.
+               -> [String]                    -- ^ The list of modules to import.
                -> ExtensiveContext            -- ^ The context of the interactive mode.
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
 import_modules opts mnames ctx = do 
@@ -81,7 +81,7 @@ import_modules opts mnames ctx = do
 
 
 -- | Process a user command. Since the command is like a module implementation, it is dealt with the same way.
--- The only exception concerns import declarations, that are handled specifically by the function 'Interactive.import_modules'.
+-- The only exception concerns import declarations, which are handled specifically by the function 'Interactive.import_modules'.
 run_command :: (Options, MOptions) -> S.Program -> ExtensiveContext -> QpState ExtensiveContext
 run_command opts prog ctx = do
   -- Import the modules
@@ -105,12 +105,12 @@ run_command opts prog ctx = do
 -- Two kind of commands are interpreted:
 --
 -- * Proto-Quipper code: anything that ends with the suffix \";;\".
---   Multi-line commands are authorized. Anything that is part of a module implementation can be passed as a command: import statements, 
---   type definitions, top-level declarations.
+--   Multi-line commands are permitted. Anything that is part of a module implementation can be passed as a command: import statements, 
+--   type definitions, and top-level declarations.
 --
--- * Context commands: any command starting with the prefix \":\". These commands are only of one line, and give information about the
+-- * Context commands: any command starting with the prefix \":\". These commands occupy a single line, and give information about the
 --   current state of the machine. Typical commands are \":ctx\", which lists the variables currently in scope, and \":display\", which
---   displays the top-level circuit (unaccessible otherwise).
+--   displays the top-level circuit (inaccessible otherwise).
 --
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
@@ -194,16 +194,16 @@ run_interactive opts ctx buffer = do
           run_interactive opts ctx (l:buffer) 
  
 
--- | List of valid context commands, associated to their description.
+-- | A list of valid context commands, associated with their descriptions.
 -- The commands are (for now):
 --
--- * :help - displays the list of commands.
+-- * :help - display the list of commands.
 --
--- * :ctx - lists the variables in scope, and their type. Depending on the OS, the duplicable variables may be printed in yellow, the non duplicable in red.
+-- * :ctx - list the variables in scope, and their type. Depending on the operating system, the duplicable variables may be printed in yellow, the non duplicable in red.
 --
--- * :exit - quits the interactive mode. Before quitting, a check is performed that sees to it that no non duplicable object is discarded.
+-- * :exit - quit the interactive mode. Before quitting, a check is performed to ensure that no non-duplicable object is discarded.
 --
--- * :display - displays the top-level circuit (in visual mode), otherwise inaccessible.
+-- * :display - display the top-level circuit (in visual mode), which is otherwise inaccessible.
 --
 commands :: [(String, String)]
 commands = [
@@ -214,7 +214,7 @@ commands = [
 
 
 
--- | Quits the interactive mode. Before quitting, a check is performed that sees to it that no non duplicable object is discarded.
+-- | Quit the interactive mode. Before quitting, a check is performed to ensure that no non duplicable object is discarded.
 exit :: ExtensiveContext -> QpState ()
 exit ctx = do
   -- List all the non-duplicable variables

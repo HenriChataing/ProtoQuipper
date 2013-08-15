@@ -1,15 +1,14 @@
 {-# LANGUAGE CPP #-}
 
--- | Because mgwin32 doesn't support all the console operations used under Linux,
--- it is necessary to provide replacements to these particular operations.
--- Are concerned:
---
--- * all the operations imported from the System.Console.ReadLine library, which library
---   is not easily available under Windows (and not necessary either, since the purpose of this library, i.e., command history, is
---   naturally enforced).
---
--- * color display. It is simply removed then.
---
+-- | Because the mingw32 environment under Windows does not support
+-- all the console operations used under Linux, we provide
+-- replacements for these particular operations. The operations in question are:
+-- 
+-- * All the operations imported from the "System.Console.ReadLine" library, because this library 
+--   is not easily available under Windows (and not necessary either, since the purpose of this library, i.e., to supply a command history in interactive mode, already works natively under Windows).
+-- 
+-- * Color display. In Windows, we simply print in black and white.
+-- 
 module Console where
 
 import Monad.QpState
@@ -22,7 +21,7 @@ import System.Console.Readline
 #endif
 
 
--- | Definition of some colors.
+-- | A data type to define some colors.
 data Color = Red | Yellow | Blue
 
 
@@ -46,11 +45,11 @@ prompt :: String                  -- ^ A prompt string, like \"# \" or \"$ \".
 add_history :: String -> QpState ()
 
 
--- | Displays colored text. Again, this function is a simple call to 'putStr' under Windows.
+-- | Displays colored text. Under Windows, this is a simple call to 'putStr'.
 putStrC :: Color -> String -> QpState ()
 
 
--- | Same as 'putStrC', expect that the used function is 'putStrLn' instead of 'putStr'.
+-- | Like 'putStrC', but append a newline to the end of the line. 
 putStrLnC :: Color -> String -> QpState ()
 
 

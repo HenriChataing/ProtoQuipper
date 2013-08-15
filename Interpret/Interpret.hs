@@ -1,7 +1,7 @@
--- | Implementation of a small interpreter of Proto-Quipper.
+-- | This module implements a small interpreter for Proto-Quipper.
 -- This module works along the module "Interpret.Circuits" that provides the definition and operations
--- on circuits. A circuit stack in the QpState monad give the state of the interpretation.
--- Each term is interpreted in an evaluation context, that contains the
+-- on circuits. The state of the interpreter is given by a circuit stack in the 'QpState' monad.
+-- Each term is interpreted in an evaluation context, which contains the
 -- values of all the variables in scope: with this, we don't have to explicitly do the term substitution that comes with beta-reduction.
 module Interpret.Interpret where
 
@@ -34,10 +34,9 @@ type Environment = IntMap Value
 
 
 
--- | The QpState monad contains an id that allows us to generate fresh quantum
--- addresses. Note that nothing is done to recycle used and discarded identifiers.
+-- | Generate a fresh quantum address. This is done by incrementing an id in the 'QpState' monad. Note that nothing is done to recycle used and discarded identifiers.
 -- However, the index is reinitialized back to 0 at each box creation.
--- Thus, the inputs of a box will always be numbered 0..n.
+-- Thus, the inputs of a box will always be numbered 0../n/.
 fresh_qubit :: QpState Int
 fresh_qubit = do
   ctx <- get_context
@@ -46,16 +45,16 @@ fresh_qubit = do
   return q
 
 
--- | This operation resets the counter of qubit values.
--- Since the quantum addresses are bound in a circuit (t, C, u), we can reset the counter for each box creation.
+-- | Reset the counter of qubit values.
+-- Since the quantum addresses are bound in a circuit (/t/, /C/, /u/), we can reset the counter for each box creation.
 reset_qubits :: QpState ()
 reset_qubits = do
   ctx <- get_context
   set_context $ ctx { qubit_id = 0 }
 
 
--- | Creates a specimen of a given linear type. The quantum addresses of
--- the specimen range from 0 .. to n, n being the number of qubits in the type.
+-- | Create a specimen of a given linear type. The quantum addresses of
+-- the specimen range from 0 to /n/-1, /n/ being the number of qubits in the type.
 linspec :: LinType -> QpState Value
 linspec TQubit = do
   q <- fresh_qubit
@@ -72,12 +71,12 @@ linspec TUnit = do
   return VUnit
 
 
--- | Returns a specimen of a type (same as linspec).
+-- | Like 'linspec', but return a specimen of a type.
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
 
 
--- | Creates a new circuit, initialized with a set of wire identifiers, and put on top
+-- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
 -- of the circuit stack.
 open_box :: [Int] -> QpState ()
 open_box ql = do
@@ -86,8 +85,8 @@ open_box ql = do
   set_context $ ctx { circuits = newc:(circuits ctx) }
 
 
--- | Unstacks and returns the top circuit.
--- The list must be non empty. An empty circuit list correspond to a program error.
+-- | Unstack and return the top circuit from the circuit stack.
+-- The stack must be non empty. An empty circuit stack causes a runtime error.
 close_box :: QpState Circuit
 close_box = do
   ctx <- get_context
@@ -100,9 +99,9 @@ close_box = do
         return top
 
 
--- | Appends a circuit, the welding specified by the argument binding.
--- The action is done on the top circuit. If the circuit list is empty, it corresponds to
--- a runtime error. The output of unencap is a binding corresponding to the renaming of the
+-- | Append a circuit, using the specified binding. 
+-- The action is done on the top circuit. If the circuit list is empty, throw
+-- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
 -- addresses done by the circuit constructor.
 unencap :: Circuit -> Binding -> QpState Binding
 unencap c b = do
@@ -118,9 +117,9 @@ unencap c b = do
         return b'
 
 
--- | Extracts the list of bindings x |-> v from a matching between a pattern and a value (supposedly of
+-- | Extract a list of bindings x |-> v by matching a pattern and a value (supposedly of
 -- the same type), and insert all of them in the given environment. This function can be called in three
--- different contexts : from a beta reduction (the argument of the function is a pattern), from a let binding,
+-- different contexts: from a beta reduction (the argument of the function is a pattern), from a let binding,
 -- of from a pattern matching.
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
 bind_pattern (PLocated p ex) v env = do
@@ -169,7 +168,7 @@ bind_pattern p v _ = do
   throw $ MatchingError (show p) (sprint v)
 
 
--- | Tries matching a pattern and a value. Returns True if the value matches, else False.
+-- | Try matching a pattern and a value. Return 'True' if the value matches, else 'False'.
 match_value :: Pattern -> Value -> Bool
 match_value (PLocated p _) v =
   match_value p v
@@ -212,7 +211,7 @@ match_value (PDatacon dcon p) (VDatacon dcon' v) =
 match_value _ _ =
   False
 
--- | Extracts the list of associations qubit @<->@ qubit introduced by the matching
+-- | Extract the list of associations qubit @\<-\>@ qubit introduced by the matching
 -- of two quantum data values.
 bind :: Value -> Value -> QpState [(Int, Int)]
 bind (VQubit q1) (VQubit q2) = do
@@ -238,7 +237,7 @@ bind v1 v2 = do
   throw $ MatchingError (sprint v1) (sprint v2)
 
 
--- | Re-addresses a quantum value using a binding function.
+-- | Re-address a quantum value using a binding function.
 -- If a qubit is not mapped by the binding, its value is left unchanged.
 readdress :: Value -> [(Int, Int)] -> QpState Value
 readdress (VQubit q) b = do
@@ -262,7 +261,7 @@ readdress v _ = do
   throw $ ProgramError $ "unsound readdress function application:" ++ pprint v ++ " is not a quantum data value"
 
 
--- | Extracts the quantum addresses of a value.
+-- | Extract the quantum addresses of a value.
 extract :: Value -> QpState [Int]
 extract (VQubit q) = do
   return [q]
@@ -288,15 +287,15 @@ extract v = do
 --
 -- *  @(unbox c) t@. Assuming the function is an unboxed circuit (represented by VUnboxed c), applies the 'unencap' function (usual semantics).
 --
--- * @unbox c@. Returns the unboxed circuit (i.e VUnboxed c).
+-- * @unbox c@. Returns the unboxed circuit (i.e., VUnboxed c).
 --
 -- * @box[T] t@. See the operational semantics for more information about this case.
 -- 
 -- * @rev c@. Reverses the circuit.
 --
 -- A dedicated function was needed to reduce the function applications, because the 'Interpret.Interpret.interpret' function only reduces
--- function application of the kind : (expr expr), and not (value value). However, the creation of a box implies the application of a function
--- to a newly created qdata value, which doesn't fit the type of 'Interpret.Interpret.interpret'.
+-- function application of the kind (expr expr), and not (value value). However, the creation of a box implies the application of a function
+-- to a newly created quantum data value, which does not fit the type of 'Interpret.Interpret.interpret'.
 do_application :: Environment -> Value -> Value -> QpState Value
 do_application env f x =
   case (f, x) of
@@ -363,9 +362,9 @@ do_application env f x =
 
 
 
--- | Implementation of the evaluation of an expression. The main function, interpret, has type Environment -> Expr -> QpState Value.
--- Knowing that the monad QpState encloses a circuit stack, the prototype is close to the theoretical semantics describing the
--- reduction of the closure [C, t]. The main difference is that the substitutions done during the beta reduction are delayed via
+-- | Evaluate an expression. 
+-- Knowing that the monad 'QpState' encloses a circuit stack, this function closely follows the theoretical semantics describing the
+-- reduction of a closure [/C/, /t/]. The main difference is that the substitutions done during the beta reduction are delayed via
 -- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
 -- An auxiliary function, 'Interpret.Interpret.do_application', reduces the application of a function value to an argument value.
 interpret :: Environment -> Expr -> QpState Value

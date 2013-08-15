@@ -15,7 +15,7 @@ import Typing.CoreSyntax hiding ((<>))
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
--- | Linear type printing. The generic function genprint parameterizes the printing
+-- | Printing of linear types. The generic function 'genprint' parameterizes the printing
 -- over the display of flags and type variables.
 instance PPrint LinType where
   -- Generic printing
@@ -65,7 +65,7 @@ instance PPrint LinType where
   sprint a = sprintn defaultLvl a
 
 
--- | Type printing. The generic function 'genprint' parameterizes the
+-- | Printing of types. The generic function 'genprint' parameterizes the
 -- printing over the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
@@ -96,7 +96,7 @@ instance PPrint Type where
 
 
 
--- | Pattern printing. The function genprint parameterizes the printing over the display of data constructors and term
+-- | Printing of patterns. The function 'genprint' parameterizes the printing over the display of data constructors and term
 -- variables.
 instance PPrint Pattern where
   -- Generic printing
@@ -234,7 +234,7 @@ print_doc lv (EConstraint e _) fvar fdata =
 
 
 
--- | Expression printing. The function genprint generalizes the display of term
+-- | Printing of expressions. The function 'genprint' generalizes the display of term
 -- variables and data constructors.
 instance PPrint Expr where
   -- Generic printing
@@ -264,7 +264,7 @@ instance PPrint TypeConstraint where
   pprint c = genprint Inf c [pprint, subvar 'x']
 
 
--- | Flag constraints printing. Genprint can't be parameterized.
+-- | Printing of flag constraints. The function 'genprint' cannot be parameterized.
 instance PPrint FlagConstraint where
   pprint (Le m n _) =
     (if m < 2 then
@@ -281,7 +281,7 @@ instance PPrint FlagConstraint where
   genprint _ c _ = pprint c
 
 
--- | Constraint set printing. The function genprint behaves the same as the one from the PPrint instance
+-- | Printing of constraint sets. The function 'genprint' behaves like the one from the 'PPrint' instance
 -- declaration of types and linear types.
 instance PPrint ConstraintSet where
   genprint _ (lcs, fcs) opts =
