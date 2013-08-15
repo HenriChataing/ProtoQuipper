@@ -106,6 +106,7 @@ a basic example: a circuit producing two qubits in the Bell state. Below is
 the code of the module \verb#Bell# contained in the file \verb#bell.qp#.
 
 %\begin{figure}[!ht]
+\begin{splitcode}
 \begin{verbatim}
 import Gates
 
@@ -116,6 +117,9 @@ box[] (fun x ->
   (q0, q1)
 ) ;;
 \end{verbatim}
+  \split \scalebox{1.6}{\includegraphics{bell}}
+\end{splitcode}
+
 %\caption{Contents of the module Bell.}
 %\end{figure}
 
@@ -133,9 +137,8 @@ the unit type \verb#()#, so that \verb#box[]# is a shorthand for
 state $\ket{0}$. This is done by a call to \verb#init0#, which is
 defined to produce the following circuit
 
-$$\Qcircuit @C=1em @R=.7em {
-  & \lstick{\ket{0}} & \qw
-}$$
+\[ \scalebox{1.6}{\includegraphics{init0}}
+\]
 
 In the same manner, the \verb#hadamard# gate is applied to the newly
 created \verb#qubit# and the result is stored in the variable
@@ -190,6 +193,7 @@ With the help of the shorthand notations introduced above, we can write
 larger programs. For example, an implementation of the Quantum Fourier 
 Transform on three qubits is given in Figure~\ref{fig-qft3}.
 \begin{figure}[!ht]
+\begin{splitcode}
 \begin{verbatim}
 box[qubit * qubit * qubit] (
   fun (q0, q1, q2) ->
@@ -202,6 +206,8 @@ box[qubit * qubit * qubit] (
     (q0, q1, q2)
 ) ;;
 \end{verbatim}
+  \split \scalebox{1.4}{\includegraphics{qft3}}
+\end{splitcode}
 \caption{An implementation of the Quantum Fourier
 Transform on three qubits}
 \label{fig-qft3}
@@ -383,6 +389,9 @@ let rec qft qreg =
       qn:qn1
 ;;
 \end{verbatim}
+\[\scalebox{1.2}{\includegraphics{qft}}
+\]
+
   \caption{An implementation of the Quantum Fourier Transform on lists
     of qubits}
   \label{fig-qft}

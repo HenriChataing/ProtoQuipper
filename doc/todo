@@ -1,0 +1,7 @@
+* spell-check
+* check log files for errors, overfull stuff
+* spell-check Haddock
+* proof-read Haddock (Quipper and Proto-Quipper)
+* WORD report
+* check "make dist" and "make distcheck"
+

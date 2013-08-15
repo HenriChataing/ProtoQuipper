@@ -254,6 +254,10 @@
 \newcommand{\leftx}{\textit{left}}
 \newcommand{\rightx}{\textit{right}}
 
+\newenvironment{code}{\par\vspace{2ex}\noindent\begin{minipage}{\textwidth}\footnotesize}{\end{minipage}\vspace{2ex}\par}
+\newenvironment{splitcode}{\par\vspace{2ex}\noindent\begin{minipage}{0.5\textwidth}\footnotesize}{\end{minipage}\vspace{2ex}\par}
+\renewcommand{\split}{\end{minipage}\begin{minipage}{0.5\textwidth}\center}
+
 %----------------------------------------------------------------------         
 % a hack: \m is similar to \vcenter, but works better.                          
 % \mp{0.2}{x}: raise the box x so that 20% of it is below the                   
