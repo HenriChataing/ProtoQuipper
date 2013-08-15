@@ -107,10 +107,10 @@ the Proto-Quipper implementation.
 \subsection{Additional materials}
 
 This document is accompanied by the Proto-Quipper software version
-0.1, including:
+0.1:
 \begin{compactitemize}
-\item the Proto-Quipper language implementation;
-\item the Proto-Quipper browsable documentation.
+\item the Proto-Quipper language implementation, including
+\item the Proto-Quipper browsable documentation (in the doc/ directory).
 \end{compactitemize}
 
 Please also note that a user-level tutorial introduction to the
@@ -123,7 +123,7 @@ Section~\ref{sec-user-guide}.
 \clearpage
 \section{Design rationale}\label{sec-design}
 
-\subsection{Design goals}
+\subsection{Design goals}\label{ssec-goals}
 
 In designing the Proto-Quipper language, our approach was to start
 with a limited (but still expressive) fragment of the Quipper language
@@ -614,7 +614,7 @@ $|\Gamma_1|\cap|\Gamma_2|=\emptyset$.
 \end{definition}
 
 Note that in the typing judgements of Proto-Quipper, quantum variables
-and variables are kept separate. As a result, we don't have to specify
+and variables are kept separate. As a result, we do not have to specify
 that $q:\qubit$ for every quantum variable $q$ since the typing rules
 implicitly enforce this. However, when a future version of
 Proto-Quipper will be equipped with the ability to manipulate quantum
@@ -888,7 +888,7 @@ term and $\FQ(t)\subseteq\mathtt{Out}(C)$.
 % because the reduction is defined by recursion on the terms. For
 % example, to reduce a pair, one must first reduce the left component
 % in the context of the current circuit. If we required an equality 
-% we couldn't simply do this.
+% we could not simply do this.
 
 \begin{definition}
 The \emph{one-step reduction relation}, written $\to$, is defined 
@@ -1009,7 +1009,7 @@ The recursive nature of the reduction rules explains why closures are
 not required to satisfy $\FQ(a)=\mathtt{Out}(C)$. The requirement that 
 $\FQ(a)\subseteq \mathtt{Out}(C)$ is justified by the idea that a term 
 should not affect a wire outside of $C$. But if we also asked for the 
-opposite inclusion, it wouldn't be possible to define a recursive
+opposite inclusion, it would not be possible to define a recursive
 reduction in a straightforward way. For example, the reduction of a 
 pair is done component-wise: to reduce $\p{a,b}$ one first reduces $b$. 
 The simplest way to express this in terms of closures is to carry the 
@@ -1935,82 +1935,116 @@ with this recursion operator without losing type-safety.
 \clearpage
 \section{Future work}\label{sec-future}
 
-In this section, we describe some ongoing and future developments 
-of Proto-Quipper.
-\begin{description}
-  \item[Extensions and proof mechanization:] We are 
-    currently incorporating the language extensions discussed 
-    in the previous section (polymorphism, algebraic data types, 
-    \ldots) to the type safe fragment of the language. This 
-    progressive augmentation process is inherent to Proto-Quipper 
-    since the language was defined to be a type safe 
-    reconstruction of Quipper. For every extension, the proofs 
-    of type safety have to be rewritten. This is both time-consuming 
-    and error-prone. We are therefore investigating the use 
-    of theorem provers (such as Coq, Abella, Twelf, \ldots) to assist 
-    in establishing meta-properties of future versions of 
-    Proto-Quipper. 
-  \item[Reversibility and measurements:] In Proto-Quipper 
-    0.1, all circuits are reversible. This follows from the 
-    definition of the $(\rev)$ and $(circ)$ typing rules and will 
-    have to be modified to accommodate non-reversible gates such 
-    as measurements. Ideally, the type system would ensure that 
-    circuits are reversed only if it is meaningful to do so. In 
-    particular, if a circuit contains a measurement, then it 
-    should not be possible to reverse it. Preliminary research 
-    shows this can be attained by extending the language with a 
-    new modality $R$ accounting for reversibility. 
-  \item[Dependent types and parameterized families of circuits:] 
-    A circuit generating function that inputs a list of qubits does not 
-    define a particular circuit but a family of circuits parameterized 
-    by the integer $n$ corresponding to the length of the input list.
-    To box such a function, a particular value of $n$ has to be given. 
-    This is also true of other higher-order functions acting on circuits, 
-    such as reversing. In Quipper, this is handled by asking the user 
-    to provide a ``shape" specifying the instance of the family on 
-    which to act. An alternative solution to this user-specified shape 
-    would be to make Proto-Quipper's type system dependent in order to 
-    store shape information at the type level.
-  \item[Lingering arguments:] In the current version of 
-    Proto-Quipper, all the wires manipulated in the body of a function 
-    must be explicitly returned. It is not possible to implicitly 
-    return the wires that have not been terminated. We plan to 
-    give Proto-Quipper the ability to handle such ``lingering 
-    arguments" automatically.
-  \item[Non-linear controls:] Proto-Quipper handles qubits 
-    in a strictly linear fashion. This ensures that qubits are 
-    never discarded or duplicated and is therefore key in 
-    guaranteeing that the type system enforces physical properties 
-    such as no-cloning. However, this discipline is too strict since 
-    certain operations, like controlling, can safely use a qubit in 
-    non-linear fashion. We plan to add to Quipper the ability to 
-   use qubits as controls in a non-linear fashion.
-  \item[Dynamic lifting:] The reduction in Proto-Quipper 
-    is non-probabilistic. Of course, the hypothetical quantum 
-    device running the circuit produced by Proto-Quipper would 
-    have to perform probabilistic operations, but the circuit 
-    generation itself doesn't have to. This is justified by the 
-    ``principle of deferred measurement" which states that any 
-    quantum circuit is equivalent to one where all measurements 
-    are performed as the very last operations (see, e.g., 
-    \cite{NC02} p.186). We therefore don't need to rely on the 
-    result of a measurement to construct circuits and, in theory, 
-    no computational power is lost by making this assumption. In 
-    practice, however, this delaying of measurement may 
-    significantly increase the size of the circuit. Thus in terms 
-    of computational resources it is advantageous to have circuit 
-    generating functions that use measurement results. In fact, 
-    several existing quantum algorithm, among which the Unique
-    Shortest Vectors
-    algorithm provided to us by the QCS project, rely on such 
-    interactive circuit building. In Quipper, this property is 
-    captured by the notion of \emph{dynamic lifting} wherein a 
-    $\bit$ (a circuit-execution time value) is lifted to a $\bool$ (a 
-    circuit-generation time value). Adding such a feature to 
-    Proto-Quipper would make the reduction relation probabilistic 
-    but at the time of writing, the way in which this extension 
-    should be carried through it still unknown. 
-\end{description}
+In this section, we describe some work that is ongoing or planned for
+the future. As already mentioned in Section~\ref{ssec-goals}, the
+rationale behind the design of Proto-Quipper was to start with the
+simplest language possible, establish type-safety, and then extend the
+language in small steps with the goal of eventually adding most of
+Quipper's features to Proto-Quipper in a type-safe way. 
+
+\subsection{Extensions and proof mechanization}
+
+On project that is currently ongoing is to incorporate the extensions
+discussed in the previous section (polymorphism, algebraic data types,
+and recursion) into the type safe fragment of the language. This
+progressive augmentation process is inherent to Proto-Quipper since
+the language was defined to be a type safe reconstruction of
+Quipper. 
+
+Currently, making even small extensions to Core Proto-Quipper is a
+labor-intensive process, as for every change to the language, type
+system, or operational semantics, the proofs of type safety have to be
+rewritten. Because this process is time-consuming and error-prone, we
+are investigating the use of proof assistant software (such as Coq,
+Isabelle, Abella, Twelf, Beluga) to formalize the definition of
+Proto-Quipper and the proofs of its meta-properties.
+
+\subsection{Reversibility and measurements}
+
+In Proto-Quipper 0.1, all circuits are reversible. This follows from
+the definition of the $(\rev)$ and $(\rul{circ})$ typing rules and
+will have to be modified to accommodate non-reversible gates such as
+measurements. In such a setting, the type system should ensure that
+circuits are reversed only if it is meaningful to do so. In
+particular, if a circuit contains a measurement, then it should not be
+possible to reverse it.
+
+\subsection{Dependent types and parameterized families of circuits}
+ 
+A circuit generating function that inputs a list of qubits does not
+define just one circuit, but rather a family of circuits parameterized
+by the length $n$ of the list.  To box such a function, a particular
+value of $n$ has to be given. In Quipper, we refer to $n$ as the
+``shape'' of the argument of the function. Operations such as boxing
+and reversing often require shape information. An alternative solution
+would be to equip Proto-Quipper with a {\em dependent type
+  system}. This would allow shape information to the stored at the
+type level.
+
+\subsection{Imperative-style arguments}
+
+In the current version of Proto-Quipper, all the wires manipulated in
+the body of a function must be explicitly returned. It is not possible
+to implicitly return the wires that have not been terminated. In
+Quipper, we call this the ``functional style'' of programming. Unlike
+Proto-Quipper, Quipper also permits an ``imperative style'' of
+programming. We plan to extend the Proto-Quipper type system to handle
+such imperative-style arguments in a type-safe way.
+
+\subsection{Type-safe cleanup of garbage}
+
+When programming classical oracles, usually some number of ancilla
+bits are used, and returned in a ``dirty'' state at the end of the
+circuit. The standard trick for making such an oracle reversible is to
+uncompute the ancillas by running the computation in reverse. When
+programming in a strictly linear language such as Proto-Quipper, all
+the ancilla bits must be explicitly accounted for in the type of the
+oracle function. A useful extension of the type system would be to
+handle such ``garbage'' ancillas automatically.
+
+\subsection{Non-linear controls}
+
+Proto-Quipper handles qubits in a strictly linear fashion. This
+ensures that qubits are never discarded or duplicated and is therefore
+key in guaranteeing that the type system enforces physical properties
+such as no-cloning. However, this discipline is too strict since
+certain operations, like controlling, can safely use a qubit in
+non-linear way. For example, if a quantum-not gate on qubit $q$ is
+controlled by qubits $r$ and $s$, then we must have $q\neq r$ and
+$q\neq s$, but it is not necessary that $r\neq s$. This situation
+frequently arises in the context of automatically generated quantum
+oracles, such as in the Quantum Linear Systems algorithm. In fact,
+this is the reason that strict linearity checking is currently
+disabled in Quipper. It is an interesting problem how to extend the
+Proto-Quipper type system the non-linear use of qubits as controls.
+
+\subsection{Dynamic lifting}
+
+In constrast to the quantum lambda calculus, the reduction in
+Proto-Quipper is non-probabilistic. Of course, the hypothetical
+quantum device running the circuit produced by Proto-Quipper would
+have to perform probabilistic operations, but the circuit generation
+itself does not have to. This is justified by the ``principle of
+deferred measurement" which states that any quantum circuit is
+equivalent to one where all measurements are performed as the very
+last operations (see, e.g., \cite{NC02} p.186). We therefore do not
+need to rely on the result of a measurement to construct circuits and,
+in theory, no computational power is lost by making this
+assumption. In practice, however, this delaying of measurement may
+significantly increase the size of the circuit. Thus in terms of
+computational resources it is sometimes advantageous to permit circuit
+generating functions that access previous measurement results. In
+fact, several existing quantum algorithms, including the Unique
+Shortest Vectors algorithm, rely on such interactive circuit
+building. In the Unique Shortest Vectors algorithm, this takes the
+form of a sieving step. 
+
+In Quipper, this cability is captured by the notion of \emph{dynamic
+  lifting} wherein a value of type $\bit$ (a circuit-execution time
+value) is lifted to a value of type $\bool$ (a circuit-generation time
+value). Adding such a feature to Proto-Quipper would make the
+reduction relation probabilistic. It is a research problem how such an
+extension can be carried out in a type-safe way. 
 
 % ----------------------------------------------------------------------
 \clearpage
