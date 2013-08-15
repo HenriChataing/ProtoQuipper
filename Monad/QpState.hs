@@ -728,7 +728,7 @@ rewrite_flags_in_lintype t =
   return t
 
 
--- | In a type, replaces all the flag references by their actual value:
+-- | In a type, replace all the flag references by their actual value:
 --     0 if no flag,
 --     1 of one,
 --     -1 of any,

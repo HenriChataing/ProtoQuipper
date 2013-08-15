@@ -37,6 +37,7 @@ disp
 DIV
 Dk
 DLet
+duplicability
 DuplicateImplementation
 EApp
 EBool
@@ -114,6 +115,7 @@ mapsto
 MatchingError
 maxColumns
 mgwin
+mingw
 MiscError
 MOptions
 MUL
@@ -147,6 +149,7 @@ posets
 PP
 PPrint
 pprint
+pre
 PrettyPrint
 Prog
 ProgramError
@@ -268,10 +271,12 @@ unbox
 unboxed
 UndefinedBuiltin
 unencap
+Unencapsulate
 unencapsulated
 Unencapsulates
 unencapsulating
 unencapsulation
+Unstack
 Utils
 val
 var
