@@ -20,6 +20,10 @@ ProtoQuipper
 *.blg
 *.texwatch.lock
 _build
-haddock-doc
+doc
 test
 temp
+proto-quipper-0.*.tgz
+proto-quipper-0.*.zip
+proto-quipper-0.*
+*.bak

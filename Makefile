@@ -53,25 +53,25 @@ count : clean
 # Building documentation with source code links. This requires a
 # patched version of Haddock, as well as HsColour.
 
-haddock : haddock-documentation haddock-html-sources
+doc haddock : haddock-documentation haddock-html-sources
 
 haddock-documentation : $(MODULES)
-	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "prologue.txt"
+	$(HADDOCK) -o doc -h $(HDK_INCLUDE) $(MAIN) --source-entity=src/%{MODULE/.//}.html#line-%L --source-module=src/%{MODULE/.//}.html -t "The Proto-Quipper Language" -p "prologue.txt"
 
-haddock-html-sources : $(MODULES:%.hs=haddock-doc/src/%.html)
+haddock-html-sources : $(MODULES:%.hs=doc/src/%.html)
 
-haddock-doc/src/%.html: %.hs
+doc/src/%.html: %.hs
 	mkdir -p "$(dir $@)"
 	cat "$<" | HsColour -anchor -html > "$@"
 
-haddock-clean :
-	rm -rf haddock-doc
+doc-clean haddock-clean :
+	rm -rf doc
 
 # ----------------------------------------------------------------------
 # Building documentation without source code links.
 
-haddock-tmp : $(MODULES)
-	$(HADDOCK) -o haddock-doc -h $(HDK_INCLUDE) $(MAIN)
+haddock-simple : $(MODULES)
+	$(HADDOCK) -o doc -h $(HDK_INCLUDE) $(MAIN)
 
 # ----------------------------------------------------------------------
 # Distribution
@@ -93,12 +93,12 @@ QLIB = qlib
 PUBLIC = README COPYRIGHT prologue.txt
 #            LICENSE
 
-$(DISTZIP) $(DISTTAR): dist
+.PHONY: dist
+dist: $(DISTZIP) $(DISTTAR)
 
 RIGHT_COPY = maintainer/right_copy
 
-.PHONY: dist
-dist: $(PUBLIC) $(MAKEFILES_PUBLIC) haddock
+$(DISTZIP) $(DISTTAR): $(PUBLIC) $(MAKEFILES_PUBLIC)
 	rm -rf "$(DISTDIR)"
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(QLIB)"
@@ -108,7 +108,7 @@ dist: $(PUBLIC) $(MAKEFILES_PUBLIC) haddock
 	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
-	cp -r haddock-doc/ "$(DISTDIR)/doc/"
+	cp -r doc/ "$(DISTDIR)/"
 	rm -f "$(DISTZIP)"
 	zip -r "$(DISTZIP)" "$(DISTDIR)"
 	tar -zcf "$(DISTTAR)" "$(DISTDIR)"
@@ -122,9 +122,7 @@ distcheck: $(DISTZIP)
 	cd "$(DISTDIR)"; $(MAKE) all
 	cd "$(DISTDIR)"; $(MAKE) clean
 	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
-	cd "$(DISTDIR)"; $(MAKE) haddock
-	cd "$(DISTDIR)"; $(MAKE) haddock-clean
-	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
+	cd "$(DISTDIR)-orig"; $(MAKE) doc
 	rm -rf "$(DISTDIR)-orig"
 	@echo "$(DISTZIP) seems ready for distribution."
 
