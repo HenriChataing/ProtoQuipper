@@ -145,15 +145,17 @@ run_interactive opts ctx buffer = do
           run_interactive opts ctx []
 
         else if buffer == [] && List.isPrefixOf ":" l then
-          case prefix_of l (List.map fst commands) of
+          let (cmd:args) = words l in
+          case prefix_of cmd (List.map fst commands) of
             [] -> do
-                liftIO $ putStrLn $ "Unknown command: '" ++ l ++ "' -- Try :help for more information"
+                liftIO $ putStrLn $ "Unknown command: '" ++ cmd ++ "' -- Try :help for more information"
                 run_interactive opts ctx []
 
             [":help"] -> do
+                w <- return $ (List.maximum $ List.map (List.length . fst) commands) + 5
                 List.foldl (\rec (c, descr) -> do
                               rec
-                              liftIO $ putStrLn $ c ++ " -- " ++ descr) (return ()) commands
+                              liftIO $ putStrLn $ c ++ (List.replicate (w - List.length c) ' ') ++ descr) (return ()) commands
                 run_interactive opts ctx []
                 
             [":exit"] -> do
@@ -186,14 +188,28 @@ run_interactive opts ctx buffer = do
                 liftIO $ putStrLn (pc ++ " : circ((), _)")
                 run_interactive opts ctx []
 
+            [":type"] -> do
+                List.foldl (\rec x -> do
+                              rec
+                              case Map.lookup x $ label ctx of
+                                Just id -> do
+                                    a <- type_of id $ typing ctx
+                                    pa <- case a of
+                                            TForall _ _ _ a -> pprint_type_noref a
+                                            TBang _ _ -> pprint_type_noref a
+                                    liftIO $ putStrLn $ "val " ++ x ++ " : " ++ pa
+
+                                Nothing -> do
+                                    liftIO $ putStrLn $ "Unbound variable " ++ x) (return ()) args
+                run_interactive opts ctx []
+
             _ -> do
-              liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
-              run_interactive opts ctx []
+                liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
+                run_interactive opts ctx []
 
         else
           run_interactive opts ctx (l:buffer) 
  
-
 -- | A list of valid context commands, associated with their descriptions.
 -- The commands are (for now):
 --
@@ -210,7 +226,8 @@ commands = [
   (":help", "Display the list of commands"),
   (":ctx", "List the variables of the current context"),
   (":exit", "Quit the interactive mode"),
-  (":display", "Display the toplevel circuit") ]
+  (":display", "Display the toplevel circuit"),
+  (":type", "Return the type of a variable") ]
 
 
 
