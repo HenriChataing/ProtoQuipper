@@ -24,8 +24,8 @@ new_with_inputs (w:wires) =
 -- | Append a single gate to the specification.
 append_gate :: Gate -> IRDoc -> IRDoc
 -- Init and term
-append_gate (Init w b) irdoc = irdoc ++ "QInit" ++ show b ++ "(" ++ show w ++ ")\n"
-append_gate (Term w b) irdoc = irdoc ++ "QTerm" ++ show b ++ "(" ++ show w ++ ")\n"
+append_gate (Init b w) irdoc = irdoc ++ "QInit" ++ show b ++ "(" ++ show w ++ ")\n"
+append_gate (Term b w) irdoc = irdoc ++ "QTerm" ++ show b ++ "(" ++ show w ++ ")\n"
 
 -- Unary gates
 -- Some gates have a specific format in IR

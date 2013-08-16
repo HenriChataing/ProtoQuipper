@@ -111,8 +111,8 @@ readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (apply_b
 -- to know the name of the reversed gate.
 instance Reversible Gate where
   -- Init and term are mutual inverses
-  rev (Init q b) = Term q b
-  rev (Term q b) = Init q b
+  rev (Init b q) = Term b q
+  rev (Term b q) = Init b q
 
   -- Othe gates
   rev (Phase n q) = Phase (-n) q
@@ -139,10 +139,10 @@ instance Caps Gate where
   unencap c (Controlled g qlist) b = (c { gates = (gates c) ++ [readdress (Controlled g qlist) b] }, b)
 
   -- Creation / deletion of wires
-  unencap c (Term q bt) b = let q' = apply_binding b q in
-    (c { gates = (gates c) ++ [Term q' bt], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
-  unencap c (Init q bt) b = let q' = fresh_address (qOut c) in
-    (c { gates = (gates c) ++ [Init q' bt], qOut = q':(qOut c) }, (q, q'):b)
+  unencap c (Term bt q) b = let q' = apply_binding b q in
+    (c { gates = (gates c) ++ [Term bt q'], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
+  unencap c (Init bt q) b = let q' = fresh_address (qOut c) in
+    (c { gates = (gates c) ++ [Init bt q'], qOut = q':(qOut c) }, (q, q'):b)
 
 
 -- | Return the gate concrete display. More specifically, all gates are printed on one column, and this function
@@ -195,10 +195,10 @@ model (Controlled g qlist) =
                                  (qmn, qmx, List.map (\(l, s) -> if l == 2*q then (l, "-*-") else (l, s)) mod)) (qmin, qmax, pg) qlist in
   m
 
-model (Init q bt) =
+model (Init bt q) =
   [(2 * q, show bt ++ "|-")]
 
-model (Term q bt) =
+model (Term bt q) =
   [(2 * q, "-|" ++ show bt)]
 
 
@@ -306,16 +306,16 @@ state_allocate :: [Gate] -> AdState [Gate]
 state_allocate [] = do
   return []
 
-state_allocate (Init q bt:cg) = do
+state_allocate (Init bt q:cg) = do
   w <- bind_wire q
   cg' <- state_allocate cg
-  return (Init w bt:cg')
+  return (Init bt w:cg')
 
-state_allocate (Term q bt: cg) = do
+state_allocate (Term bt q: cg) = do
   w <- assoc_wire q
   delete_vire (q, w)
   cg' <- state_allocate cg
-  return (Term w bt:cg')
+  return (Term bt w:cg')
 
 state_allocate (g:cg) = do
   g' <- assoc_gate g
