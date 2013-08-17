@@ -170,7 +170,7 @@ manipulate them as a whole.  For example, Quipper has operators for
 reversing circuits, decomposing them into gate sets, optimization of
 circuits, resource counting, and so on. By contrast, the quantum
 lambda calculus only manipulates {\em qubits}. In other words, in
-quantum lambda calculus, all quantum operations are immediately
+the quantum lambda calculus, all quantum operations are immediately
 carried out on a quantum device, and not stored for symbolic
 manipulation.
 
@@ -244,8 +244,8 @@ references to quantum wires within the circuit currently being
 constructed. Elements of quantum data types describe sets of circuit
 endpoints, and consist of tuples of wire identifiers. We can think of
 these as describing circuit interfaces. Finally, the type $\Circ(T,U)$
-is the set of all circuits having an interface of type $T$ and an
-output interface of type $U$. 
+is the set of all circuits having an input interface of type $T$ and 
+an output interface of type $U$. 
 
 \begin{definition}
   Assume three countable sets: a set $\vset$ of \emph{term variables},
@@ -415,26 +415,30 @@ which wires should be connected. For this, we use the notion of a
 \emph{binding}.
 
 \begin{definition}
-A \emph{binding} is a bijection $\qset\to \qset$.
+A \emph{finite bijection} on a set $X$ is a bijection between two 
+finite subsets of $X$. We write $\finbij(X)$ for the set of finite 
+bijections on $X$.
 \end{definition}
 
-% For now it is simply more convenient to have binding be bijections.
-% In fact they could be functions and additional conditions could
-% be added elsewhere.
+\begin{definition}
+A \emph{binding} is a finite bijection on $\qset$ and if $\binding$ 
+is a binding we write $\dom(\binding)$ for the domain of $\binding$.
+\end{definition}
 
 Adding to the list of notational conventions above, we will write 
 $\binding$ for an arbitrary binding. 
 
 \begin{definition}
-If $a$ is a term with $\FQ(a)=\s{q_1,\ldots,q_n}$ and $\binding$ is 
-a binding, then $\binding(a)$ is the following term:
+If $a$ is a term, $\binding$ is a binding and $\dom(\binding)\cap
+\FQ(a)=\s{q_1,\ldots,q_n}$, then $\binding(a)$ is the following 
+term:
 \[
 \binding(a)= a[\binding(q_1)/q_1,\ldots ,\binding(q_n)/q_n].
 \]
 \end{definition}
 
 \begin{definition}
-The partial function $bind: \qdataterm^2\to \pow (\qset^2)$ is 
+The partial function $bind: \qdataterm^2\to \finbij(\qset)$ is 
 defined recursively as follows:
 \[
 bind (t,u)= \left\{
@@ -448,14 +452,6 @@ bind (t,u)= \left\{
 \right.
 \]
 \end{definition}
-
-\begin{remark}
-\label{bind_extension}
-If $t$ and $u$ are quantum data terms for which $bind$ is defined, we 
-can extend $bind(t,u)$ to a binding $\binding$ by setting 
-$\binding (q_1) = q_2$ if $\tuple{q_1,q_2}\in bind (t,u)$ and 
-$\binding (q_1) = q_1$ otherwise.
-\end{remark}
 
 \begin{definition}
 Let $T$ be a quantum data type and $X$ a finite subset of $\qset$. 
@@ -735,7 +731,7 @@ together with the following maps:
   \item $\mathtt{In}\from S\to \pow_f(Q)$,
   \item $\mathtt{Out}\from S\to \pow_f(Q)$,
   \item $\mathtt{Rev}\from S \to S$,
-  \item $\mathtt{Append}\from S\times S\times Q^Q \to S \times Q^Q$
+  \item $\mathtt{Append}\from S\times S\times \finbij(Q) \to S \times \finbij(Q)$
 \end{itemize}
 satisfying the following conditions:
 \begin{enumerate}
@@ -744,13 +740,15 @@ satisfying the following conditions:
         $\mathtt{Out}\circ\mathtt{Rev}= \mathtt{In}$\label{in_out_rev},
   \item $\mathtt{In}\circ\mathtt{New} = \mathtt{Out}\circ\mathtt{New} =
     1_{\mathcal{P}_f(\mathcal{Q})}$,
-  \item if $\mathtt{Append} (C,D,\binding)=(C',\binding')$ and $b$ is
-    bijective and $\binding[\mathtt{In}(D)]\subseteq \mathtt{Out}
-    (C)$, then $b'$ is bijective and\label{Append_cond_x}
+  \item if $\mathtt{Append} (C,D,b)=(C',b')$ and 
+    $b\from X \to \mathtt{In}(D)$ for some $X\subseteq \mathtt{out}(C)$, 
+    then \label{Append_cond_x}
     \begin{enumerate}
-      \item $\binding'[\mathtt{Out}(D)]\subseteq\mathtt{Out}(C')$ and\label{Append_cond_2}
-      \item $\mathtt{In}(C') = \mathtt{In}(C)$,\label{Append_cond_2b}
-      \item $\mathtt{Out}(C')=\binding'[\mathtt{Out}(D)]\cupdot(\mathtt{Out}(C)\setminus\binding^{-1}[\mathtt{In}(D)])$.\label{Append_cond_3}
+      \item $\mathtt{In}(C') = \mathtt{In}(C)$,\label{Append_cond_2b}    
+      \item $b'\from \mathtt{Out}(D)\to Y$ for some 
+      $Y\subseteq \mathtt{Out}(C')$ and\label{Append_cond_2}
+      \item $\mathtt{Out}(C')=Y\cupdot
+      (\mathtt{Out}(C)\setminus X)$.\label{Append_cond_3}
     \end{enumerate}
 \end{enumerate}
 \end{definition}
@@ -860,12 +858,10 @@ the following consequences:
 \]
 such that $\In(C^{-1})=\Out(C)$ and 
 $\Out(C^{-1})=\In(C)$.
-  \item If $\binding$ is a binding obtained from quantum data terms $t,u$ in the 
-  way described in Remark~\hyperref[bind_extension]{\ref*{bind_extension}}, 
-  we can use it to define the following map:
-  \[
-  \binding = \mathtt{Wire}\circ b\circ \mathtt{Wire}^{-1}\from Q\to Q
-  \]
+  \item If $t$ and $u$ are quantum data terms such that 
+  $bind(t,u)=\binding$, then we can define 
+  $b = \mathtt{Wire}\circ \binding\circ \mathtt{Wire}^{-1}
+  \in \finbij(Q)$.
 \end{itemize}
 
 From now on, we always assume an adequate circuit constructor. Moreover, we work 
@@ -927,7 +923,7 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   }
 \]
 \[
-  \infer[(\rul{cond})]{[C, \ifthenelse{a}{b}{c}]\to [C', \ifthenelse{a'}{b}{c}]}{
+  \infer[(\rul{cond})]{[C, \ifthenelse{a}{b}{c}]\to [C, \ifthenelse{a'}{b}{c}]}{
     [C,a]\to [C',a']
   }
 \]
@@ -1004,7 +1000,7 @@ Church-style typing of the $\boxx$ operator.
 The $(\unbox)$ rule will first generate a binding from $v$ and the
 input $u$ of $D$. Then, it will compose $C$ and $D$ along that binding
 and update the names of the wire identifiers appearing in $u'$
-according to $\binding'$.
+according to $\binding'$. 
 
 The recursive nature of the reduction rules explains why closures are 
 not required to satisfy $\FQ(a)=\mathtt{Out}(C)$. The requirement that 
@@ -1117,8 +1113,9 @@ We prove the Lemma by induction on $T$.
 
 \begin{lemma}
 \label{binding_judgement}
-If $\Gamma;Q \entails a:A$ is valid and $\mathfrak{b}$ is a 
-binding, then $\Gamma;\binding (Q) \entails \binding(a):A$ is valid.
+If $\Gamma;Q \entails a:A$ is valid and $\binding$ is a 
+binding such that $FQ(a)\subseteq\dom(\binding)$ 
+then $\Gamma;\binding (Q) \entails \binding(a):A$ is valid.
 \end{lemma}
 
 \begin{proof}
@@ -1591,8 +1588,11 @@ We treat them individually.
   term variables are declared of a duplicable type. This 
   follows from Corollary \ref{typed_qd_term} and 
   Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}}. 
-  By applying Lemma~\hyperref[binding_judgement]{\ref*{binding_judgement}} 
-  to $\pi_1^2$ we get a typing derivation $\tau$ of 
+  By Definition~\hyperref[Append_cond_2]{\ref*{circuit_constructor}
+  (\ref*{Append_cond_2})}, we know that $\FQ(t')\subseteq\dom(\binding')$. 
+  We can therefore apply Lemma~\hyperref[binding_judgement]
+  {\ref*{binding_judgement}} to $\pi_1^2$ to get a typing 
+  derivation $\tau$ of 
   \[
   {!}\Delta;\FQ(\binding(t'))\entails \binding(t'):U.
   \]
@@ -1819,12 +1819,13 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
     \item If $a_1\notin\val$, then $[C,a_1a_2]\to[C',a_1'a_2]$
     by the induction hypothesis and the $(fun)$ rule.
     \item If $a_1\in\val$ and $a_2\notin\mathtt{Val}$, then 
-    $[C,ab]\to[C',ab']$ by the induction hypothesis and the $(arg)$ 
-    rule.
+    $[C,a_1a_2]\to[C',a_1a_2']$ by the induction hypothesis and 
+    the $(arg)$ rule.
     \item If $a_1,a_2\in\val$ then by 
     Lemma~\hyperref[form_values]{\ref*{form_values}}, $a_1$ is either 
-    an abstraction or a constant. In each case $[]$ by the appropriate 
-    rule among $(\beta)$, $(\boxx)$, $(\unbox)$ and $(\rev)$. 
+    an abstraction or a constant. In each case $[C,a_1a_2]$ reduces 
+    by the appropriate rule among $(\beta)$, $(\boxx)$, $(\unbox)$ 
+    and $(\rev)$. 
   \end{itemize}
 \end{enumerate}
 \end{proof}
