@@ -602,7 +602,7 @@ A \emph{typing judgment} is an expression of the form:
 \] 
 where $\Gamma$ is a typing context, $Q$ is a quantum context, 
 $a$ is a term and $A$ is a type. A typing judgment is \emph{valid} if 
-it can be inferred from the rules given in Figure~\hyperref[trules]{\ref*{trules}}. In the rule $(cst_c)$, 
+it can be inferred from the rules given in Figure~\hyperref[trules]{\ref*{trules}}. In the rule $(\rul{cst}_c)$, 
 $c$ ranges over the set $\s{\boxx^T, \unbox, \rev}$. Each typing rule
 carries an implicit side condition that the judgements appearing in it
 are well-formed. In particular, a rule containing a context of the form
@@ -625,19 +625,19 @@ explicitly stated.
 \begin{figure}[!ht]
 \begin{mdframed}
 \[
-\infer[(ax_c)]{{!}\Delta, x:A;\emptyset\entails x:B}{
+\infer[(\rul{ax}_c)]{{!}\Delta, x:A;\emptyset\entails x:B}{
   A<:B
 }
 ~~~~
-\infer[(ax_q)]{{!}\Delta;\s{q}\entails q:\qubit}{
+\infer[(\rul{ax}_q)]{{!}\Delta;\s{q}\entails q:\qubit}{
 } 
 \]
 \[
-\infer[(cst_c)]{{!}\Delta;\emptyset \entails c:B}{
+\infer[(\rul{cst}_c)]{{!}\Delta;\emptyset \entails c:B}{
   {!}A_{c}(T,U)<:B
 } 
 ~~~~
-\infer[(unit)]{{!}\Delta;\emptyset\entails *:{!}^n 1}{
+\infer[(\rul{unit})]{{!}\Delta;\emptyset\entails *:{!}^n 1}{
 }
 \]
 \[
@@ -650,7 +650,7 @@ explicitly stated.
 }
 \]
 \[
-\infer[(app)]{\Gamma_1,\Gamma_2, {!}\Delta;Q_1,Q_2\entails ca:B}{
+\infer[(\rul{app})]{\Gamma_1,\Gamma_2, {!}\Delta;Q_1,Q_2\entails ca:B}{
   \Gamma_1, {!}\Delta;Q_1\entails c:A\loli B 
   &
   \Gamma_2, {!}\Delta ;Q_2\entails a:A 
@@ -683,14 +683,14 @@ explicitly stated.
 }
 \]
 \[
-\infer[(if)]{\Gamma_1,\Gamma_2, {!}\Delta;Q_1,Q_2\entails \ifthenelse{b}{a_1}{a_2}:A}{
+\infer[(\rul{if})]{\Gamma_1,\Gamma_2, {!}\Delta;Q_1,Q_2\entails \ifthenelse{b}{a_1}{a_2}:A}{
   \Gamma_1, {!}\Delta;Q_1\entails b:\bool 
   &
   \Gamma_2, {!}\Delta;Q_2 \entails a_1:A ~~~ \Gamma_2, {!}\Delta;Q_2 \entails a_2:A
 }
 \]
 \[
-\infer[(circ)]{{!}\Delta;\emptyset \entails (t,C,a):{!}^n\Circ(T,U)}{
+\infer[(\rul{circ})]{{!}\Delta;\emptyset \entails (t,C,a):{!}^n\Circ(T,U)}{
   Q_1\entails t:T 
   &
   {!}\Delta ; Q_2\entails a:U 
@@ -1101,9 +1101,9 @@ $\mathcal{Q}$, then $\FQ(t)\entails \spec_X(T):T$ is valid.
 \begin{proof}
 We prove the Lemma by induction on $T$.
   \begin{itemize}
-    \item If $T=1$, then $\spec_X(T)=*$ and we can use the $(unit)$ rule.
+    \item If $T=1$, then $\spec_X(T)=*$ and we can use the $(\rul{unit})$ rule.
     \item If $T=\qubit$, then $\spec_X(T)=q$ for some quantum variable $q$ and we can 
-          use the $(ax_q)$ rule.
+          use the $(\rul{ax}_q)$ rule.
     \item If $T=T_1\x T_2$, then $\spec_X(T)=\p{t_1,t_2}$ where $t_1=\spec_X(T_1)$ 
           and $u=\spec_{X\cup \FQ(t_1)}(T_2)$. By the induction hypothesis, both 
           $\FQ(t_1)\entails t_1:T_1$ and $\FQ(t_2)\entails t_2:T_2$ are valid typing 
@@ -1130,7 +1130,7 @@ then $Q=\emptyset$ and $\Gamma={!}\Delta$ for some $\Delta$.
 
 \begin{proof}
 By induction on the typing derivation of $\Gamma;Q \entails v:{!}A$. 
-In the case of $(ax_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}(\ref*{subtype_bang})}.
+In the case of $(\rul{ax}_c)$, use Lemma~\hyperref[subtype_bang]{\ref*{subtyping_shape}(\ref*{subtype_bang})}.
 \end{proof}
 
 \begin{lemma}
@@ -1192,18 +1192,18 @@ Let $\pi_1$ and $\pi_2$ be the typing derivations  of
 $\Gamma,{!}\Delta,x:B;Q \entails a:A$ and  $\Gamma',{!}\Delta;Q' \entails v:B$ 
 respectively. We prove the Lemma by induction on $\pi_1$.
 \begin{itemize}
- \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=x$, then $\pi_1$ is
+ \item If the last rule of $\pi_1$ is $(\rul{ax}_c)$ and $a=x$, then $\pi_1$ is
  \[
-   \infer[(ax_c)]{{!}\Delta, x:B;\emptyset\entails x:A}{
+   \infer[(\rul{ax}_c)]{{!}\Delta, x:B;\emptyset\entails x:A}{
      B<:A
    }
  \]
  with $\Gamma=Q=\emptyset$. Then $a[v/x]=v$ and can conclude by applying 
  Lemma~\hyperref[subtype]{\ref*{prop_type_syst}.\ref*{subtype}} to $\pi_2$.
- \item If the last rule of $\pi_1$ is $(ax_c)$ and $a=y\neq x$, then 
+ \item If the last rule of $\pi_1$ is $(\rul{ax}_c)$ and $a=y\neq x$, then 
  $\pi_1$ is
  \[
-   \infer[(ax_c)]{{!}\Delta, x:{!}B',y:A';\emptyset\entails y:A}{
+   \infer[(\rul{ax}_c)]{{!}\Delta, x:{!}B',y:A';\emptyset\entails y:A}{
      A'<:A
    }
  \]
@@ -1213,8 +1213,8 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  we know that $\Gamma'=Q'=\emptyset$. Since $a[v/x]=y$ and $x\notin \FV(y)$ 
  we can conclude by applying
  Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} to $\pi_1$.
- \item If the last rule of $\pi_1$ is one of $(ax_q)$, $(cst_c)$, 
- $(unit)$, $(\top)$ and $(\bot)$, and $a$ is the corresponding constant, 
+ \item If the last rule of $\pi_1$ is one of $(\rul{ax}_q)$, $(\rul{cst}_c)$, 
+ $(\rul{unit})$, $(\top)$ and $(\bot)$, and $a$ is the corresponding constant, 
  then $x\notin \FV(a)$ and  $x$ must be declared of some type ${!}B'$.
  We can therefore reason as in the previous case. 
  \item If the last rule of $\pi_1$ is $(\lambda_1)$ and $a=\lambda y.b$, then $\pi_1$ is
@@ -1242,10 +1242,10 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
  ${!}\Delta,y:A_1;\emptyset \entails b[v/x]:A_2$ is valid and we can conclude
  by applying $(\lambda_2)$.
- \item If the last rule of $\pi_1$ is $(app)$, and $a=ca'$, then $\pi_1$ can 
+ \item If the last rule of $\pi_1$ is $(\rul{app})$, and $a=ca'$, then $\pi_1$ can 
  be of one of three forms depending on $B$. If $B$ is duplicable, then $\pi_1$ is
  \[
- \infer[(app)]{\Gamma_1,\Gamma_2,{!}\Delta,x:{!}B';Q_1,Q_2\entails ca':A}{
+ \infer[(\rul{app})]{\Gamma_1,\Gamma_2,{!}\Delta,x:{!}B';Q_1,Q_2\entails ca':A}{
     \deduce[]{\Gamma_1, x:{!}B',{!}\Delta;Q_1\entails c:A'\loli A}{
       \vdots
     }
@@ -1260,11 +1260,11 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  know that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore 
  implies that $\Gamma_1,{!}\Delta;Q_1\entails c[v/x]:A'\loli A$ and 
  $\Gamma_2,{!}\Delta ;Q_2\entails a'[v/x]:A'$ are valid and we can conclude 
- by applying $(app)$. If, instead, $B$ is non-duplicable, then the declaration 
+ by applying $(\rul{app})$. If, instead, $B$ is non-duplicable, then the declaration 
  $x:B$ can only appear in one branch of the derivation. This means that $\pi_1$ 
  is either 
   \[
- \infer[(app)]{\Gamma_1,\Gamma_2,{!}\Delta,x:B;Q_1,Q_2\entails ca':A}{
+ \infer[(\rul{app})]{\Gamma_1,\Gamma_2,{!}\Delta,x:B;Q_1,Q_2\entails ca':A}{
     \deduce[]{\Gamma_1, x:B,{!}\Delta;Q_1\entails c:A'\loli A}{
       \vdots
     }
@@ -1276,7 +1276,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \]
  or
   \[
- \infer[(app).]{\Gamma_1,\Gamma_2,{!}\Delta,x:B;Q_1,Q_2\entails ca':A}{
+ \infer[(\rul{app}).]{\Gamma_1,\Gamma_2,{!}\Delta,x:B;Q_1,Q_2\entails ca':A}{
     \deduce[]{\Gamma_1, {!}\Delta;Q_1\entails c:A'\loli A}{ 
       \vdots
     }
@@ -1288,15 +1288,15 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  \]
  In the first case, the induction hypothesis implies that 
  $\Gamma_1,\Gamma' {!}\Delta;Q_1,Q'\entails c[v/x]:A'\loli A$ is valid and 
- we can conclude by $(app)$. The second case is treated analogously.
+ we can conclude by $(\rul{app})$. The second case is treated analogously.
  \item If the last rule of $\pi_1$ is on of $(\x\mbox{-i})$, $(\x\mbox{-e})$ 
- and $(if)$, and $a$ is the corresponding term, then we can reason as above
+ and $(\rul{if})$, and $a$ is the corresponding term, then we can reason as above
  by considering in turn the case where $B$ is duplicable and the case where
  $B$ is non-duplicable.
- \item If the last rule of $\pi_1$ is $(circ)$, and $a=(t,C,a')$, then 
+ \item If the last rule of $\pi_1$ is $(\rul{circ})$, and $a=(t,C,a')$, then 
  $\pi_1$ is
  \[
- \infer[(circ)]{{!}\Delta,x:{!}B';\emptyset \entails (t,\mathbf{c},a'):{!}^n\Circ(T,U)}{
+ \infer[(\rul{circ})]{{!}\Delta,x:{!}B';\emptyset \entails (t,\mathbf{c},a'):{!}^n\Circ(T,U)}{
     \deduce[]{Q_1\entails t:T}{
       \vdots
     }    
@@ -1314,7 +1314,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  Lemma~\hyperref[context_value]{\ref*{context_value}} again, we know 
  that $\Gamma'=Q'=\emptyset$. The induction hypothesis therefore implies that
  ${!}\Gamma; Q_2\entails a'[v/x]:U$ is valid and we can conclude
- by applying $(circ)$.
+ by applying $(\rul{circ})$.
 \end{itemize}
 \end{proof}
 
@@ -1357,9 +1357,9 @@ the induction hypothesis to $\pi$.
 
 \begin{description}
 \item[Congruence rules:] These rules are treated uniformly. We illustrate the 
-$(fun)$ and $(circ)$ cases.
+$(\rul{fun})$ and $(\rul{circ})$ cases.
 \begin{itemize}
-  \item $(fun)$: the reduction rule is
+  \item $(\rul{fun})$: the reduction rule is
   \[
     \infer[]{[C,cb]\to[C',c'b]}{
       [C,c]\to[C',c']
@@ -1396,9 +1396,9 @@ $(fun)$ and $(circ)$ cases.
   \]  
   shows that $\Gamma_1,\Gamma_2, {!}\Delta;\FQ(c'),\FQ(b)\entails [C',c'b]:A,(Q',Q'')$ 
   is valid.
-  \item $(circ)$: the reduction rule is
+  \item $(\rul{circ})$: the reduction rule is
   \[
-    \infer[(circ)]{[C, (t,D,b)]\to [C, (t,D',b')]}{
+    \infer[(\rul{circ})]{[C, (t,D,b)]\to [C, (t,D',b')]}{
       [D,b]\to [D',b']
     }
   \]  
@@ -1732,7 +1732,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   is therefore valid. Since $a'$ 
   is not a value, the induction hypothesis implies that there exists $a''$ such 
   that $[D,a']\to [D',a'']$ and $[C,(t,D,a')]$ therefore reduces to 
-  $[C,(t,D',a'')]$ by the $(circ)$ reduction rule.
+  $[C,(t,D',a'')]$ by the $(\rul{circ})$ reduction rule.
   \item If $a=\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin \mathtt{Val}$,
   then the typing derivation $\pi$ is:
   \[
@@ -1756,10 +1756,10 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   are therefore both valid. 
   Now if $a_2\notin\mathtt{Val}$, then by the induction hypothesis 
   $[C,a_2]\to[C',a_2']$. Hence $[C,\p{a_1,a_2}]$ reduces to $[C',\p{a_1,a_2'}]$ 
-  by the $(right)$ reduction rule.
+  by the $(\rul{right})$ reduction rule.
   If on the other hand $a_2\in\mathtt{Val}$, then it must be the case that $a_1\notin\mathtt{Val}$ 
   and we can conclude by reasoning analogously that $[C,\p{a_1,a_2}]$ reduces to 
-  some $[C',\p{a_1',a_2}]$ by the $(left)$ reduction rule.. 
+  some $[C',\p{a_1',a_2}]$ by the $(\rul{left})$ reduction rule.. 
   \item If $a=\ifthenelse{a_1}{a_2}{a_3}$, then the typing derivation $\pi$ is:
   \[
   \infer[.]{\FQ(a_1),Q\entails \ifthenelse{a_1}{a_2}{a_3}:A}{
@@ -1785,16 +1785,16 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   is therefore valid. Now if $a_1\notin\mathtt{Val}$, then by the induction hypothesis 
   $[C,a_1]\to[C',a_1']$ and thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ can
   be seen to reduce
-  to $[C',\ifthenelse{a_1'}{a_2}{a_3}]$ by the $(cond)$ reduction rule. 
+  to $[C',\ifthenelse{a_1'}{a_2}{a_3}]$ by the $(\rul{cond})$ reduction rule. 
   If on the other hand $a_1\in\mathtt{Val}$, then by 
   Lemma~\hyperref[form_values]{\ref*{form_values}} either $a_1=\true$ or $a_1=\false$. 
   Thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces either to $[C,a_2]$ by the 
-  $(if\mbox{-}\mathtt{T})$ reduction rule or 
-  to $[C,a_3]$ by the $(if\mbox{-}\mathtt{F})$ reduction rule.
+  $(\rul{if}\mbox{-}\mathtt{T})$ reduction rule or 
+  to $[C,a_3]$ by the $(\rul{if}\mbox{-}\mathtt{F})$ reduction rule.
   \item If $a=\letin{\p{x,y}}{a_1}{a_2}$, then we can reason as above to show that 
-  if $a_1$ is not a value, then the $(let)$ congruence rule applies and that if 
+  if $a_1$ is not a value, then the $(\rul{let})$ congruence rule applies and that if 
   $a$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
-  guarantees that the $(pair)$ rule applies.
+  guarantees that the $(\rul{pair})$ rule applies.
   \item If $a=a_1a_2$ then the typing derivation $\pi$ is: 
   \[
     \infer[.]{\FQ(a_1),\FQ(a_2)\entails a_1a_2:A}{
@@ -1817,10 +1817,10 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   are therefore valid. There are three cases to treat.
   \begin{itemize}
     \item If $a_1\notin\val$, then $[C,a_1a_2]\to[C',a_1'a_2]$
-    by the induction hypothesis and the $(fun)$ rule.
+    by the induction hypothesis and the $(\rul{fun})$ rule.
     \item If $a_1\in\val$ and $a_2\notin\mathtt{Val}$, then 
     $[C,a_1a_2]\to[C',a_1a_2']$ by the induction hypothesis and 
-    the $(arg)$ rule.
+    the $(\rul{arg})$ rule.
     \item If $a_1,a_2\in\val$ then by 
     Lemma~\hyperref[form_values]{\ref*{form_values}}, $a_1$ is either 
     an abstraction or a constant. In each case $[C,a_1a_2]$ reduces 
@@ -1886,7 +1886,7 @@ This is illustrated by the following constraint typing rule:
   \AxiomC{$\vec{\alpha'}, \vec{i'} \notin \Delta, (\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T)$} \noLine
   \UnaryInfC{$\lset = \lset_T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \cup
     \{ 1 \le I, T[\vec{\alpha'}/\vec{\alpha}, \vec{i'}/\vec{i}] \prec: U \}$}
-  \RightLabel{$(ax.S)$}
+  \RightLabel{$(\rul{ax}.S)$}
   \UnaryInfC{${!}^I \Delta, x: ~(\forall \vec{\alpha} ~\vec{i}, \lset_T \Rightarrow T) \vdash_\lset x : U ~|_{\{\vec{\alpha'}, \vec{i'}\}}$}
 \end{prooftree}
 For example, in the term 
@@ -1920,7 +1920,7 @@ language:
 \]    
 together with the associated typing rule:
 \[
-\infer[(rec)]{{!}\Delta;Q \entails \letrecin{a\,x}{b}{c}:C}{
+\infer[(\rul{rec})]{{!}\Delta;Q \entails \letrecin{a\,x}{b}{c}:C}{
   {!}\Delta,a:{!}(A\loli B), x:A;\emptyset \entails b:B
   &
   {!}\Delta, a:{!}(A\loli B) ;Q \entails c:C      
@@ -1928,7 +1928,7 @@ together with the associated typing rule:
 \]
 and reduction rule:
 \[
-\infer[(rec).]{[C,\letrecin{a\,x}{b}{c}]\to [C, c[\lambda x.(\letrecin{a\,x}{b}{b})/a]}{}
+\infer[(\rul{rec}).]{[C,\letrecin{a\,x}{b}{c}]\to [C, c[\lambda x.(\letrecin{a\,x}{b}{b})/a]}{}
 \]
 Preliminary research shows that the core language can be extended 
 with this recursion operator without losing type-safety. 
