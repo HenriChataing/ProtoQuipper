@@ -18,7 +18,7 @@ import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 
 import Data.List as List
-
+import Data.Map (Map)
 
 -- | Type of term and type variables.
 type Variable = Int
@@ -84,10 +84,10 @@ data LinType =
 -- Sum types
   | TBool                      -- ^ bool
   | TInt                       -- ^ int
-  | TUser String [Type]        -- ^ Algebraic type, parameterized over the variables a1 .. an.
+  | TUser Variable [Type]      -- ^ Algebraic type, parameterized over the variables a1 .. an.
 
 -- Quantum related types
-  | TQubit                      -- ^ qubit
+  | TQubit                     -- ^ qubit
   | TCirc Type Type            -- ^ circ (T, U)
   deriving (Show, Eq)
 
@@ -123,22 +123,32 @@ is_user_type (TBang _ a) = is_user_lintype a
 
 
 -- | Specification of a user type.
-data Typespec = Spec {
-  args :: Int,                                             -- ^ The number of type arguments required.
+data Typedef = Typedef {
+  d_args :: Int,                                             -- ^ The number of type arguments required.
 
-  bound :: Bool,                                           -- ^ Indicates whether the type admit a finite subtree.
-  qdatatype :: Bool,                                       -- ^ Is a quantum data type. Note that this flag is subject to change depending on the value of the type arguments:
-                                                           -- what it says exactly is: assuming the type arguments are quantum data types, then it is a quantum data type.
-                                                           -- For example, \"list a\" is a qdata type on the condition that \"a\" is itself a qdata type.
+  d_qdatatype :: Bool,                                       -- ^ Is a quantum data type. Note that this flag is subject to change depending on the value of the type arguments:
+                                                             -- what it says exactly is: assuming the type arguments are quantum data types, then it is a quantum data type.
+                                                             -- For example, \"list a\" is a qdata type on the condition that \"a\" is itself a qdata type.
 
-  unfolded :: ([Type], [(Datacon, Bool, Type)]),           -- ^ The unfolded definition of the type, with on the left the type arguments, on the right the unfolded type :
-                                                           -- a list of tuples (/Dk/, /bk/, /Tk/) where /Dk/ is the name of the data constructor, /bk/ indicates whether the type contains any
-                                                           -- algebraic types, /Tk/ is the type of the data constructor.
+  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type, with on the left the type arguments, on the right the unfolded type :
+                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
 
-  subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
-                                                           -- is automatically inferred during the translation to the core syntax.
+  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+                                                             -- is automatically inferred during the translation into the core syntax.
 }
 
+
+
+-- | Type synonyms.
+data Typesyn = Typesyn {
+  s_args :: Int,                                             -- ^ The number of type arguments.
+
+  s_qdatatype :: Bool,                                       -- ^ The the type it is synonym of a quantum data type ?
+
+  s_unfolded :: Type                                         -- ^ The unfolded type.
+
+  -- no subtyping relation since the synonyms are automatically replaced.
+}
 
 
 -- | Like variables (term and type), datacons are attributed unique ids.
@@ -167,13 +177,13 @@ type Datacon = Int
 -- Note that the expression let x = e in f (where x is a variable), is not a syntactic sugar, as it differs from the application (fun x -> f) e by the presence
 -- of let-polymorphism.
 data Pattern =
-    PJoker                                        -- ^ _
-  | PUnit                                         -- ^ ()
-  | PVar Variable                                 -- ^ x
-  | PTuple [Pattern]                              -- ^ (p1, .. , pn)
-  | PDatacon Datacon (Maybe Pattern)              -- ^ Datacon p
-  | PLocated Pattern Extent                       -- ^ Located patterns.
-  | PConstraint Pattern S.Type                    -- ^ (p <: T)
+    PJoker                                          -- ^ _
+  | PUnit                                           -- ^ ()
+  | PVar Variable                                   -- ^ x
+  | PTuple [Pattern]                                -- ^ (p1, .. , pn)
+  | PDatacon Datacon (Maybe Pattern)                -- ^ Datacon p
+  | PLocated Pattern Extent                         -- ^ Located patterns.
+  | PConstraint Pattern (S.Type, Map String Type)   -- ^ (p <: T)
   deriving Show 
 
 
@@ -226,7 +236,7 @@ data Expr =
 -- Unrelated
   | ELocated Expr Extent                          -- ^ Located expressions.
   | EBuiltin String                               -- ^ #builtin s
-  | EConstraint Expr S.Type                       -- ^ (e <: T)
+  | EConstraint Expr (S.Type, Map String Type)    -- ^ (e <: T)
   deriving Show
 
 

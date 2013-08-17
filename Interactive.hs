@@ -55,25 +55,22 @@ import_modules opts mnames ctx = do
                 mopts <- return $ MOptions { toplevel = False, disp_decls = False }
                 -- Check whether the module has already been imported or not
                 imported <- get_context >>= return . modules
-                case List.lookup (S.module_name p) imported of
-                  Just m ->
-                      -- Insert again the names in the labelling map.
-                      return $  ctx { label = Map.union (global_ids m) (label ctx) }
-
+                -- If needed, process the module, in any case return the module contents
+                m <- case List.lookup (S.module_name p) imported of
+                  Just m -> do
+                      -- Return the module contents
+                      return m
+               
                   Nothing -> do
                       -- Process the module
                       process_module (opts, mopts) p
 
-                      -- Move the module internally onto the modules stack
-                      qst <- get_context
-                      set_context $ qst { modules = (S.module_name p, cmodule qst):(modules qst) }
-
-                      -- Import the declarations in the extensive context
-                      cm <- return $ cmodule qst
-                      ctx <- return $ ctx { typing = IMap.union (global_types cm) (typing ctx),
-                                            label = Map.union (global_ids cm) (label ctx),
-                                            environment = IMap.union (global_vars cm) (environment ctx) }
-                      return ctx) (return ctx) deps
+                -- Insert again the names in the labelling map.
+                vars <- return $ Map.map (\id -> EGlobal id) $ m_variables m
+                typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
+                return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
+                                                    l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
+                                                    l_types = Map.union typs $ l_types $ labelling ctx } } ) (return ctx) deps
   set_file file_unknown
   return ctx
 
@@ -88,14 +85,15 @@ run_command opts prog ctx = do
   ctx <- import_modules (fst opts) (S.imports prog) ctx
 
   -- translate the module header : type declarations
-  dcons <- import_typedefs $ S.typedefs prog
-  define_user_subtyping $ S.typedefs prog
-  define_user_properties $ S.typedefs prog
+--  dcons <- import_typedefs $ S.typedefs prog
+--  define_user_subtyping $ S.typedefs prog
+--  define_user_properties $ S.typedefs prog
  
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
                        ctx <- rec
-                       process_declaration opts prog ctx decl) (return $ ctx { label = Map.union dcons $ label ctx }) $ S.body prog
+                       process_declaration opts prog ctx decl) (return ctx) $ S.body prog
+-- $ ctx { label = Map.union dcons $ label ctx }) $ S.body prog
   -- Return
   return ctx
 
@@ -191,9 +189,16 @@ run_interactive opts ctx buffer = do
             [":type"] -> do
                 List.foldl (\rec x -> do
                               rec
-                              case Map.lookup x $ label ctx of
-                                Just id -> do
+                              case Map.lookup x $ l_variables $ labelling ctx of
+                                Just (EVar id) -> do
                                     a <- type_of id $ typing ctx
+                                    pa <- case a of
+                                            TForall _ _ _ a -> pprint_type_noref a
+                                            TBang _ _ -> pprint_type_noref a
+                                    liftIO $ putStrLn $ "val " ++ x ++ " : " ++ pa
+
+                                Just (EGlobal id) -> do
+                                    a <- type_of_global id
                                     pa <- case a of
                                             TForall _ _ _ a -> pprint_type_noref a
                                             TBang _ _ -> pprint_type_noref a

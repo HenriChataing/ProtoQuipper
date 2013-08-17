@@ -39,7 +39,7 @@ data QError =
   | BoxTypeError String                                                                   -- ^ Box constructor called with something not a quantum data type.
   | UnboundVariable String                                                                -- ^ Variable not in scope. The arguments are name and location of the variable.
   | UnboundDatacon String                                                                 -- ^ Data constructor not in scope. The arguments are name and location of the constructor.
-
+  | UndefinedType String                                                                  -- ^ Type definition not in scope. The arguments are name and location of the constructor.
   | UndefinedBuiltin String                                                               -- ^ As the name indicates, the program tried to used an undefined built-in, of name 
                                                                                           -- the first argument, at the location the second.
 
@@ -134,6 +134,9 @@ instance Show QError where
 
   show (UnboundDatacon dcon) =
     "unbound data constructor " ++ dcon
+
+  show (UndefinedType typ) =
+    "undefined type " ++ typ
 
   show (UndefinedBuiltin s) =
     "undefined builtin value " ++ s

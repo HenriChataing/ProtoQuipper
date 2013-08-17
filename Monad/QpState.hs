@@ -6,7 +6,7 @@ import Utils
 import Classes
 import Builtins
 
-import Parsing.Localizing (Extent, extent_unknown)
+import Parsing.Localizing (Extent, extent_unknown, file_unknown)
 
 import Monad.Modules
 import Monad.QuipperError
@@ -84,16 +84,19 @@ data Context = Ctx {
   location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
 
 -- Module related fields
-  modules :: [(String, Module)],                      -- ^ The list of processed modules.
-  cmodule :: Module,                                  -- ^ Definition of the current module.
+  modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
+  dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
 
 -- Helpers of the typing / interpretation 
+  types :: IntMap (Either Typedef Typesyn),           -- ^ The definitions of both the imported types and the types defined in the current module.
+
   builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
                                                       -- in the 'builtins' field, where they are available to both the type checker and the interpreter.
-  types :: Map String Typespec,                       -- ^ The definitions of both the imported types and the types defined in the current module.
   datacons :: IntMap Type,                            -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
   globals :: IntMap Type,                             -- ^ Typing context corresponding to the global variables imported from other modules.
+
+  values :: IntMap Value,                             -- ^ The values of the global variables.
 
 -- Information relevant to flags
   flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
@@ -163,23 +166,27 @@ empty_context =  Ctx {
 
 -- No modules
   modules = [],
-  cmodule = dummy_module,
+  dependencies = [],
  
 -- No global variables
-  globals = IMap.empty, 
+  globals = IMap.empty,
+  values = IMap.empty, 
 
 -- No builtins, added later
   builtins = Map.empty,
 
 -- The initial location is unknown, as well as the name of the code file
-  filename = "*UNKNOWN*",
+  filename = file_unknown,
   location = extent_unknown,
 
 -- No predefined types, datacons or flags
-  types = Map.empty,
+  types = IMap.empty,
   datacons = IMap.empty,
+
+-- No flag
   flags = IMap.empty,
 
+-- Circuit stack initialized with a void circuit.
   circuits = [ Circ { qIn = [], gates = [], qOut = [] } ],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
@@ -269,7 +276,28 @@ register_datacon :: String -> Type -> QpState Int
 register_datacon dcon dtype = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
-  set_context $ ctx { namespace = nspace, datacons = IMap.insert id dtype $ datacons ctx }
+  set_context $ ctx { namespace = nspace,
+                      datacons = IMap.insert id dtype $ datacons ctx }
+  return id
+
+
+-- | Register a data type definition. A unique id is attributed to the type name and returned.
+register_typedef :: String -> Typedef -> QpState Int
+register_typedef typename def = do
+  ctx <- get_context
+  (id, nspace) <- return $ N.register_type typename (namespace ctx)
+  set_context $ ctx { namespace = nspace,
+                      types = IMap.insert id (Left def) $ types ctx }
+  return id
+
+
+-- | Register a type synonym.
+register_typesyn :: String -> Typesyn -> QpState Int
+register_typesyn typename syn = do
+  ctx <- get_context
+  (id, nspace) <- return $ N.register_type typename (namespace ctx)
+  set_context $ ctx { namespace = nspace,
+                      types = IMap.insert id (Right syn) $ types ctx }
   return id
 
 
@@ -318,101 +346,39 @@ datacon_name x = do
         return $ subvar 'D' x
 
 
-
-
--- | Return the current module.
-get_module :: QpState Module
-get_module =
-  get_context >>= return . cmodule
-
-
--- | Set the current module.
-set_module :: Module -> QpState ()
-set_module m = do
+-- | Retrieve the name of the given type. If no match is found in
+-- the namespace, produce a standard name /A_n/.
+type_name :: Variable -> QpState String
+type_name x = do
   ctx <- get_context
-  set_context $ ctx { cmodule = m }
+  case IMap.lookup x $ N.typecons (namespace ctx) of
+    Just n ->
+        return n
 
+    Nothing ->
+        return $ subvar 'A' x
 
--- | Request for a variable to be exported (added to the current module export list).
--- New entries are added in the definition of the current module in the ids, types and vars maps.
--- Note that the type is initialized with the default value @T@, and the value with the default @()@.
-export_var :: Variable -> QpState ()
-export_var x = do
-  -- Current module
-  cm <- get_module
-  -- Name of the variable
-  name <- variable_name x
-
-  set_module $ cm { global_ids = Map.insert name x $ global_ids cm,
-                    global_types = IMap.insert x (TBang (-1) TUnit) $ global_types cm,
-                    global_vars = IMap.insert x VUnit $ global_vars cm }
-
-
--- | Update the type of a global variable from the current module.
-update_global_type :: Variable -> Type -> QpState ()
-update_global_type x t = do
-  m <- get_module
-  set_module $ m { global_types = IMap.update (\_ -> Just t) x $ global_types m }
-
-
--- | Create the initializer of the interpretation. This creates an evaluation context in which
--- all the global variables from the module dependencies have been inserted, associated with their
--- respective values.
-global_context :: QpState (IntMap Value)
-global_context = do
-  ctx <- get_context
-  cmod <- get_module
-  List.foldl (\rec m -> do
-                ectx <- rec
-                case List.lookup m $ modules ctx of
-                  Just m ->
-                      return $ IMap.union (global_vars m) ectx
-
-                  Nothing ->
-                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return IMap.empty) $ dependencies cmod
 
 
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
--- all the global variables from the module dependencies have been inserted, associated with their respective
+-- all the global variables and dataconstructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
-global_namespace :: QpState (Map String Variable)
-global_namespace = do
-  ctx <- get_context
-  cmod <- get_module
+global_namespace :: [String]                                                     -- ^ A list of module dependencies.
+                 -> QpState (Map String Expr, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
+global_namespace deps = do
+  mods <- get_context >>= return . modules
   List.foldl (\rec m -> do
-                nsp <- rec
-                case List.lookup m $ modules ctx of
-                  Just m ->
-                      return $ Map.union (global_ids m) nsp
+                (lblv, lbld, lblt) <- rec
+                case List.lookup m mods of
+                  Just mod -> do
+                      vars <- return $ Map.map (\id -> EGlobal id) $ m_variables mod
+                      typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types mod
+                      return (Map.union vars lblv, Map.union (m_datacons mod) lbld, Map.union typs lblt)
 
                   Nothing ->
-                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return Map.empty) $ dependencies cmod
+                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return (Map.empty, Map.empty, Map.empty)) deps
 
 
-
-
--- | Register the definition of a type.
-register_type :: String -> Typespec -> QpState ()
-register_type typ spec = do
-  ctx <- get_context
-  set_context $ ctx { types = Map.insert typ spec $ types ctx }
-
-
--- | Import the global variables and types from the module dependencies in the globals field.
-import_globals :: QpState ()
-import_globals = do
-  ctx <- get_context
-  cm <- get_module
-  (gvs, gts) <- List.foldl (\rec m -> do
-                              (gv, gt) <- rec
-                              -- Look for the definition of the module m
-                              case List.lookup m $ modules ctx of
-                                Just mod -> do
-                                    return $ (IMap.union gv (global_types mod), Map.union gt (typespecs mod))
-
-                                Nothing ->
-                                    throwQ $ ProgramError $ "missing module implementation of " ++ m) (return (IMap.empty, Map.empty)) $ dependencies cm
-  set_context $ ctx { globals = gvs, types = gts }
 
 
 -- | Look up the type of a global variable.
@@ -427,58 +393,49 @@ type_of_global x = do
         throwQ $ ProgramError $ "undefined global variable " ++ n
 
 
+
+
 -- | Look up a variable in a specific module (typically used with a qualified variable).
 -- The input pair is (Module, Var name).
 lookup_qualified_var :: (String, String) -> QpState Variable
 lookup_qualified_var (mod, n) = do
   ctx <- get_context
-  -- Check that the module is part of the dependencies
-  if List.elem mod $ dependencies (cmodule ctx) then do
+  -- Check that the module is part of the M.dependencies
+  if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ global_ids modi of
+          case Map.lookup n $ m_variables modi of
             Just x -> return x
             Nothing -> do
-                ex <- get_location
-                f <- return $ filepath (cmodule ctx)
-                throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+                throw_UnboundVariable (mod ++ "." ++ n)
 
       Nothing -> do
-          ex <- get_location
-          f <- return $ filepath (cmodule ctx)
-          throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+          throw_UnboundVariable (mod ++ "." ++ n)
 
   else do
-    ex <- get_location
-    f <- return $ filepath (cmodule ctx)
-    throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+    throw_UnboundVariable (mod ++ "." ++ n)
+
 
 
 -- | Look up a type from a specific module (typically used with a qualified type name).
 -- The input name is (Module, Type name).
-lookup_qualified_type :: (String, String) -> QpState Typespec
+lookup_qualified_type :: (String, String) -> QpState Variable
 lookup_qualified_type (mod, n) = do
   ctx <- get_context
-  -- Check that the module is part of the dependencies
-  if List.elem mod $ dependencies (cmodule ctx) then do
+  -- Check that the module is part of the M.dependencies
+  if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ typespecs modi of
+          case Map.lookup n $ m_types modi of
             Just x -> return x
             Nothing -> do
-                ex <- get_location
-                f <- return $ filepath (cmodule ctx)
-                throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+                throw_UndefinedType (mod ++ "." ++ n)
 
       Nothing -> do
-          ex <- get_location
-          f <- return $ filepath (cmodule ctx)
-          throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+          throw_UndefinedType (mod ++ "." ++ n)
 
   else do
-    ex <- get_location
-    f <- return $ filepath (cmodule ctx)
-    throwQ $ LocatedError (UnboundVariable (mod ++ "." ++ n)) (f, ex)
+    throw_UndefinedType (mod ++ "." ++ n)
 
 
 -- | Look up the type of a built-in object.
@@ -503,23 +460,18 @@ builtin_value s = do
         throwQ $ ProgramError $ "Missing builtin: " ++ s
 
 
--- | Check whether the input string corresponds to an (algebraic) type name.
-exist_type :: String -> QpState Bool
-exist_type typename = do
-  ctx <- get_context
-  return $ Map.member typename $ types ctx
-
 
 -- | Retrieve the definition of a type.
-type_spec :: String -> QpState Typespec
+type_spec :: Variable -> QpState (Either Typedef Typesyn)
 type_spec typ = do
   ctx <- get_context
-  case Map.lookup typ $ types ctx of
+  case IMap.lookup typ $ types ctx of
     Just n ->
         return n
 
-    Nothing ->
-        throwQ $ ProgramError $ "Missing the definition of the type: " ++ typ
+    Nothing -> do
+        n <- type_name typ
+        throwQ $ ProgramError $ "Missing the definition of the type: " ++ n
 
 
 -- | Retrieve the definition of a data constructor.
@@ -799,6 +751,38 @@ throw_TypingError t u info = do
 
 
 
+-- | Generic error for unbound values (variables, data constructors, types, builtins).
+throw_UnboundValue :: String -> (String -> QError) -> QpState a
+throw_UnboundValue v err = do
+  ex <- get_location
+  f <- get_file
+  throwQ $ LocatedError (err v) (f, ex)
+
+
+-- | Throw an unbound variable error.
+throw_UnboundVariable :: String -> QpState a
+throw_UnboundVariable n =
+  throw_UnboundValue n UnboundVariable
+
+
+-- | Throw an unbound data constructor error.
+throw_UnboundDatacon :: String -> QpState a
+throw_UnboundDatacon n =
+  throw_UnboundValue n UnboundDatacon
+
+
+-- | Throw an undefined type error.
+throw_UndefinedType :: String -> QpState a
+throw_UndefinedType n =
+  throw_UnboundValue n UndefinedType
+
+
+-- | Throw an undefined builtin error.
+throw_UndefinedBuiltin :: String -> QpState a
+throw_UndefinedBuiltin n =
+  throw_UnboundValue n UndefinedBuiltin
+
+
 -- | Throw a non-duplicability error, based on the faulty reference flag.
 throw_NonDuplicableError :: ConstraintInfo -> QpState a
 throw_NonDuplicableError info = do
@@ -897,18 +881,20 @@ is_qdata_lintype (TTensor tlist) =
                 else
                   return False) (return True) tlist
 
-is_qdata_lintype (TUser typename args) = do
-  spec <- type_spec typename
-  case qdatatype spec of
-    True ->
-        List.foldl (\rec t -> do
-                      b <- rec
-                      if b then
-                        is_qdata_type t
-                      else
-                        return False) (return True) args
-    False ->
-        return False
+is_qdata_lintype (TUser typeid args) = do
+  spec <- type_spec typeid
+  isqdata <- case spec of
+               Left def -> return $ d_qdatatype def
+               Right syn -> return $ s_qdatatype syn
+  if isqdata then
+    List.foldl (\rec t -> do
+                  b <- rec
+                  if b then
+                    is_qdata_type t
+                  else
+                    return False) (return True) args
+  else
+    return False
 
 is_qdata_lintype _ =
   return False
@@ -974,7 +960,12 @@ pprint_type_noref t = do
                                                         _ -> ""
                                            Nothing -> ""
                              | otherwise -> "")
-  return $ genprint Inf t [fflag, fvar]
+  -- Printing type names
+  nspace <- get_context >>= return . namespace
+  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'T' n)
+  return $ genprint Inf t [fflag, fvar, fuser]
 
 
 -- | Like 'pprint_type_noref', but for linear types.
@@ -997,7 +988,13 @@ pprint_lintype_noref a = do
                                                         _ -> ""
                                            Nothing -> ""
                              | otherwise -> "")
-  return $ genprint Inf a [fflag, fvar]
+
+  -- Printing type names
+  nspace <- get_context >>= return . namespace
+  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'T' n)
+  return $ genprint Inf a [fflag, fvar, fuser]
 
 
 

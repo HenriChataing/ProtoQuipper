@@ -20,12 +20,12 @@ import Data.List as List
 instance PPrint LinType where
   -- Generic printing
   -- The display of flags and type variables is specified by two option functions
-  genprint _ (TVar x) [_, fvar] = fvar x
+  genprint _ (TVar x) [_, fvar, _] = fvar x
   genprint _ TUnit _ = "()"
   genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
   genprint _ TQubit _ = "qubit"
-  genprint lv (TUser n arg) opts = n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
+  genprint lv (TUser n arg) opts@[_, _, fuser] = fuser n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
 
   genprint (Nth 0) _ _ = "..."
 
@@ -69,7 +69,7 @@ instance PPrint LinType where
 -- printing over the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
-  genprint lv (TBang n a) opts@[fflag, _] =
+  genprint lv (TBang n a) opts@[fflag, _, _] =
     case (fflag n, a) of
       -- No flag
       ("", _) -> genprint (decr lv) a opts

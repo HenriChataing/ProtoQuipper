@@ -75,11 +75,12 @@ module Typing.TransSyntax (
   translate_unbound_type,
   translate_expression,
   translate_pattern,
-  export_pattern_variables,
+  with_interface,
   desugar,
   import_builtins,
   import_typedefs,
-  update_module_types) where
+  LabellingContext (..),
+  empty_label) where
 
 import Utils
 import Classes
@@ -100,81 +101,121 @@ import Interpret.Circuits as C
 import Monad.QuipperError
 import Monad.QpState hiding (is_qdata_lintype, is_qdata_type)
 import qualified Monad.QpState as Q (is_qdata_lintype, is_qdata_type)
-import Monad.Modules
+import Monad.Modules (Module)
+import qualified Monad.Modules as M
 
 import Control.Exception
 
 import Data.Map as Map
 import qualified Data.List as List
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
 
+-- | Labelling context: it contains the variable identifiers of all the variables, data constructors,
+-- types in scope.
+data LabellingContext = LblCtx {
+  l_variables :: Map String Expr,
+  l_datacons :: Map String Datacon,
+  l_types :: Map String Type
+}
 
--- | Imports the type definitions in the current state.
+
+
+-- | Empty labelling map.
+empty_label :: LabellingContext
+empty_label = LblCtx {
+  l_variables = Map.empty,
+  l_datacons = Map.empty,
+  l_types = Map.empty
+}
+
+
+
+-- | Import the built-in values, defined in the "Builtins" module.
+import_builtins :: QpState ()
+import_builtins = do
+  mb <- Map.foldWithKey (\b (t, v) rec -> do
+                      m <- rec
+                      (t', _) <- translate_bound_type t empty_label 
+                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
+  ctx <- get_context
+  set_context $ ctx { builtins = mb }
+
+
+-- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.Typedef] -> QpState (Map String Int)
-import_typedefs typedefs = do
-  -- Import the names of the types in the current labelling map
-  -- This operation permits the writing of inductive types
-  List.foldl (\rec (S.Typedef typename args _) -> do
-                rec
-                spec <- return $ Spec { args = List.length args,
-                                        bound = True,                -- Default value is True
-                                        qdatatype = True,            -- qdata type by default
-                                        unfolded = ([], []),
-                                        subtype = ([], [], emptyset) }
+import_typedefs :: [S.Typedef]            -- ^ A block of co-inductive type definitions.
+                -> LabellingContext       -- ^ The current labelling context.
+                -> QpState LabellingContext -- ^ The updated labelling context.
+import_typedefs dblock label = do
+  -- Import the type definitions.
+  -- At first, the definition is empty, it will be elaborated later.
+  -- The types of the block are added to the labelling map: this is what allows for co-inductive types
+  (typs, names) <- List.foldl (\rec def@(S.Typedef typename args _) -> do
+                                 (typs, names) <- rec
+                                 spec <- return $ Typedef { d_args = List.length args,
+                                                            d_qdatatype = True,            -- qdata type by default
+                                                            d_unfolded = ([], []),
+                                                            d_subtype = ([], [], emptyset) }
 
-                -- Register the type in the current context
-                register_type typename spec
+                                 -- Register the type in the current context
+                                 id <- register_typedef typename spec
+                                 -- Add the type in the map
+                                 return (Map.insert typename (TBang 0 $ TUser id []) typs, id:names)) (return (l_types label, [])) dblock
 
-                -- Add an entry to the current module
-                cm <- get_module
-                ctx <- get_context
-                set_context $ ctx { cmodule = cm { typespecs = Map.insert typename spec $ typespecs cm } }
-
-                return ()) (return ()) typedefs
-
-  -- Transcribe the rest of the type definitions
+  -- Transcribe the rest of the type definitions.
   -- Type definitions include : the name of the type, generic variables, the list of constructors
-  List.foldl (\rec (S.Typedef typename args dlist) -> do
-                lbl <- rec
+  datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
+                         lbl <- rec
+                         -- Type id needed for udpates.
+                         id <- case Map.lookup typename typs of
+                                 Just (TBang _ (TUser id _)) -> return id
+                                 Nothing -> throwQ $ ProgramError "missing type id"
 
-                -- Bind the arguments of the type
-                -- For each string argument a, a type !n a is created and bound in the map mapargs
-                (args', mapargs) <- List.foldr (\a rec -> do
-                                                  (args, m) <- rec
-                                                  ta <- new_type
-                                                  return (ta:args, Map.insert a ta m)) (return ([], Map.empty)) args
+                         -- Bind the arguments of the type.
+                         -- For each string argument a, a type !n a is created and bound in the map mapargs.
+                         (args', mapargs) <- List.foldr (\a rec -> do
+                                                           (args, m) <- rec
+                                                           ta <- new_type
+                                                           return (ta:args, Map.insert a ta m)) (return ([], typs)) args
 
-                -- Define the type of the data constructors
-                (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
-                                             (dt, lbl) <- rec
-                                             (dtype, argtyp, cset) <- case dtype of
-                                                                 -- If the constructor takes no argument
-                                                                 Nothing -> do
-                                                                     return (TBang one (TUser typename args'), TBang one TUnit, emptyset)
+                         -- Define the type of the data constructors
+                         (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
+                                                      (dt, lbl) <- rec
+                                                      (dtype, argtyp, cset) <- case dtype of
+                                                                          -- If the constructor takes no argument
+                                                                          Nothing -> do
+                                                                              return (TBang one (TUser id args'), TBang one TUnit, emptyset)
+ 
+                                                                          -- If the constructor takes an argument
+                                                                          Just dt -> do
+                                                                              (dt'@(TBang n _), cset) <- translate_bound_type dt $ empty_label { l_types = mapargs }
+                                                                              return (TBang one (TArrow dt' (TBang n $ TUser id args')), dt', cset)
+ 
+                                                      -- Generalize the type of the constructor over the free variables and flags
+                                                      -- Those variables must also respect the constraints from the construction of the type
+                                                      (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
+                                                      dtype <- return $ TForall ff fv cset dtype
 
-                                                                 -- If the constructor takes an argument
-                                                                 Just dt -> do
-                                                                     (dt'@(TBang n _), cset) <- translate_bound_type dt mapargs
-                                                                     return (TBang one (TArrow dt' (TBang n $ TUser typename args')), dt', cset)
+                                                      -- Register the datacon
+                                                      id <- register_datacon dcon dtype
+                                                      return $ (argtyp:dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
 
-                                             -- Generalize the type of the constructor over the free variables and flags
-                                             -- Those variables must also respect the constraints from the construction of the type
-                                             (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
-                                             dtype <- return $ TForall ff fv cset dtype
-
-                                             -- Register the datacon
-                                             id <- register_datacon dcon dtype
-                                             return $ (argtyp:dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
-
-                -- Update the specification of the type
-                spec <- type_spec typename
-                ctx <- get_context
-                set_context $ ctx { types = Map.insert typename (spec { unfolded = (args', List.map (\t -> (0, False, t)) dtypes') }) $ types ctx }
-                return m) (return Map.empty) typedefs
+                         -- Update the specification of the type
+                         Left spec <- type_spec id
+                         ctx <- get_context
+                         set_context $ ctx { types = IMap.insert id (Left $ spec { d_unfolded = (args', List.map (\t -> (0, t)) dtypes') }) $ types ctx }
+                         return m) (return $ l_datacons label) dblock
 
 
+  -- Infer the properties of the user types
+  define_user_subtyping names
+  define_user_properties names
+
+  -- Return the updated labelling map for types, and the map for dataconstructors.
+  return $ label { l_datacons = datas,
+                   l_types = typs }
 
 
 
@@ -182,12 +223,12 @@ import_typedefs typedefs = do
 -- products of the reduction of user a <: user a'
 -- Takes the name of the type as input, and returns the resulting set.
 -- No modification is made to the specification of the type.
-unfold_once :: String -> QpState ConstraintSet
+unfold_once :: Variable -> QpState ConstraintSet
 unfold_once name = do
-  spec <- type_spec name
+  Left spec <- type_spec name
   
   -- Unfolded constraints
-  (a, a', current) <- return $ subtype spec
+  (a, a', current) <- return $ d_subtype spec
   
   -- unfold the user type constraints
   cuser <- unfold_user_constraints_in_set current
@@ -207,7 +248,7 @@ unfold_once name = do
 -- resulting constraint set becomes stable. The input is a list of co-inductive
 -- types. It doesn't output anything, but updates the constraint set in the specification
 -- of the input types
-unfold_all :: [String] -> QpState ()
+unfold_all :: [Variable] -> QpState ()
 unfold_all [] = return ()
 unfold_all names = do
   -- Get all the specifications
@@ -226,9 +267,9 @@ unfold_all names = do
   -- If any has been changed, go for another round, else
   -- end
   ctx <- get_context
-  (finish, ctx) <- List.foldl (\rec (n, spec, after) -> do
+  (finish, ctx) <- List.foldl (\rec (n, Left spec, after) -> do
                                  (b, ctx) <- rec
-                                 (a, a', subt) <- return $ subtype spec
+                                 (a, a', subt) <- return $ d_subtype spec
                                  before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
                                  (cuser, cnuser) <- return $ (let (lc, lc') = List.partition is_user (fst after) in
                                                               (lc, (lc', snd after)))
@@ -240,10 +281,10 @@ unfold_all names = do
                                                     List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
                                              pprint (TUser n a) ++ " <: " ++ pprint (TUser n a'))
 
-                                   return (b, ctx { types = Map.insert n (spec { subtype = (a, a', before) }) $ types ctx })
+                                   return (b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ types ctx })
                                  else do
                                    -- Continue the recursion, but update the subtyping of n
-                                   return (n:b, ctx { types = Map.insert n (spec { subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
+                                   return (n:b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
 
   -- Continue or not with the recursion
   set_context ctx
@@ -252,37 +293,35 @@ unfold_all names = do
 
 -- | Infers the subtyping relation rules of all the user defined types.
 -- It uses the algorithm described above.
-define_user_subtyping :: [S.Typedef] -> QpState () 
-define_user_subtyping typedefs = do
+define_user_subtyping :: [Variable] -> QpState () 
+define_user_subtyping dblock = do
   newlog 0 ">> User subtyping relations"
-  -- Get the type names
-  names <- return $ List.map (\(S.Typedef n _ _) -> n) typedefs
 
   -- Initialize the constraint set of each user type
   List.foldl (\rec n -> do
                 rec
-                spec <- type_spec n
+                Left spec <- type_spec n
                 -- One version of the unfolded type
-                (a, ufold) <- return $ unfolded spec
+                (a, ufold) <- return $ d_unfolded spec
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'
                 (a', ufold') <- List.foldr (\(TBang n (TVar x)) rec -> do
                                               (a', ufold') <- rec
                                               b@(TBang m (TVar y)) <- new_type
-                                              ufold' <- return $ List.map (\(dcon, bound, typ) -> (dcon, bound, subs_typ_var x (TVar y) typ)) ufold'
-                                              ufold' <- return $ List.map (\(dcon, bound, typ) -> (dcon, bound, subs_flag n m typ)) ufold'
+                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_typ_var x (TVar y) typ)) ufold'
+                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_flag n m typ)) ufold'
                                               return (b:a', ufold')) (return ([], ufold)) a
 
                 -- Generate the constraints ufold <: ufold'
-                constraints <- List.foldl (\rec ((_, _, t), (_, _, u)) -> do
+                constraints <- List.foldl (\rec ((_, t), (_, u)) -> do
                                              r <- rec
                                              cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
                                              return $ cset <> r) (return emptyset) (List.zip ufold ufold')
 
                 ctx <- get_context
-                set_context $ ctx { types = Map.insert n (spec { subtype = (a, a', constraints) }) $ types ctx }) (return ()) names
+                set_context $ ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ types ctx }) (return ()) dblock
 
   -- Unfold until the constraint set is stable
-  unfold_all names
+  unfold_all dblock
   newlog 0 "<<\n"
 
 
@@ -290,7 +329,7 @@ define_user_subtyping typedefs = do
 -- | Function specifically used by define_user_properties to check qdata types. The list of names correspond to the list
 -- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
 -- is delayed till later.
-is_qdata_lintype :: LinType -> [String] -> QpState (Bool, [String])
+is_qdata_lintype :: LinType -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_lintype TQubit _ =
   return (True, [])
 
@@ -319,7 +358,9 @@ is_qdata_lintype (TUser typename args) names = do
   -- If the arguments are ok, check the type (iff it is not in the list
   if b && (not $ List.elem typename names) then do
     spec <- type_spec typename
-    return (qdatatype spec, deps)
+    case spec of
+      Left def -> return (d_qdatatype def, deps)
+      Right syn -> return (s_qdatatype syn, deps)
   else
     return (b, typename:deps)
 
@@ -331,7 +372,7 @@ is_qdata_lintype _ _ =
 -- | Function specifically used by define_user_properties to check qdata types. The list of names correspond to the list
 -- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
 -- is delayed till later.
-is_qdata_type :: Type -> [String] -> QpState (Bool, [String])
+is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
   is_qdata_lintype a names 
 
@@ -339,14 +380,14 @@ is_qdata_type (TBang _ a) names =
 
 -- | Inputs a list of types that verify a property, and a graph of consequences. Then the function propagates the
 -- property to the dependencies in the graph, modifying the graph in so doing.
-propagate_prop :: [String] -> Map String [String] -> ([String], Bool, Map String [String])
+propagate_prop :: [Variable] -> IntMap [Variable] -> ([Variable], Bool, IntMap [Variable])
 propagate_prop [] graph =
   ([], False, graph)
 
 propagate_prop (n:rest) graph =
-  case Map.lookup n graph of
+  case IMap.lookup n graph of
     Just deps -> 
-        let (r', c, g') = propagate_prop (List.union rest deps) (Map.delete n graph) in
+        let (r', c, g') = propagate_prop (List.union rest deps) (IMap.delete n graph) in
         (n:r', True, g')
 
     Nothing ->
@@ -362,39 +403,37 @@ propagate_prop (n:rest) graph =
 -- constructors. Some types are clearly marked as being non quantum data types. In the graph of dependencies, all the types
 -- using these non-quantum types cannot in turn be qdata types ; and so on. After all the non qdata types have been eliminated,
 -- all that remain are qdata types.
-define_user_properties :: [S.Typedef] -> QpState ()
-define_user_properties typedefs = do
+define_user_properties :: [Variable] -> QpState ()
+define_user_properties dblock = do
   -- A specific function is needed to check quantum data types
     newlog 0 ">> User type properties"
-    -- Get the names
-    names <- return $ List.map (\(S.Typedef n _ _) -> n) typedefs
 
     -- Creates the map of dependencies of qdata type properties
     -- The edges are oriented so that if one of the types doesn't have a property, then neither should the dependencies.
-    (mbound, mdata, mgraph) <- List.foldl (\rec n -> do
-                                 (mbound, mdata, mgraph) <- rec
-                                 spec <- type_spec n
-                                 -- Replace the arguments by qubit in the unfolded definition
-                                 argtyps <- return $ List.map (\(_, _, argtyp) ->
-                                                                 List.foldl (\a (TBang _ (TVar x)) ->
-                                                                               subs_typ_var x TQubit a) argtyp $ fst $ unfolded spec) (snd $ unfolded spec)
-                                 -- Check each of the types for qdata types
-                                 (b, deps) <- List.foldl (\rec a -> do
-                                                            (b, deps) <- rec
-                                                            if b then do
-                                                              (b', deps') <- is_qdata_type a names
-                                                              return (b', List.union deps' deps)
-                                                            else
-                                                              return (False, [])) (return (True, [])) argtyps
+    (mdata, mgraph) <- List.foldl (\rec n -> do
+                         (mdata, mgraph) <- rec
+                         Left spec <- type_spec n
+                         -- Replace the arguments by qubit in the unfolded definition
+                         argtyps <- return $ List.map (\(_, argtyp) ->
+                                                         List.foldl (\a (TBang _ (TVar x)) ->
+                                                                       subs_typ_var x TQubit a) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
+                         -- Check each of the types for qdata types
+                         (b, deps) <- List.foldl (\rec a -> do
+                                                    (b, deps) <- rec
+                                                    if b then do
+                                                      (b', deps') <- is_qdata_type a dblock
+                                                      return (b', List.union deps' deps)
+                                                    else
+                                                      return (False, [])) (return (True, [])) argtyps
 
-                                 -- Increase the map
-                                 if b then do
-                                   return (mbound, mdata, List.foldl (\m d ->
-                                                                        case Map.lookup d m of
-                                                                          Just l -> Map.insert d (n:l) m
-                                                                          Nothing -> Map.insert d [n] m) mgraph deps)
-                                 else do
-                                   return (mbound, n:mdata, mgraph)) (return ([], [], Map.empty)) names
+                         -- Increase the map
+                         if b then do
+                           return (mdata, List.foldl (\m d ->
+                                                        case IMap.lookup d m of
+                                                          Just l -> IMap.insert d (n:l) m
+                                                          Nothing -> IMap.insert d [n] m) mgraph deps)
+                         else do
+                           return (n:mdata, mgraph)) (return ([], IMap.empty)) dblock
 
     -- Solve the map, and set the qdata properties
     (mdata', _, _) <- return $ propagate_prop mdata mgraph
@@ -402,43 +441,20 @@ define_user_properties typedefs = do
                   rec
                   if List.elem n mdata' then do
                     -- Not a qdata type
-                    newlog 0 $ "-- " ++ n ++ " is not a quantum data type"
+                    newlog 0 $ "-- " ++ show n ++ " is not a quantum data type"
                     ctx <- get_context
-                    spec <- type_spec n
-                    set_context $ ctx { types = Map.insert n (spec { qdatatype = False }) $ types ctx }
+                    Left spec <- type_spec n
+                    set_context $ ctx { types = IMap.insert n (Left spec { d_qdatatype = False }) $ types ctx }
                   else do
                     -- QData type
-                    newlog 0 $ "-- " ++ n ++ " may be a quantum data type"
+                    newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"
                     -- Since the default value is True, no need to set it here)
-                    return ()) (return ()) names
+                    return ()) (return ()) dblock
                 
 
     newlog 0 "<<\n"
 
 
--- | Transfers the type definitions from the state monad to the current module.
--- This function assumes that the current module already have entries corresponding to its types, and
--- just updates them.
-update_module_types :: QpState ()
-update_module_types = do
-  cmod <- get_module
-  cmod' <- Map.foldWithKey (\typename _ rec -> do
-                              cm <- rec
-                              spec <- type_spec typename
-                              return $ cm { typespecs = Map.insert typename spec (typespecs cm) }) (return cmod) (typespecs cmod)
-  ctx <- get_context
-  set_context $ ctx { cmodule = cmod' }
-
-
--- | Imports the built-in values, defined in the "Builtins" module.
-import_builtins :: QpState ()
-import_builtins = do
-  mb <- Map.foldWithKey (\b (t, v) rec -> do
-                      m <- rec
-                      (t', _) <- translate_bound_type t Map.empty
-                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
-  ctx <- get_context
-  set_context $ ctx { builtins = mb }
 
 
 -- | Translate a type, given a labelling.
@@ -466,7 +482,24 @@ translate_type S.TQubit [] m = do
 
 translate_type (S.TVar x) arg (label, bound) = do
   case Map.lookup x label of
-    -- All the registered variables are bound variables from a type definition or a constraint
+
+    -- The variable is a user type, either algebraic type or type synonym.
+    Just (TBang _ (TUser id as)) -> do
+        spec <- type_spec id
+        nexp <- case spec of
+                  Left def -> return $ d_args def
+                  Right syn -> return $ s_args syn
+        nact <- return $ (List.length as) + (List.length arg)
+
+        if nexp == nact then do
+          n <- fresh_flag
+          return (TBang n $ TUser id (as ++ arg), emptyset, label)
+        else do
+          ex <- get_location
+          f <- get_file
+          throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
+
+    -- The variable is just a bound type.
     Just typ ->
         if arg == [] then
           return (typ, emptyset, label)
@@ -475,29 +508,10 @@ translate_type (S.TVar x) arg (label, bound) = do
           f <- get_file
           throw $ LocatedError (WrongTypeArguments (pprint typ) 0 (List.length arg)) (f, ex)
 
-    -- If the variable is not found, it can be either a user type,
-    -- or a free variable (depending on the boolean arg)
+    -- If the variable is not found, it can be a free variable (depending on the boolean arg)
     Nothing -> do
-        ctx <- get_context
-        -- The variable is a algebraic type
-        if Map.member x $ types ctx then do
-
-          -- Expected number of args
-          spec <- type_spec x
-          nexp <- return $ args spec
-          -- Actual number of args
-          nact <- return $ List.length arg
-
-          if nexp == nact then do
-            n <- fresh_flag
-            return (TBang n (TUser x arg), emptyset, label)
-          else do
-            ex <- get_location
-            f <- get_file
-            throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
-        
-        else if bound then do
-          -- If the type variables are supposed to be bound, this one isn't
+        if bound then do
+          -- If the type variables are supposed to be bound, this one isn't.
           ex <- get_location
           f <- get_file
           throw $ LocatedError (UnboundVariable x) (f, ex)
@@ -508,16 +522,20 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (t, emptyset, Map.insert x t label)
 
 
+
 translate_type (S.TQualified m x) arg lbl = do
-  spec <- lookup_qualified_type (m, x)
+  id <- lookup_qualified_type (m, x)
+  spec <- type_spec id
   -- Expected number of args
-  nexp <- return $ args spec
+  nexp <- case spec of
+            Left def -> return $ d_args def
+            Right syn -> return $ s_args syn
   -- Actual number of args
   nact <- return $ List.length arg
 
   if nexp == nact then do
     n <- fresh_flag
-    return (TBang n (TUser x arg), emptyset, fst lbl)
+    return (TBang n (TUser id arg), emptyset, fst lbl)
   else do
     ex <- get_location
     f <- get_file
@@ -566,9 +584,9 @@ translate_type t args label = do
 
 -- | The function 'Typing.TransSyntax.translate_type' applied to a bound type.
 -- The arguments are supposed to be null initially.
-translate_bound_type :: S.Type -> Map String Type -> QpState (Type, ConstraintSet)
-translate_bound_type t m = do
-  (t', cset, _) <- translate_type t [] (m, True)
+translate_bound_type :: S.Type -> LabellingContext -> QpState (Type, ConstraintSet)
+translate_bound_type t label = do
+  (t', cset, _) <- translate_type t [] (l_types label, True)
   return (t', cset)
 
 
@@ -576,36 +594,36 @@ translate_bound_type t m = do
 -- | The function 'Typing.TransSyntax.translate_type' applied to unbound types.
 -- The binding map is initially empty, and is dropped after the translation of the type
 -- No argument is passed to the top type.
-translate_unbound_type :: S.Type -> QpState (Type, ConstraintSet)
-translate_unbound_type t = do
-  (t', cset, _) <- translate_type t [] (Map.empty, False)
+translate_unbound_type :: S.Type -> LabellingContext -> QpState (Type, ConstraintSet)
+translate_unbound_type t label = do
+  (t', cset, _) <- translate_type t [] (l_types label, False)
   return (t', cset)
 
 
 
 -- | Translates a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.Pattern -> Map String Int -> QpState (Pattern, Map String Int)
+translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String Expr)
 translate_pattern S.PUnit label = do
-  return (PUnit, label)
+  return (PUnit, l_variables label)
 
 translate_pattern S.PJoker label = do
-  return (PJoker, label)
+  return (PJoker, l_variables label)
 
 translate_pattern (S.PVar x) label = do
   ex <- get_location
   id <- register_var x ex
-  return (PVar id, Map.insert x id label)
+  return (PVar id, Map.insert x (EVar id) $ l_variables label)
 
 translate_pattern (S.PTuple plist) label = do
   (plist', lbl) <- List.foldr (\p rec -> do
                                   (r, lbl) <- rec
-                                  (p', lbl') <- translate_pattern p lbl
-                                  return ((p':r), lbl')) (return ([], label)) plist
+                                  (p', lbl') <- translate_pattern p $ label { l_variables = lbl }
+                                  return ((p':r), lbl')) (return ([], l_variables label)) plist
   return (PTuple plist', lbl)
 
 translate_pattern (S.PDatacon datacon p) label = do
-  case Map.lookup datacon label of
+  case Map.lookup datacon $ l_datacons label of
     Just id -> do
         case p of
           Just p -> do
@@ -613,12 +631,10 @@ translate_pattern (S.PDatacon datacon p) label = do
               return (PDatacon id (Just p'), lbl)
 
           Nothing ->
-              return (PDatacon id Nothing, label)
+              return (PDatacon id Nothing, l_variables label)
 
-    Nothing -> do
-        ex <- get_location
-        f <- get_file
-        throw $ LocatedError (UnboundDatacon datacon) (f, ex)
+    Nothing ->
+        throw_UnboundDatacon datacon
 
 translate_pattern (S.PLocated p ex) label = do
   set_location ex
@@ -628,12 +644,12 @@ translate_pattern (S.PLocated p ex) label = do
 
 translate_pattern (S.PConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
-  return (PConstraint p' t, lbl)
+  return (PConstraint p' (t, l_types label), lbl)
 
 
 
 -- | Translates an expression, given a labelling map
-translate_expression :: S.Expr -> Map String Variable -> QpState Expr
+translate_expression :: S.Expr -> LabellingContext -> QpState Expr
 translate_expression S.EUnit _ = do
   return EUnit
 
@@ -644,18 +660,12 @@ translate_expression (S.EInt n) _ = do
   return (EInt n)
 
 translate_expression (S.EVar x) label = do
-  case Map.lookup x label of
-    Just id -> do
-        ctx <- get_context
-        if List.elem id $ IMap.keys $ globals ctx then
-          return $ EGlobal id
-        else
-          return $ EVar id
+  case Map.lookup x $ l_variables label of
+    Just v -> do
+        return v
 
     Nothing -> do
-        ex <- get_location
-        f <- get_file
-        throw $ LocatedError (UnboundVariable x) (f, ex)
+        throw_UnboundVariable x
 
 translate_expression (S.EQualified m x) _ = do
   id <- lookup_qualified_var (m, x)
@@ -663,24 +673,24 @@ translate_expression (S.EQualified m x) _ = do
 
 translate_expression (S.EFun p e) label = do
   (p', lbl) <- translate_pattern p label
-  e' <- translate_expression e lbl
+  e' <- translate_expression e $ label { l_variables = lbl }
   return (EFun p' e')
 
 translate_expression (S.ELet r p e f) label = do
   (p', lbl) <- translate_pattern p label
   case r of
     Recursive -> do
-        e' <- translate_expression e lbl
-        f' <- translate_expression f lbl
+        e' <- translate_expression e $ label { l_variables = lbl }
+        f' <- translate_expression f $ label { l_variables = lbl }
         return (ELet r p' e' f')
 
     Nonrecursive -> do
         e' <- translate_expression e label
-        f' <- translate_expression f lbl
+        f' <- translate_expression f $ label { l_variables = lbl }
         return (ELet r p' e' f')
 
 translate_expression (S.EDatacon datacon e) label = do
-  case Map.lookup datacon label of
+  case Map.lookup datacon $ l_datacons label of
     Just id -> do
         case e of
           Just e -> do
@@ -691,16 +701,14 @@ translate_expression (S.EDatacon datacon e) label = do
               return (EDatacon id Nothing)
 
     Nothing -> do
-        ex <- get_location
-        f <- get_file
-        throw $ LocatedError (UnboundDatacon datacon) (f, ex)
+        throw_UnboundDatacon datacon
 
 translate_expression (S.EMatch e blist) label = do
   e' <- translate_expression e label
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
                           (p', lbl) <- translate_pattern p label
-                          f' <- translate_expression f lbl
+                          f' <- translate_expression f $ label { l_variables = lbl }
                           return ((p', f'):r)) (return []) blist
   return (EMatch e' blist')
 
@@ -722,9 +730,9 @@ translate_expression (S.EIf e f g) label = do
   g' <- translate_expression g label
   return (EIf e' f' g')
 
-translate_expression (S.EBox t) _ = do
+translate_expression (S.EBox t) label = do
   ex <- get_location
-  (t', cset) <- translate_bound_type t Map.empty
+  (t', cset) <- translate_bound_type t label
   -- Check that the type of the box is a quantum data type
   qdata <- Q.is_qdata_type t'
   if not qdata then do
@@ -763,52 +771,43 @@ translate_expression (S.EBuiltin s) _ = do
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
-  return $ EConstraint e' t
+  return $ EConstraint e' (t, l_types label)
 
 
 
--- | Exports the variables of a pattern. If an interface file is provided, it first checks
--- whether the variables are part of the accessible variables :
---
---      *  if yes, it exports the variables, and modifies the pattern to add a constraint on the type for this variable;
---
---      *  if not, does nothing.
---
-export_pattern_variables :: S.Program -> Pattern -> QpState Pattern
-export_pattern_variables _ PUnit =
+-- | If an interface file is provided, modify the pattern by adding type constraints corresponding to the types
+-- written in the interface.
+with_interface :: S.Program -> LabellingContext -> Pattern -> QpState Pattern
+with_interface _ _ PUnit =
   return PUnit
 
-export_pattern_variables prog (PLocated p _) =
-  export_pattern_variables prog p
+with_interface prog label (PLocated p _) =
+  with_interface prog label p
 
-export_pattern_variables prog (PVar x) = do
+with_interface prog label (PVar x) = do
   case S.interface prog of
     Just inter -> do
         -- If an interface file is present, check the presence of the variable x
         n <- variable_name x
         case List.lookup n inter of
           Just typ -> do
-              export_var x
-              return $ PConstraint (PVar x) typ
-
+              return $ PConstraint (PVar x) (typ, l_types label)
           Nothing -> do
               return $ PVar x
-
     Nothing -> do
-        export_var x
         return $ PVar x
 
-export_pattern_variables prog (PDatacon dcon Nothing) =
+with_interface prog _ (PDatacon dcon Nothing) =
   return $ PDatacon dcon Nothing
 
-export_pattern_variables prog (PDatacon dcon (Just p)) = do
-  p' <- export_pattern_variables prog p
+with_interface prog label (PDatacon dcon (Just p)) = do
+  p' <- with_interface prog label  p
   return $ PDatacon dcon $ Just p'
 
-export_pattern_variables prog (PTuple plist) = do
+with_interface prog label (PTuple plist) = do
   plist' <- List.foldr (\p rec -> do
                           r <- rec
-                          p' <- export_pattern_variables prog p
+                          p' <- with_interface prog label p
                           return (p':r)) (return []) plist
   return $ PTuple plist
 

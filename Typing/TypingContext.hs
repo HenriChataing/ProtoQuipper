@@ -28,9 +28,6 @@ type TypingContext = IntMap Type
 -- variables associated to the current context.
 bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
 bind_var x t ctx = do
-  -- If the export was requested, update the type of the variable
-  update_global_type x t
-
   -- In any case, adds the binding (x |-> t) in the typing context
   return $ IMap.insert x t ctx
 
@@ -120,9 +117,9 @@ bind_pattern (PDatacon dcon p) = do
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint on the actual type of the pattern
-bind_pattern (PConstraint p t) = do
+bind_pattern (PConstraint p (t, typs)) = do
   (typ, ctx, cset) <- bind_pattern p
-  (t', cset') <- translate_unbound_type t
+  (t', cset') <- translate_unbound_type t $ empty_label { l_types = typs }
   return (typ, ctx, [typ <: t'] <> cset' <> cset)
 
 -- Relay the location
@@ -206,9 +203,9 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
 
 
 -- Same as with the function bind_pattern
-bind_pattern_to_type (PConstraint p t) typ = do
+bind_pattern_to_type (PConstraint p (t, typs)) typ = do
   (ctx, cset) <- bind_pattern_to_type p typ
-  (t', cset') <- translate_unbound_type t
+  (t', cset') <- translate_unbound_type t $ empty_label { l_types = typs }
   return (ctx, [typ <: t'] <> cset <> cset')
 
 -- With location

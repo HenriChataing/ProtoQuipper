@@ -23,12 +23,12 @@ non_trivial m n =
 -- | Using the type specifications registered in the state monad, unfolds any subtyping
 -- constraints of the form  user a <: user a'. This functions assumes that the two type
 -- names are the same, and that the right number of arguments has been given.
-unfold_user_constraint :: String -> [Type] -> String -> [Type] -> QpState ConstraintSet
+unfold_user_constraint :: Variable -> [Type] -> Variable -> [Type] -> QpState ConstraintSet
 unfold_user_constraint utyp arg utyp' arg' = do
   -- Retrieve the specification of the type
-  spec <- type_spec utyp
+  Left spec <- type_spec utyp
   -- The constraints
-  (a, a', cset) <- return $ subtype spec
+  (a, a', cset) <- return $ d_subtype spec
 
   -- Replace the arguments a by arg
   cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do

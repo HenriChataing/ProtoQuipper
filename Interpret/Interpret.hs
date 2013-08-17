@@ -130,10 +130,6 @@ bind_pattern (PConstraint p _) v env = do
   bind_pattern p v env
 
 bind_pattern (PVar x) v env = do
-  -- If the var is global, update the module definition
-  cm <- get_module
-  set_module $ cm { global_vars = IMap.update (\_ -> Just v) x $ global_vars cm }
-
   return $ IMap.insert x v env
 
 bind_pattern (PTuple plist) (VTuple vlist) env = do
@@ -412,7 +408,8 @@ interpret env (EVar x) = do
 
 -- Global variables
 interpret env (EGlobal x) = do
-  case IMap.lookup x env of
+  vals <- get_context >>= return . values
+  case IMap.lookup x vals of
     Just v ->
         return v
     Nothing -> do

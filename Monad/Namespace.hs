@@ -16,10 +16,13 @@ import qualified Data.IntMap as IMap
 data Namespace = NSpace {
   varcons :: IntMap String,      -- ^ Stores the variable names.
   varloc :: IntMap Extent,       -- ^ Stores the extent of the variable declaration.
+
   datacons :: IntMap String,     -- ^ Stores the data constructor names.
+  typecons :: IntMap String,     -- ^ Stores the type names.
 
   vargen :: Int,                 -- ^ Used to generate new variables ids.
-  datagen :: Int                 -- ^ Used to generate new datacon ids.
+  datagen :: Int,                -- ^ Used to generate new datacon ids.
+  typegen :: Int                 -- ^ Used to generate new type ids.
 }
 
 
@@ -28,10 +31,12 @@ new_namespace :: Namespace
 new_namespace = NSpace {
   varcons = IMap.empty,
   datacons = IMap.empty,
+  typecons = IMap.empty,
   varloc = IMap.empty,
 
   vargen = 0,
-  datagen = 0
+  datagen = 0,
+  typegen = 0
 }
 
 
@@ -56,3 +61,12 @@ register_datacon :: String -> Namespace -> (Int, Namespace)
 register_datacon s namespace =
   let id = datagen namespace in
   (id, namespace { datacons = IMap.insert id s $ datacons namespace, datagen = id+1 })
+
+
+-- | Register a new type, and return the newly asigned id.
+register_type :: String -> Namespace -> (Int, Namespace)
+register_type t namespace =
+  let id = typegen namespace in
+  (id, namespace { typecons = IMap.insert id t $ typecons namespace, typegen = id+1 })
+
+

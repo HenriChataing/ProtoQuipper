@@ -511,9 +511,6 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
                                   gena <- return $ TForall genff genfv cset' a'
 
-                                  -- Update the global variables
-                                  update_global_type x gena
-
                                   -- Update the typing context of u
                                   return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
@@ -649,8 +646,8 @@ constraint_typing gamma (EIf e f g) cst = do
 --      e <: T   <==>   type of e <: T
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
-constraint_typing gamma (EConstraint e t) cst = do
-  (t', cset) <- translate_unbound_type t
+constraint_typing gamma (EConstraint e (t, typs)) cst = do
+  (t', cset) <- translate_unbound_type t $ empty_label { l_types = typs }
   csete <- constraint_typing gamma e (t':cst)
   return $ cset <> csete
 

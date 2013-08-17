@@ -17,7 +17,7 @@ $low_alpha = [a-z]
 $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
 $digit = [0-9]
-$admissible = [_]
+$chars = [$alpha $digit _]
 $infix0 = ['\<' '\>' '\|' '\&' '\$']
 $infix1 = ['\@' '\^']
 $infix2 = ['\+' '\-']
@@ -50,6 +50,7 @@ tokens :-
   "{"                                 { locate_token TkLCurlyBracket }
   "}"                                 { locate_token TkRCurlyBracket }
 
+  and                                 { locate_token TkAnd }
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
   circ                                { locate_token TkCirc }
@@ -74,10 +75,11 @@ tokens :-
   with                                { locate_token TkWith }
   "#builtin"                          { locate_token TkBuiltin }
 
-  $digit+                                         { locate_named_token TkInt }
-  $low_alpha [$alpha $digit $admissible]*         { locate_named_token TkLId }
-  $up_alpha [$up_alpha $digit $admissible]*       { locate_named_token TkLId }
-  $up_alpha [$alpha $digit $admissible]*          { locate_named_token TkUId }
+  $digit+                             { locate_named_token TkInt }
+  $up_alpha $chars* \. $low_alpha $chars* { locate_named_token TkQLId }
+  $up_alpha $chars* \. $up_alpha $chars*  { locate_named_token TkQUId }
+  $low_alpha $chars*                  { locate_named_token TkLId }
+  $up_alpha $chars*                   { locate_named_token TkUId }
 
   $infix0 $symbolchar*                { locate_named_token TkInfix0 }
   $infix1 $symbolchar*                { locate_named_token TkInfix1 } 
@@ -103,10 +105,13 @@ data Token =
   -- Name tokens : variables and data constructors
     TkLId (Extent, String)       -- ^ Variable names starting with a lower case character.
   | TkUId (Extent, String)       -- ^ Variable names starting with an upper case character.
+  | TkQLId (Extent, String)      -- ^ Qualified lids.
+  | TkQUId (Extent, String)      -- ^ Qualified uids.
   | TkInt (Extent, String)       -- ^ Integers. The value of the integer is left unparsed.
   | TkError (Extent, String)     -- ^ Error token.
 
   -- Reserved notations : list of reserved names
+  | TkAnd Extent           -- ^ and.
   | TkBool Extent          -- ^ bool.
   | TkBox Extent           -- ^ box.
   | TkCirc Extent          -- ^ circ.
@@ -165,9 +170,12 @@ data Token =
 instance Show Token where
   show (TkLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkQLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkQUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkError (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
+  show (TkAnd ex) = "'and' (" ++ show ex ++ ")"
   show (TkBool ex) = "'bool' (" ++ show ex ++ ")"
   show (TkBox ex) = "'box' (" ++ show ex ++ ")"
   show (TkCirc ex) = "'circ' (" ++ show ex ++ ")"

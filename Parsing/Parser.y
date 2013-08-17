@@ -46,6 +46,7 @@ import Data.List as List
   INFIX2 { TkInfix2 $$ }
   INFIX3 { TkInfix3 $$ }
 
+  AND { TkAnd $$ }
   BOOL { TkBool $$ }
   BOX { TkBox $$ }
   BUILTIN { TkBuiltin $$ }
@@ -71,6 +72,7 @@ import Data.List as List
 
   LID { TkLId $$ }
   UID { TkUId $$ }
+  QLID { TkQLId $$ }
   INT { TkInt $$ }
 
 %right "->"
@@ -89,26 +91,36 @@ import Data.List as List
 -}
 
 Program :
-     Import_list Typedef_list Decl_list          { Prog { imports = $1, typedefs = $2, body = $3, module_name = "", filepath = "", interface = Nothing } }
-   | Import_list Typedef_list ";;" Decl_list     { Prog { imports = $1, typedefs = $2, body = $4, module_name = "", filepath = "", interface = Nothing } }
+     Import_list Decl_list                       { Prog { imports = $1, body = $2, module_name = "", filepath = "", interface = Nothing } }
+   | Import_list ";;" Decl_list                  { Prog { imports = $1, body = $3, module_name = "", filepath = "", interface = Nothing } }
 
 
 {- List of imported modules
    Module names must begin with an upper case letter
 -}
+
 Import_list :
       {- empty -}                                { [] }
     | Import_list IMPORT UID                     { (snd $3):$1 }
 
 
-{- Algebraic type definitions -}
-Typedef_list :
-      {- empty -}                                { [] }
-    | Typedef_list Typedef                       { $2:$1 }
-
+{- Type definitions:
+     Algebraic type
+     Synonym type
+     Algebraic types can be organized in blocks of co-inductive types
+-}
 
 Typedef :
-      TYPE LID Var_list '=' Data_intro_list      { Typedef (snd $2) $3 $5 }
+      TYPE LID Var_list '=' Data_intro_list     { Typedef (snd $2) $3 $5 }
+
+
+Typeblock :
+      Typedef                                   { [$1] }
+    | Typedef AND Typeblock                     { $1:$3 } 
+
+
+Typesyn :
+      TYPE LID Var_list '=' Type                { Typesyn (snd $2) $3 $5 }
 
 
 Data_intro_list :
@@ -128,17 +140,19 @@ Var_list :
   of let bindings -}
 
 Decl_list :
-      {- empty -}                                { [] }
-    | Decl_list Decl                             { $1 ++ [$2] }
+      {- empty -}                               { [] }
+    | Decl Decl_list                            { $1:$2 }
 
 
 Decl :
-      LET Pattern '=' Expr ";;"                  { DLet Nonrecursive $2 $4 }
-    | LET REC LID Pattern_list '=' Expr ";;"     { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
+      Typeblock                                            { DTypes $1 }
+    | Typesyn                                              { DSyn $1 }
+    | LET Pattern '=' Expr ";;"                            { DLet Nonrecursive $2 $4 }
+    | LET REC LID Pattern_list '=' Expr ";;"               { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
     | LET REC '(' Infix_op ')' Pattern_list '=' Expr ";;"  { DLet Recursive (PVar (snd $4)) (List.foldr EFun $8 $6) }
-    | LET LID Pattern_list '=' Expr ";;"         { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
+    | LET LID Pattern_list '=' Expr ";;"                   { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
     | LET '(' Infix_op ')' Pattern_list '=' Expr ";;"      { DLet Nonrecursive (PVar (snd $3)) (List.foldr EFun $7 $5) }
-    | Expr ";;"                                  { DExpr $1 }
+    | Expr ";;"                                            { DExpr $1 }
 
 
 
@@ -195,13 +209,15 @@ Atom_expr :
     | FALSE                                     { locate (EBool False) $1 }
     | INT                                       { locate (EInt (read $ snd $1)) (fst $1) }
     | LID                                       { locate (EVar (snd $1)) (fst $1) }
+    | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
+    | QLID                                      { let (mname, dot:lid) = List.span (\c -> c /= '.') (snd $1) in
+                                                  locate (EQualified mname lid) (fst $1) }
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
+    | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' Type ']'                          { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
     | REV                                       { locate ERev $1 }
-    | UID '.' LID                               { locate (EQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
-    | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
     | '(' Infix_op ')'                          { locate (EVar (snd $2)) (fst $2) }
     | '(' Expr_sep_list ')'                     { case $2 of

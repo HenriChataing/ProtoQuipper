@@ -2,6 +2,8 @@
 -- 'Parsing.Syntax.Program' that describes modules as parsed by the parser.
 module Monad.Modules where
 
+import Parsing.Localizing
+
 import Typing.CoreSyntax
 import Interpret.Values
 
@@ -14,40 +16,18 @@ import qualified Data.IntMap as IMap
 -- | Internal representation of a module. It results from processing
 -- a module implementation.
 data Module = Mod {
-  -- Module name, and path to code file
-  module_name :: String,             -- ^ The module name.
-  filepath :: FilePath,              -- ^ The path to the implementation file (no path to interface file).
+  m_variables :: Map String Variable,        -- ^ The module's variables.
 
-  -- Module dependencies
-  dependencies :: [String],          -- ^ The list of module dependencies.
+  m_datacons :: Map String Datacon,          -- ^ The modules's data constructors.
 
-  -- Specifications of the module types
-  typespecs :: Map String Typespec,  -- ^ The list of type definitions.
-
-  -- Ids of the global variables
-  global_ids :: Map String Variable, -- ^ The list of global variables. The global variables are declared
-                                     -- by top-level declarations, and must appear in the interface file if one
-                                     -- is provided.
-
-  -- Types of the global variables
-  global_types :: IntMap Type,       -- ^ The types of the global variables.
-
-  -- Global variables definitions
-  global_vars :: IntMap Value        -- ^ The values of the global variables.
+  m_types :: Map String Int                  -- ^ The module's types and type synonyms.
 }
 
 
 -- | A dummy module.
 dummy_module :: Module
 dummy_module = Mod {
-  module_name = "Dummy",
-  filepath = "*UKNOWN*",
-
-  dependencies = [],
-
-  typespecs = Map.empty,
-
-  global_ids = Map.empty,
-  global_types = IMap.empty,
-  global_vars = IMap.empty
+  m_variables = Map.empty,
+  m_datacons = Map.empty,
+  m_types = Map.empty
 }

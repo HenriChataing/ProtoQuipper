@@ -16,17 +16,35 @@ type Datacon = String
 
 -- | Algebraic type definition.
 data Typedef = Typedef {
-  typename :: String,                        -- ^ Name of the type.
-  args :: [String],                          -- ^ List of bound type arguments.
-  constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, defined by the name of the constructor, and the type of the optional argument.
+  d_typename :: String,                        -- ^ Name of the type.
+  d_args :: [String],                          -- ^ List of bound type arguments.
+  d_constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, defined by the name of the constructor, and the type of the optional argument.
 }
 
 
+-- | Type synonyms, e.g intlist = list int.
+data Typesyn = Typesyn {
+  s_typename :: String,                        -- ^ Name of the type.
+  s_args :: [String],                          -- ^ List of bound type arguments.
+  s_synonym :: Type                            -- ^ Type it is synonym of.
+}
 
--- | Term declarations. Those make up the body of any implementation file.
+
+-- | Toplevel declarations. They can be of four kinds:
+--
+-- * Type definitions
+--
+-- * Type synonyms
+--
+-- * Top-level expressions
+--
+-- * Top-level declarations
+-- 
 data Declaration =
     DLet RecFlag Pattern Expr                -- ^ Variable declaration : let x = e ;;
   | DExpr Expr                               -- ^ Simple expression    : e ;;
+  | DTypes [Typedef]                         -- ^ A list of type definitions, all types co-inductive.
+  | DSyn Typesyn                             -- ^ A type synonym
 
 
 
@@ -38,14 +56,11 @@ data Program = Prog {
 
 -- Import declarations
   imports :: [String],                       -- ^ List of imported modules.
-
--- A list of type definitions
-  typedefs :: [Typedef],                     -- ^ List of the type definitions.
  
 -- The body of the module
-  body :: [Declaration],                     -- ^ Body of the module, which contains the term declarations.                    
+  body :: [Declaration],                     -- ^ Body of the module, which contains the type and term declarations. 
 
-  -- Optional interface
+-- Optional interface
   interface :: Maybe Interface               -- ^ Optional interface file.
 }
 
@@ -56,7 +71,6 @@ dummy_program = Prog {
   module_name = "Dummy",
   filepath = file_unknown,
   imports = [],
-  typedefs = [],
   body = [],
   interface = Nothing
 }

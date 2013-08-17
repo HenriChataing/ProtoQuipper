@@ -189,10 +189,10 @@ build_dependencies dirs main = do
 
 -- | Extensive context, used during the processing of top-level declarations.
 data ExtensiveContext = Context {
-  label :: Map String Int,        -- ^ A labelling map.
-  typing :: TypingContext,        -- ^ A typing context.
-  environment :: Environment,     -- ^ An evaluation context.
-  constraints :: ConstraintSet    -- ^ An atomic constraint set that cumulates the constraints of all the top-level expressions.
+  labelling :: LabellingContext,        -- ^ A labelling context.
+  typing :: TypingContext,              -- ^ A typing context.
+  environment :: Environment,           -- ^ An evaluation context.
+  constraints :: ConstraintSet          -- ^ An atomic constraint set that cumulates the constraints of all the top-level expressions.
 }
 
 
@@ -214,10 +214,21 @@ process_declaration :: (Options, MOptions)       -- ^ The command line and modul
                     -> S.Declaration             -- ^ The declaration to process.
                     -> QpState ExtensiveContext  -- ^ Returns the updated context.
 
+
+-- TYPE SYNONYMS
+process_declaration (opts, mopts) prog ctx (S.DSyn typesyn) = do
+  return ctx
+
+-- DATA TYPE BLOCKS
+process_declaration (opts, mopts) prog ctx (S.DTypes typedefs) = do
+  label <- import_typedefs typedefs $ labelling ctx
+  return $ ctx { labelling = label }
+
+
 -- EXPRESSIONS
 process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Translation of the expression into internal syntax.
-  e' <- translate_expression e $ label ctx
+  e' <- translate_expression e $ labelling ctx
 
   -- Free variables of the new expression
   fve <- return $ free_var e'
@@ -270,7 +281,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
                             n <- variable_name x
-                            return $ ctx { label = Map.delete n $ label ctx,
+                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.delete n $ l_variables (labelling ctx) },
                                            typing = IMap.delete x $ typing ctx,
                                            environment = IMap.delete x $ environment ctx }
 
@@ -282,14 +293,14 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 -- LET BINDING
 process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
-  (p', lbl') <- translate_pattern p $ label ctx
+  (p', label') <- translate_pattern p $ labelling ctx
   e' <- case recflag of
-          Recursive -> translate_expression e lbl'
-          Nonrecursive -> translate_expression e $ label ctx
+          Recursive -> translate_expression e $ (labelling ctx) { l_variables = label' }
+          Nonrecursive -> translate_expression e $ labelling ctx
   fve <- return $ free_var e'
 
   -- Export the variables of the pattern
-  p' <- export_pattern_variables prog p'
+  p' <- with_interface prog (labelling ctx) p'
 
   -- Give the corresponding sub contexts
   gamma <- return $ typing ctx
@@ -332,10 +343,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   -- Check the flag of a'
                                   --     if set, then ok
                                   --     if not, set it to 1
-                                  v <- flag_value n
-                                  case v of
-                                    Unknown -> set_flag n no_info
-                                    _ -> return ()
+--                                  v <- flag_value n
+--                                  case v of
+--                                    Unknown -> set_flag n no_info
+--                                    _ -> return ()
 
                                   -- Clean the constraint set 
                                   (fv, ff, cset') <- return $ clean_constraint_set a' csete
@@ -344,8 +355,6 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                   genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
                                   gena <- return $ TForall genff genfv cset' a'
-                                  -- Update the global variables
-                                  update_global_type x gena
                                   -- Update the typing context of u
                                   return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
@@ -395,13 +404,13 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         (True, Zero) -> do
                             n <- variable_name x
                             
-                            return $ ctx { label = Map.delete n $ label ctx,
+                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.delete n $ l_variables (labelling ctx) },
                                            typing = IMap.delete x $ typing ctx,
                                            environment = IMap.delete x $ environment ctx }
                         _ ->
                             return ctx) (return ctx) (typing ctx)
   -- Add the new mappings.
-  return $ ctx { label = Map.union lbl' $ label ctx }
+  return $ ctx { labelling = (labelling ctx) { l_variables = label' } }
 
 
 
@@ -416,66 +425,56 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 --
 process_module :: (Options, MOptions)  -- ^ Command line options and module options combined.
                -> S.Program            -- ^ Module to process.
-               -> QpState ()
+               -> QpState Module       -- ^ Return the module contents (variables, data constructors, types).
 process_module opts prog = do
 
--- Configuration part
   -- Get the module name
   mod <- return $ S.module_name prog
   f <- return $ S.filepath prog
 
-  -- Set up a new module
-  ctx <- get_context
-  set_context $ ctx { cmodule = Mod { module_name = mod,
-                                      filepath = f,
-                                      dependencies = S.imports prog,
-                                      typespecs = Map.empty,
-                                      global_ids = Map.empty,
-                                      global_types = IMap.empty,
-                                      global_vars = IMap.empty } }
-
   set_file f
 
-  -- Import the global variables and types in the current context
-  import_globals
-
-  -- translate the module header : type declarations
-  dcons <- import_typedefs $ S.typedefs prog
-  define_user_subtyping $ S.typedefs prog
-  define_user_properties $ S.typedefs prog
-  update_module_types
-
-  cm <- get_module
-  set_module $ cm { global_ids = dcons }
-
   -- Import the global variables from the dependencies
-  gbls <- global_namespace
-  -- Import the gloabl values from the dependencies
-  env <- global_context
+  (vars, datas, typs) <- global_namespace (S.imports prog)
 
   -- Reset the circuit stack
   ctx <- get_context
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
-
--- Type inference part
-
-  -- Create the initial typing context
-  gamma <- return IMap.empty
  
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
                        ctx <- rec
-                       process_declaration opts prog ctx decl) (return $ Context { label = Map.union gbls dcons,
+                       process_declaration opts prog ctx decl) (return $ Context { labelling = LblCtx { l_variables = vars, l_datacons = datas, l_types = typs },
                                                                                    typing = IMap.empty,
-                                                                                   environment = env,
+                                                                                   environment = IMap.empty,
                                                                                    constraints = emptyset }) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
   duplicable_context (typing ctx)
   _ <- unify True $ constraints ctx
 
+
+  -- Import everything to the qstate fields
+  qst <- get_context
+  set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
+                      values = IMap.union (environment ctx) $ values qst }
+                            
+
+  -- Identify the variables created during the processing of the module
+  vars <- return $ Map.difference (l_variables $ labelling ctx) vars
+  datas <- return $ Map.difference (l_datacons $ labelling ctx) datas
+  typs <- return $ Map.difference (l_types $ labelling ctx) typs
+
+
+  -- Push the definition of the new module to the stack
+  newmod <- return $ Mod { m_variables = Map.map (\(EVar id) -> id) vars,
+                           m_datacons = datas,
+                           m_types = Map.map (\(TBang _ (TUser id _)) -> id) typs }
+  ctx <- get_context
+  set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
+
   -- Return
-  return ()
+  return newmod
 
 
 -- ==================================== --
@@ -501,9 +500,6 @@ do_everything opts files = do
                 _ <- rec
                 mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
                 process_module (opts, mopts) p
-                -- Move the module internally onto the modules stack
-                ctx <- get_context
-                set_context $ ctx { modules = (S.module_name p, cmodule ctx):(modules ctx) }
                 return ()) (return ()) deps
 -- ===================================== --
 
