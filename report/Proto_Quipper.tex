@@ -438,14 +438,14 @@ term:
 \end{definition}
 
 \begin{definition}
-The partial function $bind: \qdataterm^2\to \finbij(\qset)$ is 
+The partial function $\bind: \qdataterm^2\to \finbij(\qset)$ is 
 defined recursively as follows:
 \[
-bind (t,u)= \left\{
+\bind (t,u)= \left\{
   \begin{array}{ll}
     \emptyset & \mbox{if}~~ t=u=*, \\
     \s{(q_1,q_2)} & \mbox{if}~~ t=q_1 \mbox{ and } u=q_2, \\        
-    bind (t_1,u_1) \cup bind (t_2,u_2) & 
+    \bind (t_1,u_1) \cup \bind (t_2,u_2) & 
       \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \\
     \mbox{undefined} & \mbox{in all remaining cases.}
   \end{array}
@@ -859,7 +859,7 @@ the following consequences:
 such that $\In(C^{-1})=\Out(C)$ and 
 $\Out(C^{-1})=\In(C)$.
   \item If $t$ and $u$ are quantum data terms such that 
-  $bind(t,u)=\binding$, then we can define 
+  $\bind(t,u)=\binding$, then we can define 
   $b = \mathtt{Wire}\circ \binding\circ \mathtt{Wire}^{-1}
   \in \finbij(Q)$.
 \end{itemize}
@@ -967,7 +967,7 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \]
 \[
   \infer[(\unbox)]{[C,(\unbox\,(u,D,u'))v]\to [C',\binding'(u')]}{
-    bind(v,u)=\binding 
+    \bind(v,u)=\binding 
     &
     \mathtt{Append}(C,D,\binding) = (C',\binding') 
   }
@@ -1538,7 +1538,7 @@ We treat them individually.
   \item $(\unbox)$ the reduction rule is
   \[
     \infer[(\unbox)]{[C,(\unbox\,(t,D,t'))v]\to [C',\binding'(t')]}{
-      bind(v,t)=\binding 
+      \bind(v,t)=\binding 
       &
       \mathtt{Append}(C,D,\binding) = (C',\binding') 
     }
