@@ -503,6 +503,10 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                   -- First apply the substitution
                                   a' <- map_type a
 
+                                  -- Unify the set again! (flag unification)
+                                  fls <- unify_flags (snd csett)
+                                  csett <- return (fst csett, fls)
+
                                   -- Clean the constraint set
                                   (fv, ff, cset') <- return $ clean_constraint_set a' csett
                                   
