@@ -415,23 +415,22 @@ which wires should be connected. For this, we use the notion of a
 \emph{binding}.
 
 \begin{definition}
-A \emph{finite bijection} on a set $X$ is a bijection between two 
-finite subsets of $X$. We write $\finbij(X)$ for the set of finite 
-bijections on $X$.
+  A \emph{finite bijection} on a set $X$ is a bijection between two
+  finite subsets of $X$. We write $\finbij(X)$ for the set of finite
+  bijections on $X$. The domain and codomain of a finite bijection
+  $\binding$ are denoted $\dom(\binding)$ and $\cod(\binding)$,
+  respectively. 
 \end{definition}
 
 \begin{definition}
-A \emph{binding} is a finite bijection on $\qset$ and if $\binding$ 
-is a binding we write $\dom(\binding)$ for the domain of $\binding$.
+  A \emph{binding} is a finite bijection on $\qset$. We will usually
+  denote bindings by $\binding$.
 \end{definition}
 
-Adding to the list of notational conventions above, we will write 
-$\binding$ for an arbitrary binding. 
-
 \begin{definition}
-If $a$ is a term, $\binding$ is a binding and $\dom(\binding)\cap
-\FQ(a)=\s{q_1,\ldots,q_n}$, then $\binding(a)$ is the following 
-term:
+  If $a$ is a term, $\binding$ is a binding and
+  $\FQ(a)=\s{q_1,\ldots,q_n}\subseteq\dom(\binding)$, then
+  $\binding(a)$ is the following term:
 \[
 \binding(a)= a[\binding(q_1)/q_1,\ldots ,\binding(q_n)/q_n].
 \]
@@ -440,17 +439,14 @@ term:
 \begin{definition}
 The partial function $\bind: \qdataterm^2\to \finbij(\qset)$ is 
 defined recursively as follows:
-\[
-\bind (t,u)= \left\{
-  \begin{array}{ll}
-    \emptyset & \mbox{if}~~ t=u=*, \\
-    \s{(q_1,q_2)} & \mbox{if}~~ t=q_1 \mbox{ and } u=q_2, \\        
-    \bind (t_1,u_1) \cup \bind (t_2,u_2) & 
-      \mbox{if}~~ t=\p{t_1,t_2} \mbox{ and } u=\p{u_1,u_2}, \\
-    \mbox{undefined} & \mbox{in all remaining cases.}
-  \end{array}
-\right.
-\]
+\begin{compactitemize}
+\item $\bind (*,*)= \emptyset$;
+\item $\bind (q_1,q_2)= \s{(q_1,q_2)}$;
+\item $\bind (\p{t_1,t_2},\p{u_1,u_2})=\bind (t_1,u_1) \cupdot \bind
+  (t_2,u_2)$, provided that we have $\bind (t_1,u_1) \cap \bind
+  (t_2,u_2) = \emptyset$;
+\item $\bind (t,u)= \mbox{undefined}$, in all remaining cases.
+\end{compactitemize}
 \end{definition}
 
 \begin{definition}
@@ -740,15 +736,14 @@ satisfying the following conditions:
         $\mathtt{Out}\circ\mathtt{Rev}= \mathtt{In}$\label{in_out_rev},
   \item $\mathtt{In}\circ\mathtt{New} = \mathtt{Out}\circ\mathtt{New} =
     1_{\mathcal{P}_f(\mathcal{Q})}$,
-  \item if $\mathtt{Append} (C,D,b)=(C',b')$ and 
-    $b\from X \to \mathtt{In}(D)$ for some $X\subseteq \mathtt{out}(C)$, 
+  \item if $\mathtt{Append} (C,D,b)=(C',b')$ and
+    $\dom(b)\seq\mathtt{Out}(C)$ and $\cod(b)=\mathtt{In}(D)$,
     then \label{Append_cond_x}
     \begin{enumerate}
       \item $\mathtt{In}(C') = \mathtt{In}(C)$,\label{Append_cond_2b}    
-      \item $b'\from \mathtt{Out}(D)\to Y$ for some 
-      $Y\subseteq \mathtt{Out}(C')$ and\label{Append_cond_2}
-      \item $\mathtt{Out}(C')=Y\cupdot
-      (\mathtt{Out}(C)\setminus X)$.\label{Append_cond_3}
+      \item $\dom(b')=\mathtt{Out}(D)$ and $\cod(b')\seq\mathtt{Out}(C')$ and\label{Append_cond_2}
+      \item $\mathtt{Out}(C')=
+      (\mathtt{Out}(C)\setminus \dom(b))\cupdot\cod(b')$.\label{Append_cond_3}
     \end{enumerate}
 \end{enumerate}
 \end{definition}
@@ -970,6 +965,8 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
     \bind(v,u)=\binding 
     &
     \mathtt{Append}(C,D,\binding) = (C',\binding') 
+    &
+    \FQ(u')\seq\dom(\binding')
   }
 \]
 \[
@@ -1535,42 +1532,44 @@ We treat them individually.
   \]  
   Hence ${!}\Delta ;\emptyset \entails [C,(t,D,vt)]:{!}^n\Circ(T,U) (Q'|Q'')$ is 
   a valid typed closure.
-  \item $(\unbox)$ the reduction rule is
+  \item $(\unbox)$: the reduction rule is
   \[
-    \infer[(\unbox)]{[C,(\unbox\,(t,D,t'))v]\to [C',\binding'(t')]}{
-      \bind(v,t)=\binding 
-      &
-      \mathtt{Append}(C,D,\binding) = (C',\binding') 
-    }
+  \infer[]{[C,(\unbox\,(u,D,u'))v]\to [C',\binding'(u')]}{
+    \bind(v,u)=\binding 
+    &
+    \mathtt{Append}(C,D,\binding) = (C',\binding') 
+    &
+    \FQ(u')\seq\dom(\binding')
+  }
   \]
-  with $a=(\unbox\,(t,D,t'))v$ and $a'=\binding'(t')$. 
+  with $a=(\unbox\,(u,D,u'))v$ and $a'=\binding'(u')$. 
   To reconstruct the typing derivation $\pi$, first note 
   that we have the following derivation $\pi_1$ of    
-  ${!}\Delta;\emptyset\entails \unbox\,(t,D,t'):T\loli U$
+  ${!}\Delta;\emptyset\entails \unbox\,(u,D,u'):T\loli U$
   \begin{footnotesize}
   \[
-    \infer[]{{!}\Delta;\emptyset\entails \unbox\,(t,D,t'):T\loli U}{
+    \infer[]{{!}\Delta;\emptyset\entails \unbox\,(u,D,u'):T\loli U}{
       \infer[]{{!}\Delta;\emptyset \entails \unbox:\Circ(T,U)\loli (T\loli U)}{
       }   
       &
-      \infer[]{{!}\Delta ;\emptyset\entails (t,D,t'):\Circ(T,U)}{
-        \deduce[]{\FQ(t)\entails t:T}{
+      \infer[]{{!}\Delta ;\emptyset\entails (u,D,u'):\Circ(T,U)}{
+        \deduce[]{\FQ(u)\entails u:T}{
           \vdots ~\pi_1^1
         }
         &
-        \deduce[]{{!}\Delta;\FQ(t')\entails t':U}{
+        \deduce[]{{!}\Delta;\FQ(u')\entails u':U}{
           \vdots ~\pi_1^2     
         }
       }
     }
     \]
-    \end{footnotesize} 
-  with $\In(D)=\FQ(t)$, $\Out(D)=\FQ(t')$. We can then use $\pi_1$ 
+  \end{footnotesize}%
+  with $\In(D)=\FQ(u)$, $\Out(D)=\FQ(u')$. We can then use $\pi_1$ 
   to rebuild $\pi$ as follows:
   \begin{footnotesize}
   \[
-  \infer[]{{!}\Delta; \FQ(v)\entails (\unbox\,(t,D,t'))v :U}{
-    \infer[]{{!}\Delta;\emptyset\entails \unbox\,(t,D,t'):T\loli U}{
+  \infer[]{{!}\Delta; \FQ(v)\entails (\unbox\,(u,D,u'))v :U}{
+    \infer[]{{!}\Delta;\emptyset\entails \unbox\,(u,D,u'):T\loli U}{
       \vdots~\pi_1            
     }
     &
@@ -1582,33 +1581,32 @@ We treat them individually.
   \end{footnotesize} 
   and the typed closure
   \[
-  {!}\Delta; \FQ(v) \entails [C,(\unbox\,(t,D,t'))v] :U,(Q'|Q'')
+  {!}\Delta; \FQ(v) \entails [C,(\unbox\,(u,D,u'))v] :U,(Q'|Q'')
   \] 
   is valid. In the conclusion of $\pi_2$, all the 
   term variables are declared of a duplicable type. This 
   follows from Corollary \ref{typed_qd_term} and 
   Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}}. 
-  By Definition~\hyperref[Append_cond_2]{\ref*{circuit_constructor}
-  (\ref*{Append_cond_2})}, we know that $\FQ(t')\subseteq\dom(\binding')$. 
+  By assumption, we know that $\FQ(u')\subseteq\dom(\binding')$. 
   We can therefore apply Lemma~\hyperref[binding_judgement]
   {\ref*{binding_judgement}} to $\pi_1^2$ to get a typing 
   derivation $\tau$ of 
   \[
-  {!}\Delta;\FQ(\binding(t'))\entails \binding(t'):U.
+  {!}\Delta;\FQ(\binding(u'))\entails \binding(u'):U.
   \]
   Now by 
   Definition~\hyperref[Append_cond_3]{\ref*{circuit_constructor}.\ref*{Append_cond_3}} 
   we have:
   \[
   \begin{array}{rcl}
-  \mathtt{Out}(C') & = & \binding(\mathtt{Out}(D)), (\mathtt{Out}(C)\setminus\binding^{-1}(\mathtt{In}(D))) \\
-                   & = & \binding(\FQ(t')) , ((Q'',\FQ(v))\setminus \binding^{-1}(\FQ(t))) \\
-                   & = & \FQ(\binding(t')) , ((Q'',\FQ(v))\setminus \FQ(v)) \\
-                   & = & \FQ(\binding(t')),Q''.                   
+  \mathtt{Out}(C') & = & \binding(\mathtt{Out}(D))\cupdot (\mathtt{Out}(C)\setminus\binding^{-1}(\mathtt{In}(D))) \\
+                   & = & \binding(\FQ(u')) \cupdot ((Q''\cupdot\FQ(v))\setminus \binding^{-1}(\FQ(u))) \\
+                   & = & \FQ(\binding(u')) \cupdot ((Q''\cupdot\FQ(v))\setminus \FQ(v)) \\
+                   & = & \FQ(\binding(u'))\cupdot Q''.                   
   \end{array}
   \]
-  Hence ${!}\Delta; \FQ(\binding(t'))\entails [C',\binding(t')] :U,(Q'|Q'')$  is valid.
-  \item $(\rev)$ the reduction rule is
+  Hence ${!}\Delta; \FQ(\binding(u'))\entails [C',\binding(u')] :U,(Q'|Q'')$  is valid.
+  \item $(\rev)$: the reduction rule is
   \[
     \infer[(\rev)]{[C,\rev\,(t,D,t')]\to [C,(t',D^{-1},t)]}{}
   \]
