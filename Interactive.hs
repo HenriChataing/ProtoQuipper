@@ -190,26 +190,29 @@ run_interactive opts ctx buffer = do
 
             [":type"] -> do
                 term <- return $ unwords args
-                tokens <- mylex (term ++ ";;")
-                p <- return $ parse tokens
-                S.DExpr e <- return $ List.head (S.body p)
+                (do
+                    tokens <- mylex (term ++ ";;")
+                    p <- return $ parse tokens
+                    S.DExpr e <- return $ List.head (S.body p)
 
-                -- Translation of the expression into internal syntax.
-                e' <- translate_expression e $ labelling ctx
+                    -- Translation of the expression into internal syntax.
+                    e' <- translate_expression e $ labelling ctx
 
-                -- Free variables of the new expression
-                fve <- return $ free_var e'
-                a@(TBang n _) <- new_type
+                    -- Free variables of the new expression
+                    fve <- return $ free_var e'
+                    a@(TBang n _) <- new_type
 
-                -- Type e. The constraints from the context are added for the unification.
-                gamma <- return $ typing ctx
-                (gamma_e, _) <- sub_context fve gamma
-                cset <- constraint_typing gamma_e e' [a] >>= break_composite True
-                cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
-                inferred <- map_type a >>= pprint_type_noref
+                    -- Type e. The constraints from the context are added for the unification.
+                    gamma <- return $ typing ctx
+                    (gamma_e, _) <- sub_context fve gamma
+                    cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                    cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                    inferred <- map_type a >>= pprint_type_noref
 
-                -- Display the type
-                liftIO $ putStrLn $ "-: " ++ inferred
+                    -- Display the type
+                    liftIO $ putStrLn $ "-: " ++ inferred) `catchQ` (\e -> do
+                                                                       liftIO $ putStrLn $ show e
+                                                                       return ())
 
                 run_interactive opts ctx []
 
