@@ -61,7 +61,7 @@ Using a grammar that distinguishes linear types and types also allows us to unam
 	$$ $$
 	$$ \mbox{
   	\AxiomC{}
-  	\RightLabel{$(var)$}
+  	\RightLabel{$(\rul{var})$}
 	 	\UnaryInfC{$\alpha <: ~ \alpha$}
 	 	\DisplayProof
 		~~
@@ -135,10 +135,10 @@ As in $\QP$, a typing judgement should be interpreted as stating that under the 
 	$!^1(!^1 A \multimap \,!^0(!^1A \otimes !^1A)$. The typing derivation is
 		\begin{prooftree}
 			\AxiomC{$!^1A <: \,!^1A$}
-			\RightLabel{$(ax)$}
+			\RightLabel{$(\rul{ax})$}
 			\UnaryInfC{$x : \,!^1A \vdash x : \,!^1A$}
 			\AxiomC{$!^1A <: \,!^1A$}
-			\RightLabel{$(ax)$}
+			\RightLabel{$(\rul{ax})$}
 			\UnaryInfC{$x : \,!^1A \vdash x : \,!^1A$}
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$x : \,!^1A \vdash \pair{x}{x} : \,!^0(!^1A \otimes !^1A)$}
@@ -152,7 +152,7 @@ As in $\QP$, a typing judgement should be interpreted as stating that under the 
 	$$ $$
 	$$ \mbox{
 		\AxiomC{$T <: U$}
-		\RightLabel{$(ax)$}
+		\RightLabel{$(\rul{ax})$}
 		\UnaryInfC{$!^1 \Delta, x : T \vdash x : U$}
 		\DisplayProof
 		~~
@@ -180,7 +180,7 @@ As in $\QP$, a typing judgement should be interpreted as stating that under the 
 	$$ \mbox{
 		\AxiomC{$\Gamma_1, !^1\Delta \vdash t : \,!^0(T \multimap U)$}
 		\AxiomC{$\Gamma_2, !^1\Delta \vdash u : T$}
-		\RightLabel{$(app)$}
+		\RightLabel{$(\rul{app})$}
 		\BinaryInfC{$\Gamma_1, \Gamma_2, !^1\Delta \vdash t u : U$}
 		\DisplayProof
 	} $$
@@ -427,7 +427,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 	$$ $$
 	$$ \mbox{
 		\AxiomC{$\mathcal{L} = \{1 \le I, ~ T \prec: U\}$}
-		\RightLabel{$(ax)$}
+		\RightLabel{$(\rul{ax})$}
 		\UnaryInfC{$!^I \Delta, x : T \vdash_\mathcal{L} x : U ~|_\emptyset$}
 		\DisplayProof
 		~~
@@ -454,7 +454,7 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
     \UnaryInfC{$\alpha, n \notin \Gamma, T$} \noLine
     \UnaryInfC{$\Gamma \backslash_{t \oplus u} = \,!^I \Delta$} \noLine
     \UnaryInfC{$\mathcal{L} = \mathcal{L}_1 \cup \mathcal{L}_2 \cup \{ 1 \le I \}$}
-		\RightLabel{$(app)$}
+		\RightLabel{$(\rul{app})$}
 		\BinaryInfC{$\Gamma \vdash_\mathcal{L} t \, u : T ~|_{\chi_1 \cup \chi_2 \cup \{ \alpha, n\}}$}
 		\DisplayProof
 	} $$
@@ -491,10 +491,10 @@ variables $\chi$) such that the relation $\Gamma \vdash_\mathcal{L} t : T ~|_\ch
 \begin{exmp} The same example term $\lambda x.\pair{x}{x}$ can be typed using the constraint typing rules, with the derivation
 	\begin{prooftree}
 			\AxiomC{}
-			\RightLabel{$(ax)$}
+			\RightLabel{$(\rul{ax})$}
 			\UnaryInfC{$x : \,!^{n_1}\beta \vdash_{\{!^{n_1}\beta \prec: \,!^{n_5}\epsilon\}} x : \,!^{n_5}\epsilon$}
 			\AxiomC{}
-			\RightLabel{$(ax)$}
+			\RightLabel{$(\rul{ax})$}
 			\UnaryInfC{$x : \,!^{n_1}\beta \vdash_{\{!^{n_1}\beta \prec: \,!^{n_4}\delta\}} x : \,!^{n_4}\delta$}
 			\RightLabel{$(\otimes.I)$}
 			\BinaryInfC{$x : \,!^{n_1}\beta \vdash_{\left\{ \scriptsize
@@ -558,7 +558,7 @@ by the Completeness Theorem.
  		\begin{itemize}
  		\item $x$. Then, supposing that $\Gamma = \,!^I\Delta, x : U$, $\mathcal{L} = \{ 1 \le I, U \prec: T \}$. By hypothesis, $\sigma$ is a solution
  			of $\mathcal{L}$, which implies that $\sigma I = 1 \dots 1$ and $\sigma U <: \sigma T$.
- 			By application of $(ax)$, we obtain $\sigma \Gamma \vdash x : \sigma T$.
+ 			By application of $(\rul{ax})$, we obtain $\sigma \Gamma \vdash x : \sigma T$.
  			
  		\item $\lambda x.t$. From the inversion of the rule $(\lambda)$, we have
 		 		$$\mathcal{L} = \mathcal{L'} \cup \{p \le I, ~!^p(!^n\alpha \multimap \,!^m\beta) \prec: T\}$$
@@ -596,7 +596,7 @@ by the Completeness Theorem.
 			  \end{center}
 			By definition, the contexts $\Gamma|_t$ and $\Gamma|_u$ can be written as $\Gamma_1, \Delta|_{t, u}$ and $\Gamma_2, \Delta |_{t, u}$,
 			with $\Gamma_1 \cap \Gamma_2 = \emptyset$. By property of $\sigma$ ($\sigma I = 1 \dots 1$),
-			$\sigma \Delta|_{t, u} = \,!^1 \sigma \Delta|_{t, u}$. Hence by application of the rule $(app)$,
+			$\sigma \Delta|_{t, u} = \,!^1 \sigma \Delta|_{t, u}$. Hence by application of the rule $(\rul{app})$,
 			the typing judgement $\sigma\Gamma_1, \sigma\Gamma_2, \,!^1\sigma\Delta|_{t, u} \vdash t \, u : \sigma T$ is valid.
 			Consequently, using the lemma \ref{weakening} with the set $\sigma\Delta \backslash_{t, u}$, a derivation can be built of the judgement
 			$\sigma\Gamma \vdash t \, u : \sigma T$.
@@ -658,7 +658,7 @@ by the Completeness Theorem.
 				\begin{prooftree}
 					\AxiomC{$\sigma\Gamma_1, !^1 \sigma\Delta \vdash t : \,!^0 (U \multimap \sigma T)$}
 					\AxiomC{$\sigma\Gamma_2, !^1 \sigma\Delta \vdash u : U$}
-					\RightLabel{$(app)$}
+					\RightLabel{$(\rul{app})$}
 					\BinaryInfC{$\sigma\Gamma = \sigma\Gamma_1, \sigma\Gamma_2, !^1 \sigma\Delta \vdash t \, u : \sigma T$}
 				\end{prooftree}
 			The contexts $\Gamma|_t$ and $\Gamma|_u$ are related to $\Gamma_1$, $\Gamma_2$ and $\Delta$ by the relations
