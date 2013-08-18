@@ -1349,7 +1349,7 @@ verify that $\mathtt{In}(C')=Q'$ so that we only need to show:
   \item $\mathtt{Out}(C')=\FQ(a'),Q''$ and
   \item $\Gamma;\FQ(a')\entails a':A$ is valid.
 \end{itemize}
-Throughout the proof, we write $IH(\pi)$ to denote the proof obtained by applying 
+Throughout the proof, we write $\IH(\pi)$ to denote the proof obtained by applying 
 the induction hypothesis to $\pi$.
 
 \begin{description}
@@ -1383,7 +1383,7 @@ $(\rul{fun})$ and $(\rul{circ})$ cases.
   \[
     \infer[]{\Gamma_1,\Gamma_2, {!}\Delta;\FQ(c'),\FQ(b)\entails c'b:A}{
       \deduce[]{\Gamma_1, {!}\Delta;\FQ(c')\entails c':B\loli A}{
-        \vdots~IH(\pi_1)
+        \vdots~\IH(\pi_1)
       } 
       &
       \deduce[]{\Gamma_2, {!}\Delta ;\FQ(b)\entails b:B}{
@@ -1428,7 +1428,7 @@ $(\rul{fun})$ and $(\rul{circ})$ cases.
     } 
     &
     \deduce[]{{!}\Delta ; \FQ(b')\entails b':U}{
-      \vdots~IH(\pi_2)
+      \vdots~\IH(\pi_2)
     }
     &
     \deduce[]{\In(D')=\FQ(t)}{
@@ -2066,7 +2066,7 @@ programming in Proto-Quipper.
   \item $\FV$ = Free quantum variables.
   \item GFI = Government Furnished Information
   \item IARPA = Intelligence Advanced Research Projects Activity
-  \item $IH$ = Induction hypothesis.
+  \item $\IH$ = Induction hypothesis.
   \item ML = A family of functional programming languages, including
     Standard ML of New Jersey and OCaml.
   \item OCaml = The Objective Caml programming language.
