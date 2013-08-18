@@ -142,8 +142,9 @@ run_interactive opts ctx buffer = do
           -- Resume the command input
           run_interactive opts ctx []
 
-        else if buffer == [] && List.isPrefixOf ":" l then
-          let (cmd:args) = words l in
+        else if buffer == [] && List.isPrefixOf ":" l then do
+          add_history l
+          (cmd:args) <- return $ words l
           case prefix_of cmd (List.map fst commands) of
             [] -> do
                 liftIO $ putStrLn $ "Unknown command: '" ++ cmd ++ "' -- Try :help for more information"
