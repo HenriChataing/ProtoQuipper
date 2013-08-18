@@ -14,6 +14,7 @@ import Typing.CoreSyntax
 import Typing.TypingContext
 import Typing.Driver
 import Typing.TransSyntax
+import Typing.Subtyping
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
 
@@ -188,25 +189,28 @@ run_interactive opts ctx buffer = do
                 run_interactive opts ctx []
 
             [":type"] -> do
-                List.foldl (\rec x -> do
-                              rec
-                              case Map.lookup x $ l_variables $ labelling ctx of
-                                Just (EVar id) -> do
-                                    a <- type_of id $ typing ctx
-                                    pa <- case a of
-                                            TForall _ _ _ a -> pprint_type_noref a
-                                            TBang _ _ -> pprint_type_noref a
-                                    liftIO $ putStrLn $ "val " ++ x ++ " : " ++ pa
+                term <- return $ unwords args
+                tokens <- mylex (term ++ ";;")
+                p <- return $ parse tokens
+                S.DExpr e <- return $ List.head (S.body p)
 
-                                Just (EGlobal id) -> do
-                                    a <- type_of_global id
-                                    pa <- case a of
-                                            TForall _ _ _ a -> pprint_type_noref a
-                                            TBang _ _ -> pprint_type_noref a
-                                    liftIO $ putStrLn $ "val " ++ x ++ " : " ++ pa
+                -- Translation of the expression into internal syntax.
+                e' <- translate_expression e $ labelling ctx
 
-                                Nothing -> do
-                                    liftIO $ putStrLn $ "Unbound variable " ++ x) (return ()) args
+                -- Free variables of the new expression
+                fve <- return $ free_var e'
+                a@(TBang n _) <- new_type
+
+                -- Type e. The constraints from the context are added for the unification.
+                gamma <- return $ typing ctx
+                (gamma_e, _) <- sub_context fve gamma
+                cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                inferred <- map_type a >>= pprint_type_noref
+
+                -- Display the type
+                liftIO $ putStrLn $ "-: " ++ inferred
+
                 run_interactive opts ctx []
 
             _ -> do
