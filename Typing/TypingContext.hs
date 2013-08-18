@@ -63,7 +63,7 @@ bind_pattern PJoker = do
 
 -- Unit value
 bind_pattern PUnit = do
-  return (TBang 1 TUnit, IMap.empty, emptyset)
+  return (TBang 0 TUnit, IMap.empty, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) = do
@@ -74,19 +74,13 @@ bind_pattern (PVar x) = do
 
 -- Tuples
 bind_pattern (PTuple plist) = do
-  -- The flag in front of the tensor type : !p (a1 * .. * an)
-  p <- fresh_flag
-
   -- Bind the patterns of the tuple
-  (ptypes, ctx, cset) <- List.foldr (\p rec -> do
-                                       (r, ctx, cset) <- rec
-                                       (a, ctx', cset') <- bind_pattern p
-                                       return (a:r, IMap.union ctx' ctx, cset' <> cset)) (return ([], IMap.empty, emptyset)) plist
+  (ptypes, ctx) <- List.foldr (\p rec -> do
+                                 (r, ctx) <- rec
+                                 (a, ctx', _) <- bind_pattern p
+                                 return (a:r, IMap.union ctx' ctx)) (return ([], IMap.empty)) plist
 
-  -- Generate the constraints on the flag of the tuple
-  pflags <- return $ List.map (\(TBang n _) -> Le p n no_info) ptypes
-
-  return (TBang p (TTensor ptypes), ctx, pflags <> cset)
+  return (TBang 0 (TTensor ptypes), ctx, emptyset)
 
 -- The datacon already has a type. Instead of creating an entirely new one
 -- for the pattern, and stating it must be an instance of the datacon's type,
@@ -119,8 +113,8 @@ bind_pattern (PDatacon dcon p) = do
 -- do things normally, and add a constraint on the actual type of the pattern
 bind_pattern (PConstraint p (t, typs)) = do
   (typ, ctx, cset) <- bind_pattern p
-  (t', cset') <- translate_unbound_type t $ empty_label { l_types = typs }
-  return (typ, ctx, [typ <: t'] <> cset' <> cset)
+  t' <- translate_unbound_type t $ empty_label { l_types = typs }
+  return (typ, ctx, [typ <: t'] <> cset)
 
 -- Relay the location
 bind_pattern (PLocated p ex) = do
@@ -205,8 +199,8 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
 -- Same as with the function bind_pattern
 bind_pattern_to_type (PConstraint p (t, typs)) typ = do
   (ctx, cset) <- bind_pattern_to_type p typ
-  (t', cset') <- translate_unbound_type t $ empty_label { l_types = typs }
-  return (ctx, [typ <: t'] <> cset <> cset')
+  t' <- translate_unbound_type t $ empty_label { l_types = typs }
+  return (ctx, [typ <: t'] <> cset)
 
 -- With location
 bind_pattern_to_type (PLocated p ex) t = do

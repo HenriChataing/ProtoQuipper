@@ -265,7 +265,7 @@ constraint_typing gamma (EGlobal x) cst = do
 --  !I G |- box[T] :  !n (!1 (T -> U) -> !n Circ (T, U))  [L u {1 <= I}]
 --
 
-constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
+constraint_typing gamma (EBox a) cst = do
   -- The context must be duplicable 
   duplicable_context gamma
 
@@ -279,7 +279,7 @@ constraint_typing gamma (EBox (TForall _ _ cset a)) cst = do
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 1 (TCirc a b)
 
-  return $ cset <> ((TBang 1 (TArrow arw cir) <:: cst) & info)
+  return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
   
 
 -- | Rev typing rule
@@ -651,9 +651,9 @@ constraint_typing gamma (EIf e f g) cst = do
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
 constraint_typing gamma (EConstraint e (t, typs)) cst = do
-  (t', cset) <- translate_unbound_type t $ empty_label { l_types = typs }
+  t' <- translate_unbound_type t $ empty_label { l_types = typs }
   csete <- constraint_typing gamma e (t':cst)
-  return $ cset <> csete
+  return csete
 
 
 
