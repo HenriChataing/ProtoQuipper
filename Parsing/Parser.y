@@ -132,7 +132,10 @@ Data_intro_list :
 
 Var_list :
       {- empty -}                               { [] }
-    | Var_list LID                              { $1 ++ [snd $2] }
+    | LID Var_list                              { if List.length (snd $1) == 1 then
+                                                    (snd $1):$2
+                                                  else
+                                                    throw $ ParsingError (show $1) }
 
 
 {- Body of the program : list
@@ -146,6 +149,7 @@ Decl_list :
 
 Decl :
       Typeblock                                            { DTypes $1 }
+    | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
     | LET Pattern '=' Expr ";;"                            { DLet Nonrecursive $2 $4 }
     | LET REC LID Pattern_list '=' Expr ";;"               { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
@@ -299,7 +303,7 @@ Atom_type :
       BOOL                                      { locate TBool $1 }
     | '!' Atom_type                             { locate_opt (bang $2) (fromto_opt (Just $1) (location $2)) }
     | INTEGER                                   { locate TInt $1 }
-    | QUBIT                                      { locate TQubit $1 }
+    | QUBIT                                     { locate TQubit $1 }
     | LID                                       { locate (TVar $ snd $1) (fst $1) }
     | UID '.' LID                               { locate (TQualified (snd $1) (snd $3)) (fromto (fst $1) (fst $3)) }
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }
