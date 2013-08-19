@@ -183,20 +183,21 @@ import_typedefs dblock label = do
                          -- Define the type of the data constructors
                          (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
                                                       (dt, lbl) <- rec
-                                                      (dtype, argtyp) <- case dtype of
-                                                                           -- If the constructor takes no argument
-                                                                           Nothing -> do
-                                                                               return (TBang one (TUser id args'), TBang one TUnit)
- 
-                                                                           -- If the constructor takes an argument
-                                                                           Just dt -> do
-                                                                               dt'@(TBang n _) <- translate_bound_type dt $ empty_label { l_types = mapargs }
-                                                                               return (TBang one (TArrow dt' (TBang n $ TUser id args')), dt')
+                                                      (dtype, argtyp, cset) <- case dtype of
+                                                                                -- If the constructor takes no argument
+                                                                                Nothing -> do
+                                                                                    return (TBang one (TUser id args'), TBang one TUnit, emptyset)
+      
+                                                                                -- If the constructor takes an argument
+                                                                                Just dt -> do
+                                                                                    dt'@(TBang n _) <- translate_bound_type dt $ empty_label { l_types = mapargs }
+                                                                                    m <- fresh_flag
+                                                                                    return (TBang one (TArrow dt' (TBang m $ TUser id args')), dt', ([], [Le m n no_info]))
  
                                                       -- Generalize the type of the constructor over the free variables and flags
                                                       -- Those variables must also respect the constraints from the construction of the type
                                                       (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
-                                                      dtype <- return $ TForall ff fv emptyset dtype
+                                                      dtype <- return $ TForall ff fv cset dtype
 
                                                       -- Register the datacon
                                                       id <- register_datacon dcon dtype

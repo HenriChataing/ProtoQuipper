@@ -248,6 +248,10 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 
+  -- Resolve the constraints (BECAUSE MAP_TYPE CAN CHANGE THE FLAGS)
+  fc'' <- unify_flags $ snd cset'
+  cset' <- return (fst cset', fc'')
+
   -- Apply the substitution produced by the unification to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
                                m <- rec
