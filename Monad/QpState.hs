@@ -628,13 +628,14 @@ instantiate_scheme refs vars cset typ = do
                                  return (typ', cset')) (return (typ, cset)) refs
 
   -- Replace the variables
-  List.foldl (\rec var -> do
-                (typ, cset) <- rec
-                nvar <- fresh_type
-                typ' <- return $ subs_typ_var var (TVar nvar) typ
-                cset' <- return $ subs_typ_var var (TVar nvar) cset
-                return (typ', cset')) (return (typ', cset')) vars
+  (typ', cset') <- List.foldl (\rec var -> do
+                                 (typ, cset) <- rec
+                                 nvar <- fresh_type
+                                 typ' <- return $ subs_typ_var var (TVar nvar) typ
+                                 cset' <- return $ subs_typ_var var (TVar nvar) cset
+                                 return (typ', cset')) (return (typ', cset')) vars
 
+  return (typ', cset')
 
 -- | Instantiate the typing scheme if the type is generic. Otherwise,
 -- just return the type.

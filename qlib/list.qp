@@ -56,6 +56,13 @@ let rec sf_last l =
             (d, x:xs)
 ;;
 
+let rec sf_length l =
+  match l with
+    [] -> (0, [])
+  | x:xs -> let (n, xs) = sf_length xs in
+            (n+1, x:xs)
+;;
+
 let rec map f l =
   match l with
     [] -> []

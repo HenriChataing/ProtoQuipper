@@ -237,7 +237,7 @@ constraint_typing gamma (EVar x) cst = do
   info <- return $ no_info { expression = EVar x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> csetx
+  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just $ no_bang a })
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -255,7 +255,7 @@ constraint_typing gamma (EGlobal x) cst = do
   info <- return $ no_info { expression = EGlobal x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> csetx
+  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just $ no_bang a })
 
 
 
@@ -391,7 +391,7 @@ constraint_typing gamma (EFun p e) cst = do
   -- Build the context constraints : n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info { in_type = Just $ TArrow a b }) flags) >>= filter
 
-  return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
+  return $ (csetp & info { in_type = Just $ no_bang a }) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> (fconstraints & info)
 
 
 -- Tensor intro typing rule
@@ -436,7 +436,7 @@ constraint_typing gamma (ETuple elist) cst = do
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
-  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
+  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> (pcons & info { in_type = Just $ TTensor tlist })
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -559,14 +559,14 @@ constraint_typing gamma (EDatacon dcon e) cst = do
         -- The context must be duplicable
         duplicable_context gamma
 
-        return $ ((dtype' <:: cst) & info) <> csetd
+        return $ ((dtype' <:: cst) & info) <> (csetd & info { in_type = Just $ no_bang dtype' })
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
 
-        return $ ((u <:: cst) & info) <> csete <> csetd
+        return $ ((u <:: cst) & info) <> csete <> (csetd & info { in_type = Just $ no_bang dtype' })
 
 
 -- Match typing rule
@@ -926,7 +926,14 @@ apply_flag_constraints (c:cc) = do
         case (vm, vn) of
           (One, Zero) -> do
               -- The error could have been thrown with either reference.
-              throw_NonDuplicableError info
+              case in_type info of
+                Just a -> do
+                    a0 <- return $ subs_flag m 0 a
+                    a1 <- return $ subs_flag m 1 a
+                    throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
+
+                Nothing ->
+                    throw_NonDuplicableError info
 
           (Unknown, Zero) -> do
               unset_flag m info
