@@ -1177,6 +1177,19 @@ a quantum data term.
 \end{corollary}
 
 \begin{lemma}
+\label{bind_qd_terms}
+If $T$ is a quantum data type and $v_1$, $v_2$ are well-typed values of 
+type $T$, then $\bind(v1,v2)$ is defined.
+\end{lemma}
+
+\begin{proof}
+By Corollary \hyperref[typed_qd_term]{\ref*{typed_qd_term}}, we know that 
+$v_1$ and $v_2$ are quantum data terms so that the statement of the lemma 
+makes sense. It follows by induction on $T$, using Lemma
+\hyperref[form_values]{\ref*{form_values}}.
+\end{proof}
+
+\begin{lemma}
 {\bf (Substitution).}
 \label{substitution}
 If $v\in\mathtt{Val}$ and both $\Gamma',{!}\Delta;Q' \entails v:B$ and 
@@ -1821,9 +1834,36 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
     the $(\rul{arg})$ rule.
     \item If $a_1,a_2\in\val$ then by 
     Lemma~\hyperref[form_values]{\ref*{form_values}}, $a_1$ is either 
-    an abstraction or a constant. In each case $[C,a_1a_2]$ reduces 
-    by the appropriate rule among $(\beta)$, $(\boxx)$, $(\unbox)$ 
-    and $(\rev)$. 
+    an abstraction or a constant. If $a_1=(\unbox\,(u,D,u'))$, then, 
+    for the $(\unbox)$ rule to apply, we need to show that 
+    $\bind(u,a_2)$ is not undefined and that $\FQ(u')\subseteq\dom(b')$.  
+    The typing derivation $\pi_1$ is the following:
+    \begin{footnotesize}
+    \[
+      \infer[]{{!}\Delta;\emptyset\entails \unbox\,(u,D,u'):T\loli U}{
+        \infer[]{{!}\Delta;\emptyset \entails \unbox:\Circ(T,U)\loli (T\loli U)}{
+        }   
+        &
+        \infer[]{{!}\Delta ;\emptyset\entails (u,D,u'):\Circ(T,U)}{
+          \deduce[]{\FQ(u)\entails u:T}{
+            \vdots ~\pi_1^1
+          }
+          &
+          \deduce[]{{!}\Delta;\FQ(u')\entails u':U}{
+            \vdots ~\pi_1^2     
+          }
+        }
+      }
+      \]
+    \end{footnotesize}%    
+    with $\In(D)=\FQ(u)$, $\Out(D)=\FQ(u')$ and $A=U$ and $B=T$ for som quantum 
+    data types $T,U$. It follows that $a_2$ and $u$ are two values of type $T$, 
+    so that, by Lemma \hyperref[bind_qd_terms]{\ref*{bind_qd_terms}}, $\bind(u,a_2)$
+    is defined. Moreover, by Definition~\hyperref[Append_cond_2]
+    {\ref*{circuit_constructor}.\ref*{Append_cond_2}}, $\dom(b')=Out(D)
+    =\FQ(u')$, so that the $(\unbox)$ rule in fact applies. For the remaining cases, 
+    it is easy to see that $[C,a_1a_2]$ reduces by the appropriate rule among $(\beta)$, 
+    $(\boxx)$, and $(\rev)$. 
   \end{itemize}
 \end{enumerate}
 \end{proof}
