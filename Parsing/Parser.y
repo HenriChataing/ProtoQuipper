@@ -219,7 +219,7 @@ Atom_expr :
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
-    | BOX '[' Type ']'                          { locate (EBox $3) (fromto $1 $4) }
+    | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
     | REV                                       { locate ERev $1 }
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
@@ -283,15 +283,28 @@ Type :
       Tensor_type                               { $1 }
     | Type "->" Type                            { locate_opt (TArrow $1 $3) (fromto_opt (location $1) (location $3)) }
 
+QType :
+      QTensor_type                              { $1 }
+
 
 Tensor_type :
       Tensor_list                               { case $1 of
                                                     [t] -> t
                                                     _ -> TTensor $ List.reverse $1 }
 
+QTensor_type :
+      QTensor_list                              { case $1 of
+                                                    [t] -> t
+                                                    _ -> TTensor $ List.reverse $1 }
+
 Tensor_list :
       Type_app                                  { [$1] }
     | Tensor_list '*' Type_app                  { $3:$1 }
+
+
+QTensor_list :
+      QAtom_type                                { [$1] }
+    | QTensor_list '*' QAtom_type               { $3:$1 }
 
 
 Type_app :
@@ -309,6 +322,13 @@ Atom_type :
     | '(' ')'                                   { locate TUnit (fromto $1 $2) }
     | CIRC '(' Type ',' Type ')'                { locate (TCirc $3 $5) (fromto $1 $6) }
     | '(' Type ')'                              { $2 }
+
+
+QAtom_type :
+      QUBIT                                     { locate TQubit $1 }
+    | '(' ')'                                   { locate TUnit (fromto $1 $2) }
+    | '(' QType ')'                             { $2 }
+
 
 
 {
