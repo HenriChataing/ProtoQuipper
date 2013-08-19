@@ -67,7 +67,7 @@ write_log logfile lvl s = do
 -- 
 -- *  A namespace to record the variables of the original expression.
 -- 
--- *  The definition of the user types: recorded as a map from datacons to the argument type and the data type it is part of.
+-- *  The definition of the user types, recorded as a map mapping each data constructor to the argument type and the data type it is part of.
 -- 
 -- *  For the interpreter: an evaluation context, including the current circuit and mappings.
 
@@ -96,7 +96,7 @@ data Context = Ctx {
                                                       -- their type, as written in the type definition.
   globals :: IntMap Type,                             -- ^ Typing context corresponding to the global variables imported from other modules.
 
-  values :: IntMap Value,                             -- ^ The values of the global variables.
+  values :: IntMap Value,                             -- ^ The values of the global variables.
 
 -- Information relevant to flags
   flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
@@ -361,7 +361,7 @@ type_name x = do
 
 
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
--- all the global variables and dataconstructors from the module dependencies have been inserted, associated with their respective
+-- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
 global_namespace :: [String]                                                     -- ^ A list of module dependencies.
                  -> QpState (Map String Expr, Map String Int, Map String Type)   -- ^ The resulting labelling maps.

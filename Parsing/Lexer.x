@@ -105,8 +105,8 @@ data Token =
   -- Name tokens : variables and data constructors
     TkLId (Extent, String)       -- ^ Variable names starting with a lower case character.
   | TkUId (Extent, String)       -- ^ Variable names starting with an upper case character.
-  | TkQLId (Extent, String)      -- ^ Qualified lids.
-  | TkQUId (Extent, String)      -- ^ Qualified uids.
+  | TkQLId (Extent, String)      -- ^ Qualified lower-case identifiers.
+  | TkQUId (Extent, String)      -- ^ Qualified upper-case identifiers.
   | TkInt (Extent, String)       -- ^ Integers. The value of the integer is left unparsed.
   | TkError (Extent, String)     -- ^ Error token.
 

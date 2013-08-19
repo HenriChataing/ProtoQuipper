@@ -22,7 +22,7 @@ data Typedef = Typedef {
 }
 
 
--- | Type synonyms, e.g intlist = list int.
+-- | Type synonyms, e.g., @intlist@ = @list int@.
 data Typesyn = Typesyn {
   s_typename :: String,                        -- ^ Name of the type.
   s_args :: [String],                          -- ^ List of bound type arguments.
@@ -43,7 +43,7 @@ data Typesyn = Typesyn {
 data Declaration =
     DLet RecFlag Pattern Expr                -- ^ Variable declaration : let x = e ;;
   | DExpr Expr                               -- ^ Simple expression    : e ;;
-  | DTypes [Typedef]                         -- ^ A list of type definitions, all types co-inductive.
+  | DTypes [Typedef]                         -- ^ A list of type definitions. All types are mutually inductive.
   | DSyn Typesyn                             -- ^ A type synonym
 
 

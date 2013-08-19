@@ -63,7 +63,7 @@ register_datacon s namespace =
   (id, namespace { datacons = IMap.insert id s $ datacons namespace, datagen = id+1 })
 
 
--- | Register a new type, and return the newly asigned id.
+-- | Register a new type, and return the newly assigned id.
 register_type :: String -> Namespace -> (Int, Namespace)
 register_type t namespace =
   let id = typegen namespace in

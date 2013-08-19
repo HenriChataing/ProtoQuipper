@@ -94,7 +94,7 @@ run_command opts prog ctx = do
   ctx <- List.foldl (\rec decl -> do
                        ctx <- rec
                        process_declaration opts prog ctx decl) (return ctx) $ S.body prog
--- $ ctx { label = Map.union dcons $ label ctx }) $ S.body prog
+-- -- $ ctx { label = Map.union dcons $ label ctx }) $ S.body prog
   -- Return
   return ctx
 
