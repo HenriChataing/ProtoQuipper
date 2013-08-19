@@ -1857,8 +1857,10 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
     with $\In(D)=\FQ(u)$, $\Out(D)=\FQ(u')$ and $A=U$ and $B=T$ for som quantum 
     data types $T,U$. It follows that $a_2$ and $u$ are two values of type $T$, 
     so that, by Lemma \hyperref[bind_qd_terms]{\ref*{bind_qd_terms}}, $\binding=\bind(a_2,u)$
-    is defined with $\dom(\binding)=\FQ(a_2)$. Moreover, $\FQ(a_2)\subseteq\mathtt{Out}(C)$ by the validity of the typed closure {\eqref{eqn-fqa2}}. Therefore, by Definition~\hyperref[Append_cond_2]
-    {\ref*{circuit_constructor}(\ref*{Append_cond_2})}, $\dom(\binding')=Out(D)
+    is defined with $\dom(\binding)=\FQ(a_2)$ and $\cod(\binding)=\FQ(u)$. Moreover, $\FQ(a_2)\subseteq\Out(C)$ by the validity of the typed closure {\eqref{eqn-fqa2}}, and $\FQ(u)=\In(D)$ as noted above. Therefore, $\dom(\binding)\subseteq\Out(C)$ and $\cod(\binding)=\In(D)$ hold, as required by Definition~\hyperref[Append_cond_2]
+    {\ref*{circuit_constructor}(\ref*{Append_cond_x})}. By 
+Definition~\hyperref[Append_cond_2]
+    {\ref*{circuit_constructor}(\ref*{Append_cond_2})}, we conclude that $\dom(\binding')=\Out(D)
     =\FQ(u')$, so that the $(\unbox)$ rule in fact applies. For the remaining cases, 
     it is easy to see that $[C,a_1a_2]$ reduces by the appropriate rule among $(\beta)$, 
     $(\boxx)$, and $(\rev)$. 
