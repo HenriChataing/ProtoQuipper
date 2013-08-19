@@ -85,16 +85,10 @@ run_command opts prog ctx = do
   -- Import the modules
   ctx <- import_modules (fst opts) (S.imports prog) ctx
 
-  -- translate the module header : type declarations
---  dcons <- import_typedefs $ S.typedefs prog
---  define_user_subtyping $ S.typedefs prog
---  define_user_properties $ S.typedefs prog
- 
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
                        ctx <- rec
                        process_declaration opts prog ctx decl) (return ctx) $ S.body prog
--- $ ctx { label = Map.union dcons $ label ctx }) $ S.body prog
   -- Return
   return ctx
 
