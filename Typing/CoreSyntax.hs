@@ -127,7 +127,7 @@ is_user_type (TBang _ a) = is_user_lintype a
 
 
 
--- | An algebraic datatype definition.
+-- | An algebraic data type definition.
 data Typedef = Typedef {
   d_args :: Int,                                             -- ^ The number of type arguments required.
 

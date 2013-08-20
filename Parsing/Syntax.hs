@@ -16,7 +16,7 @@ import Data.List as List
 type Datacon = String
 
 
--- | An algebraic datatype definition.
+-- | An algebraic data type definition.
 data Typedef = Typedef {
   d_typename :: String,                        -- ^ Name of the defined type.
   d_args :: [String],                          -- ^ List of bound type arguments.

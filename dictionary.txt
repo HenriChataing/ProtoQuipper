@@ -84,6 +84,7 @@ GrState
 gsize
 GT
 hs
+Hughes's
 HughesPJ
 iff
 IMap
@@ -100,6 +101,7 @@ IParser
 ir
 IRDoc
 IRExport
+Jones's
 KType
 LabellingContext
 lbegin
