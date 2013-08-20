@@ -77,7 +77,7 @@ instance PPrint Value where
 
   sprint v = pprint v
   sprintn _ v = pprint v
-  pprint v = genprint Inf v [(\d -> subvar 'D' d)]
+  pprint v = genprint Inf v [(subvar 'D')]
 
 
 -- | Equality between values is only about the skeleton. It is only to be used to compare quantum values, and

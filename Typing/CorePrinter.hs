@@ -56,7 +56,7 @@ instance PPrint LinType where
   -- Print unto Lvl = n
   -- By default, the flags are printed using the default pprint function
   -- and the variables are displayed as X_n where n is the variable id
-  sprintn lv a = genprint lv a [pprint, subvar 'X']
+  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -85,7 +85,7 @@ instance PPrint Type where
 
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
-  sprintn lv a = genprint lv a [pprint, subvar 'X']
+  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
  
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a

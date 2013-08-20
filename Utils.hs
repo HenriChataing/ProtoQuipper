@@ -50,14 +50,16 @@ superscript = List.map (\c -> if isDigit c then
 -- and n the id.
 supervar :: Char -> Int -> String
 supervar x n =
-  x:(superscript $ show n)
+  x:(show n)
+--  x:(superscript $ show n)
 
 
 -- | Prints a variable, represented by its unique id, as X_n, where X is a character symbol
 -- and n the id.
 subvar :: Char -> Int -> String
 subvar x n =
-  x:(subscript $ show n)
+  x:(show n)
+--  x:(subscript $ show n)
 
 
 -- | Returns the name of the module encoded by the file f.

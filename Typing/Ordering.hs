@@ -22,6 +22,7 @@ import Typing.CorePrinter
 
 import Monad.QpState
 import Monad.QuipperError
+import qualified Monad.Namespace as N
 
 import Data.List as List
 import Data.IntMap (IntMap)
@@ -233,21 +234,19 @@ check_cyclic c explored poset = do
 
         -- Printing flags
         refs <- get_context >>= return . flags
-        fflag <- return (\f -> case f of
-                                 1 -> "!"
-                                 n | n >= 2 -> case IMap.lookup n refs of
-                                                 Just fi -> case value fi of
-                                                              One -> "!"
-                                                              _ -> ""
-                                                 Nothing -> ""
-                                   | otherwise -> "")
+        fflag <- return (\f -> "%")
+
         -- Printing variables : print the cluster instead
         fvar <- return (\x -> case IMap.lookup x $ cmap poset of
                                 Just c -> subvar 'a' c
                                 Nothing -> subvar 'x' x)
-
-        ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar]) cloop
-        prt <- return $ genprint Inf infinite [fflag, fvar]
+        -- Printing type names
+        nspace <- get_context >>= return . namespace
+        fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
+                                 Just n -> n
+                                 Nothing -> subvar 'T' n)
+        ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar, fuser]) cloop
+        prt <- return $ genprint Inf infinite [fflag, fvar, fuser]
 
         -- See what information we have
         -- Print the expression
