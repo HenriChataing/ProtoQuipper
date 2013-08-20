@@ -6,7 +6,7 @@ import Utils
 import Classes
 import Builtins
 
-import Parsing.Localizing (Extent, extent_unknown, file_unknown)
+import Parsing.Location (Extent, extent_unknown, file_unknown)
 
 import Monad.Modules
 import Monad.QuipperError

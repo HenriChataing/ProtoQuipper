@@ -2,7 +2,7 @@
 -- 'Parsing.Syntax.Program' that describes modules as parsed by the parser.
 module Monad.Modules where
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Typing.CoreSyntax
 import Interpret.Values

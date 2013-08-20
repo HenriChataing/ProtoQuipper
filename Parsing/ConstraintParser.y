@@ -5,7 +5,7 @@ module Parsing.ConstraintParser (parseError, parse_constraints) where
 
 import Classes
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 

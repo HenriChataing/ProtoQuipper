@@ -12,7 +12,7 @@ import Monad.QuipperError
 import Monad.QpState
 import Monad.Modules
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Syntax (RecFlag (..))
 import Parsing.Printer
 

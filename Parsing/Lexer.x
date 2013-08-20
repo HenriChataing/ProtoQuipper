@@ -3,7 +3,7 @@
 -- It contains the definition of the data type Token of tokens, result of the lexing.
 module Parsing.Lexer (Token(..), mylex) where
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Monad.QuipperError
 import Monad.QpState

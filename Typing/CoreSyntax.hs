@@ -13,7 +13,7 @@ module Typing.CoreSyntax where
 import Classes
 import Utils
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 

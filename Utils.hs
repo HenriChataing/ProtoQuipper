@@ -2,7 +2,7 @@
 -- characters to superscript or subscript ..
 module Utils where
 
-import Parsing.Localizing
+import Parsing.Location
 
 import System.FilePath.Posix as P
 

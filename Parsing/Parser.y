@@ -4,7 +4,7 @@ module Parsing.Parser (parseError, parse) where
 
 import Classes
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 

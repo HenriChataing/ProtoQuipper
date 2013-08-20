@@ -6,7 +6,7 @@ import Classes
 
 import Monad.QuipperError
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 

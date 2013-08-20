@@ -1,6 +1,6 @@
 -- | This module provides types and functions useful to work with location in files.
 -- A location is represented by an extent, which is an interval between two loci.
-module Parsing.Localizing where
+module Parsing.Location where
 
 -- | Definition of a locus as a point in a file located
 -- by its line and column numbers.

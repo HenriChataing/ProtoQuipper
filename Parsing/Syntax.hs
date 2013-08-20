@@ -4,7 +4,7 @@ module Parsing.Syntax where
 
 import Classes
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Data.Char
 import Data.Map

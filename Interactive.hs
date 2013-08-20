@@ -7,7 +7,7 @@ import Console
 
 import Parsing.Lexer
 import Parsing.Parser
-import Parsing.Localizing
+import Parsing.Location
 import qualified Parsing.Syntax as S
 
 import Typing.CoreSyntax

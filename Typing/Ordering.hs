@@ -15,7 +15,7 @@ module Typing.Ordering where
 import Classes
 import Utils
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Typing.CoreSyntax
 import Typing.CorePrinter

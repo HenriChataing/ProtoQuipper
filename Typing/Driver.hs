@@ -10,7 +10,7 @@ import Builtins
 import Parsing.Lexer
 import qualified Parsing.Parser as P
 import qualified Parsing.IParser as IP
-import Parsing.Localizing (clear_location, extent_unknown)
+import Parsing.Location (clear_location, extent_unknown)
 import Parsing.Syntax (RecFlag(..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
