@@ -1,14 +1,14 @@
--- | This module (Ordering) is dedicated to finding the minimum of the poset formed
+-- | This module is dedicated to finding the minimum of the partially ordered set formed
 -- by the type variables, where the relation is given by the typing constraints.
--- As a reminder, for every constraint:
+-- As a reminder:
 --
--- *  a <: b, the relation Age (a) = Age(b) is added, and for every constraint
+-- * for every constraint /a/ <: /b/, the relation Age(/a/) = Age(/b/) is added, and
 --
--- *  a <: T or T <: a, a relation Age (a) < Age (b) is added for every b free type variable of T.
+-- * for every constraint /a/ <: /T/ or /T/ <: /a/, a relation Age(/a/) < Age(/b/) is added for every free type variable /b/ of /T/.
 --
 -- Variables are later organized in clusters (= equivalence classes) of variables with the same age,
 -- and the relations between variables are changed into relations between the associated
--- clusters. The algorithm for finding the youngest cluster has a complexity O (n) where n is the number of
+-- clusters. The algorithm for finding the youngest cluster has a complexity of /O/(/n/), where /n/ is the number of
 -- variables.
 module Typing.Ordering where
 
@@ -34,20 +34,20 @@ type Cluster = Int
 
 
 -- | Definition of posets (partially ordered sets).
--- Inside of the poset, variables are grouped in age classes (built by atomic constraints), and the relations
--- are written in term of class.
+-- Inside of the poset, variables are grouped into age classes (determined by atomic constraints), and the relations
+-- are written in term of such classes.
 data Poset = Poset {
   cmap :: IntMap Cluster,                                -- ^ Associates each variable to its respective cluster.
 
   relations :: IntMap [(Cluster, TypeConstraint)],       -- ^ For any given cluster, gives the related clusters (younger in age). For debugging purposes, the typing constraint
-                                                         -- from which originated the relation is added to each edge or relation.
+                                                         -- from which the relation originated is added to each edge or relation.
 
-  clusters :: IntMap [Variable]                          -- ^ Gives the contents of each cluster.
+  clusters :: IntMap [Variable]                          -- ^ The contents of each cluster.
 }
 
 
 
--- | Empty poset.
+-- | The empty poset.
 empty_poset :: Poset
 empty_poset = Poset {
   cmap = IMap.empty,
@@ -57,7 +57,7 @@ empty_poset = Poset {
 
 
 
--- | Given a variable, finds to which cluster it has been added. If the variable's cluster is undefined, a new singleton cluster is created
+-- | Given a variable, find to which cluster it has been added. If the variable's cluster is undefined, a new singleton cluster is created
 -- with the variable id as reference.
 cluster_of :: Variable -> Poset -> (Cluster, Poset)
 cluster_of x poset =
@@ -71,7 +71,7 @@ cluster_of x poset =
                     cmap = IMap.insert x x $ cmap poset })
 
 
--- | Returns the contents of a cluster.
+-- | Return the contents of a cluster.
 cluster_contents :: Cluster -> Poset -> [Variable]
 cluster_contents c poset =
   case IMap.lookup c $ clusters poset of
@@ -82,7 +82,7 @@ cluster_contents c poset =
         fail $ "Cluster " ++ show c ++ " lacks an accompying definition"
 
 
--- | Returns the list of younger clusters, according to the partial relation.
+-- | Return the list of younger clusters, according to the partial relation.
 cluster_relations :: Cluster -> Poset -> [(Cluster, TypeConstraint)]
 cluster_relations c poset =
   case IMap.lookup c $ relations poset of
@@ -93,8 +93,8 @@ cluster_relations c poset =
         []
 
 
--- | Merges two clusters. The left cluster remains, and is augmented with the contents and relations of the right one.
--- All the references to the right cluster are also replace by references to the left.
+-- | Merge two clusters. The left cluster remains, and is augmented with the contents and relations of the right one.
+-- All the references to the right cluster are also replaced by references to the left.
 merge_clusters :: Cluster -> Cluster -> Poset -> Poset
 merge_clusters c c' poset =
   if c == c' then
@@ -115,34 +115,34 @@ merge_clusters c c' poset =
              cmap = IMap.map (\d -> if d == c' then c else d) $ cmap poset' }
 
 
--- | Adds an age relation between two clusters.
+-- | Add an age relation between two clusters.
 new_relation :: Cluster -> Cluster -> TypeConstraint -> Poset -> Poset
 new_relation c c' cst poset =
   poset { relations = IMap.update (\r -> Just $ (c', cst):r) c $ relations poset }
 
 
 
--- | Returns true if and only if no cluster remains.
+-- | Return 'True' if and only if no cluster remains.
 null_poset :: Poset -> Bool
 null_poset poset =
   IMap.null $ clusters poset
 
 
 
--- All the following functions are used for the construction / definition of the poset and its relation
--- The relation is defined by the subtyping constraints :
---      if the constraint is atomic a <: b, then a and b must be of the same cluster, so merge the clusters of a and b
---      if the constraint is a <: T or T <: a, for every b free_variable of T, add the edge cluster b -> cluster a
+-- $ All the following functions are used for the construction \/ definition of the poset and its relation.
+-- The relation is defined by the subtyping constraints:
+-- 
+-- * if the constraint is atomic /a/ <: /b/, then /a/ and /b/ must be of the same cluster, so merge the clusters of /a/ and /b/.
+-- 
+-- * if the constraint is /a/ \<: /T/ or /T/ \<: /a/, for every free variable /b/ of /T/, add the edge cluster(/b/) -\> cluster(/a/).
 
 
-
--- | Registers a constraint and its consequences upon the poset.
+-- | Register a constraint and its consequences in the poset.
 -- 
 -- * If the constraint is atomic, then the two clusters of the type variables are merged.
---
--- * Else it is of the form a <: T or T <: a. Relations are added from the cluster of a to the clusters of the free
--- variables of T.
---
+-- 
+-- * Otherwise, it is of the form /a/ <: /T/ or /T/ <: /a/. Relations are added from the cluster of /a/ to the clusters of the free
+-- variables of /T/.
 register_constraint :: TypeConstraint -> Poset -> Poset
 register_constraint cst poset =
   case cst of
@@ -169,7 +169,7 @@ register_constraint cst poset =
                       new_relation cy cx cst poset') poset' fvt
 
 
--- | Registers a list of constraints.
+-- | Register a list of constraints.
 register_constraints :: [TypeConstraint] -> Poset -> Poset
 register_constraints clist poset =
   List.foldl (\poset c ->
@@ -180,7 +180,7 @@ register_constraints clist poset =
 -- All the following functions serve to find the youngest cluster / variables, given
 -- the relation defined in the cluster
 
--- | Returns a randomly chosen cluster (fails if the poset is null).
+-- | Return a randomly chosen cluster. This function fails with an error if the poset is null.
 some_cluster :: Poset -> Cluster
 some_cluster poset =
   case IMap.keys $ clusters poset of
@@ -191,10 +191,10 @@ some_cluster poset =
         c
 
 
--- | Explores the relations graph, starting from some cluster.
+-- | Explore the relations graph, starting from some cluster.
 -- The walk stops as soon as it finds a cluster having no relatives (local minimum).
 -- If at some point it comes upon a cluster it had already visited, that means there is a
--- cycle in the graph: the poset is inconsistent, and builds an infinite type (the walk fails).
+-- cycle in the graph: the poset is inconsistent, and builds an infinite type. In this case, the walk fails.
 find_minimum :: Cluster                     -- ^ Current cluster.
              -> [(TypeConstraint, Cluster)] -- ^ Historic of the walk (all the explored clusters, and the relations that lead to them).
              -> Poset                       -- ^ The current poset.
@@ -214,8 +214,8 @@ find_minimum c explored poset = do
 
 
 
--- | Function used exclusively in the find_minimum function. It checks whether a cluster appears in the list of explored vertices.
--- If it does, an error message is generated that traces the cycle using the list of dependencies, if not, it returns ().
+-- | An auxiliary function used by 'find_minimum'. Check whether a cluster appears in the list of explored vertices.
+-- If it does, generate an error message that traces the cycle using the list of dependencies. Otherwise, return ().
 check_cyclic :: Cluster -> [(TypeConstraint, Cluster)] -> Poset -> QpState ()
 check_cyclic c explored poset = do
   case List.span (\(_, c') -> c /= c') explored of
@@ -265,7 +265,7 @@ check_cyclic c explored poset = do
 
 
 
--- | Finds a minimum of a poset. It relies on the function find_minimum, applied to start on a random cluster.
+-- | Find a minimum of a poset. This relies on the function 'find_minimum', applied to start on a random cluster.
 minimum_cluster :: Poset -> QpState Cluster
 minimum_cluster poset = do
   c <- return $ some_cluster poset
@@ -282,7 +282,7 @@ minimum_cluster poset = do
   return cm
 
 
--- | Removes a cluster from a poset: all the relations involving this cluster are erased, the definition of the cluster removed.
+-- | Remove a cluster from a poset. All the relations involving this cluster are erased, and the definition of the cluster is removed.
 remove_cluster :: Cluster -> Poset -> ([Variable], Poset)
 remove_cluster c poset =
   let cts = cluster_contents c poset in
@@ -291,7 +291,7 @@ remove_cluster c poset =
                 clusters = IMap.delete c $ clusters poset })
 
                 
--- | Returns the contents of a minimum cluster of a poset, after removing the said cluster definition from the poset.
+-- | Return the contents of a minimum cluster of a poset, after removing the said cluster definition from the poset.
 youngest_variables :: Poset -> QpState ([Variable], Poset)
 youngest_variables poset = do
   c <- minimum_cluster poset
@@ -301,15 +301,15 @@ youngest_variables poset = do
 
 
 
--- | Represents a set with an equivalence relation.
--- The variables are grouped inside in equivalence classes.
+-- | A type to hold a set with an equivalence relation.
+-- The variables are grouped into equivalence classes.
 data Equiv a = Eqv {
   clmap :: IntMap Int,                     -- ^ Map each variable to its respective equivalence class.
   classes :: IntMap ([Variable], [a])      -- ^ Contents of the equivalence classes.
 }
 
 
--- | Creates a new set initialized with a list of variables that form the initial class.
+-- | Create a new set initialized with a list of variables that form the initial class.
 -- Note that this list must not be empty.
 new_with_class :: [Variable] -> Equiv a
 new_with_class c@(a:_) =
@@ -317,8 +317,8 @@ new_with_class c@(a:_) =
         classes = IMap.singleton a (c, []) }
 
 
--- | Returns the equivalence class of a variable, or creates one if it
--- doesn't exist.
+-- | Return the equivalence class of a variable, or create one if it
+-- does not exist.
 in_class :: Variable -> Equiv a -> (Int, Equiv a)
 in_class x eqv =
   case IMap.lookup x $ clmap eqv of
@@ -327,7 +327,7 @@ in_class x eqv =
                          classes = IMap.insert x ([x],[]) $ classes eqv })
 
 
--- | Returns the contents of a particular equivalence class.
+-- | Return the contents of a particular equivalence class.
 class_contents :: Int -> Equiv a -> ([Variable], [a])
 class_contents c eqv =
   case IMap.lookup c $ classes eqv of
@@ -335,7 +335,7 @@ class_contents c eqv =
     Nothing -> ([], [])
 
 
--- | Merges two equivalence classes, based on an equivalence relation passed as argument.
+-- | Merge two equivalence classes, based on an equivalence relation passed as an argument.
 merge_classes :: Int -> Int -> a -> Equiv a -> Equiv a
 merge_classes c c' a eqv =
   if c /= c' then
@@ -347,7 +347,7 @@ merge_classes c c' a eqv =
     eqv { classes = IMap.update (\(cts, as) -> Just (cts, a:as)) c $ classes eqv }
 
 
--- | Takes the constraint relation into account in the set.
+-- | Add a constraint relation to a set.
 insert_constraint :: Variable -> Variable -> a -> Equiv a -> Equiv a
 insert_constraint x y c eqv =
   let (cx, eqv') = in_class x eqv
@@ -355,15 +355,15 @@ insert_constraint x y c eqv =
   merge_classes cx cy c eqv''
 
 
--- | Application of the equivalence classes:
--- removes the unaccessible flag and type constraints from a constraint set, based on the variables
--- appearing in the type. For example, assuming the type contains the flag 0, and given the set:
+-- | Clean up a constraint set by removing
+-- the inaccessible flag and type constraints from a constraint set, based on the variables
+-- appearing in the type. For example, assuming the type contains the flag 0, and given the set
 --
 -- @
---  { 0 <= 2, 2 <= 3, 42 <= 24 }
+--  { 0 <= 2, 2 <= 3, 42 <= 24 },
 -- @
 --
--- The result will be the set { 0 <= 2, 2 <= 3 }. The constraint 42 <= 24 that can't affect the type
+-- the result will be the set { 0 <= 2, 2 <= 3 }. The constraint 42 <= 24, which cannot affect the type,
 -- is removed.
 clean_constraint_set :: Type -> ConstraintSet -> ([Variable], [RefFlag], ConstraintSet)
 clean_constraint_set a (lc, fc) =

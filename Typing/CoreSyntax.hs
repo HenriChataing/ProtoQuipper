@@ -4,10 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
--- | Definition of an internal syntax, which considerably modifies the grammar of types
--- so as to facilitate the working of the type inference algorithm. For more efficiency, all
--- the term and type variables are labelled by a unique id, which serves as reference in maps
--- and other structures.
+-- | This module defines the /internal syntax/ of Proto-Quipper.
+-- Compared to the /surface syntax/ defined in "Parsing.Syntax", the
+-- grammar of types has been considerably modified to facilitate type
+-- inference. For greater efficiency, all term and type variables are
+-- labelled by a unique id, which serves as a lookup key in maps and
+-- other data structures.
 module Typing.CoreSyntax where
 
 import Classes
@@ -20,21 +22,21 @@ import qualified Parsing.Syntax as S
 import Data.List as List
 import Data.Map (Map)
 
--- | Type of term and type variables.
+-- | The type of term and type variables. Each term or type variable is represented by a unique integer id.
 type Variable = Int
 
 
--- | Referenced flags represent references to flag values. A few values are reserved :
+-- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three values are reserved:
 --
--- *    0 : is the flag equal to zero (meaning not duplicable),
+-- *    0: the flag equal to zero (meaning not duplicable);
 --
--- *    1 : is the flag equal to one (meaning duplicable), 
+-- *    1: the flag equal to one (meaning duplicable);
 --
--- *    -1 : can be either zero or one, for example with types like bool or unit,
---          implicitly equal to !bool and !unit. Typically, the flag constraints
---          where the left or right hand side is -1 are dropped.
+-- *    -1: can be either zero or one, for example with types like /bool/ or /unit/,
+--          which are implicitly equal to !/bool/ and !/unit/. Typically, flag 
+--          constraints are dropped if their left-hand side or right-hand side is -1.
 --
--- *    Any other value is a flag reference.
+-- *    Any other value refers to a flag variable. For example, 2 means \"the second flag variable\".
 type RefFlag = Int
 
 
@@ -47,67 +49,70 @@ zero :: RefFlag
 zero = 0
 
 
--- | Represents the value a flag can take. Initially, all flags are set to Unknown, except
--- for some imposed to zero or one by the typing rules.
+-- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except
+-- for some that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
     Unknown   -- ^ The value of the flag has not been decided yet.
   | One       -- ^ The value 1.
   | Zero      -- ^ The value 0.
   deriving Show
 
--- | Information relevant to a flag. This contains the flag value, some debug
--- information used to throw detailed exceptions. Eventually, it will also contain
--- various things such as : reversibility, control ..
+-- | Information relevant to a flag. This contains the flag value, and potentially some debug
+-- information used to raise detailed exceptions. Eventually, it will also contain
+-- various things such as reversibility, control, etc.
 data FlagInfo = FInfo { 
-  value :: FlagValue                              -- ^ The value of the flag
+  value :: FlagValue                              -- ^ The value of the flag.
 }
 
 
 
+-- $ The definition of types distinguishes between /linear types/ and
+-- /types/.  Linear types are never duplicable, whereas types are
+-- always annotated with an exponential flag. The grammar defines
+-- linear types and types by mutual recursion. This ensures that types
+-- are annotated with a flag in every possible place, but that flags
+-- are never doubled up. This helps simplify the type inference algorithm.
 
-
-
-
--- | The definition of types distinguishes between linear types (never duplicable) and types,
--- the latter annotated by a exponential flag. The grammar makes it so that the types are annotated
--- every where with flags, to make it simpler for the type inference algorithm. Here is the definition
--- of linear types, which can never be duplicable.
+-- | The type of linear type expressions. Linear types can never be
+-- duplicable.
 data LinType =
 -- Basic types
-    TVar Variable              -- ^ a
-  | TArrow Type Type           -- ^ T -> U
+    TVar Variable              -- ^ Type variable: /a/.
+  | TArrow Type Type           -- ^ Function type: @T -> U@.
 
 -- Tensor types
-  | TUnit                      -- ^ ()
-  | TTensor [Type]             -- ^ (T1 * .. * Tn)
+  | TUnit                      -- ^ Unit type: @()@.
+  | TTensor [Type]             -- ^ Tensor product: @(T1 * .. * T/n/)@.
 
 -- Sum types
-  | TBool                      -- ^ bool
-  | TInt                       -- ^ int
-  | TUser Variable [Type]      -- ^ Algebraic type, parameterized over the variables a1 .. an.
+  | TBool                      -- ^ The basic type /bool/.
+  | TInt                       -- ^ The basic type /int/.
+  | TUser Variable [Type]      -- ^ Algebraic type, parameterized over the variables /a/1 ... /an/.
 
 -- Quantum related types
-  | TQubit                     -- ^ qubit
-  | TCirc Type Type            -- ^ circ (T, U)
+  | TQubit                     -- ^ The basic type /qubit/.
+  | TCirc Type Type            -- ^ The type @circ (T, U)@.
   deriving (Show, Eq)
 
 
--- | As stated above, type are annotated by flags. The data type also include typing schemes, used
--- for polymorphism.
+-- | The type of type expressions, which are linear types annotated
+-- with a flag. This data type also includes /type schemes/, which
+-- are used for polymorphism.
 data Type =
-    TBang RefFlag LinType                                  -- ^ !n A
-  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A typing scheme : a type is parameterized over the type variables a1 .. an and
-                                                           -- the flags f1 .. fk, which must satisfy the constraints of L.
+    TBang RefFlag LinType                                  -- ^ The type @!^n A@.
+  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A type scheme. This is a type with universally quantified type variables /a/1, ..., /a//n/ and
+                                                           -- flags /f/1, ..., /f//k/, which must satisfy a set of constraints /L/.
   deriving Show
 
 
--- | Removes the flag annotation from a type, returning a linear type.
--- This function doesn't make sense on typing schemes.
+-- | Remove the flag annotation from a type, returning a linear type.
+-- This function does not make sense on typing schemes, and can only
+-- be applied to types. It is an error to do otherwise.
 no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
--- | Checks whether a linear type uses algebraic data types.
+-- | Check whether a linear type uses algebraic data types.
 is_user_lintype :: LinType -> Bool
 is_user_lintype (TUser _ _) = True
 is_user_lintype (TCirc t u) = is_user_type t || is_user_type u
@@ -116,21 +121,21 @@ is_user_lintype (TArrow t u) = is_user_type t || is_user_type u
 is_user_lintype _ = False
 
 
--- | Checks whether a type uses algebraic data types.
+-- | Check whether a type uses algebraic data types.
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
 
 
 
--- | Specification of a user type.
+-- | An algebraic datatype definition.
 data Typedef = Typedef {
   d_args :: Int,                                             -- ^ The number of type arguments required.
 
-  d_qdatatype :: Bool,                                       -- ^ Is a quantum data type. Note that this flag is subject to change depending on the value of the type arguments:
-                                                             -- what it says exactly is: assuming the type arguments are quantum data types, then it is a quantum data type.
-                                                             -- For example, \"list a\" is a qdata type on the condition that \"a\" is itself a qdata type.
+  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
+                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
+                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
 
-  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type, with on the left the type arguments, on the right the unfolded type :
+  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
                                                              -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
 
   d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
@@ -139,54 +144,55 @@ data Typedef = Typedef {
 
 
 
--- | Type synonyms.
+-- | A type synonym definition, e.g., @intlist@ = @list int@.
 data Typesyn = Typesyn {
   s_args :: Int,                                             -- ^ The number of type arguments.
 
-  s_qdatatype :: Bool,                                       -- ^ The the type it is synonym of a quantum data type ?
+  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
 
   s_unfolded :: Type                                         -- ^ The unfolded type.
 
-  -- no subtyping relation since the synonyms are automatically replaced.
+  -- No subtyping relation is required, since the synonyms are automatically replaced.
 }
 
 
--- | Like variables (term and type), datacons are attributed unique ids.
+-- | Like term and type variables, data constructors are attributed unique ids.
 type Datacon = Int
 
 
--- | Definition of the core patterns.
--- The definition do not differ much from that of the surface syntax, the only difference lying
--- in variables, now represented by ids.
--- Although the syntax of Proto-Quipper doesn't make use of patterns, keeping them as syntactic sugars
--- reduces the number of variables, since the desugaring process produces new variables, one for each
--- pair in the pattern. Some desugared code:
+-- | A core pattern.  The definition is largely the same as that of
+-- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
+-- difference lies in variables, which are now represented by ids.
+-- Although the syntax of Proto-Quipper does not make use of patterns,
+-- keeping them as syntactic sugar reduces the number of variables,
+-- since the desugaring process produces new variables, one for each
+-- pair in the pattern. Here is how these patterns could be desugared:
 -- 
--- @
---    fun p -> e             ==   fun x -> let p = x in e  (and desugared again)
+-- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
+-- >
+-- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
+-- >                               Otherwise, use the code:
+-- >                                    let (x, y) = e in
+-- >                                    let p = x in
+-- >                                    let q = y in
+-- >                                    e
+-- >                               (and desugar again).
 --
---    let \<p, q\> = e in f    ==   if p, q are variables, then it is a structure of the language
---                                  if not, the code :
---                                     let \<x, y\> = e in
---                                     let p = x in
---                                     let q = y in
---                                     e
---                                (and desugared again)
--- @
---
--- Note that the expression let x = e in f (where x is a variable), is not a syntactic sugar, as it differs from the application (fun x -> f) e by the presence
--- of let-polymorphism.
+-- Note that the expression @let x = e in f@ (where /x/ is a
+-- variable), is not syntactic sugar.  It differs from the application
+-- @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
-    PJoker                                          -- ^ _
-  | PUnit                                           -- ^ ()
-  | PVar Variable                                   -- ^ x
-  | PTuple [Pattern]                                -- ^ (p1, .. , pn)
-  | PDatacon Datacon (Maybe Pattern)                -- ^ Datacon p
-  | PLocated Pattern Extent                         -- ^ Located patterns.
-  | PConstraint Pattern (S.Type, Map String Type)   -- ^ (p <: T)
+    PJoker                                          -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
+  | PUnit                                           -- ^ Unit pattern: @()@.
+  | PVar Variable                                   -- ^ Variable pattern: /x/.
+  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PLocated Pattern Extent                         -- ^ A located pattern.
+  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
   deriving Show 
 
 
+-- | Core patterns are located objects.
 instance Located Pattern where
   location _ = Nothing
   locate p _ = p
@@ -206,37 +212,37 @@ instance Constraint Pattern where
   drop_constraints p = p
 
 
--- | Definition of the core expressions. The core syntax introduces global variables, imported from the dependency modules.
+-- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
 -- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
 -- more variables that are duplicable anyway.
 data Expr =
 -- STLC
-    EVar Variable                                 -- ^ x
+    EVar Variable                                 -- ^ Variable: /x/.
   | EGlobal Variable                              -- ^ Global variable from the imported modules.
-  | EFun Pattern Expr                             -- ^ fun p -> t
-  | EApp Expr Expr                                -- ^ t u
+  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
+  | EApp Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
-  | EUnit                                         -- ^ ()
-  | ETuple [Expr]                                 -- ^ (t1, .. , tn)
-  | ELet RecFlag Pattern Expr Expr                -- ^ let [rec] p = e in f
+  | EUnit                                         -- ^ Unit term: @()@.
+  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
 
 -- Custom union types
-  | EBool Bool                                    -- ^ True / False
-  | EInt Int                                      -- ^ Integers.
-  | EIf Expr Expr Expr                            -- ^ if e then f else g
-  | EDatacon Datacon (Maybe Expr)                 -- ^ Datacon e. The argument may or may not be given, the datacons are considered are manipulated as values.
-  | EMatch Expr [(Pattern, Expr)]                 -- ^ match e with (p1 -> f1 | .. | pn -> fn)
+  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
+  | EInt Int                                      -- ^ Integer constant.
+  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
+  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
-  | EBox Type                                     -- ^ box[T]
-  | EUnbox                                        -- ^ unbox
-  | ERev                                          -- ^ rev
+  | EBox Type                                     -- ^ The constant @box[T]@.
+  | EUnbox                                        -- ^ The constant @unbox@.
+  | ERev                                          -- ^ The constant @rev@.
 
 -- Unrelated
-  | ELocated Expr Extent                          -- ^ Located expressions.
-  | EBuiltin String                               -- ^ #builtin s
-  | EConstraint Expr (S.Type, Map String Type)    -- ^ (e <: T)
+  | ELocated Expr Extent                          -- ^ A located expression.
+  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
+  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
   deriving Show
 
 
@@ -254,15 +260,21 @@ instance PPrint RefFlag where
   pprint n = sprintn Inf n
 
 
--- | The class of objects of \'kind\' type. This includes, of course, the two LinType and Type, but also
--- everything that contains types: TypeConstraint, ConstraintSet, [TypeConstraint] ...
+-- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
+-- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
 -- The only purpose of this class is to overload the functions listed below.
 class KType a where
-  free_typ_var :: a -> [Int]                       -- ^ Returns the list of free type variables.
-  subs_typ_var :: Int -> LinType -> a -> a         -- ^ Substitutes a type variable by a linear type.
+  -- | Return the list of free type variables.
+  free_typ_var :: a -> [Int]
+
+  -- | Substitute a linear type for a type variable.
+  subs_typ_var :: Int -> LinType -> a -> a
   
-  free_flag :: a -> [Int]                          -- ^ Returns the list of flag references.
-  subs_flag :: Int -> Int -> a -> a                -- ^ Substitutes a flag reference by another one.
+  -- | Return the list of flag references.
+  free_flag :: a -> [Int]
+
+  -- | Replace a flag reference for another one.
+  subs_flag :: Int -> Int -> a -> a
 
 
 instance KType LinType where
@@ -317,8 +329,7 @@ instance KType Type where
 
 
 
--- | This instance can't be just obtained by deriving Eq in the definition
--- of Type, because of alpha equivalence in the polymorphic types.
+-- | Equality of types must take into account alpha equivalence in the polymorphic types.
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
   -- Normally, the alpha equivalence would have to be checked. However, it may
@@ -386,17 +397,19 @@ instance Param Expr where
   subs_var _ _ e = e
 
 
--- | Information about a constraint. Includes expression, location, orientation (on what side is the actual type).
--- It is used in type constraints and flag constraints.
+-- | Information about a constraint. This includes the original
+-- expression, location, and orientation (which side of the constraint
+-- is the actual type). It is used in type constraints and flag
+-- constraints.
 data ConstraintInfo = Info {
-  expression :: Expr,          -- ^ Original expression.
-  loc :: Extent,          -- ^ Location of the said expression.
-  actual :: Bool,              -- ^ Orientation of the constraint: true means actual to the left, false the inverse.
-  in_type :: Maybe LinType -- ^ Original type (actual type before reduce).
+  expression :: Expr,      -- ^ The original expression.
+  loc :: Extent,           -- ^ The location of the original expression.
+  actual :: Bool,          -- ^ The orientation of the constraint: true means actual type is on the left.
+  in_type :: Maybe LinType -- ^ The original type (actual type before reducing).
 } deriving Show
 
 
--- | Empty information.
+-- | An empty 'ConstraintInfo' structure.
 no_info :: ConstraintInfo
 no_info = Info {
   expression = EUnit,
@@ -407,7 +420,7 @@ no_info = Info {
 
 
 
--- | The subtyping relation <: operates on both linear types and types
+-- | The subtyping relation @<:@ operates on both linear types and types.
 -- However, only constraints on types are kept, since it is the kind of constraints generated by the
 -- constraint typing algorithm, and it is also useful to have the flag references at hand.
 data TypeConstraint =
@@ -421,23 +434,23 @@ instance Eq TypeConstraint where
   (==) _ _ = False
 
 
--- | Shortcut operator for writing sub-typing constraints.
+-- | A useful operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
 t <: u = Subtype t u no_info                              
 
 
--- | Another shortcut for writing a set of constraints T1 .. Tn <: U.
+-- | A useful operator for writing a set of constraints of the form @T1, ..., Tn <: U@.
 (<<:) :: [Type] -> Type -> [TypeConstraint]
 tlist <<: u = List.map (\t -> t <: u) tlist
 
 
--- | Another shortcut for writing a set of constraints T <: U1 .. Un.
+-- | A useful operator for writing a set of constraints of the form @T <: U1 .. Un@.
 (<::) :: Type -> [Type] -> [TypeConstraint]
 t <:: ulist = List.map (\u -> t <: u) ulist
 
 
 
--- | Flag constraints, of the form n <= m, to be interpreted as
+-- | The type of /flag constraints/, which are constraints of the form n <= m. Their interpretation is as follows:
 --
 -- *  (n <= 0)     ==     (n :=: 0)
 --
@@ -462,10 +475,12 @@ equals_set :: ConstraintSet -> ConstraintSet -> Bool
 equals_set (lc, fc) (lc', fc') = (lc \\ lc' == []) && (lc' \\ lc == []) && (fc \\ fc' == []) && (fc' \\ fc == [])
 
 
--- | Class of objects (constraints and constraint sets) that carry debug information.
--- The purpose of this class is to overload the operator (&), that appends debug information
--- to objects.
+-- | A type class for objects (such as constraints and constraint
+-- sets) that carry debug information.  The purpose of this class is
+-- to overload the operator (&), which appends debug information to
+-- objects.
 class WithDebugInfo a where
+  -- | Append debug information to an object.
   (&) :: a -> ConstraintInfo -> a
 
 instance WithDebugInfo [TypeConstraint] where
@@ -480,11 +495,12 @@ instance WithDebugInfo ConstraintSet where
   (lc, fc) & info = (lc & info, fc & info)
 
 
--- | Class of constraints 'sets': the only three instances shall be FlagConstraint and TypeConstraint and ConstraintSet
--- The only purpose of this class is to overload the <> operator to be able to use it on either constraint
+-- | A type class for constraint \'sets\': the only three instances are 'FlagConstraint', 'TypeConstraint', and 'ConstraintSet'.
+-- The purpose of this class is to overload the @\<\>@ operator to be able to use it on either constraint
 -- sets, lists of type constraints, or lists of flag constraints.
 class Constraints a b where
-  (<>) :: a -> b -> ConstraintSet        -- ^ Concatenation of two constraint sets. This function doesn't check for duplicates.
+  -- ^ Concatenate two constraint sets. This function does not check for duplicates.
+  (<>) :: a -> b -> ConstraintSet
 
 instance Constraints [TypeConstraint] [TypeConstraint] where
   lc <> lc' = (lc ++ lc', [])
@@ -514,33 +530,33 @@ instance Constraints ConstraintSet ConstraintSet where
   (lc, fc) <> (lc', fc') = (lc ++ lc', fc ++ fc')
 
 
--- | Empty constraint set.
+-- | The empty constraint set.
 emptyset :: ConstraintSet
 emptyset = ([], [])
 
 
--- | Returns true iff the constraint is of the form T <: T.
+-- | Return true iff the constraint is of the form T <: T.
 is_trivial :: TypeConstraint -> Bool
 is_trivial (Subtype t u _) = t == u
 is_trivial (Sublintype a b _) = a == b
 
 
--- | Returns true iff the constraint /T/ <: /U/ is atomic, meaning
--- /T/ and /U/ are both of the form !/na/, where /a/ is a type variable.
+-- | Return true iff the constraint /T/ <: /U/ is atomic, meaning
+-- /T/ and /U/ are both of the form !^/n/ /a/, where /a/ is a type variable.
 is_atomic :: TypeConstraint -> Bool
 is_atomic (Sublintype (TVar _) (TVar _) _) = True
 is_atomic _ = False
 
 
--- | Returns true iff the constraint /T/ <: /U/ is composite, meaning
+-- | Return true iff the constraint /T/ <: /U/ is composite, meaning
 -- it can be reduced by application of one or more of the subtyping
 -- relations.
 is_composite :: TypeConstraint -> Bool
 is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 
 
--- | Returns true iff the constraint /T/ <: /U/ is semi composite, meaning
--- it is not atomic, and either /T/ or /U/ is of the form !/na/, making it not
+-- | Return true iff the constraint /T/ <: /U/ is semi-composite. This means
+-- it is not atomic, and either /T/ or /U/ is of the form !^/n/ /a/, making it not
 -- composite.
 is_semi_composite :: TypeConstraint -> Bool
 is_semi_composite (Sublintype t u _) =
@@ -552,7 +568,7 @@ is_semi_composite (Sublintype t u _) =
 is_semi_composite _ = False
 
 
--- | Returns true iff the constraint is of the form user /n/ /a/ <: user /n/ /a/'.
+-- | Return true iff the constraint is of the form (user /n/ /a/ <: user /n/ /a/').
 is_user :: TypeConstraint -> Bool
 is_user (Sublintype t u _) =
   case (t, u) of
@@ -560,12 +576,11 @@ is_user (Sublintype t u _) =
     _ -> False
 is_user _ = False
 
--- | Checks whether all the constraints of a list have the same property of being right \/ left sided, i.e.:
+-- | Check whether the constraints of a list are either all right-sided or all left-sided. Here, a constraint is
 --
--- *   of the form /a/ <: /T/ : left-sided;
+-- * /left-sided/ if it is of the form /a/ <: /T/, and
 --
--- *   of the from /T/ <: /a/ : right-sided.
---
+-- * /right-sided/ if it is of the form /T/ <: /a/.
 is_one_sided :: [TypeConstraint] -> Bool
 is_one_sided [] = True
 is_one_sided ((Sublintype t u _):cset) =
@@ -576,7 +591,7 @@ is_one_sided ((Sublintype t u _):cset) =
 is_one_sided _ = False
 
 
--- | Checks whether all the type constraints of a list are left sided or not.
+-- | Check whether all the type constraints of a list are left-sided.
 is_left_sided :: [TypeConstraint] -> Bool
 is_left_sided [] = True
 is_left_sided ((Sublintype (TVar _) _ _):cset) =
@@ -584,7 +599,7 @@ is_left_sided ((Sublintype (TVar _) _ _):cset) =
 is_left_sided _ = False
 
 
--- | Checks whether all the type constraints of a list are right sided or not.
+-- | Check whether all the type constraints of a list are right-sided.
 is_right_sided :: [TypeConstraint] -> Bool
 is_right_sided [] = True
 is_right_sided ((Sublintype _ (TVar _) _):cset) =
@@ -592,8 +607,8 @@ is_right_sided ((Sublintype _ (TVar _) _):cset) =
 is_right_sided _ = False
 
 
--- | Attempts to link together the input constraints, for example the set { /b/ <: /U/, /a/ <: /b/, /T/ <: /a/ } can
---  be rearranged as { /T/ <: /a/ <: /b/ <: /U/ }
+-- | Attempt to link together the input constraints. For example the set { /b/ <: /U/, /a/ <: /b/, /T/ <: /a/ } can
+--  be rearranged as { /T/ <: /a/ <: /b/ <: /U/ }.
 --
 --  The result is used in the unification algorithm: if the constraints can be linked, the approximation
 --    { /T/ \<: /a/ \<: /b/ \<: /U/ }  \<=\>  /a/ :=: /b/ :=: /T/, { /T/ \<: /U/ } can be made.
@@ -616,7 +631,7 @@ chain_constraints l =
 
 
 
--- | Tries linking the constraints, starting from the left, and progressing by adding constraints
+-- | Try linking the constraints, starting from the left, and progressing by adding constraints
 -- on the right.
 chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
@@ -633,7 +648,7 @@ chain_left_to_right chain endvar l =
     Nothing -> (False, [])
 
 
--- | Tries linking the constraints, starting from the right, and progressing by adding constraints
+-- | Try linking the constraints, starting from the right, and progressing by adding constraints
 -- on the left.
 chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_right_to_left chain endvar [] = (True, chain)
@@ -682,8 +697,8 @@ instance KType ConstraintSet where
     (lc', fc')
 
 
--- | Generalizes a type, associated with constraints, over its free variables and flags.
--- The free variables of the type are those as are superior than or equal to a limit type/flag.
+-- | Generalize a type, associated with constraints, over its free variables and flags.
+-- The free variables of the type are those that are greater or equal to a limit type\/flag.
 generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> Type
 generalize_type typ (limtype, limflag) cset =
   -- Free variables and flags of the type

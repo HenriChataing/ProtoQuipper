@@ -1,4 +1,7 @@
--- | This module defines the syntax of types, patterns, and expressions, as parsed by the parser.
+-- | This module defines the /surface syntax/ of types, patterns, and
+-- expressions, as parsed by the parser. This should not be confused
+-- with the /internal syntax/ defined in "Typing.CoreSyntax", which is
+-- used internally by the interpreter and type checker.
 module Parsing.Syntax where
 
 import Classes
@@ -92,16 +95,16 @@ instance Eq Program where
 -- | A type.
 data Type =
 -- STLC types
-    TVar String               -- ^ Type name: /a/, /b/, ...
+    TVar String               -- ^ Type variable: /a/, /b/, ...
   | TQualified String String  -- ^ Qualified type name: @Module.type@.
   | TArrow Type Type          -- ^ Function type: @A -> B@.
 
 -- Tensor types
-  | TUnit                     -- ^ Unit type @()@.
-  | TTensor [Type]            -- ^ Tensor product @A1 * ... * An@.
+  | TUnit                     -- ^ Unit type: @()@.
+  | TTensor [Type]            -- ^ Tensor product: @A1 * ... * A/n/@.
 
 -- Flavour : duplicable flag
-  | TBang Type                -- ^ Exponential type @!A@.
+  | TBang Type                -- ^ Exponential type: @!A@.
 
 -- Quantum related types
   | TQubit                    -- ^ The basic type /qubit/.
@@ -177,7 +180,7 @@ data Pattern =
                                          -- In Proto-Quipper, a wildcard can only match a duplicable value. 
   | PUnit                                -- ^ Unit pattern: @()@.
   | PVar String                          -- ^ Variable pattern: /x/.
-  | PTuple [Pattern]                     -- ^ Tuple pattern: @(/x/1, ..., /x//n/)@. By construction, must have /n/ >= 2.
+  | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
   | PConstraint Pattern Type             -- ^ Constraint pattern: @(x <: A)@.
   | PLocated Pattern Extent              -- ^ A located pattern.
@@ -231,7 +234,7 @@ data Expr =
   | EDatacon String (Maybe Expr)   -- ^ Data constructor: @Datacon e@.
   | EMatch Expr [(Pattern, Expr)]  -- ^ Case distinction: @match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)@.
   | EIf Expr Expr Expr             -- ^ Conditional: @if e then f else g@
-  | EBool Bool                     -- ^ Boolean constants: @true@ and @false@.
+  | EBool Bool                     -- ^ Boolean constant: @true@ or @false@.
   | EInt Int                       -- ^ Integer constant.
 
 -- Circuit construction

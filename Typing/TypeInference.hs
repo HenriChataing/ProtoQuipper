@@ -32,8 +32,8 @@ import qualified Data.Set as Set
 import qualified Data.IntMap as IMap
 
 
--- | Filters a set of flag constraints : removes the trivial constraints (n <= 1), (0 <= n), (-1 <= n), (n <= -1), and 
--- applies the constraints 1 <= n (resp. n <= 0) by setting the flag n to 1 (resp. 0).
+-- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/), (-1 <= /n/), (/n/ <= -1), and 
+-- applies the constraints 1 <= /n/ (resp. /n/ <= 0) by setting the flag /n/ to 1 (resp. 0).
 filter :: [FlagConstraint] -> QpState [FlagConstraint]
 filter fc = do
   List.foldl (\rec c -> do
@@ -56,10 +56,10 @@ filter fc = do
 
 
 
--- | Builds the constraint typing derivation. The algorithm inputs and incomplete constraint typing judgment
--- G |- t : T_1 .. T_n, and produces the constraint set L such that the relation G |- t : T_1 .. T_n [L] holds.
--- The list of types T_1 .. T_n corresponds to a set of upper bounds of the type of t. It is initially of size 1 and
--- can be increased via the expressions (e <: T) imposing that the type of e be a subtype of T.
+-- | Build the constraint typing derivation. The algorithm inputs an incomplete constraint typing judgment
+-- /G/ |- /t/ : /T/_1 .. /T/_/n/, and produces the constraint set /L/ such that the relation /G/ |- /t/ : /T/_1 .. /T/_/n/ [/L/] holds.
+-- The list of types /T/_1 .. /T/_/n/ corresponds to a set of upper bounds of the type of /t/. It is initially of size 1 and
+-- can be increased via the expressions (/e/ <: /T/) imposing that the type of /e/ be a subtype of /T/.
 -- The constraint typing relations are (case by case):
 --
 -- Terms of the simply-typed lambda calculus:
@@ -103,7 +103,7 @@ filter fc = do
 --    G |-  let \<x, y\> = t in u : T     [L u L' u {1 <= I, p <= n, p <= m}]
 -- @
 --
--- Booleans rules:
+-- Boolean rules:
 --
 -- @
 --   --------------------------------------------- (top)
@@ -141,14 +141,14 @@ filter fc = do
 -- @
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
--- | Located things
--- Change the location and resume
+-- Located things:
+-- Change the location and resume.
 constraint_typing gamma (ELocated e ex) cst = do
   set_location ex
   constraint_typing gamma e cst
 
 
--- | For builtins, get the type registered in the builtins map.
+-- For builtins, get the type registered in the builtins map.
 constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
   duplicable_context gamma
@@ -388,7 +388,7 @@ constraint_typing gamma (EFun p e) cst = do
   -- Type the expression e
   csete <- constraint_typing (gamma_p <+> gamma) e [b]
 
-  -- Build the context constraints : n <= I
+  -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info { in_type = Just $ TArrow a b }) flags) >>= filter
 
   return $ (csetp & info { in_type = Just $ no_bang a }) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> (fconstraints & info)
@@ -627,7 +627,7 @@ constraint_typing gamma (EIf e f g) cst = do
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
   
-  -- Filter on the free variables of e and type e : e must have the type bool
+  -- Filter on the free variables of e and type e: e must have the type bool
   -- The expected type !0 bool makes the least assumption about the type of e
   (gamma_e, _) <- sub_context fve gamma
   csete <- constraint_typing gamma_e e [TBang zero TBool]
@@ -661,7 +661,7 @@ constraint_typing gamma (EConstraint e (t, typs)) cst = do
 
 
 
--- | Duplicate the input linear type, and replacing every type variable or flag reference
+-- | Duplicate the input linear type, replacing every type variable or flag reference
 -- by a newly generated one.
 duplicate_lintype :: LinType -> QpState LinType
 duplicate_lintype TUnit = do
@@ -695,7 +695,7 @@ duplicate_lintype (TCirc t u) = do
   u' <- duplicate_type u
   return (TCirc t' u')
 
--- Remaining cases : bool int qubit
+-- Remaining cases: bool int qubit
 duplicate_lintype typ = do
   return typ
 
@@ -709,8 +709,8 @@ duplicate_type (TBang _ t) = do
   return $ TBang n t'
 
 
--- | Creates a duplicated version of a type, and map the argument type variable to it.
--- The first type is assumed to be of the form !n x where x is a type variable.
+-- | Create a duplicate version of a type, and map the argument type variable to it.
+-- The first type is assumed to be of the form !^/n/ /x/, where /x/ is a type variable.
 map_to_duplicate :: Variable -> LinType -> QpState LinType
 map_to_duplicate x t = do
   t' <- duplicate_lintype t
@@ -720,8 +720,8 @@ map_to_duplicate x t = do
 
 
 
--- | Unification algorithm. The boolean argument authorizes or not approximations. The poset is the partially ordered set of the variables, and
--- will help finding the youngest variables. It is assumed that the poset corresponds to the constraint set that is associated.
+-- | Unification algorithm. The boolean argument determines whether approximations are permitted or not. The poset is the partially ordered set of the variables, and
+-- will help finding the youngest variables. It is assumed that the poset corresponds to the associated constraint set.
 unify_with_poset :: Bool -> Poset -> ConstraintSet -> QpState ConstraintSet
 unify_with_poset exact poset (lc, fc) = do
   -- Recursive check
@@ -751,7 +751,7 @@ unify_with_poset exact poset (lc, fc) = do
     -- Check the next action
     case (atomx, natomx) of
 
-      -- No semi-composite constraints : trivial solution with x1 = .. = xn (approx) or do nothing (exact),  unify the rest
+      -- No semi-composite constraints: trivial solution with x1 = .. = xn (approx) or do nothing (exact),  unify the rest
       (atomx, []) -> do
 
           if not exact then do
@@ -778,7 +778,7 @@ unify_with_poset exact poset (lc, fc) = do
           if not exact && ischain then do
 
             -- APPROXIMATION :
-            -- When all the constraints are chained as : T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T, T <: U
+            -- When all the constraints are chained as: T <: x1 <: .. <: xn <: U, make the approximation x1 = .. = xn = T, T <: U
             newlog 1 "APPROX: CHAINED"
 
             -- Get the left and right ends of the chain of constraints
@@ -871,7 +871,7 @@ unify_with_poset exact poset (lc, fc) = do
               newlog 0 "UNCHAINED"
               
               onesided <- return $ is_one_sided cset
-              -- If all the constraints are one-sided, make the approximation : x1 = .. = xn
+              -- If all the constraints are one-sided, make the approximation: x1 = .. = xn
               cset <- if onesided then do
                       newlog 0 "ONE SIDED"
                       (TBang _ (TVar cxh)) <- return $ List.head cx
@@ -887,7 +887,7 @@ unify_with_poset exact poset (lc, fc) = do
               -}
 
 
--- | Type unification. Applies the function 'unify_with_poset' to a poset freshly created with the constraints
+-- | Type unification. Apply the function 'unify_with_poset' to a poset freshly created with the constraints
 -- of the provided set. The boolean flag is the same as the argument of 'unify_with_poset'.
 unify_types :: Bool -> ConstraintSet -> QpState ConstraintSet
 unify_types exact cset = do
@@ -898,9 +898,9 @@ unify_types exact cset = do
 
 
 
--- | Part of the flag unification. Looks for flag constraints of the form 1 <= n or n <= 0, and applies their consequences
+-- | Part of the flag unification. Look for flag constraints of the form 1 <= /n/ or /n/ <= 0, and apply their consequences
 -- to the involved references. The boolean in the return value is needed for the termination, and indicates whether changes have been made.
--- The function is recursively applied until stability of the set.
+-- The function is recursively applied until the set is stable.
 apply_flag_constraints :: [FlagConstraint] -> QpState (Bool, [FlagConstraint])
 apply_flag_constraints [] = do
   return (False, [])
@@ -959,9 +959,8 @@ apply_flag_constraints (c:cc) = do
               apply_flag_constraints cc
 
 
--- | Flag unification. The function first filters out the trivial constraints, before 'applying' the constraints of
--- the form 1 <= n, n <= 0. At the end of the flag unification, only constraints of the form n <= m remain, where n and m
--- both don't have a value.
+-- | Flag unification. First filter out the trivial constraints, before \'applying\' the constraints of
+-- the form 1 <= /n/, /n/ <= 0. At the end of the flag unification, only constraints of the form /n/ <= /m/ remain, where neither /n/ nor /m/ has a value.
 unify_flags :: [FlagConstraint] -> QpState [FlagConstraint]
 unify_flags fc = do
 
@@ -973,8 +972,8 @@ unify_flags fc = do
   return fc''
 
 
--- | Whole unification : applies first the type unification, then the flag unification on the resulting flag constraints.
--- The boolean flag is passed as argument of unify_flags.
+-- | Whole unification. First apply the type unification, then the flag unification on the resulting flag constraints.
+-- The boolean flag is passed as an argument to 'unify_flags'.
 unify :: Bool -> ConstraintSet -> QpState ConstraintSet
 unify exact cset = do
   -- Type unification

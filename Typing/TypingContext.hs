@@ -1,6 +1,7 @@
--- | This module provides all the definitions and functions necessary to the manipulation of typing
--- contexts. Typing contexts are represented by maps from term variables to types. The defined functions include
--- union, partition, binding of variables and patterns.
+-- | This module provides definitions and functions for manipulating
+-- typing contexts. Typing contexts are represented by maps from term
+-- variables to types. The functions provided here include union,
+-- partition, variable binding, and patterns.
 
 module Typing.TypingContext where
 
@@ -20,11 +21,11 @@ import qualified Data.Map as Map
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
--- | Definition of a typing context as a map from term variables to types.
+-- | A typing context is a map from term variables to types.
 type TypingContext = IntMap Type
 
 
--- | Adds a binding x |-> t to a typing context. This function also updates the map of global
+-- | Add a binding @/x/ |-> /t/@ to a typing context. This function also updates the map of global
 -- variables associated to the current context.
 bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
 bind_var x t ctx = do
@@ -32,9 +33,9 @@ bind_var x t ctx = do
   return $ IMap.insert x t ctx
 
 
--- | Retrieves a variable's type from the context.
+-- | Retrieve the type of a variable from the context.
 -- This function is not supposed to fail, as the scope analysis performed during the translation to the
--- core syntax should have located all the unbound variables. If it does, it is because of
+-- core syntax should have located all the unbound variables. If it does fail, it is because of
 -- a programming error.
 type_of :: Variable -> TypingContext -> QpState Type
 type_of x ctx = do
@@ -48,11 +49,11 @@ type_of x ctx = do
         throwQ $ ProgramError $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
 
 
--- | Given a pattern, creates a type matching the pattern, and binds in a new typing context the term variables of the pattern
+-- | Given a pattern, create a type matching the pattern, and bind, in a new typing context, the term variables of the pattern
 -- to new type variables created as needed. The construction of the type can generate typing constraints, be they structural flag constraints
 -- or constraints coming from the instantiation of some type (e.g., with data constructors).
--- For example, consider the pattern (x, y). This function is going to generate the type !p(!n a * !m b), with the constraints {p <= n, p <= m}
--- and the bindings [x : !n a, y : !m b].
+-- For example, consider the pattern (/x/, /y/). This function is going to generate the type !^/p/(!^/n/ /a/ * !^/m/ /b/), with the constraints {/p/ <= /n/, /p/ <= /m/}
+-- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
 -- Joker : the joker must have a duplicable type, since
@@ -124,9 +125,9 @@ bind_pattern (PLocated p ex) = do
 
 
 
--- | This function does the same as bind_pattern, expect that uses the provided type as type of the pattern.
+-- | Like 'bind_pattern', but use the provided type as the type of the pattern.
 -- This function is typically called while binding a data constructor:
--- the data constructor except its own type, so rather than creating an entirely new one and saying
+-- the data constructor contains its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this.
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
 -- The joker can be bound to any type, as long as it is duplicable.
@@ -224,7 +225,7 @@ bind_pattern_to_type p t = do
 
 
 
--- | Returns the set of the annotation flags of the context.
+-- | Return the set of annotation flags of the context.
 context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
   return $ IMap.foldWithKey (\x t ann -> case t of
@@ -232,7 +233,7 @@ context_annotation ctx = do
                                            (TForall _ _ _ (TBang f _)) -> (x, f):ann) [] ctx
 
 
--- | Returns a set of flag constraints forcing the context to be duplicable.
+-- | Return a set of flag constraints forcing the context to be duplicable.
 duplicable_context :: TypingContext -> QpState ()
 duplicable_context ctx = do
   IMap.foldWithKey (\x t rec -> do
@@ -243,21 +244,21 @@ duplicable_context ctx = do
                         TForall _ _ _ (TBang f _) -> set_flag f no_info { expression = EVar x, loc = ex }) (return ()) ctx
 
 
--- | Performs the union of two typing contexts. The \<+\> operator respects the order of the arguments
--- when calling IMap.union (meaning it is left-biased).
+-- | Perform the union of two typing contexts. The \<+\> operator respects the order of the arguments
+-- when calling 'IMap.union' (meaning it is left-biased).
 (<+>) :: TypingContext -> TypingContext -> TypingContext
 ctx0 <+> ctx1 =
   IMap.union ctx0 ctx1
 
 
--- | Splits the context according to a boolean function. The elements (keys) for which the function returns
--- true are placed on the left, the others on the right.
+-- | Split the context according to a boolean function. The elements (keys) for which the function returns
+-- 'True' are placed on the left, and the others on the right.
 split_context :: (Variable -> Bool) -> TypingContext -> QpState (TypingContext, TypingContext)
 split_context f ctx = do
   return $ IMap.partitionWithKey (\k _ -> f k) ctx
 
 
--- | Similar to split_context, with the particular case of a the characteristic function of a set.
+-- | Like 'split_context', but for the particular case of a the characteristic function of a set.
 sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingContext)
 sub_context set ctx =
   split_context (\x -> List.elem x set) ctx

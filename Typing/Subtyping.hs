@@ -1,4 +1,4 @@
--- | This module provides functions that operate constraint sets: reduction mostly.
+-- | This module provides functions that manipulate constraint sets, for the most part to reduce them. 
 module Typing.Subtyping where
 
 import Classes
@@ -13,16 +13,16 @@ import qualified Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
--- | Identifies the trivial flag constraints.
+-- | Check whether a given flag constraint is trivial.
 non_trivial :: RefFlag -> RefFlag -> Bool
 non_trivial m n =
   (m /= n && n /= 1 && m /= 0)
 
 
 
--- | Using the type specifications registered in the state monad, unfolds any subtyping
--- constraints of the form  user a <: user a'. This functions assumes that the two type
--- names are the same, and that the right number of arguments has been given.
+-- | Using the type specifications registered in the state monad, unfold any subtyping
+-- constraints of the form  (user /a/ \<: user /a/'). This functions assumes that the two type
+-- names are the same, and that the correct number of arguments has been given.
 unfold_user_constraint :: Variable -> [Type] -> Variable -> [Type] -> QpState ConstraintSet
 unfold_user_constraint utyp arg utyp' arg' = do
   -- Retrieve the specification of the type
@@ -45,7 +45,7 @@ unfold_user_constraint utyp arg utyp' arg' = do
 
 
 
--- | Applies the function unfold_user_constraints to the constraints in a constraint set.
+-- | Apply the function 'unfold_user_constraints' to the constraints in a constraint set.
 unfold_user_constraints_in_set :: ConstraintSet -> QpState ConstraintSet
 unfold_user_constraints_in_set ([], fc) = return ([], fc)
 
@@ -60,8 +60,8 @@ unfold_user_constraints_in_set (c:lc, fc) = do
 
 
 
--- | Reduces the composite constraints of a constraint set, leaving only atomic
--- and semi composite constraints. The boolean argument indicates whether to break user
+-- | Reduce the composite constraints of a constraint set, leaving only atomic
+-- and semi-composite constraints. The boolean argument indicates whether to break user
 -- type constraints or not. When this flag is set, the user type constraints are left untouched:
 -- this is useful for the extension of the subtyping relations to algebraic types, where one wants
 -- to reduce only the non-algebraic type constraints.
