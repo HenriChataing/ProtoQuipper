@@ -44,7 +44,7 @@ data Declaration =
     DLet RecFlag Pattern Expr                -- ^ Variable declaration : let x = e ;;
   | DExpr Expr                               -- ^ Simple expression    : e ;;
   | DTypes [Typedef]                         -- ^ A list of type definitions. All types are mutually inductive.
-  | DSyn Typesyn                             -- ^ A type synonym
+  | DSyn Typesyn                             -- ^ A type synonym
 
 
 

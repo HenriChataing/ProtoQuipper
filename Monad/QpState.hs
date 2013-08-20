@@ -602,7 +602,7 @@ duplicate_flag ref = do
     _ -> do
         ctx <- get_context
         id <- return $ flag_id ctx
-        case IMap.lookup ref $ flags ctx of
+        case IMap.lookup ref $ flags ctx of
           Just info -> do
               set_context $ ctx { flag_id = id + 1,
                                   flags = IMap.insert id info $ flags ctx }

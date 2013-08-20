@@ -233,7 +233,7 @@ instance Caps Circuit where
 -- | This data type defines a state that allocates each wire to a line
 -- number. When a line becomes unused (after a termination, for
 -- example), the line is remembered and used to display any new wire.
-data Addressing = Address { wires :: Int,         -- ^ Number of wires.
+data Addressing = Address { wires :: Int,         -- ^ Number of wires.
                             unused :: [Int],      -- ^ Unused wires.
                             bind :: Binding }     -- ^ Binding from addresses to wires.
 
@@ -524,7 +524,7 @@ print_circuit c n =
                             return $ s ++ pl ++ "\n") (return "") [0 .. gsize gr - 1]
       return disp
   in
-  let (_, disp) = run $ Grid { gsize = 2 * n - 1, columns = [], cut = False } in
+  let (_, disp) = run $ Grid { gsize = 2 * n - 1, columns = [], cut = False } in
   "\n" ++ disp ++ "\n"
 
 

@@ -78,7 +78,7 @@ Type_app :
 
 Tensor_list :
       Type '*' Type                             { [$1, $3] }
-    | Tensor_list '*' Type                      { $1 ++ [$3] }
+    | Tensor_list '*' Type                      { $1 ++ [$3] }
 
 
 Atom_type :
