@@ -18,11 +18,11 @@ data Namespace = NSpace {
   varloc :: IntMap Extent,       -- ^ Stores the extent of the variable declaration.
 
   datacons :: IntMap String,     -- ^ Stores the data constructor names.
-  typecons :: IntMap String,     -- ^ Stores the type names.
+  typecons :: IntMap String,     -- ^ Stores the type names.
 
   vargen :: Int,                 -- ^ Used to generate new variables ids.
   datagen :: Int,                -- ^ Used to generate new datacon ids.
-  typegen :: Int                 -- ^ Used to generate new type ids.
+  typegen :: Int                 -- ^ Used to generate new type ids.
 }
 
 
@@ -63,7 +63,7 @@ register_datacon s namespace =
   (id, namespace { datacons = IMap.insert id s $ datacons namespace, datagen = id+1 })
 
 
--- | Register a new type, and return the newly asigned id.
+-- | Register a new type, and return the newly assigned id.
 register_type :: String -> Namespace -> (Int, Namespace)
 register_type t namespace =
   let id = typegen namespace in

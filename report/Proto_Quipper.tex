@@ -1158,7 +1158,7 @@ form $(t,C,u)$ with $t$ and $u$ values;
 \item if it is of type ${!}^n\bool$ it is either 
 $\true$ or $\false$; 
 \item if it is of type ${!}^n (A\x B)$, it is of the
-form $\p{w,w'}$, with $w$ and $w'$ values; 
+form $\p{w,w'}$, with $w$ and $w'$ values and $\FQ(w)\cap\FQ(w')=\emptyset$; 
 \item if it is of type ${!}^n1$, it is 
 precisely the term $*$; 
 \item if it is of type ${!}^n (A\loli B)$, it is a 
@@ -1175,6 +1175,19 @@ By induction on the typing derivation of $v$.
 If $T$ is a quantum data type and $v$ is a well-typed value of type $T$ then $v$ is 
 a quantum data term.
 \end{corollary}
+
+\begin{lemma}
+\label{bind_qd_terms}
+If $T$ is a quantum data type and $v_1$, $v_2$ are well-typed values of 
+type $T$, then $\binding=\bind(v_1,v_2)$ is a well-defined binding, $\dom(\binding)=\FQ(v_1)$, and $\cod(\binding)=\FQ(v_2)$.
+\end{lemma}
+
+\begin{proof}
+By Corollary \hyperref[typed_qd_term]{\ref*{typed_qd_term}}, we know that 
+$v_1$ and $v_2$ are quantum data terms so that the statement of the lemma 
+makes sense. The proof then proceeds by induction on $T$, using Lemma
+\hyperref[form_values]{\ref*{form_values}}.
+\end{proof}
 
 \begin{lemma}
 {\bf (Substitution).}
@@ -1349,7 +1362,7 @@ verify that $\mathtt{In}(C')=Q'$ so that we only need to show:
   \item $\mathtt{Out}(C')=\FQ(a'),Q''$ and
   \item $\Gamma;\FQ(a')\entails a':A$ is valid.
 \end{itemize}
-Throughout the proof, we write $IH(\pi)$ to denote the proof obtained by applying 
+Throughout the proof, we write $\IH(\pi)$ to denote the proof obtained by applying 
 the induction hypothesis to $\pi$.
 
 \begin{description}
@@ -1383,7 +1396,7 @@ $(\rul{fun})$ and $(\rul{circ})$ cases.
   \[
     \infer[]{\Gamma_1,\Gamma_2, {!}\Delta;\FQ(c'),\FQ(b)\entails c'b:A}{
       \deduce[]{\Gamma_1, {!}\Delta;\FQ(c')\entails c':B\loli A}{
-        \vdots~IH(\pi_1)
+        \vdots~\IH(\pi_1)
       } 
       &
       \deduce[]{\Gamma_2, {!}\Delta ;\FQ(b)\entails b:B}{
@@ -1428,7 +1441,7 @@ $(\rul{fun})$ and $(\rul{circ})$ cases.
     } 
     &
     \deduce[]{{!}\Delta ; \FQ(b')\entails b':U}{
-      \vdots~IH(\pi_2)
+      \vdots~\IH(\pi_2)
     }
     &
     \deduce[]{\In(D')=\FQ(t)}{
@@ -1595,7 +1608,7 @@ We treat them individually.
   {!}\Delta;\FQ(\binding(u'))\entails \binding(u'):U.
   \]
   Now by 
-  Definition~\hyperref[Append_cond_3]{\ref*{circuit_constructor}.\ref*{Append_cond_3}} 
+  Definition~\hyperref[Append_cond_3]{\ref*{circuit_constructor}(\ref*{Append_cond_3})} 
   we have:
   \[
   \begin{array}{rcl}
@@ -1806,12 +1819,10 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
     }
   \]  
   The typed closures
-  \[
-  \begin{array}{rcl}
-  \FQ(a_1) & \entails & [C,a_1]:B\loli A,(Q'|\FQ(a_2),Q'')\\
-  \FQ(a_2) & \entails & [C,a_2]:B, (Q'|\FQ(a_1),Q'')
-  \end{array}
-  \]
+  \begin{eqnarray}
+    \FQ(a_1) & \entails & [C,a_1]:B\loli A,(Q'|\FQ(a_2),Q'')\\
+    \FQ(a_2) & \entails & [C,a_2]:B, (Q'|\FQ(a_1),Q'')\label{eqn-fqa2}
+  \end{eqnarray}
   are therefore valid. There are three cases to treat.
   \begin{itemize}
     \item If $a_1\notin\val$, then $[C,a_1a_2]\to[C',a_1'a_2]$
@@ -1821,9 +1832,38 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
     the $(\rul{arg})$ rule.
     \item If $a_1,a_2\in\val$ then by 
     Lemma~\hyperref[form_values]{\ref*{form_values}}, $a_1$ is either 
-    an abstraction or a constant. In each case $[C,a_1a_2]$ reduces 
-    by the appropriate rule among $(\beta)$, $(\boxx)$, $(\unbox)$ 
-    and $(\rev)$. 
+    an abstraction or a constant. If $a_1=(\unbox\,(u,D,u'))$, then, 
+    for the $(\unbox)$ rule to apply, we need to show that 
+    $\bind(a_2,u)$ is well-defined, and that $\FQ(u')\subseteq\dom(\binding')$, where $\mathtt{Append}(C,D,\binding)=(C',\binding')$.  
+    The typing derivation $\pi_1$ is the following:
+    \begin{footnotesize}
+    \[
+      \infer[]{{!}\Delta;\emptyset\entails \unbox\,(u,D,u'):T\loli U}{
+        \infer[]{{!}\Delta;\emptyset \entails \unbox:\Circ(T,U)\loli (T\loli U)}{
+        }   
+        &
+        \infer[]{{!}\Delta ;\emptyset\entails (u,D,u'):\Circ(T,U)}{
+          \deduce[]{\FQ(u)\entails u:T}{
+            \vdots ~\pi_1^1
+          }
+          &
+          \deduce[]{{!}\Delta;\FQ(u')\entails u':U}{
+            \vdots ~\pi_1^2     
+          }
+        }
+      }
+      \]
+    \end{footnotesize}%    
+    with $\In(D)=\FQ(u)$, $\Out(D)=\FQ(u')$ and $A=U$ and $B=T$ for som quantum 
+    data types $T,U$. It follows that $a_2$ and $u$ are two values of type $T$, 
+    so that, by Lemma \hyperref[bind_qd_terms]{\ref*{bind_qd_terms}}, $\binding=\bind(a_2,u)$
+    is defined with $\dom(\binding)=\FQ(a_2)$ and $\cod(\binding)=\FQ(u)$. Moreover, $\FQ(a_2)\subseteq\Out(C)$ by the validity of the typed closure {\eqref{eqn-fqa2}}, and $\FQ(u)=\In(D)$ as noted above. Therefore, $\dom(\binding)\subseteq\Out(C)$ and $\cod(\binding)=\In(D)$ hold, as required by Definition~\hyperref[Append_cond_2]
+    {\ref*{circuit_constructor}(\ref*{Append_cond_x})}. By 
+Definition~\hyperref[Append_cond_2]
+    {\ref*{circuit_constructor}(\ref*{Append_cond_2})}, we conclude that $\dom(\binding')=\Out(D)
+    =\FQ(u')$, so that the $(\unbox)$ rule in fact applies. For the remaining cases, 
+    it is easy to see that $[C,a_1a_2]$ reduces by the appropriate rule among $(\beta)$, 
+    $(\boxx)$, and $(\rev)$. 
   \end{itemize}
 \end{enumerate}
 \end{proof}
@@ -2066,7 +2106,7 @@ programming in Proto-Quipper.
   \item $\FV$ = Free quantum variables.
   \item GFI = Government Furnished Information
   \item IARPA = Intelligence Advanced Research Projects Activity
-  \item $IH$ = Induction hypothesis.
+  \item $\IH$ = Induction hypothesis.
   \item ML = A family of functional programming languages, including
     Standard ML of New Jersey and OCaml.
   \item OCaml = The Objective Caml programming language.

@@ -18,7 +18,7 @@ import qualified Data.IntMap as IMap
 data Module = Mod {
   m_variables :: Map String Variable,        -- ^ The module's variables.
 
-  m_datacons :: Map String Datacon,          -- ^ The modules's data constructors.
+  m_datacons :: Map String Datacon,          -- ^ The module's data constructors.
 
   m_types :: Map String Int                  -- ^ The module's types and type synonyms.
 }

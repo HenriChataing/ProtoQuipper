@@ -141,5 +141,5 @@ distclean:
 # ----------------------------------------------------------------------
 # Spell-checking
 
-spellcheck: doc
+spellcheck: haddock-documentation
 	ispell -d american -p ./dictionary.txt -H doc/*.html

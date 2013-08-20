@@ -120,6 +120,6 @@ builtin_operations =
               ("EQ", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))),
               ("POW", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))) ] in
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))) ] in
   Map.fromList ops
 

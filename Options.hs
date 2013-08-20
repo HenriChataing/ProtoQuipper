@@ -49,21 +49,21 @@ default_options = Options {
 options :: [OptDescr (Options -> IO Options)]
 options =
   [ Option ['h'] ["help"] (NoArg show_help)
-      "Display this screen",
+      "show usage info and exit",
     Option ['V'] ["version"] (NoArg show_version)
-      "Output version information",
+      "show version info and exit",
     Option ['v'] ["verbose"] (OptArg read_verbose "LEVEL")
-      "Enable lavish output",
+      "enable verbose output",
     Option ['i'] ["include"] (ReqArg include_directory "DIR")
-      "Include a directory",
+      "add a directory to the module path",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
-      "Run the proto-quipper code [default]",
+      "run the interpreter (default)",
     Option ['t'] ["type"] (NoArg (\opts -> return opts { runInterpret = False }))
-      "Don't run the proto-quipper code",
+      "type-checking only; don't run the interpreter",
     Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
-      "Authorize approximations in unfication algorithm",
+      "permit approximations in type inference",
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
-      "Specify the output format of circuits. Valid formats are 'visual' 'ir'"
+      "set the output format for circuits. Valid formats are 'ir' (default), 'visual'."
   ]
 
 

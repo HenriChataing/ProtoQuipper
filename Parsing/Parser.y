@@ -100,8 +100,8 @@ Program :
 -}
 
 Import_list :
-      {- empty -}                                { [] }
-    | Import_list IMPORT UID                     { (snd $3):$1 }
+      {- empty -}                                { [] }
+    | Import_list IMPORT UID                     { (snd $3):$1 }
 
 
 {- Type definitions:
@@ -179,7 +179,7 @@ Expr :
 
 
 Seq_expr :
-      Op_expr                                    { $1 }
+      Op_expr                                    { $1 }
     | Atom_expr "<-" Op_expr ';' Seq_expr        { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
     | Atom_expr "<-*" Op_expr ';' Seq_expr       { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
     | Op_expr ';' Seq_expr                       { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
@@ -218,7 +218,7 @@ Atom_expr :
                                                   locate (EQualified mname lid) (fst $1) }
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
-    | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
+    | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
     | REV                                       { locate ERev $1 }
@@ -229,7 +229,7 @@ Atom_expr :
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
     | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
     | '[' Expr_sep_list ']'                     { List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
-    | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
+    | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 
 Expr_sep_list :
@@ -299,12 +299,12 @@ QTensor_type :
 
 Tensor_list :
       Type_app                                  { [$1] }
-    | Tensor_list '*' Type_app                  { $3:$1 }
+    | Tensor_list '*' Type_app                  { $3:$1 }
 
 
 QTensor_list :
       QAtom_type                                { [$1] }
-    | QTensor_list '*' QAtom_type               { $3:$1 }
+    | QTensor_list '*' QAtom_type               { $3:$1 }
 
 
 Type_app :

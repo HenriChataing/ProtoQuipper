@@ -389,7 +389,7 @@ instance Param Expr where
 -- | Information about a constraint. Includes expression, location, orientation (on what side is the actual type).
 -- It is used in type constraints and flag constraints.
 data ConstraintInfo = Info {
-  expression :: Expr,          -- ^ Original expression.
+  expression :: Expr,          -- ^ Original expression.
   loc :: Extent,          -- ^ Location of the said expression.
   actual :: Bool,              -- ^ Orientation of the constraint: true means actual to the left, false the inverse.
   in_type :: Maybe LinType -- ^ Original type (actual type before reduce).
