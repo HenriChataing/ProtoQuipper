@@ -41,7 +41,7 @@ import qualified Data.IntMap as IMap
 -- @
 --
 -- it will made available again, thus overwriting the above mapping.
-import_modules :: Options                     -- ^ The command line options. This contains, in particular, the list of include directories.
+import_modules :: Options                     -- ^ The command line options. This contains, in particular, the list of module directories.
                -> [String]                    -- ^ The list of modules to import.
                -> ExtensiveContext            -- ^ The context of the interactive mode.
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
@@ -218,6 +218,13 @@ run_interactive opts ctx buffer = do
 
                 run_interactive opts ctx []
 
+            [":path"] -> do
+                let dir = unwords args
+                    incs = includes opts
+                    incs' = incs ++ [dir]
+                    opts' = opts { includes = incs' }
+                run_interactive opts' ctx []
+                
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
                 run_interactive opts ctx []
@@ -238,11 +245,13 @@ run_interactive opts ctx buffer = do
 --
 commands :: [(String, String)]
 commands = [
-  (":help", "Display the list of commands"),
-  (":ctx", "List the variables of the current context"),
+  (":help", "Show the list of commands"),
   (":exit", "Quit the interactive mode"),
-  (":display", "Display the toplevel circuit"),
-  (":type", "Return the type of a variable") ]
+  (":path", "Add a directory to the current module path"), 
+  (":type", "Show the type of an expression"), 
+  (":ctx", "List the currently declared variables"),
+  (":display", "Display the current toplevel circuit")
+  ]
 
 
 
