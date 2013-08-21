@@ -102,7 +102,7 @@ run_command opts prog ctx = do
 --   type definitions, and top-level declarations.
 --
 -- * Context commands: any command starting with the prefix \":\". These commands occupy a single line, and give information about the
---   current state of the machine. Typical commands are \":ctx\", which lists the variables currently in scope, and \":display\", which
+--   current state of the machine. Typical commands are \":context\", which lists the variables currently in scope, and \":display\", which
 --   displays the top-level circuit (inaccessible otherwise).
 --
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
@@ -155,7 +155,7 @@ run_interactive opts ctx buffer = do
             [":exit"] -> do
                 exit ctx  
 
-            [":ctx"] -> do
+            [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
                                     (v, t) <- case a of
@@ -237,7 +237,7 @@ run_interactive opts ctx buffer = do
 --
 -- * :help - display the list of commands.
 --
--- * :ctx - list the variables in scope, and their type. Depending on the operating system, the duplicable variables may be printed in yellow, the non duplicable in red.
+-- * :context - list the variables in scope, and their type. Depending on the operating system, the duplicable variables may be printed in yellow, the non duplicable in red.
 --
 -- * :exit - quit the interactive mode. Before quitting, a check is performed to ensure that no non-duplicable object is discarded.
 --
@@ -249,7 +249,7 @@ commands = [
   (":exit", "Quit the interactive mode"),
   (":path", "Add a directory to the current module path"), 
   (":type", "Show the type of an expression"), 
-  (":ctx", "List the currently declared variables"),
+  (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit")
   ]
 

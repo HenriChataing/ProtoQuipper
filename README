@@ -59,7 +59,7 @@ The interactive mode accepts the commands:
 :exit        -- Quit the interactive mode
 :path <dir>  -- Add a directory to the current module path
 :type <exp>  -- Show the type of an expression
-:ctx         -- List the variables of the current context
+:context     -- List the variables of the current context
 :display     -- Display the toplevel circuit
 
 
