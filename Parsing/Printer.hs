@@ -1,5 +1,6 @@
 -- | This module contains the 'Classes.PPrint' instance declarations
--- for the types 'Type', 'Pattern', and 'Expr'. Please note that
+-- for the types 'Type', 'Pattern', and 'Expr' of the /surface syntax/. 
+-- Please note that
 -- instance declarations do not generate any documentation, so there
 -- is almost nothing to document here. Please click on \"Source\" to
 -- view the source code.

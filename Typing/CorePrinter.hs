@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType', 'Pattern', and 'Expr'. Please note that instance declarations do not generate any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the source code.
+-- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType', 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the source code.
 module Typing.CorePrinter where
 
 import Classes
