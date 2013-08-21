@@ -119,7 +119,7 @@ break_composite bu ((Sublintype TQubit TQubit _):lc, fc) = do
 break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
   intype <- case in_type info of
               Just a -> return $ Just a
-              Nothing -> return $ Just $ if actual info then TArrow t u else TArrow t' u'
+              Nothing -> return $ Just $ if actual info then TBang 0 $ TArrow t u else TBang 0 $ TArrow t' u'
 
   break_composite bu ((Subtype t' t info { actual = not $ actual info,
                                            in_type = intype }):
@@ -134,13 +134,13 @@ break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) =
   if List.length tlist == List.length tlist' then do
     intype <- case in_type info of
                 Just a -> return $ Just a
-                Nothing -> return $ Just $ if actual info then TTensor tlist else TTensor tlist'
+                Nothing -> return $ Just $ if actual info then TBang 0 $ TTensor tlist else TBang 0 $ TTensor tlist'
 
     comp <- return $ List.map (\(t, u) -> Subtype t u info { in_type = intype }) $ List.zip tlist tlist'
     break_composite bu (comp ++ lc, fc)
 
   else do
-    throw_TypingError (TTensor tlist) (TTensor tlist') info
+    throw_TypingError (TBang 0 $ TTensor tlist) (TBang 0 $ TTensor tlist') info
 
 
 -- User type against user type
@@ -152,7 +152,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
     if bu then do
       intype <- case in_type info of
                   Just a -> return $ Just a
-                  Nothing -> return $ Just $ if actual info then TUser utyp arg else TUser utyp' arg'
+                  Nothing -> return $ Just $ if actual info then TBang 0 $ TUser utyp arg else TBang 0 $ TUser utyp' arg'
 
       cset <- unfold_user_constraint utyp arg utyp' arg'
 
@@ -164,7 +164,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
       return $ [Sublintype (TUser utyp arg) (TUser utyp' arg') info] <> cset
       
   else
-    throw_TypingError (TUser utyp arg) (TUser utyp' arg') info
+    throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 $ TUser utyp' arg') info
 
 
 -- Circ against Circ
@@ -175,7 +175,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
 break_composite bu ((Sublintype (TCirc t u) (TCirc t' u') info):lc, fc) = do
   intype <- case in_type info of
               Just a -> return $ Just a
-              Nothing -> return $ Just $ if actual info then TCirc t u else TCirc t' u'
+              Nothing -> return $ Just $ if actual info then TBang 0 $ TCirc t u else TBang 0 $ TCirc t' u'
 
   break_composite bu ((Subtype t' t info { actual = not $ actual info,
                                            in_type = intype }):(Subtype u u' info):lc, fc)
@@ -193,16 +193,16 @@ break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
   if non_trivial n m then do
     intype <- case in_type info of
-                Nothing -> return $ Just $ if actual info then a else b
+                Nothing -> return $ Just $ if actual info then TBang n a else TBang m b
                 Just a -> return $ Just a
-    break_composite bu ((Sublintype a b info):lc, (Le m n info { in_type = intype }):fc)
+    break_composite bu ((Sublintype a b info):lc, (Le m n info):fc)
   else
     break_composite bu ((Sublintype a b info):lc, fc)
 
 
 -- Everything else is a typing error
 break_composite bu ((Sublintype t u info):lc, fc) = do
-  throw_TypingError t u info
+  throw_TypingError (TBang 0 t) (TBang 0 u) info
 
 
 

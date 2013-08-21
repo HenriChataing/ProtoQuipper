@@ -405,7 +405,7 @@ data ConstraintInfo = Info {
   expression :: Expr,      -- ^ The original expression.
   loc :: Extent,           -- ^ The location of the original expression.
   actual :: Bool,          -- ^ The orientation of the constraint: true means actual type is on the left.
-  in_type :: Maybe LinType -- ^ The original type (actual type before reducing).
+  in_type :: Maybe Type    -- ^ The original type (actual type before reducing).
 } deriving Show
 
 

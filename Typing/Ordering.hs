@@ -253,7 +253,7 @@ check_cyclic c explored poset = do
         -- Print the original type
         mprt <- case in_type info of
                   Just a -> do
-                      p <- pprint_lintype_noref a
+                      p <- pprint_type_noref a
                       return $ Just p
                   Nothing ->
                       return Nothing

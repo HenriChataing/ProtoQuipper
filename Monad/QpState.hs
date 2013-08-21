@@ -725,11 +725,11 @@ new_type = do
 
 -- | Throw a typing error, based on the reference flags of the faulty types.
 -- The return type can be anything, since an exception will be thrown in any case.
-throw_TypingError :: LinType -> LinType -> ConstraintInfo -> QpState a
+throw_TypingError :: Type -> Type -> ConstraintInfo -> QpState a
 throw_TypingError t u info = do
   -- Print the types t and u
-  prt <- pprint_lintype_noref t
-  pru <- pprint_lintype_noref u
+  prt <- pprint_type_noref t
+  pru <- pprint_type_noref u
 
   -- Get the location / expression
   f <- get_file
@@ -739,7 +739,7 @@ throw_TypingError t u info = do
   -- Get the original type
   ori <- case in_type info of
            Just a -> do
-               p <- pprint_lintype_noref a
+               p <- pprint_type_noref a
                return $ Just p
            Nothing ->
                return $ Nothing

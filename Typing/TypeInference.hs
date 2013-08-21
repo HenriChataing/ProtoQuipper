@@ -237,7 +237,7 @@ constraint_typing gamma (EVar x) cst = do
   info <- return $ no_info { expression = EVar x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just $ no_bang a })
+  return $ ((a <:: cst) & info) <> csetx 
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -255,7 +255,7 @@ constraint_typing gamma (EGlobal x) cst = do
   info <- return $ no_info { expression = EGlobal x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just $ no_bang a })
+  return $ ((a <:: cst) & info) <> csetx
 
 
 
@@ -389,9 +389,9 @@ constraint_typing gamma (EFun p e) cst = do
   csete <- constraint_typing (gamma_p <+> gamma) e [b]
 
   -- Build the context constraints: n <= I
-  fconstraints <- (return $ List.map (\(_, f) -> Le n f info { in_type = Just $ TArrow a b }) flags) >>= filter
+  fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
 
-  return $ (csetp & info { in_type = Just $ no_bang a }) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> (fconstraints & info)
+  return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
 -- Tensor intro typing rule
@@ -429,14 +429,14 @@ constraint_typing gamma (ETuple elist) cst = do
                             return $ cset <> cset') (return ([], [])) (List.zip3 elist tlist fvlist)
 
   -- Construction of all the constraints p <= f1 ... p <= fn
-  pcons <- (return $ List.map (\(TBang n _) -> Le p n info { in_type = Just $ TTensor tlist }) tlist) >>= filter
+  pcons <- (return $ List.map (\(TBang n _) -> Le p n info) tlist) >>= filter
 
   -- Construction of the constraints of delta
   disunion <- return $ disjoint_union fvlist
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
-  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> (pcons & info { in_type = Just $ TTensor tlist })
+  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -559,14 +559,14 @@ constraint_typing gamma (EDatacon dcon e) cst = do
         -- The context must be duplicable
         duplicable_context gamma
 
-        return $ ((dtype' <:: cst) & info) <> (csetd & info { in_type = Just $ no_bang dtype' })
+        return $ ((dtype' <:: cst) & info) <> csetd
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
 
-        return $ ((u <:: cst) & info) <> csete <> (csetd & info { in_type = Just $ no_bang dtype' })
+        return $ ((u <:: cst) & info) <> csete <> csetd
 
 
 -- Match typing rule
@@ -929,7 +929,7 @@ apply_flag_constraints (c:cc) = do
               case in_type info of
                 Just a -> do
                     a0 <- return $ subs_flag m 0 a
-                    a1 <- return $ subs_flag m 1 a
+                    a1 <- return $ subs_flag n 1 a
                     throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
 
                 Nothing ->
