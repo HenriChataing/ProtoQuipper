@@ -41,7 +41,7 @@ import qualified Data.IntMap as IMap
 -- @
 --
 -- it will made available again, thus overwriting the above mapping.
-import_modules :: Options                     -- ^ The command line options. This contains, in particular, the list of include directories.
+import_modules :: Options                     -- ^ The command line options. This contains, in particular, the list of module directories.
                -> [String]                    -- ^ The list of modules to import.
                -> ExtensiveContext            -- ^ The context of the interactive mode.
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
@@ -102,7 +102,7 @@ run_command opts prog ctx = do
 --   type definitions, and top-level declarations.
 --
 -- * Context commands: any command starting with the prefix \":\". These commands occupy a single line, and give information about the
---   current state of the machine. Typical commands are \":ctx\", which lists the variables currently in scope, and \":display\", which
+--   current state of the machine. Typical commands are \":context\", which lists the variables currently in scope, and \":display\", which
 --   displays the top-level circuit (inaccessible otherwise).
 --
 run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
@@ -155,7 +155,7 @@ run_interactive opts ctx buffer = do
             [":exit"] -> do
                 exit ctx  
 
-            [":ctx"] -> do
+            [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
                                     (v, t) <- case a of
@@ -218,6 +218,13 @@ run_interactive opts ctx buffer = do
 
                 run_interactive opts ctx []
 
+            [":path"] -> do
+                let dir = unwords args
+                    incs = includes opts
+                    incs' = incs ++ [dir]
+                    opts' = opts { includes = incs' }
+                run_interactive opts' ctx []
+                
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
                 run_interactive opts ctx []
@@ -230,7 +237,7 @@ run_interactive opts ctx buffer = do
 --
 -- * :help - display the list of commands.
 --
--- * :ctx - list the variables in scope, and their type. Depending on the operating system, the duplicable variables may be printed in yellow, the non duplicable in red.
+-- * :context - list the variables in scope, and their type. Depending on the operating system, the duplicable variables may be printed in yellow, the non duplicable in red.
 --
 -- * :exit - quit the interactive mode. Before quitting, a check is performed to ensure that no non-duplicable object is discarded.
 --
@@ -238,11 +245,13 @@ run_interactive opts ctx buffer = do
 --
 commands :: [(String, String)]
 commands = [
-  (":help", "Display the list of commands"),
-  (":ctx", "List the variables of the current context"),
+  (":help", "Show the list of commands"),
   (":exit", "Quit the interactive mode"),
-  (":display", "Display the toplevel circuit"),
-  (":type", "Return the type of a variable") ]
+  (":path", "Add a directory to the current module path"), 
+  (":type", "Show the type of an expression"), 
+  (":context", "List the currently declared variables"),
+  (":display", "Display the current toplevel circuit")
+  ]
 
 
 

@@ -243,10 +243,12 @@ type list a = Nil | Cons of a * list a ;;
 In addition, it is possible to enter commands for the
 interpreter. These always start with a \verb#:#. The possible commands are:
 \begin{compactitemize}
-  \item \verb#:help# --- displays a list of available commands;
-  \item \verb#:ctx# --- lists the variables declared in the current context;
-  \item \verb#:type# $\synarg{var}$ --- shows the type of a variable;
+  \item \verb#:help# --- shows a list of available commands;
   \item \verb#:exit# --- quits the interactive mode;
+  \item \verb#:path# $\synarg{dir}$ --- adds a directory to the
+    current module path;
+  \item \verb#:type# $\synarg{exp}$ --- shows the type of an expression;
+  \item \verb#:context# --- lists the currently declared variables;
   \item \verb#:display# --- displays the current top-level circuit.
 \end{compactitemize}
 Commands can also be abbreviated, for example \verb#:h# or \verb#:c#.

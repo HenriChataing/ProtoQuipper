@@ -1,0 +1,53 @@
+#!/bin/bash
+
+base=
+if [ $# -eq 0 ]; then
+    TEXBASE=Proto_Quipper
+    OUTBASE=proto-quipper-report
+elif [ $# -eq 1 ]; then
+    TEXBASE="$1"
+    OPTS=""
+    RANGE=""
+elif [ $# -eq 3 ]; then
+    TEXBASE="$1"
+    firstpage="$2" 
+    lastpage="$3"
+    OPTS="-p $firstpage -l $lastpage"
+    RANGE="$firstpage-$lastpage"
+else
+    echo Usage: "$0"
+    echo Usage: "$0 filename [firstpage lastpage] (no extension)"
+    exit
+fi
+
+if [ -z "$OUTBASE" ]; then
+    OUTBASE="$TEXBASE$RANGE"
+fi
+
+echo dvips $OPTS "$TEXBASE.dvi" -o "$OUTBASE-1up.ps"
+     dvips $OPTS "$TEXBASE.dvi" -o "$OUTBASE-1up.ps"
+
+if [ $? -ne 0 ]; then 
+    echo dvips failed.
+    exit
+fi
+
+echo pstops '2:0@1.05L(10.33in,-1.60in)+1@1.05L(10.33in,3.65in)' "$OUTBASE-1up.ps" "$OUTBASE.ps"
+     pstops '2:0@1.05L(10.33in,-1.60in)+1@1.05L(10.33in,3.65in)' "$OUTBASE-1up.ps" "$OUTBASE.ps"
+
+if [ $? -ne 0 ]; then
+    echo pstops failed.
+    exit
+fi
+ 
+# The direct invocation of 'gs' (and not, say, ps2pdf) is here
+# necessary to turn off the AutoRotatePages feature and set the
+# orientation manually (rather than letting gs guess it automatically).
+
+echo /usr/bin/gs -P- -dSAFER -dCompatibilityLevel=1.4 -dAutoRotatePages=/None -q -P- -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sstdout=%stderr -sOutputFile="$OUTBASE".pdf -P- -dSAFER -dCompatibilityLevel=1.4 -dAutoRotatePages=/None -c .setpdfwrite -c '<</Orientation 3>>setpagedevice' -f "$OUTBASE".ps
+     /usr/bin/gs -P- -dSAFER -dCompatibilityLevel=1.4 -dAutoRotatePages=/None -q -P- -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sstdout=%stderr -sOutputFile="$OUTBASE".pdf -P- -dSAFER -dCompatibilityLevel=1.4 -dAutoRotatePages=/None -c .setpdfwrite -c '<</Orientation 3>>setpagedevice' -f "$OUTBASE".ps
+
+if [ $? -ne 0 ]; then 
+    echo gs failed.
+    exit
+fi

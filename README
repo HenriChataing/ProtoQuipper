@@ -55,17 +55,12 @@ Interactive Mode
 
 The interactive mode accepts the commands:
 
-:help
-    display this help
-
-:display
-    display the toplevel circuit
-
-:ctx
-    output the content of the typing context
-
-:exit
-    quit the interactive mode
+:help        -- Show the list of commands
+:exit        -- Quit the interactive mode
+:path <dir>  -- Add a directory to the current module path
+:type <exp>  -- Show the type of an expression
+:context     -- List the variables of the current context
+:display     -- Display the toplevel circuit
 
 
 User guide
