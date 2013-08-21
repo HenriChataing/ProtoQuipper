@@ -21,20 +21,20 @@ import Classes
 -- the display of the circuit (three characters).
 unary_gates :: [(String, (String, String))]
 unary_gates =
-  [ ("GATE_H", ("GATE_H", "[H]")),
+  [ ("GATE_H", ("GATE_H", "-H-")),
     ("NOT", ("NOT", "(+)")),
-    ("GATE_X", ("GATE_X", "(+)")),
-    ("GATE_Y", ("GATE_Y", "[Y]")),
-    ("GATE_Z", ("GATE_Z", "[Z]")),
-    ("GATE_S", ("GATE_S_INV", "[S]")),
-    ("GATE_S_INV", ("GATE_S", "[\x0305S]")),
-    ("GATE_T", ("GATE_T_INV", "[T]")),
-    ("GATE_T_INV", ("GATE_T", "[\x0305T]")),
-    ("GATE_E", ("GATE_E_INV", "[E]")),
-    ("GATE_E_INV", ("GATE_E", "[E]")),
-    ("GATE_OMEGA", ("GATE_OMEGA", "[\x03C9]")),
-    ("GATE_V", ("GATE_V_INV", "[V]")),
-    ("GATE_V_INV", ("GATE_V", "[\x0305V]")) ]
+    ("GATE_X", ("GATE_X", "-X-")),
+    ("GATE_Y", ("GATE_Y", "-Y-")),
+    ("GATE_Z", ("GATE_Z", "-Z-")),
+    ("GATE_S", ("GATE_S_INV", "-S-")),
+    ("GATE_S_INV", ("GATE_S", "-S*")),
+    ("GATE_T", ("GATE_T_INV", "-T-")),
+    ("GATE_T_INV", ("GATE_T", "-T*")),
+    ("GATE_E", ("GATE_E_INV", "-E-")),
+    ("GATE_E_INV", ("GATE_E", "-E*")),
+    ("GATE_OMEGA", ("GATE_OMEGA", "-W-")),
+    ("GATE_V", ("GATE_V_INV", "-V-")),
+    ("GATE_V_INV", ("GATE_V", "-V*")) ]
 
 
 -- | The list of binary gates.
@@ -42,9 +42,9 @@ unary_gates =
 -- representation, which now takes two characters, one for each wire.
 binary_gates :: [(String, (String, (String, String)))]
 binary_gates =
-  [ ("SWAP", ("SWAP", ("-X-", "-X-"))),
+  [ ("SWAP", ("SWAP", ("-x-", "-x-"))),
     ("CNOT", ("CNOT", ("(+)", "-*-"))),
-    ("GATE_W", ("GATE_W", ("-W-", "-W-"))) ]
+    ("GATE_W", ("GATE_W", ("-W1", "-W2"))) ]
 
 
 
@@ -145,7 +145,7 @@ instance Caps Gate where
     (c { gates = (gates c) ++ [Init bt q'], qOut = q':(qOut c) }, (q, q'):b)
 
 
--- | Return the gate concrete display. More specifically, all gates are printed on one column, and this function
+-- | Return the gate concrete display. More specifically, each gate is printed in one column, and this function
 -- returns what part of a gate appears on what line. For example, considering the gate CNOT (0, 1), its display is
 --
 -- @
@@ -180,7 +180,7 @@ model (Unary s q) =
   [(2 * q, sym)]
 
 model (Phase n q) =
-  [(2 * q, "[R]")]
+  [(2 * q, "-R-")]
 
 model (Controlled g qlist) =
   let pg = model g in
