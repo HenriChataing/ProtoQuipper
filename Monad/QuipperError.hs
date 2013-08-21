@@ -3,7 +3,7 @@
 -- | This module provides a type enumerating the errors that can be thrown by the lexer, parser, type inference algorithm, or interpreter. 
 module Monad.QuipperError where
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Control.Exception
 import Data.Typeable

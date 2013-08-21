@@ -1,54 +1,57 @@
--- | This module gives the definition of the syntax of the expressions as parsed by the parser.
--- It includes the syntax of types, patterns, and expressions.
+-- | This module defines the /surface syntax/ of types, patterns, and
+-- expressions, as parsed by the parser. This should not be confused
+-- with the /internal syntax/ defined in "Typing.CoreSyntax", which is
+-- used internally by the interpreter and type checker.
 module Parsing.Syntax where
 
 import Classes
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Data.Char
 import Data.Map
 import Data.List as List
 
--- | A data constructor defined by its name.
+-- | A data constructor. A data constructor is uniquely determined by its name.
 type Datacon = String
 
 
--- | Algebraic type definition.
+-- | An algebraic data type definition.
 data Typedef = Typedef {
-  d_typename :: String,                        -- ^ Name of the type.
+  d_typename :: String,                        -- ^ Name of the defined type.
   d_args :: [String],                          -- ^ List of bound type arguments.
-  d_constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, defined by the name of the constructor, and the type of the optional argument.
+  d_constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
 }
 
 
--- | Type synonyms, e.g., @intlist@ = @list int@.
+-- | A type synonym definition, e.g., @intlist@ = @list int@.
 data Typesyn = Typesyn {
-  s_typename :: String,                        -- ^ Name of the type.
+  s_typename :: String,                        -- ^ Name of the defined type.
   s_args :: [String],                          -- ^ List of bound type arguments.
-  s_synonym :: Type                            -- ^ Type it is synonym of.
+  s_synonym :: Type                            -- ^ The type it is a synonym of.
 }
 
 
--- | Toplevel declarations. They can be of four kinds:
+-- | A top-level declaration. A top-level declaration can be of four kinds:
 --
--- * Type definitions
+-- * a top-level variable declaration;
+-- 
+-- * a top-level expression;
 --
--- * Type synonyms
+-- * a type definition;
 --
--- * Top-level expressions
+-- * a type synonym.
 --
--- * Top-level declarations
 -- 
 data Declaration =
-    DLet RecFlag Pattern Expr                -- ^ Variable declaration : let x = e ;;
-  | DExpr Expr                               -- ^ Simple expression    : e ;;
-  | DTypes [Typedef]                         -- ^ A list of type definitions. All types are mutually inductive.
-  | DSyn Typesyn                             -- ^ A type synonym
+    DLet RecFlag Pattern Expr                -- ^ A variable declaration: @let x = e;;@.
+  | DExpr Expr                               -- ^ A simple expression: @e;;@
+  | DTypes [Typedef]                         -- ^ A list of type definitions. The types are mutually recursive.
+  | DSyn Typesyn                             -- ^ A type synonym definition.
 
 
 
--- | Definition of a program (= module).
+-- | A program (or equivalently, a module).
 data Program = Prog {
 -- Module name and file
   module_name :: String,                     -- ^ Name of the module.
@@ -65,7 +68,7 @@ data Program = Prog {
 }
 
 
--- | A dummy program, all empty.
+-- | A dummy program that is completely empty.
 dummy_program :: Program
 dummy_program = Prog {
   module_name = "Dummy",
@@ -76,8 +79,9 @@ dummy_program = Prog {
 }
 
 
--- | Definition of an interface file. The definition carries the list of type declarations contained in the interface, which
--- list must be a subset of the global variables of the implementation.
+-- | An interface file. This consists of a list of type declarations,
+-- which must be a subset of the global variables of the module
+-- implementation.
 type Interface = [(String, Type)]
 
 
@@ -88,36 +92,37 @@ instance Eq Program where
 
 
 
--- | Definition of types.
+-- | A type.
 data Type =
 -- STLC types
-    TVar String               -- ^ a, b, ..
-  | TQualified String String  -- ^ Module.type
-  | TArrow Type Type          -- ^ A -> B
+    TVar String               -- ^ Type variable: /a/, /b/, ...
+  | TQualified String String  -- ^ Qualified type name: @Module.type@.
+  | TArrow Type Type          -- ^ Function type: @A -> B@.
 
 -- Tensor types
-  | TUnit                     -- ^ ()
-  | TTensor [Type]            -- ^ A1 * .. * An
+  | TUnit                     -- ^ Unit type: @()@.
+  | TTensor [Type]            -- ^ Tensor product: @A1 * ... * A/n/@.
 
 -- Flavour : duplicable flag
-  | TBang Type                -- ^ !A
+  | TBang Type                -- ^ Exponential type: @!A@.
 
 -- Quantum related types
-  | TQubit                     -- ^ qubit
-  | TCirc Type Type           -- ^ circ (A, B)
+  | TQubit                    -- ^ The basic type /qubit/.
+  | TCirc Type Type           -- ^ The type @circ (A, B)@.
 
--- Sum types : bool and generic type instantiation
-  | TApp Type Type            -- ^ Generic type instantiation, for example \'list int\' is \'int\' applied to \'list\'.
-  | TBool                     -- ^ bool
-  | TInt                      -- ^ int
+-- Sum types: bool and generic type instantiation
+  | TApp Type Type            -- ^ Application of a type constructor to a type argument. For example, \'list int\' is \'list\' applied to \'int\'.
+  | TBool                     -- ^ The basic type /bool/.
+  | TInt                      -- ^ The basic type /int/.
 
 -- Unrelated
-  | TLocated Type Extent      -- ^ Located types
+  | TLocated Type Extent      -- ^ A located type.
   deriving Show
 
 
--- | Add a bang annotation to a type, first checking whether the type was of the form !A or not to
--- avoid duplicate bangs like !!A.
+-- | Add an exponential (\"!\") annotation to a type. This first checks
+-- whether the type is already of the form !/A/, so as to avoid duplicate exponentials
+-- like !!/A/.
 bang :: Type -> Type
 bang (TLocated a ex) =
   TLocated (bang a) ex
@@ -129,8 +134,7 @@ bang a =
   TBang a
 
 
--- | This instance declaration has to be written manually to ignore the location
--- associated to types when checking the equality. 
+-- | When comparing types for equality, we ignore any location information associated with the types.
 instance Eq Type where
   (==) (TLocated t1 _) t2 = t1 == t2
   (==) t1 (TLocated t2 _) = t1 == t2
@@ -147,7 +151,7 @@ instance Eq Type where
   (==) _ _ = False
 
 
--- | Types are located objects
+-- | Types are located objects.
 instance Located Type where
   -- | Add location information to a type.
   locate (TLocated t ex) _ = TLocated t ex
@@ -170,17 +174,16 @@ instance Located Type where
   clear_location t = t
 
 
-
--- | Definition of patterns.
+-- | A pattern.
 data Pattern =
-    PJoker                               -- ^ _. Is called the joker, the wildcard .. It's an empty pattern used to signify that the value has to be discarded.
-                                         -- It can be used in Proto-Quipper on the condition that it be duplicable.
-  | PUnit                                -- ^ ()
-  | PVar String                          -- ^ x
-  | PTuple [Pattern]                     -- ^ (x1, .., xn). By construction, n must be >= 2.
-  | PDatacon Datacon (Maybe Pattern)     -- ^ Datacon p
-  | PConstraint Pattern Type             -- ^ (x <: A)
-  | PLocated Pattern Extent              -- ^ Located patterns.
+    PJoker                               -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
+                                         -- In Proto-Quipper, a wildcard can only match a duplicable value. 
+  | PUnit                                -- ^ Unit pattern: @()@.
+  | PVar String                          -- ^ Variable pattern: /x/.
+  | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PConstraint Pattern Type             -- ^ Constraint pattern: @(x <: A)@.
+  | PLocated Pattern Extent              -- ^ A located pattern.
   deriving Show
 
 
@@ -205,8 +208,8 @@ instance Located Pattern where
   clear_location p = p
 
 
--- | Definition of a recursive flag, used in the expression ELet to indicate
--- whether the function is recursive or not. The parser only allows functions
+-- | A recursive flag. This is used in the expression 'ELet' to indicate
+-- whether the function is recursive or not. The parser only allows functions (and not arbitrary values)
 -- to be declared recursive.
 data RecFlag =
     Nonrecursive   -- ^ Non recursive binding.
@@ -214,35 +217,35 @@ data RecFlag =
   deriving (Show, Eq)
 
 
--- | Definition of terms.
+-- | A term.
 data Expr =
 -- STLC
-    EVar String                    -- ^ x
-  | EQualified String String       -- ^ Module.x
-  | EFun Pattern Expr              -- ^ fun p -> e
-  | EApp Expr Expr                 -- ^ e f
+    EVar String                    -- ^ Variable: /x/.
+  | EQualified String String       -- ^ Qualified variable: @Module.x@.
+  | EFun Pattern Expr              -- ^ Function abstraction: @fun p -> e@.
+  | EApp Expr Expr                 -- ^ Function application: @e f@.
 
 -- Addition of tensors
-  | ETuple [Expr]                  -- ^ (e1, .., en). Same as patterns, n >= 2.
-  | ELet RecFlag Pattern Expr Expr -- ^ let [rec] p = e in f
-  | EUnit                          -- ^ ()
+  | ETuple [Expr]                  -- ^ Tuple: @(/e/1, .., /en/)@. By construction, must have /n/ >= 2.
+  | ELet RecFlag Pattern Expr Expr -- ^ Let-binding: @let [rec] p = e in f@.
+  | EUnit                          -- ^ Unit term: @()@.
 
 -- Addition of sum types
-  | EDatacon String (Maybe Expr)   -- ^ Datacon e
-  | EMatch Expr [(Pattern, Expr)]  -- ^ match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)
-  | EIf Expr Expr Expr             -- ^ if e then f else g
-  | EBool Bool                     -- ^ true / false
-  | EInt Int                       -- ^ Integers
+  | EDatacon String (Maybe Expr)   -- ^ Data constructor: @Datacon e@.
+  | EMatch Expr [(Pattern, Expr)]  -- ^ Case distinction: @match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)@.
+  | EIf Expr Expr Expr             -- ^ Conditional: @if e then f else g@
+  | EBool Bool                     -- ^ Boolean constant: @true@ or @false@.
+  | EInt Int                       -- ^ Integer constant.
 
 -- Circuit construction
-  | EBox Type                      -- ^ box[T]
-  | EUnbox                         -- ^ unbox
-  | ERev                           -- ^ rev
+  | EBox Type                      -- ^ The constant @box[T]@.
+  | EUnbox                         -- ^ The constant @unbox@.
+  | ERev                           -- ^ The constant @rev@.
 
 -- Unrelated
-  | EConstraint Expr Type          -- ^ (e <: A)
-  | EBuiltin String                -- ^ #builtin s
-  | ELocated Expr Extent           -- ^ Located expressions.
+  | EConstraint Expr Type          -- ^ Expression with type constraint: @(e <: A)@.
+  | EBuiltin String                -- ^ Built-in primitive: @#builtin s@.
+  | ELocated Expr Extent           -- ^ A located expression.
   deriving Show
 
 
@@ -277,8 +280,8 @@ instance Located Expr where
 
 
 
--- | Translates an pattern into the corresponding expression. For example, the pattern (x, y) is transformed
--- into the expression (x, y) (...). The location annotations are conserved.
+-- | Translate a pattern to the corresponding expression. For example, the pattern (/x/, /y/) is transformed
+-- into the expression (/x/, /y/). Any location annotations are preserved.
 expr_of_pattern :: Pattern -> Expr
 expr_of_pattern PUnit = EUnit
 expr_of_pattern (PVar x) = EVar x
@@ -286,9 +289,9 @@ expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
 expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
 
 
--- | Function reverse of expr_of_pattern: translates an expression into the corresponding pattern. When
--- expr_of_pattern was sure to succeed, this one may fail if called on something \"not a pattern\" : for example
--- a lambda abstraction. The locations are conserved.
+-- | The inverse of 'expr_of_pattern'. Translate an expression to the corresponding pattern. While
+-- 'expr_of_pattern' always succeeds, 'pattern_of_expr' may fail if called on a term that is \"not a pattern\", for example,
+-- a lambda abstraction. Any location annotations are preserved.
 pattern_of_expr :: Expr -> Pattern
 pattern_of_expr EUnit = PUnit
 pattern_of_expr (EVar x) = PVar x

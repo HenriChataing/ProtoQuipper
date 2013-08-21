@@ -1,8 +1,8 @@
 -- | This module processes the surface syntax and translates it into the internal syntax. This includes: processing of type definitions, with inference of
--- the type properties (subtyping, qdata type) ; translation of the body (with scope analysis, generation of the export list, linking with the interface) ; some
+-- the type properties (subtyping, qdata type); translation of the body (with scope analysis, generation of the export list, linking with the interface); some
 -- functions to convert the syntax to raw Proto-Quipper code.
 --
--- The subtyping constraints {user a <: user a'} can't be interpreted as just {a <: a'}. Indeed, the order of the
+-- The subtyping constraints {user /a/ <: user /a/'} can't be interpreted as just {/a/ <: /a/'}. Indeed, the order of the
 -- constraints may be reversed, as is the case with the type:
 --
 -- @
@@ -10,7 +10,7 @@
 --   Bar of a -> b
 -- @
 -- 
--- Intuitively, a constraint {foo a b <: foo a' b'} is to be reduced as {a' <: a, b <: b'}, which would
+-- Intuitively, a constraint {foo /a/ /b/ <: foo /a/' /b/'} is to be reduced as {/a/' <: /a/, /b/ <: /b/'}, which would
 -- correspond to the subtyping relation rule:
 --
 -- @
@@ -25,7 +25,7 @@
 --
 -- Since algebraic types correspond to sum types (with induction), the natural way to obtain a subtyping relation
 -- rule is to take the set of subtyping relations on the types of the data constructors:
--- given the type either:
+-- given the type \"either\":
 --
 -- @
 --  type either a b =
@@ -55,7 +55,7 @@
 --
 -- * After reduction of the constraints, only atomic constraints on the type arguments remain.
 --
--- * The number of possible constraints of this kind is limited: at most 2n (where n is the number of type arguments) can exist.
+-- * The number of possible constraints of this kind is limited: at most 2/n/ can exist, where /n/ is the number of type arguments.
 --
 -- Thus the idea of the subtyping inference algorithm: to \'unfold\' the subtyping constraints on algebraic types base on the unfolded definition 
 -- of the types until the set of atomic constraints stabilizes. This would give for the type list:
@@ -66,7 +66,7 @@
 --   list a <: list a'
 -- @
 --
--- which is the expected subtyping relation rule. This algorithm has yet to be proved.
+-- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Typing.TransSyntax (
   define_user_subtyping,
   define_user_properties,
@@ -90,7 +90,7 @@ import Typing.CoreSyntax
 import Typing.CorePrinter
 import Typing.Subtyping
 
-import Parsing.Localizing
+import Parsing.Location
 import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
@@ -165,7 +165,7 @@ import_typedefs dblock label = do
                                  return (Map.insert typename (TBang 0 $ TUser id []) typs, id:names)) (return (l_types label, [])) dblock
 
   -- Transcribe the rest of the type definitions.
-  -- Type definitions include : the name of the type, generic variables, the list of constructors
+  -- Type definitions include: the name of the type, generic variables, the list of constructors
   datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
                          lbl <- rec
                          -- Type id needed for udpates.
@@ -292,7 +292,7 @@ unfold_all names = do
   unfold_all finish
 
 
--- | Infers the subtyping relation rules of all the user defined types.
+-- | Infer the subtyping relation rules of all the user defined types.
 -- It uses the algorithm described above.
 define_user_subtyping :: [Variable] -> QpState () 
 define_user_subtyping dblock = do
@@ -327,9 +327,9 @@ define_user_subtyping dblock = do
 
 
 
--- | Function specifically used by define_user_properties to check qdata types. The list of names correspond to the list
+-- | An auxiliary function used by 'define_user_properties' to check quantum data types. The list of names corresponds to the list
 -- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
--- is delayed till later.
+-- is delayed until later.
 is_qdata_lintype :: LinType -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_lintype TQubit _ =
   return (True, [])
@@ -370,16 +370,16 @@ is_qdata_lintype _ _ =
 
 
 
--- | Function specifically used by define_user_properties to check qdata types. The list of names correspond to the list
+-- | An auxiliary function used by 'define_user_properties' to check quantum data types. The list of names corresponds to the list
 -- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
--- is delayed till later.
+-- is delayed until later.
 is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
   is_qdata_lintype a names 
 
 
 
--- | Inputs a list of types that verify a property, and a graph of consequences. Then the function propagates the
+-- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
 -- property to the dependencies in the graph, modifying the graph in so doing.
 propagate_prop :: [Variable] -> IntMap [Variable] -> ([Variable], Bool, IntMap [Variable])
 propagate_prop [] graph =
@@ -399,17 +399,17 @@ propagate_prop (n:rest) graph =
           (n:r', False, g')
 
 
--- | Defines the user property: qdatatype. This property can only be defined for all the types taken at the same time.
+-- | Define the user property: quantum data type. This property can only be defined for all the types taken at the same time.
 -- This function first builds a graph of dependencies indicating which type uses which type in the type of the data
 -- constructors. Some types are clearly marked as being non quantum data types. In the graph of dependencies, all the types
--- using these non-quantum types cannot in turn be qdata types ; and so on. After all the non qdata types have been eliminated,
--- all that remain are qdata types.
+-- using these non-quantum types cannot in turn be quantum data types; and so on. After all the non quantum data types have been eliminated,
+-- all that remain are quantum data types.
 define_user_properties :: [Variable] -> QpState ()
 define_user_properties dblock = do
   -- A specific function is needed to check quantum data types
     newlog 0 ">> User type properties"
 
-    -- Creates the map of dependencies of qdata type properties
+    -- Creates the map of dependencies of quantum data type properties
     -- The edges are oriented so that if one of the types doesn't have a property, then neither should the dependencies.
     (mdata, mgraph) <- List.foldl (\rec n -> do
                          (mdata, mgraph) <- rec
@@ -418,7 +418,7 @@ define_user_properties dblock = do
                          argtyps <- return $ List.map (\(_, argtyp) ->
                                                          List.foldl (\a (TBang _ (TVar x)) ->
                                                                        subs_typ_var x TQubit a) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
-                         -- Check each of the types for qdata types
+                         -- Check each of the types for quantum data types
                          (b, deps) <- List.foldl (\rec a -> do
                                                     (b, deps) <- rec
                                                     if b then do
@@ -436,18 +436,18 @@ define_user_properties dblock = do
                          else do
                            return (n:mdata, mgraph)) (return ([], IMap.empty)) dblock
 
-    -- Solve the map, and set the qdata properties
+    -- Solve the map, and set the quantum data properties
     (mdata', _, _) <- return $ propagate_prop mdata mgraph
     List.foldl (\rec n -> do
                   rec
                   if List.elem n mdata' then do
-                    -- Not a qdata type
+                    -- Not a quantum data type
                     newlog 0 $ "-- " ++ show n ++ " is not a quantum data type"
                     ctx <- get_context
                     Left spec <- type_spec n
                     set_context $ ctx { types = IMap.insert n (Left spec { d_qdatatype = False }) $ types ctx }
                   else do
-                    -- QData type
+                    -- Quantum data type
                     newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"
                     -- Since the default value is True, no need to set it here)
                     return ()) (return ()) dblock
@@ -459,7 +459,7 @@ define_user_properties dblock = do
 
 
 -- | Translate a type, given a labelling.
--- The output includes a set of structural constraints: e.g., !p (!n a * !m b) imposes p <= n and p <= m.
+-- The output includes a set of structural constraints: e.g., !^p (!^n a * !^m b) imposes p <= n and p <= m.
 translate_type :: S.Type
                -> [Type]                  -- ^ List of type arguments. Only when the type is algebraic may this list not be empty.
                -> (Map String Type, Bool) -- ^ A map of bound type variables. The boolean flag indicates how to deal with unbound variables:
@@ -565,7 +565,7 @@ translate_type (S.TCirc t u) [] (label, bound) = do
   (u', lblu) <- translate_type u [] (lblt, bound)
   return (TBang one (TCirc t' u'), lblu)
 
--- Case of type application : the argument is pushed onto the arg list
+-- Case of type application: the argument is pushed onto the arg list
 translate_type (S.TApp t u) args (label, bound) = do
   (u', lblt) <- translate_type u [] (label, bound)
   (t', lblu) <- translate_type t (u':args) (lblt, bound)
@@ -575,7 +575,7 @@ translate_type (S.TLocated t ex) args label = do
   set_location ex
   translate_type t args label
 
--- Remaining cases : of types applied to an argument when they are not generic
+-- Remaining cases: of types applied to an argument when they are not generic
 translate_type t args label = do
   ex <- get_location
   f <- get_file
@@ -583,8 +583,8 @@ translate_type t args label = do
 
 
 
--- | The function 'Typing.TransSyntax.translate_type' applied to a bound type.
--- The arguments are supposed to be null initially.
+-- | Apply the function 'Typing.TransSyntax.translate_type' to a bound type.
+-- The arguments must be null initially.
 translate_bound_type :: S.Type -> LabellingContext -> QpState Type
 translate_bound_type t label = do
   (t', _) <- translate_type t [] (l_types label, True)
@@ -592,8 +592,8 @@ translate_bound_type t label = do
 
 
 
--- | The function 'Typing.TransSyntax.translate_type' applied to unbound types.
--- The binding map is initially empty, and is dropped after the translation of the type
+-- | Apply the function 'Typing.TransSyntax.translate_type' to unbound types.
+-- The binding map is initially empty, and is dropped after the translation of the type.
 -- No argument is passed to the top type.
 translate_unbound_type :: S.Type -> LabellingContext -> QpState Type
 translate_unbound_type t label = do
@@ -602,7 +602,7 @@ translate_unbound_type t label = do
 
 
 
--- | Translates a pattern, given a labelling map.
+-- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
 translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String Expr)
 translate_pattern S.PUnit label = do
@@ -649,7 +649,7 @@ translate_pattern (S.PConstraint p t) label = do
 
 
 
--- | Translates an expression, given a labelling map
+-- | Translate an expression, given a labelling map.
 translate_expression :: S.Expr -> LabellingContext -> QpState Expr
 translate_expression S.EUnit _ = do
   return EUnit
@@ -865,7 +865,7 @@ unfold_tensors_in_lintype (TUser typename arg) = do
   return $ TUser typename arg'
 
 
--- | Same for types
+-- | Like 'unfold_tensors_in_lintype', but for types.
 unfold_tensors :: Type -> QpState Type
 unfold_tensors (TBang n a) = do
   a' <- unfold_tensors_in_lintype a
@@ -873,7 +873,7 @@ unfold_tensors (TBang n a) = do
 
 
 
--- | Transform a pattern <a, b, c, d> into <a, <b, <c, d>>>
+-- | Transform a pattern \<a, b, c, d\> into \<a, \<b, \<c, d\>\>\>.
 unfold_tuples :: Pattern -> Pattern
 unfold_tuples (PLocated p ex) =
   PLocated (unfold_tuples p) ex
@@ -904,8 +904,8 @@ unfold_tuples (PTuple plist) =
         PTuple [p', rest']
 
 
--- | Removes all the syntactic sugars of an expression.
--- This function operates on core expressions. As sugars are removed, new variables are
+-- | Remove the syntactic sugar from an expression.
+-- This function operates on core expressions. As syntactic sugar is removed, new variables are
 -- produced.
 desugar :: Expr -> QpState Expr
 
@@ -918,7 +918,7 @@ desugar (EGlobal x) =
 desugar (EFun p e) = do
    -- Check whether the expression is already desugared or not
   case p of
-    -- The pattern is only one variable : do nothing
+    -- The pattern is only one variable: do nothing
     PVar _ -> do
       e' <- desugar e
       return $ EFun p e'
@@ -947,7 +947,7 @@ desugar (ETuple elist) = do
         f' <- desugar f
         return $ ETuple [e', f']
 
-    -- With more elements : desugar the rest, and 'append' the head on the left
+    -- With more elements: desugar the rest, and 'append' the head on the left
     (e:rest) -> do
         e' <- desugar e
         rest' <- desugar $ ETuple rest
@@ -959,7 +959,7 @@ desugar (ELet r p e f) = do
   p' <- return $ unfold_tuples p
   e' <- desugar e
   case p' of
-    -- If the pattern is unit : do nothing
+    -- If the pattern is unit: do nothing
     PUnit -> do
         f' <- desugar f
         return $ ELet r p' e' f'

@@ -1,4 +1,4 @@
--- | This module provides an interface to the type inference and unification. It introduces functions to
+-- | This module provides an interface to the type inference and unification algorithms. It introduces functions to
 -- parse and process modules, and deal with module dependencies.
 module Typing.Driver where
 
@@ -10,7 +10,7 @@ import Builtins
 import Parsing.Lexer
 import qualified Parsing.Parser as P
 import qualified Parsing.IParser as IP
-import Parsing.Localizing (clear_location, extent_unknown)
+import Parsing.Location (clear_location, extent_unknown)
 import Parsing.Syntax (RecFlag(..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
@@ -42,7 +42,7 @@ import Data.IntMap as IMap
 import Data.Char as Char
 
 
--- | Lex and parse the file of the given filepath (implementation).
+-- | Lex and parse the module implementation file at the given filepath.
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
   contents <- liftIO $ readFile file
@@ -51,7 +51,7 @@ lex_and_parse_implementation file = do
   return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
 
 
--- | Lex and parse the file of the given filepath (interface).
+-- | Lex and parse the interface file at the given filepath.
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
   contents <- liftIO $ readFile file
@@ -60,10 +60,10 @@ lex_and_parse_interface file = do
   return $ IP.parse tokens
 
 
--- | Finds the implementation of a module in a given directory
+-- | Find the implementation of a module in a given directory.
 -- The name of the code file is expected to be /dir/\//module/./ext/,
 -- where /dir/ is the directory, /module/ is the name of the module (with
--- the first letter put to lower case), and /ext/ the extension, which can be either @.qp@ (implementation)
+-- the first letter changed to lower case), and /ext/ the extension, which can be either @.qp@ (implementation)
 -- or @.qpi@ (interface). \'/dir/\' is taken in the provided list of directories.
 -- If several implementations are found, an error is raised.
 find_in_directories :: String       -- ^ Module name.
@@ -93,7 +93,7 @@ find_in_directories mod@(initial:rest) directories extension = do
         throwQ $ DuplicateImplementation mod m1 m2
 
 
--- | Specifically looks for the implementation of a module.
+-- | Specifically look for the implementation of a module.
 -- Since an implementation is expected, the function fails if no matching
 -- file is found (and also if more than one exists).
 find_implementation_in_directories :: String -> [FilePath] -> QpState FilePath
@@ -108,7 +108,7 @@ find_implementation_in_directories mod directories = do
         throwQ $ NonExistingModule mod
 
 
--- | Specifically looks for the interface of a module.
+-- | Specifically look for the interface of a module.
 -- Since the interface file is optional, so is the return value.
 find_interface_in_directories :: String -> [FilePath] -> QpState (Maybe FilePath)
 find_interface_in_directories mod directories =
@@ -116,8 +116,8 @@ find_interface_in_directories mod directories =
 
 
 
--- | Recursively explore the dependencies of the program. It returns
--- a map linking the modules to their parsed implementation, and a map corresponding
+-- | Recursively explore the dependencies of the program. This function returns
+-- a map linking the modules to their parsed implementations, and a map corresponding
 -- to the dependency graph.
 -- It proceeds to sort the dependencies topologically using an in-depth exploration of the graph.
 -- Note that the return list is reversed, with the \'oldest\' module first.
@@ -166,13 +166,13 @@ explore_dependencies dirs prog explored sorted = do
   return (prog:s, ex)
 
 
--- | Sort the dependencies of file in a topological fashion
--- The program argument is the main program, on which Quipper has been called. The return value
--- is a list of the dependencies, with the properties :
+-- | Sort the dependencies of file in a topological fashion.
+-- The program argument is the main program, on which Proto-Quipper has been called. The return value
+-- is a list of the dependencies, with the properties:
 --
---     * each module may only appear once.
+--     * each module may only appear once;
 --
---     * for each module, every dependent module is placed before it in the sorted list.
+--     * the dependencies of each module are placed before it in the sorted list; and
 --
 --     * (as a corollary) the main module is placed last.
 --
@@ -187,16 +187,16 @@ build_dependencies dirs main = do
 
 
 
--- | Extensive context, used during the processing of top-level declarations.
+-- | The type of /extensive contexts/, which are used during the processing of top-level declarations.
 data ExtensiveContext = Context {
   labelling :: LabellingContext,        -- ^ A labelling context.
   typing :: TypingContext,              -- ^ A typing context.
   environment :: Environment,           -- ^ An evaluation context.
-  constraints :: ConstraintSet          -- ^ An atomic constraint set that cumulates the constraints of all the top-level expressions.
+  constraints :: ConstraintSet          -- ^ An atomic constraint set that accumulates the constraints of all the top-level expressions.
 }
 
 
--- | Definition of processing options specific to modules (as is not the case with the program options that affect
+-- | A type for processing options that are specific to modules (as opposed to program options, which affect
 -- the whole program).
 data MOptions = MOptions {
   toplevel :: Bool,               -- ^ Is the module at top level (in a sense: was it given as argument of the program).
@@ -205,7 +205,7 @@ data MOptions = MOptions {
 
 
 
--- | Processes a list of top-level declarations (corresponding to either commands in interactive mode or
+-- | Processe a list of top-level declarations (corresponding to either commands in interactive mode, or
 -- the body of a module). The arguments include the vector of command options, the current module,
 -- an extensive context, and a declaration.
 process_declaration :: (Options, MOptions)       -- ^ The command line and module options combined.
@@ -486,8 +486,8 @@ process_module opts prog = do
 
 
 -- ==================================== --
--- | DO EVERYTHING !
--- To sort the dependencies of a list of modules, and be able to reuse the existing functions for single modules,
+-- | A function to do everything!
+-- In order to sort the dependencies of a list of modules, and to be able to reuse the existing functions for single modules,
 -- a dummy module is created that imports all the top-level modules (never to be executed).
 do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.

@@ -18,7 +18,7 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
   Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
   Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
-  Parsing/Localizing.hs Parsing/Printer.hs Parsing/Syntax.hs		\
+  Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
   ProtoQuipper.hs Typing/CorePrinter.hs Typing/CoreSyntax.hs		\
   Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
   Typing/TransSyntax.hs Typing/TypeInference.hs				\

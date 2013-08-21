@@ -8,9 +8,11 @@ Atomicity
 Beluga
 biblio
 browsable
+Caml
 Chataing
 circ
 co
+codomain
 cond
 cong
 congruences
@@ -53,6 +55,7 @@ Proto
 ProtoQuipper
 pt
 QCS
+qd
 QData
 qft
 qlib

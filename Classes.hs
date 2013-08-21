@@ -4,7 +4,7 @@
 -- overload one or more operations.
 module Classes where
 
-import Parsing.Localizing
+import Parsing.Location
 
 
 -- | Definition of a notion of level, corresponding more or less to a

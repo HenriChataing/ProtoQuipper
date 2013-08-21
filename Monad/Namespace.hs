@@ -6,7 +6,7 @@ module Monad.Namespace where
 
 import Utils
 
-import Parsing.Localizing
+import Parsing.Location
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap

@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module contains the 'Classes.PPrint' instance declarations of the types: Type, LinType, Pattern, Expr.
+-- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType', 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the source code.
 module Typing.CorePrinter where
 
 import Classes
@@ -132,10 +132,11 @@ instance PPrint Pattern where
   sprint a = sprintn defaultLvl a
 
 
+-- * Auxiliary functions
 
-
--- | The display of expressions relies on the Text.PrettyPrint.HughesPJ library
--- that allows for nested documents.
+-- | Pretty-print an expression using Hughes's and Peyton Jones's
+-- pretty printer combinators. The type 'Doc' is defined in the library
+-- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
 print_doc :: Lvl                   -- ^ Maximum depth.
           -> Expr                  -- ^ Expression to print.
           -> (Variable -> String)  -- ^ Rendering of term variables.
