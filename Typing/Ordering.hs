@@ -233,8 +233,7 @@ check_cyclic c explored poset = do
                               Sublintype _ (TVar x) info -> return (x, info)
 
         -- Printing flags
-        refs <- get_context >>= return . flags
-        fflag <- return (\f -> "%")
+        fflag <- return (\f -> "")
 
         -- Printing variables : print the cluster instead
         fvar <- return (\x -> case IMap.lookup x $ cmap poset of
@@ -246,7 +245,7 @@ check_cyclic c explored poset = do
                                  Just n -> n
                                  Nothing -> subvar 'T' n)
         ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar, fuser]) cloop
-        prt <- return $ genprint Inf infinite [fflag, fvar, fuser]
+        prt <- return $ fvar infinite
 
         -- See what information we have
         -- Print the expression
