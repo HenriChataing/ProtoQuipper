@@ -237,7 +237,7 @@ constraint_typing gamma (EVar x) cst = do
   info <- return $ no_info { expression = EVar x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> csetx 
+  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
 
 
 constraint_typing gamma (EGlobal x) cst = do
@@ -255,7 +255,7 @@ constraint_typing gamma (EGlobal x) cst = do
   info <- return $ no_info { expression = EGlobal x,
                              loc = ex }
 
-  return $ ((a <:: cst) & info) <> csetx
+  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
 
 
 

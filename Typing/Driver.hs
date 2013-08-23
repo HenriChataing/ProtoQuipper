@@ -338,23 +338,21 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                                a' <- map_type a
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
 
+  -- Map the types of the pattern
+  gamma_p <- IMap.foldWithKey (\x a rec -> do
+                                  m <- rec
+                                  a' <- map_type a
+                                  return $ IMap.insert x a' m) (return IMap.empty) gamma_p
+
+  -- Unify the set again
+  fls <- unify_flags $ snd csete
+  csete <- return (fst csete, fls)
+
   -- Generalize the types of the pattern (= polymorphism)
   gamma_p <- IMap.foldWithKey (\x a rec -> do
                                   ctx <- rec
-                                  -- First apply the substitution
-                                  a'@(TBang n _) <- map_type a
-                                 
-                                  -- Unify the set again ! (only the flags though)
-                                  fls <- unify_flags $ snd csete
-                                  csets <- return (fst csete, fls)
-
-                                  -- Check the flag of a'
-                                  --     if set, then ok
-                                  --     if not, set it to 1
---                                  v <- flag_value n
---                                  case v of
---                                    Unknown -> set_flag n no_info
---                                    _ -> return ()
+                                  -- Apply the substitution again
+                                  a' <- map_type a
 
                                   -- Clean the constraint set 
                                   (fv, ff, cset') <- return $ clean_constraint_set a' csete
