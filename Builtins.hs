@@ -73,9 +73,9 @@ builtin_gates =
                          VCirc VUnit (Circ { qIn = [], gates = [ Init 1 0 ], qOut = [0] }) (VQubit 0)))] in
 
   let term = [("TERM0", (TCirc TQubit TUnit,
-                         VCirc (VQubit 0) (Circ { qIn = [], gates = [ Term 0 0 ], qOut = [0] }) VUnit)),
+                         VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Term 0 0 ], qOut = [] }) VUnit)),
               ("TERM1", (TCirc TQubit TUnit,
-                         VCirc (VQubit 0) (Circ { qIn = [], gates = [ Term 1 0 ], qOut = [0] }) VUnit))] in
+                         VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Term 1 0 ], qOut = [] }) VUnit))] in
 
   let phase = [("PHASE", (TArrow TInt unary_type,
                           VBuiltin (\(VInt n) -> VCirc (VQubit 0)
