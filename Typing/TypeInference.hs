@@ -357,7 +357,7 @@ constraint_typing gamma (EApp t u) cst = do
   csetu <- constraint_typing gamma_u u [a]
 
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
-  disunion <- return $ disjoint_union [fvt, fvu]
+  disunion <- return $ linear_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
@@ -432,7 +432,7 @@ constraint_typing gamma (ETuple elist) cst = do
   pcons <- (return $ List.map (\(TBang n _) -> Le p n info) tlist) >>= filter
 
   -- Construction of the constraints of delta
-  disunion <- return $ disjoint_union fvlist
+  disunion <- return $ linear_union fvlist
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
@@ -522,7 +522,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
   csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
   
   -- Generate the flag constraints for the intersection
-  disunion <- return $ disjoint_union [fvt, fvu]
+  disunion <- return $ linear_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
@@ -605,7 +605,7 @@ constraint_typing gamma (EMatch e blist) cst = do
   csete <- constraint_typing gamma_e e alist
 
   -- Generate the flag constraints for the intersection
-  disunion <- return $ disjoint_union [fve, fvlist]
+  disunion <- return $ linear_union [fve, fvlist]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   
@@ -639,7 +639,7 @@ constraint_typing gamma (EIf e f g) cst = do
   csetg <- constraint_typing gamma_fg g cst
 
   -- Generate the flag constraints for the context delta
-  disunion <- return $ disjoint_union [fve, fvfg]
+  disunion <- return $ linear_union [fve, fvfg]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
   

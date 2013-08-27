@@ -76,9 +76,18 @@ module_of_file f =
   (Char.toUpper init):body
 
 
--- | Perform the disjoint union of a list of sets.
-disjoint_union :: Eq a => [[a]] -> [a]
-disjoint_union l =
+-- | Input a list of sets, and output the set of those elements that
+-- occur in exactly one of the given sets. 
+-- 
+-- Note that this is not a pairwise operation: 
+-- 
+-- > linear_union [x,y,z]
+-- 
+-- is not the same as
+-- 
+-- > linear_union [x, linear_union [y,z]].
+linear_union :: Eq a => [[a]] -> [a]
+linear_union l =
   let all = List.concat l in
   List.concat $ List.map (\a -> let alla = all \\ a in
                                 a \\ alla) l
