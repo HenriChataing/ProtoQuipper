@@ -72,7 +72,7 @@ module_of_file f =
 
 -- | Perform the disjoint union of a list of sets.
 disjoint_union :: Eq a => [[a]] -> [a]
-disjoint_union [] = []
-disjoint_union (l:restl) =
-  let disunion = disjoint_union restl in
-  (l \\ disunion) ++ (disunion \\ l)
+disjoint_union l =
+  let all = List.concat l in
+  List.concat $ List.map (\a -> let alla = all \\ a in
+                                a \\ alla) l
