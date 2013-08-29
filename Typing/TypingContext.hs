@@ -56,7 +56,7 @@ type_of x ctx = do
 -- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
--- Joker : the joker must have a duplicable type, since
+-- Joker: the joker must have a duplicable type, since
 -- the value is discarded. No binding is generated.
 bind_pattern PJoker = do
   a <- fresh_type
@@ -143,7 +143,7 @@ bind_pattern_to_type (PVar x) t@(TBang n _) = do
 bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
   return (IMap.empty, emptyset)
 
--- Two things have to be done to bind a tuple to a tensor : first
+-- Two things have to be done to bind a tuple to a tensor: first
 -- make the lengths match, and then bind individually each pattern of the tuple to the
 -- corresponding type.
 bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
@@ -154,7 +154,7 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
     ex <- get_location
     f <- get_file
     
-    -- Build and actual type : a1 * .. * an
+    -- Build and actual type: a1 * .. * an
     act <- List.foldr (\_ rec -> do
                          r <- rec
                          a <- new_type
