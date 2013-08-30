@@ -268,7 +268,8 @@ $\term$&$~a,b,c~~ \bnf$ & $x \bor q \bor (t,C,a) \bor \true
   \bor \false \bor \p{a,b} \bor * \bor$ \\[0.05in]
 & & $ab \bor \lambda x.a \bor \boxx^T \bor \unbox \bor \rev 
     \bor $\\[0.05in]
-& & $\ifthenelse{a}{b}{c} \bor \letin{\p{x,y}}{a}{b}.$
+& & $\ifthenelse{a}{b}{c} \bor \letin{*}{a}{b} \bor$ \\[0.05in]
+& & $\letin{\p{x,y}}{a}{b}.$
 \end{tabular}
 \end{center}
 Among the terms, we single out the subset of \emph{quantum data terms}:
@@ -383,7 +384,8 @@ is defined recursively as follows:
   \item $\FV(ab)=\FV(a)\cup \FV(b)$,
   \item $\FV(\lambda x.a)=\FV(a)\setminus\s{x}$,
   \item $\FV(\ifthenelse{a}{b}{c}) = \FV(a) \cup \FV(b) \cup \FV(c)$,
-  \item $\FV(\letin{\p{x,y}}{a}{b}) = \FV(a)\cup (\FV(b)\setminus \s{x,y})$,
+  \item $\FV(\letin{*}{a}{b}) = \FV(a)\cup \FV(b)$, 
+  \item $\FV(\letin{\p{x,y}}{a}{b}) = \FV(a)\cup (\FV(b)\setminus \s{x,y})$, 
   \item $\FV((t,C,a))= \FV(a)$ and
   \item $\FV(a)=\emptyset$ in all remaining cases.
 \end{itemize}
@@ -411,7 +413,8 @@ notion of \emph{quantum variable of term}.
   \item $\FQ(ab)=\FQ(a)\cup \FQ(b)$,
   \item $\FQ(\lambda x.a)=\FQ(a)$,
   \item $\FQ(\ifthenelse{a}{b}{c}) = \FQ(a) \cup \FQ(b) \cup \FQ(c)$,
-  \item $\FQ(\letin{\p{x,y}}{a}{b})= \FQ(a)\cup \FQ(b)$ and
+  \item $\FQ(\letin{*}{a}{b})= \FQ(a)\cup \FQ(b)$, 
+  \item $\FQ(\letin{\p{x,y}}{a}{b})= \FQ(a)\cup \FQ(b)$ and  
   \item $\FQ(a)=\emptyset$ in all remaining cases.
 \end{itemize}
 \end{definition}
@@ -591,7 +594,7 @@ only if $|\Gamma | = |\Gamma'|$ and $\Gamma (x_i)<: \Gamma' (x_i)$
 for every $i$.
 
 \begin{definition}
-Let $T,U$ be quantum data types and $m,n\in\N$. For each of the constants 
+Let $T,U$ be quantum data types. For each of the constants 
 $\boxx^T$, $\unbox$, and $\rev$, we introduce a type as follows:
 \begin{itemize}
   \item $A_{\boxx^T}(T,U)={!}(T\loli U)\loli {!}\Circ(T,U)$,
@@ -642,7 +645,7 @@ explicitly stated.
   {!}A_{c}(T,U)<:B
 } 
 ~~~~
-\infer[(\rul{unit})]{{!}\Delta;\emptyset\entails *:{!}^n 1}{
+\infer[(*\mbox{-i})]{{!}\Delta;\emptyset\entails *:{!}^n 1}{
 }
 \]
 \[
@@ -678,6 +681,13 @@ explicitly stated.
   \Gamma_1, {!}\Delta;Q_1\entails b:{!}^n(B_1\x B_2) 
   &
   \Gamma_2, {!}\Delta, x:{!}^nB_1, y:{!}^nB_2 ;Q_2\entails a:A
+}
+\]
+\[
+\infer[(*\mbox{-e})]{\Gamma_1,\Gamma_2, {!}\Delta;Q_1,Q_2\entails \letin{*}{b}{a}:A}{
+  \Gamma_1, {!}\Delta;Q_1\entails b:!^n1
+  &
+  \Gamma_2, {!}\Delta ;Q_2\entails a:A
 }
 \]
 \[
@@ -900,7 +910,7 @@ The \emph{reduction relation},
 written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \end{definition}
 
-\begin{figure}[p]
+\begin{figure}[h]
 \begin{mdframed}
 \[
   \infer[(\rul{fun})]{[C,ab]\to[C',a'b]}{
@@ -917,6 +927,12 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   }
 ~~~~~~
   \infer[(\rul{left})]{[C,\langle a,v\rangle]\to [C',\langle a',v\rangle]}{
+    [C,a]\to [C',a']
+  }
+\]
+\[
+  \infer[(\rul{let}*)]{[C,\letin{*}{a}{b}]\to 
+                [C', \letin{*}{a'}{b}]}{
     [C,a]\to [C',a']
   }
 \]
@@ -945,6 +961,9 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \begin{mdframed}
 \[
   \infer[(\beta)]{[C,(\lambda x.a)v]\to [C, a[v/x]]}{}
+\]
+\[
+  \infer[(\rul{unit})]{[C,\letin{*}{*}{a}]\to[C,a]}{}
 \]
 \[
   \infer[(\rul{pair})]{[C,\letin{\p{x,y}}{\p{v,w}}{a}]\to[C,a[v/x,w/y]]}{}
@@ -1107,7 +1126,7 @@ $\mathcal{Q}$, then $\FQ(t)\entails \spec_X(T):T$ is valid.
 \begin{proof}
 We prove the Lemma by induction on $T$.
   \begin{itemize}
-    \item If $T=1$, then $\spec_X(T)=*$ and we can use the $(\rul{unit})$ rule.
+    \item If $T=1$, then $\spec_X(T)=*$ and we can use the $(*\mbox{-i})$ rule.
     \item If $T=\qubit$, then $\spec_X(T)=q$ for some quantum variable $q$ and we can 
           use the $(\rul{ax}_q)$ rule.
     \item If $T=T_1\x T_2$, then $\spec_X(T)=\p{t_1,t_2}$ where $t_1=\spec_X(T_1)$ 
@@ -1148,6 +1167,7 @@ of the following forms:
 \item $\p{a_1,a_2}$ with $a_1\notin \mathtt{Val}$ or $a_2\notin
   \mathtt{Val}$, 
 \item $\ifthenelse{a_1}{a_2}{a_3}$,
+\item $\letin{*}{a_1}{a_2}$,
 \item $\letin{\p{x,y}}{a_1}{a_2}$, or
 \item $a_1a_2$.
 \end{compactitemize}
@@ -1233,7 +1253,7 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  we can conclude by applying
  Lemma~\hyperref[unused_var]{\ref*{prop_type_syst}.\ref*{unused_var}} to $\pi_1$.
  \item If the last rule of $\pi_1$ is one of $(\rul{ax}_q)$, $(\rul{cst}_c)$, 
- $(\rul{unit})$, $(\top)$ and $(\bot)$, and $a$ is the corresponding constant, 
+ $(*\mbox{-i})$, $(\top)$ and $(\bot)$, and $a$ is the corresponding constant, 
  then $x\notin \FV(a)$ and  $x$ must be declared of some type ${!}B'$.
  We can therefore reason as in the previous case. 
  \item If the last rule of $\pi_1$ is $(\lambda_1)$ and $a=\lambda y.b$, then $\pi_1$ is
@@ -1308,10 +1328,10 @@ respectively. We prove the Lemma by induction on $\pi_1$.
  In the first case, the induction hypothesis implies that 
  $\Gamma_1,\Gamma' {!}\Delta;Q_1,Q'\entails c[v/x]:A'\loli A$ is valid and 
  we can conclude by $(\rul{app})$. The second case is treated analogously.
- \item If the last rule of $\pi_1$ is on of $(\x\mbox{-i})$, $(\x\mbox{-e})$ 
- and $(\rul{if})$, and $a$ is the corresponding term, then we can reason as above
- by considering in turn the case where $B$ is duplicable and the case where
- $B$ is non-duplicable.
+ \item If the last rule of $\pi_1$ is one of $(\x\mbox{-i})$, $(\x\mbox{-e})$,
+ $(*\mbox{-e})$ and $(\rul{if})$, and $a$ is the corresponding term, then 
+ we can reason as above by considering in turn the case where $B$ is 
+ duplicable and the case where $B$ is non-duplicable.
  \item If the last rule of $\pi_1$ is $(\rul{circ})$, and $a=(t,C,a')$, then 
  $\pi_1$ is
  \[
@@ -1722,7 +1742,7 @@ We now prove the theorem.
 We prove the theorem by induction on the typing derivation $\pi$ of 
 $\FQ(a)\entails a:A$. If $a$ is a value then there is nothing 
 to prove. If $a$ is not a value, then by 
-Lemma~\hyperref[non_values]{\ref*{non_values}} there are 5 cases to consider. 
+Lemma~\hyperref[non_values]{\ref*{non_values}} there are 6 cases to consider. 
 In each case we show that $[C,a]$ is reducible in the sense that there exists a 
 closure  $[C,b]$ such that $[C,a]\to[C,b]$
 \begin{enumerate}
@@ -1811,10 +1831,14 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   Thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces either to $[C,a_2]$ by the 
   $(\rul{if}\mbox{-}\mathtt{T})$ reduction rule or 
   to $[C,a_3]$ by the $(\rul{if}\mbox{-}\mathtt{F})$ reduction rule.
+  \item If $a=\letin{*}{a_1}{a_2}$, then we can reason as above to show that 
+  if $a_1$ is not a value, then the $(\rul{let}*)$ congruence rule applies and that if 
+  $a_1$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
+  guarantees that the $(\rul{unit})$ rule applies.   
   \item If $a=\letin{\p{x,y}}{a_1}{a_2}$, then we can reason as above to show that 
   if $a_1$ is not a value, then the $(\rul{let})$ congruence rule applies and that if 
-  $a$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
-  guarantees that the $(\rul{pair})$ rule applies.
+  $a_1$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
+  guarantees that the $(\rul{pair})$ rule applies. 
   \item If $a=a_1a_2$ then the typing derivation $\pi$ is: 
   \[
     \infer[.]{\FQ(a_1),\FQ(a_2)\entails a_1a_2:A}{
