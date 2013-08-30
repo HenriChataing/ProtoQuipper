@@ -69,6 +69,13 @@ let rec map f l =
   | x:xs -> (f x):(map f xs)
 ;;
 
+let rec zip l1 l2 =
+  match (l1,l2) with
+    ([],[]) -> []
+  | (h1:t1, h2:t2) -> (h1,h2) : zip t1 t2
+  -- other cases give an error
+;;
+
 let rec foldl f y l =
   match l with
     [] -> y
@@ -100,3 +107,7 @@ let reverse l =
   reverse_acc [] l
 ;;
 
+let rec replicate n a =
+  if n < 1 then [] else a:(replicate (n-1) a)
+;;
+  
