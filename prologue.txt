@@ -7,9 +7,9 @@ documentation from here.
   no file is provided, the program switches to interactive mode, described by the module "Interactive".
 
 
-/Evaluation/. All the modules dedicated to the evaluation of Proto-Quipper expressions are located in the folder \"Interpret\".
+/Interpreter/. All the modules dedicated to the execution of Proto-Quipper expressions are located in the folder \"Interpret\".
   The module "Interpret.Values" gives the definition of the values of Proto-Quipper and "Interpret.Circuits" defines a /very/ basic circuit system (the Intermediate Representation export
-  of circuits is implemented in "Interpret.IRExport"). All the important functions of evaluation are placed in the module "Interpret.Interpret", with the main
+  of circuits is implemented in "Interpret.IRExport"). The main functionality of the interpreter is contained in the module "Interpret.Interpret", with the main
   function 'Interpret.Interpret.interpret'.
   
 
@@ -22,3 +22,6 @@ documentation from here.
   * "Typing.TypingContext": definition and manipulation of typing contexts.
 
   * "Typing.TypeInference": principal module, contains the implementation of both the type inference algorithm and the unification algorithm.
+
+/Disclaimer/. This implementation of Proto-Quipper is experimental,
+and should be considered \"beta\" software.
