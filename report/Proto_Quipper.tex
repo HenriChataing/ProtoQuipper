@@ -268,8 +268,8 @@ $\term$&$~a,b,c~~ \bnf$ & $x \bor q \bor (t,C,a) \bor \true
   \bor \false \bor \p{a,b} \bor * \bor$ \\[0.05in]
 & & $ab \bor \lambda x.a \bor \boxx^T \bor \unbox \bor \rev 
     \bor $\\[0.05in]
-& & $\ifthenelse{a}{b}{c} \bor \letin{*}{a}{b} \bor$ \\[0.05in]
-& & $\letin{\p{x,y}}{a}{b}.$
+& & $\ifthenelse{a}{b}{c} \bor \letin{*}{a}{b} \bor
+    \letin{\p{x,y}}{a}{b}.$
 \end{tabular}
 \end{center}
 Among the terms, we single out the subset of \emph{quantum data terms}:
@@ -910,7 +910,8 @@ The \emph{reduction relation},
 written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
 \end{definition}
 
-\begin{figure}[h]
+\begin{figure}[p]
+\scalebox{0.97}{\begin{minipage}{\textwidth}
 \begin{mdframed}
 \[
   \infer[(\rul{fun})]{[C,ab]\to[C',a'b]}{
@@ -953,11 +954,13 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   }
 \]
 \end{mdframed}
+\end{minipage}}
 \caption{The congruence rules.}
 \label{cong_rules}
 \end{figure}
 
 \begin{figure}[p]
+\scalebox{0.97}{\begin{minipage}{\textwidth}
 \begin{mdframed}
 \[
   \infer[(\beta)]{[C,(\lambda x.a)v]\to [C, a[v/x]]}{}
@@ -975,11 +978,13 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   \infer[(\rul{if}\mbox{-}\mathtt{T})]{[C,\ifthenelse{\mathtt{True}}{a}{b}] \to [C, a]}{}
 \]
 \end{mdframed}
+\end{minipage}}
 \caption{The classical rules.}
 \label{classical_rules}
 \end{figure}
 
 \begin{figure}[p]
+\scalebox{0.97}{\begin{minipage}{\textwidth}
 \begin{mdframed}
 \[
   \infer[(\boxx)]{[C,\boxx^T(v)]\to [C,(t,D,vt)]}{
@@ -1001,6 +1006,7 @@ written $\to^*$, is defined to be the reflexive and transitive closure of $\to$.
   \infer[(\rev)]{[C,\rev\,(t,C,t')]\to [C,(t',C^{-1},t)]}{}
 \]
 \end{mdframed}
+\end{minipage}}
 \caption{The circuit generating rules.}
 \label{circ_gen_rules}
 \end{figure}
@@ -1800,7 +1806,7 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   If on the other hand $a_2\in\mathtt{Val}$, then it must be the case that $a_1\notin\mathtt{Val}$ 
   and we can conclude by reasoning analogously that $[C,\p{a_1,a_2}]$ reduces to 
   some $[C',\p{a_1',a_2}]$ by the $(\rul{left})$ reduction rule.. 
-  \item If $a=\ifthenelse{a_1}{a_2}{a_3}$, then the typing derivation $\pi$ is:
+  \item If $a=(\ifthenelse{a_1}{a_2}{a_3})$, then the typing derivation $\pi$ is:
   \[
   \infer[.]{\FQ(a_1),Q\entails \ifthenelse{a_1}{a_2}{a_3}:A}{
     \deduce[]{\FQ(a_1)\entails a_1:\bool }{
@@ -1831,11 +1837,11 @@ closure  $[C,b]$ such that $[C,a]\to[C,b]$
   Thus $[C,\ifthenelse{a_1}{a_2}{a_3}]$ reduces either to $[C,a_2]$ by the 
   $(\rul{if}\mbox{-}\mathtt{T})$ reduction rule or 
   to $[C,a_3]$ by the $(\rul{if}\mbox{-}\mathtt{F})$ reduction rule.
-  \item If $a=\letin{*}{a_1}{a_2}$, then we can reason as above to show that 
+  \item If $a=(\letin{*}{a_1}{a_2})$, then we can reason as above to show that 
   if $a_1$ is not a value, then the $(\rul{let}*)$ congruence rule applies and that if 
   $a_1$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
   guarantees that the $(\rul{unit})$ rule applies.   
-  \item If $a=\letin{\p{x,y}}{a_1}{a_2}$, then we can reason as above to show that 
+  \item If $a=(\letin{\p{x,y}}{a_1}{a_2})$, then we can reason as above to show that 
   if $a_1$ is not a value, then the $(\rul{let})$ congruence rule applies and that if 
   $a_1$ is a value then Lemma~\hyperref[form_values]{\ref*{form_values}} 
   guarantees that the $(\rul{pair})$ rule applies. 
