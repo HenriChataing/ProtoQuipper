@@ -156,7 +156,9 @@ instance Show QError where
   show (TypingError ta tb) =
     "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
 
-  show (DetailedTypingError ta tb mt e) =
+  show (DetailedTypingError ta tb mt e) 
+    | ta == tb = "type error"
+    | otherwise =
     "\n" ++
     "    Couldn't match actual type\n" ++
     ta ++ "\n" ++
