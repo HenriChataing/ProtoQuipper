@@ -287,7 +287,7 @@ expr_of_pattern PUnit = EUnit
 expr_of_pattern (PVar x) = EVar x
 expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
 expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
-
+expr_of_pattern (PDatacon d p) = EDatacon d (fmap expr_of_pattern p)
 
 -- | The inverse of 'expr_of_pattern'. Translate an expression to the corresponding pattern. While
 -- 'expr_of_pattern' always succeeds, 'pattern_of_expr' may fail if called on a term that is \"not a pattern\", for example,
@@ -297,3 +297,4 @@ pattern_of_expr EUnit = PUnit
 pattern_of_expr (EVar x) = PVar x
 pattern_of_expr (ETuple elist) = PTuple $ List.map pattern_of_expr elist
 pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
+pattern_of_expr (EDatacon d p) = PDatacon d (fmap pattern_of_expr p)
