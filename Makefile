@@ -45,7 +45,7 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
-	rm -f $(MAIN)
+	rm -f $(MAIN) $(MAIN).exe
 	rm -rf $(BUILD_DIR)/*
 
 count : clean
