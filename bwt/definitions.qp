@@ -1,0 +1,85 @@
+-- This module provides general-purpose quantum functions.
+
+import List
+import Gates
+import Core
+
+-- The identity function. Sometimes it is more readable to write 
+-- "return x" instead of "x".
+-- 
+-- return :: a -> a
+let return x = x
+;;
+
+-- Initialize a list of qubits from a list of boolean parameters.
+-- 
+-- qinit_register :: list bool -> list qubit
+let qinit_register = 
+  map qinit
+;;
+
+-- Terminate a list of qubits asserted to be in the state given by a
+-- boolean list.
+-- 
+-- qterm_register :: list bool -> list qubit -> ()
+let qterm_register bs qs = 
+  map (fun (b,q) -> qterm b q) (reverse (zip bs qs))
+;;
+
+-- Execute a block of code with one additional ancilla initialized to
+-- b. This should be used as follows:
+-- 
+-- with_ancilla false (fun q ->
+--    <<code block>>
+--    return (r,q)   -- r is the result of the code block
+-- )
+-- 
+-- Because of the current purely functional style of Proto-Quipper,
+-- the code block must return the ancilla q along with its own result
+-- r. This differs from Quipper's with_ancilla operator.
+-- 
+-- with_ancilla :: bool -> (qubit -> a * qubit) -> a
+let with_ancilla b f =
+  q <- qinit b;
+  (res,q) <- f q;
+  qterm b q;
+  return res
+;;
+
+-- Execute a block of code with a list of ancillas, initialized to a
+-- list of booleans.
+-- 
+-- with_ancilla_reg :: list bool -> (list qubit -> a * list qubit) -> a
+let with_ancilla_reg bs f =
+  qs <- qinit_register bs;
+  (res,qs) <- f qs;
+  x <- qterm_register bs qs;
+  return res
+;;
+
+-- Iterate a function n times. Example:
+-- 
+-- loop 3 x f = f (f (f x)).
+-- 
+-- loop :: int -> a -> (a -> a) -> a
+let rec loop n x f =
+  if n<1 then x else f (loop (n-1) x f)
+;;
+
+-- A "for" loop. Counts from a to b in increments of s. Because of the
+-- purely functional style of Proto-Quipper, this also threads a state
+-- along the loop. 
+-- 
+-- Example:
+-- 
+-- x <- for a b s x (fun i -> fun x ->
+--   x' <- commands x;
+--   return x'
+-- );
+-- 
+-- for :: int -> int -> int -> x -> (int -> x -> x) -> x
+let rec for a b s x f = 
+  if a > b then x else 
+  let x = f a x in
+  for (a+1) b s x f
+;;

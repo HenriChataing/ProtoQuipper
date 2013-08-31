@@ -1,0 +1,76 @@
+-- This module provides an implementation of the Binary Welded Tree
+-- algorithm.
+
+import Core
+import List
+import Definitions
+
+-- ----------------------------------------------------------------------
+-- Oracle abstraction
+
+-- A data structure to hold an oracle. An oracle encodes a graph, and
+-- provides the following information: the tree depth n, the label
+-- length m (usually = n + 2), the number of edge colors k, the
+-- entrance label, and for each color c in {0..k-1}, a reversible
+-- circuit oracle_c(a,b,r).
+
+type oracle = 
+  Oracle of int                                 -- n
+  	  * int        				-- m
+	  * int        				-- k
+	  * list bool  				-- entrance label 
+	  * (int ->    				-- color parameter c
+	     list qubit * list qubit * qubit -> -- (a,b,r) inputs
+	     list qubit * list qubit * qubit)   -- (a,b,r) outputs
+
+-- ----------------------------------------------------------------------
+-- The orthodox oracle
+
+-- A temporary dummy oracle: empty.
+let oraclefun n c (a,b,r) = (a,b,r);;
+
+-- The orthodox oracle. The parameter n is the tree depth.
+-- 
+-- orthodox_oracle :: int -> Oracle
+let oracle_orthodox n =
+  Oracle (n, n+2, 4, replicate (n-1) false ++ [true], oraclefun n)
+;;
+
+-- ----------------------------------------------------------------------
+-- The time step
+
+-- A temporary dummy timestep: empty.
+let timestep (a,b,r,m) = (a,b,r);;
+
+-- ----------------------------------------------------------------------
+-- The top-level algorithm
+
+-- The main loop of the binary welded tree algorithm. Because there is
+-- currently no built-in real number type in Proto-Quipper, we leave
+-- the timestep implicit. Also, since Proto-Quipper currently does not
+-- include classical bits or measurements, we return the unmeasured
+-- quantum register a.
+-- 
+-- qrwbwt :: Oracle -> int -> ...
+let qrwbwt oracle s =
+  (n,m,k,entrance,oraclefun) <- oracle;
+  a <- qinit_register entrance;
+  a <- with_ancilla_reg (replicate m false) (fun b ->
+    (a,b) <- with_ancilla false (fun r -> 
+      (a,b,r) <- loop s (a,b,r) (fun (a,b,r) -> 
+        (a,b,r) <- for 0 (k-1) 1 (a,b,r) (fun c -> fun (a,b,r) -> 
+          (a,b,r) <- oraclefun c (a,b,r);
+          (a,b,r) <- timestep (a,b,r,m);
+          (a,b,r) <- oraclefun c (a,b,r);
+          return (a,b,r)
+        );
+        return (a,b,r)
+      );
+      return ((a,b),r)
+    );
+    return a
+  );
+  return a
+;;
+
+qrwbwt (oracle_orthodox 3) 1;;
