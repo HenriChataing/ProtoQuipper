@@ -100,12 +100,12 @@ QLIB = qlib
 PUBLIC = README COPYRIGHT prologue.txt
 #            LICENSE
 
-.PHONY: dist
-dist: $(DISTZIP) $(DISTTAR)
+$(DISTZIP) $(DISTTAR): dist
 
 RIGHT_COPY = maintainer/right_copy
 
-$(DISTZIP) $(DISTTAR): $(PUBLIC) $(MAKEFILES_PUBLIC)
+.PHONY: dist
+dist: $(PUBLIC) $(MAKEFILES_PUBLIC)
 	rm -rf "$(DISTDIR)"
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(QLIB)"
