@@ -900,7 +900,6 @@ unify_types exact cset = do
 
 -- | Part of the flag unification. Look for flag constraints of the form 1 <= /n/ or /n/ <= 0, and apply their consequences
 -- to the involved references. The boolean in the return value is needed for the termination, and indicates whether changes have been made.
--- The function is recursively applied until the set is stable.
 apply_flag_constraints :: [FlagConstraint] -> QpState (Bool, [FlagConstraint])
 apply_flag_constraints [] = do
   return (False, [])
@@ -925,7 +924,6 @@ apply_flag_constraints (c:cc) = do
         vn <- flag_value n
         case (vm, vn) of
           (One, Zero) -> do
-              -- The error could have been thrown with either reference.
               case in_type info of
                 Just a -> do
                     a0 <- return $ subs_flag m 0 a
@@ -949,14 +947,22 @@ apply_flag_constraints (c:cc) = do
               -- With no information, the constraint is kept aside while the rest of the set is being solved,
               -- then added back to the result.
               (b, cc') <- apply_flag_constraints cc
-              if b then
-                apply_flag_constraints (c:cc')
-              else
-                return (False, c:cc')
+              return (b, c:cc')
 
           -- The remaining cases correspond to trivial constraints that can be discarded.
           _ -> do
               apply_flag_constraints cc
+
+
+-- | Apply the function 'apply_flag_constraints' recursively until the constraint set becomes stable.
+apply_flag_constraints_rec :: [FlagConstraint] -> QpState [FlagConstraint]
+apply_flag_constraints_rec cset = do
+  (b, cset') <- apply_flag_constraints cset
+  if not b then
+    return cset'
+  else
+    apply_flag_constraints_rec cset'
+
 
 
 -- | Flag unification. First filter out the trivial constraints, before \'applying\' the constraints of
@@ -968,7 +974,7 @@ unify_flags fc = do
   fc' <- return $ List.filter (\(Le m n _) -> m /= 0 && n /= 1 && m /= -1 && n /= -1) fc
 
   -- Application of the constraints 1 <= f and f <= 0
-  (_, fc'') <- apply_flag_constraints fc'
+  fc'' <- apply_flag_constraints_rec fc'
   return fc''
 
 
