@@ -328,10 +328,6 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   cs <- break_composite True (csetp <> csete)  -- Break the composite constraints
   csete <- unify True cs                       -- Unify
 
-  -- Last of the free variables of e - to be place after the unification, since
-  -- the algorithm produces new variables that also have to be generic.
-  endtype <- get_context >>= return . type_id
-  endflag <- get_context >>= return . flag_id
   -- Apply the substitution produced by the unification of csett to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
                                m <- rec
@@ -347,6 +343,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Unify the set again
   fls <- unify_flags $ snd csete
   csete <- return (fst csete, fls)
+
+  -- Last of the free variables of e - to be place after the unification, since
+  -- the algorithm produces new variables that also have to be generic.
+  endtype <- get_context >>= return . type_id
+  endflag <- get_context >>= return . flag_id
 
   -- Generalize the types of the pattern (= polymorphism)
   gamma_p <- IMap.foldWithKey (\x a rec -> do
@@ -410,14 +411,16 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         (True, Zero) -> do
                             n <- variable_name x
                             
-                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.delete n $ l_variables (labelling ctx) },
+                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.update (\v -> let y = case v of
+                                                                                                                   EVar y -> y
+                                                                                                                   EGlobal y -> y in
+                                                                                                         -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
+                                                                                                         if x == y then Nothing else Just v) n $ l_variables (labelling ctx) },
                                            typing = IMap.delete x $ typing ctx,
                                            environment = IMap.delete x $ environment ctx }
                         _ ->
-                            return ctx) (return ctx) (typing ctx)
-  -- Add the new mappings.
-  return $ ctx { labelling = (labelling ctx) { l_variables = label' } }
-
+                            return ctx) (return ctx { labelling = (labelling ctx) { l_variables = label' } }) (typing ctx)
+  return ctx
 
 
 -- | Processes a module. This implies, in turn:
