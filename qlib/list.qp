@@ -76,6 +76,20 @@ let rec zip l1 l2 =
   -- other cases give an error
 ;;
 
+-- let rec unzip l =
+--   match l with
+--     [] -> ([],[])
+--   | (a,b):t -> 
+--       let (as,bs) = unzip t in
+--       (a:as, b:bs)
+-- ;;
+
+let rec take n l =
+  match l with
+    [] -> []
+  | h:t -> if n <= 0 then [] else h : take (n-1) t
+;;
+
 let rec foldl f y l =
   match l with
     [] -> y
@@ -108,6 +122,6 @@ let reverse l =
 ;;
 
 let rec replicate n a =
-  if n < 1 then [] else a:(replicate (n-1) a)
+  if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
   
