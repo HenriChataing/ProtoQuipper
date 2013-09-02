@@ -16,7 +16,7 @@ data QError =
 
 -- LOCATED ERRORS
 
-    LocatedError QError (String, Extent)                                                  -- ^ An exception produced by the code at the extent.
+    LocatedError QError Extent                                                            -- ^ An exception produced by the code at the extent.
 
 -- FILE ERRORS
 
@@ -79,12 +79,12 @@ data QError =
 
 
 instance Located QError where
-  locate e ex = LocatedError e (file_unknown, ex)
+  locate e ex = LocatedError e ex
 
   locate_opt e Nothing = e
   locate_opt e (Just ex) = locate e ex
 
-  location (LocatedError e (_, ex)) = Just ex
+  location (LocatedError e ex) = Just ex
   location _ = Nothing
 
   clear_location (LocatedError e _) = e
@@ -94,11 +94,8 @@ instance Located QError where
 
 -- | Pretty printing of errors.
 instance Show QError where
-  show (LocatedError err (f,ex)) =
-    if f == file_unknown then
-      show ex ++ ": " ++ show err
-    else
-      f ++ ":" ++ show ex ++ ": " ++ show err
+  show (LocatedError err ex) =
+    show ex ++ ": " ++ show err
 
   show (NonExistingModule mod) =
     "Error: couldn't find the implementation of the module " ++ mod

@@ -258,8 +258,7 @@ check_cyclic c explored poset = do
                   Nothing ->
                       return Nothing
 
-        f <- get_file
-        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (f, loc info)
+        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (loc info)
 
 
 

@@ -353,8 +353,7 @@ do_application env f x =
 
     _ -> do
         ex <- get_location
-        file <- get_file
-        throw $ LocatedError (NotFunctionError (sprint f)) (file, ex)
+        throw $ LocatedError (NotFunctionError (sprint f)) ex
 
 
 
@@ -403,8 +402,7 @@ interpret env (EVar x) = do
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
         ex <- get_location
-        file <- get_file
-        throw $ LocatedError (UnboundVariable (show x)) (file, ex)
+        throw $ LocatedError (UnboundVariable (show x)) ex
 
 -- Global variables
 interpret env (EGlobal x) = do
@@ -415,8 +413,7 @@ interpret env (EGlobal x) = do
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
         ex <- get_location
-        file <- get_file
-        throw $ LocatedError (UnboundVariable (show x)) (file, ex)
+        throw $ LocatedError (UnboundVariable (show x)) ex
 
 
 -- Functions : The current context is enclosed in the function value
@@ -471,9 +468,8 @@ interpret env (EMatch e blist) = do
                        else
                          match ex v rest) in do
     ex <- get_location
-    f <- get_file
     v <- interpret env e
-    match (f, ex) v blist
+    match ex v blist
 
 -- Pairs
 interpret env (ETuple elist) = do
@@ -495,8 +491,7 @@ interpret env (EIf e1 e2 e3) = do
 
     _ -> do
         ex <- get_location
-        f <- get_file
-        throw $ LocatedError (NotBoolError (sprint v1)) (f, ex)
+        throw $ LocatedError (NotBoolError (sprint v1)) ex
 
 interpret env (EConstraint e _) = do
   interpret env e

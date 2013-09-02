@@ -497,8 +497,7 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (TBang n $ TUser id (as ++ arg), label)
         else do
           ex <- get_location
-          f <- get_file
-          throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
+          throw $ LocatedError (WrongTypeArguments x nexp nact) ex
 
     -- The variable is just a bound type.
     Just typ ->
@@ -506,16 +505,14 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (typ, label)
         else do
           ex <- get_location
-          f <- get_file
-          throw $ LocatedError (WrongTypeArguments (pprint typ) 0 (List.length arg)) (f, ex)
+          throw $ LocatedError (WrongTypeArguments (pprint typ) 0 (List.length arg)) ex
 
     -- If the variable is not found, it can be a free variable (depending on the boolean arg)
     Nothing -> do
         if bound then do
           -- If the type variables are supposed to be bound, this one isn't.
           ex <- get_location
-          f <- get_file
-          throw $ LocatedError (UnboundVariable x) (f, ex)
+          throw $ LocatedError (UnboundVariable x) ex
 
         else do
           -- Last case, if the type authorize free variables, register this one with a new type
@@ -539,8 +536,7 @@ translate_type (S.TQualified m x) arg lbl = do
     return (TBang n (TUser id arg), fst lbl)
   else do
     ex <- get_location
-    f <- get_file
-    throw $ LocatedError (WrongTypeArguments x nexp nact) (f, ex)
+    throw $ LocatedError (WrongTypeArguments x nexp nact) ex
 
 translate_type (S.TArrow t u) [] (label, bound) = do
   (t', lblt) <- translate_type t [] (label, bound)
@@ -578,8 +574,7 @@ translate_type (S.TLocated t ex) args label = do
 -- Remaining cases: of types applied to an argument when they are not generic
 translate_type t args label = do
   ex <- get_location
-  f <- get_file
-  throw $ LocatedError (WrongTypeArguments (pprint t) 0 (List.length args)) (f, ex)
+  throw $ LocatedError (WrongTypeArguments (pprint t) 0 (List.length args)) ex
 
 
 
@@ -738,8 +733,7 @@ translate_expression (S.EBox t) label = do
   qdata <- Q.is_qdata_type t'
   if not qdata then do
     prt <- pprint_type_noref t'
-    f <- get_file
-    throwQ $ LocatedError (BoxTypeError prt) (f, ex)
+    throwQ $ LocatedError (BoxTypeError prt) ex
 
   else
     -- The translation of the type of the box in the core syntax produces
@@ -767,8 +761,7 @@ translate_expression (S.EBuiltin s) _ = do
   else do
     -- Wrong, no built-in of name s has been defined
     ex <- get_location
-    f <- get_file
-    throwQ $ LocatedError (UndefinedBuiltin s) (f, ex)
+    throwQ $ LocatedError (UndefinedBuiltin s) ex
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label

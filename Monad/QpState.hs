@@ -515,7 +515,6 @@ set_flag :: RefFlag -> ConstraintInfo -> QpState ()
 set_flag ref info = do
   case ref of
     0 -> do
-        f <- get_file
         throw_NonDuplicableError info
     1 -> return ()
     _ -> do
@@ -732,7 +731,6 @@ throw_TypingError t u info = do
   pru <- pprint_type_noref u
 
   -- Get the location / expression
-  f <- get_file
   ex <- return $ loc info
   expr <- pprint_expr_noref $ expression info
   
@@ -746,9 +744,9 @@ throw_TypingError t u info = do
 
   -- Check which of the type is the actual one
   if actual info then
-    throwQ $ LocatedError (DetailedTypingError prt pru ori expr) (f, ex)
+    throwQ $ LocatedError (DetailedTypingError prt pru ori expr) ex
   else
-    throwQ $ LocatedError (DetailedTypingError pru prt ori expr) (f, ex)
+    throwQ $ LocatedError (DetailedTypingError pru prt ori expr) ex
 
 
 
@@ -756,8 +754,7 @@ throw_TypingError t u info = do
 throw_UnboundValue :: String -> (String -> QError) -> QpState a
 throw_UnboundValue v err = do
   ex <- get_location
-  f <- get_file
-  throwQ $ LocatedError (err v) (f, ex)
+  throwQ $ LocatedError (err v) ex
 
 
 -- | Throw an unbound variable error.
@@ -787,9 +784,8 @@ throw_UndefinedBuiltin n =
 -- | Throw a non-duplicability error, based on the faulty reference flag.
 throw_NonDuplicableError :: ConstraintInfo -> QpState a
 throw_NonDuplicableError info = do
-  f <- get_file
   p <- pprint_expr_noref $ expression info
-  throwQ $ LocatedError (NonDuplicableError p Nothing) (f, loc info)
+  throwQ $ LocatedError (NonDuplicableError p Nothing) (loc info)
 
 
 

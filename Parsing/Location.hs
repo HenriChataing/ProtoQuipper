@@ -18,12 +18,14 @@ instance Ord Locus where
 -- | An /extent/ is an interval delimited by two loci.
 data Extent = Ext {
   lbegin :: Locus,   -- ^ Beginning of the extent.
-  lend :: Locus      -- ^ End of the extent.
+  lend :: Locus,     -- ^ End of the extent.
+  file :: String     -- ^ File name.
 } deriving Eq
 
 
 instance Show Extent where
   show ex =
+    file ex ++ ":" ++
     if (line $ lbegin ex) == (line $ lend ex) then
       ((show $ line $ lbegin ex) ++ ":" ++
        (show $ column $ lbegin ex) ++ "-" ++
@@ -44,13 +46,13 @@ locus_unknown =
 -- | The default extent: delimited by the default locus.
 extent_unknown :: Extent
 extent_unknown =
-  Ext { lbegin = locus_unknown, lend = locus_unknown }
+  Ext { lbegin = locus_unknown, lend = locus_unknown, file = file_unknown }
 
 
 -- | The default file name: @\"*Unknown*\"@.
 file_unknown :: String
 file_unknown =
-  "*Unknown*"
+  ""
 
 
 -- | Return the union of two extents.
@@ -58,7 +60,7 @@ fromto :: Extent -> Extent -> Extent
 fromto ex1 ex2 =
   let begin = min (lbegin ex1) (lbegin ex2)
       end = max (lend ex1) (lend ex2) in
-  Ext { lbegin = begin, lend = end }
+  Ext { lbegin = begin, lend = end, file = file ex1 }
 
 
 -- | Like 'fromto', but with optional arguments and an optional result.

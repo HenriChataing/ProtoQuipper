@@ -93,7 +93,8 @@ tokens :-
 posn_to_extent :: AlexPosn -> String -> Extent
 posn_to_extent (AlexPn p l c) s =
   Ext { lbegin = Loc { line = l, column = c },
-        lend = Loc { line = l, column = c+length s-1 }}
+        lend = Loc { line = l, column = c+length s-1 },
+        file = file_unknown }
 
 -- | The type of lexical tokens. 
 -- Each token is annotated with an 'Extent', which records the location of the token
@@ -124,7 +125,7 @@ data Token =
   | TkLet Extent           -- ^ The reserved name \'let'.
   | TkMatch Extent         -- ^ The reserved name \'match'.
   | TkOf Extent            -- ^ The reserved name \'of'. 
-  | TkQuBit Extent          -- ^ The reserved name \'qubit'.
+  | TkQuBit Extent         -- ^ The reserved name \'qubit'.
   | TkRec Extent           -- ^ The reserved name \'rec'. 
   | TkRev Extent           -- ^ The reserved name \'rev'.
   | TkThen Extent          -- ^ The reserved name \'then'.
@@ -164,6 +165,12 @@ data Token =
   | TkInfix1 (Extent, String)   -- ^ An operator starting with {\'@\@@', \'@^@'}.
   | TkInfix2 (Extent, String)   -- ^ An operator starting with {\'@+@', \'@-@'}.
   | TkInfix3 (Extent, String)   -- ^ An operator starting with {\'@*@', \'@/@'}.
+
+
+-- | Identify the error token.
+is_error :: Token -> Bool
+is_error (TkError _) = True
+is_error _ = False
 
 
 instance Show Token where
@@ -228,8 +235,6 @@ instance Show Token where
   show (TkInfix2 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInfix3 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
-
-
 -- | Locate a token. The type signatures matches the one expected of lexing actions.
 locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
 locate_token tk p s = tk (posn_to_extent p s)
@@ -238,11 +243,76 @@ locate_token tk p s = tk (posn_to_extent p s)
 locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> String -> Token
 locate_named_token tk p s = tk (posn_to_extent p s, s)
 
+-- | Change the location file of a token.
+locate_token_in_file :: String -> Token -> Token
+locate_token_in_file f (TkLId (ex, s)) = TkLId (ex { file = f }, s) 
+locate_token_in_file f (TkUId (ex, s)) = TkUId (ex { file = f}, s)
+locate_token_in_file f (TkQLId (ex, s)) = TkQLId (ex { file = f }, s)
+locate_token_in_file f (TkQUId (ex, s)) = TkQUId (ex { file = f }, s)
+locate_token_in_file f (TkInt (ex, s)) = TkInt (ex { file = f }, s)
+locate_token_in_file f (TkError (ex, s)) = TkError (ex { file = f }, s)
+
+locate_token_in_file f (TkAnd ex) = TkAnd ex { file = f }
+locate_token_in_file f (TkBool ex) = TkBool ex { file = f }
+locate_token_in_file f (TkBox ex) = TkBox ex { file = f }
+locate_token_in_file f (TkCirc ex) = TkCirc ex { file = f }
+locate_token_in_file f (TkElse ex) = TkElse ex { file = f }
+locate_token_in_file f (TkFalse ex) = TkFalse ex { file = f }
+locate_token_in_file f (TkFun ex) = TkFun ex { file = f }
+locate_token_in_file f (TkIf ex) = TkIf ex { file = f }
+locate_token_in_file f (TkImport ex) = TkImport ex { file = f }
+locate_token_in_file f (TkIn ex) = TkIn ex { file = f }
+locate_token_in_file f (TkInteger ex) = TkInteger ex { file = f }
+locate_token_in_file f (TkLet ex) = TkLet ex { file = f }
+locate_token_in_file f (TkMatch ex) = TkMatch ex { file = f }
+locate_token_in_file f (TkOf ex) = TkOf ex { file = f }
+locate_token_in_file f (TkQuBit ex) = TkQuBit ex { file = f }
+locate_token_in_file f (TkRec ex) = TkRec ex { file = f }
+locate_token_in_file f (TkRev ex) = TkRev ex { file = f }
+locate_token_in_file f (TkThen ex) = TkThen ex { file = f }
+locate_token_in_file f (TkTrue ex) = TkTrue ex { file = f }
+locate_token_in_file f (TkType ex) = TkType ex { file = f }
+locate_token_in_file f (TkUnbox ex) = TkUnbox ex { file = f }
+locate_token_in_file f (TkVal ex) = TkVal ex { file = f }
+locate_token_in_file f (TkWith ex) = TkWith ex { file = f }
+locate_token_in_file f (TkBuiltin ex) = TkBuiltin ex { file = f }
+
+locate_token_in_file f (TkJoker ex) = TkJoker ex { file = f }
+locate_token_in_file f (TkStar ex) = TkStar ex { file = f }
+locate_token_in_file f (TkBar ex) = TkBar ex { file = f }
+locate_token_in_file f (TkComma ex) = TkComma ex { file = f }
+locate_token_in_file f (TkColon ex) = TkColon ex { file = f }
+locate_token_in_file f (TkSemiColon ex) = TkSemiColon ex { file = f }
+locate_token_in_file f (TkEq ex) = TkEq ex { file = f }
+locate_token_in_file f (TkBang ex) = TkBang ex { file = f }
+locate_token_in_file f (TkRArrow ex) = TkRArrow ex { file = f }
+locate_token_in_file f (TkLArrow ex) = TkLArrow ex { file = f }
+locate_token_in_file f (TkSubType ex) = TkSubType ex { file = f }
+locate_token_in_file f (TkDblSemiColon ex) = TkDblSemiColon ex { file = f }
+locate_token_in_file f (TkDot ex) = TkDot ex { file = f }
+locate_token_in_file f (TkLArrowStar ex) = TkLArrowStar ex { file = f }
+
+-- Delimiters
+locate_token_in_file f (TkLParen ex) = TkLParen ex { file = f }
+locate_token_in_file f (TkRParen ex) = TkRParen ex { file = f }
+locate_token_in_file f (TkLBracket ex) = TkLBracket ex { file = f }
+locate_token_in_file f (TkRBracket ex) = TkRBracket ex { file = f }
+locate_token_in_file f (TkLCurlyBracket ex) = TkLCurlyBracket ex { file = f }
+locate_token_in_file f (TkRCurlyBracket ex) = TkRCurlyBracket ex { file = f }
+
+-- Operators
+locate_token_in_file f (TkInfix0 (ex, s)) = TkInfix0 (ex { file = f }, s)
+locate_token_in_file f (TkInfix1 (ex, s)) = TkInfix1 (ex { file = f }, s)
+locate_token_in_file f (TkInfix2 (ex, s)) = TkInfix2 (ex { file = f }, s)
+locate_token_in_file f (TkInfix3 (ex, s)) = TkInfix3 (ex { file = f }, s)
+
+
 -- | Turn an unparsed string into a list of lexical tokens. This is the main lexing function.
 -- If the lexer encounters an unrecognized token, it fails with a 'LexicalError' exception.
-mylex :: String -> QpState [Token]
-mylex contents = do
+mylex :: String -> String -> QpState [Token]
+mylex filename contents = do
   tokens <- return $ alexScanTokens contents
+  tokens <- return $ List.map (locate_token_in_file filename) tokens
   case List.find (\tk -> case tk of
                            TkError _ -> True
                            _ -> False) tokens of

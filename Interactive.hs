@@ -127,7 +127,7 @@ run_interactive opts ctx buffer = do
 
           -- Process the 'module'
           ctx <- (do
-            tokens <- mylex $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
+            tokens <- mylex file_unknown $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
             prog <- return $ parse tokens
 
             run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
@@ -188,7 +188,7 @@ run_interactive opts ctx buffer = do
                 else do
                   term <- return $ unwords args
                   (do
-                      tokens <- mylex (term ++ ";;")
+                      tokens <- mylex file_unknown (term ++ ";;")
                       p <- return $ parse tokens
                       case S.body p of
                         [] ->

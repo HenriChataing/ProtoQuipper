@@ -106,9 +106,8 @@ bind_pattern (PDatacon dcon p) = do
 
     _ -> do
         ex <- get_location
-        f <- get_file
         ndcon <- datacon_name dcon
-        throwQ $ LocatedError (WrongDataArguments ndcon) (f, ex)
+        throwQ $ LocatedError (WrongDataArguments ndcon) ex
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint on the actual type of the pattern
@@ -152,7 +151,6 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
 
     -- Location
     ex <- get_location
-    f <- get_file
     
     -- Build and actual type: a1 * .. * an
     act <- List.foldr (\_ rec -> do
@@ -164,7 +162,7 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
 
     expr <- pprint_pattern_noref $ PTuple plist
 
-    throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) (f, ex)
+    throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) ex
  
 
   else do
@@ -192,9 +190,8 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
 
     _ -> do
         ex <- get_location
-        f <- get_file
         ndcon <- datacon_name dcon
-        throwQ $ LocatedError (WrongDataArguments ndcon) (f, ex)
+        throwQ $ LocatedError (WrongDataArguments ndcon) ex
 
 
 -- Same as with the function bind_pattern
@@ -212,7 +209,6 @@ bind_pattern_to_type (PLocated p ex) t = do
 bind_pattern_to_type p t = do
   -- Location
   ex <- get_location
-  f <- get_file
 
   -- Build the actual type of p
   (a, _, _) <- bind_pattern p
@@ -221,7 +217,7 @@ bind_pattern_to_type p t = do
 
   expr <- pprint_pattern_noref p
 
-  throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) (f, ex)
+  throwQ $ LocatedError (DetailedTypingError act nact Nothing expr) ex
 
 
 
