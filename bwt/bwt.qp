@@ -15,10 +15,10 @@ import Definitions
 -- circuit oracle_c(a,b,r).
 
 type oracle = 
-  Oracle of int                                 -- n
-  	  * int        				-- m
-	  * int        				-- k
-	  * list bool  				-- entrance label 
+  Oracle of int                                 -- tree depth n
+  	  * int        				-- label length m
+	  * int        				-- number of colors k
+	  * list bool  				-- entrance label
 	  * (int ->    				-- color parameter c
 	     list qubit * list qubit * qubit -> -- (a,b,r) inputs
 	     list qubit * list qubit * qubit)   -- (a,b,r) outputs
@@ -33,14 +33,26 @@ let oraclefun n c (a,b,r) = (a,b,r);;
 -- 
 -- orthodox_oracle :: int -> Oracle
 let oracle_orthodox n =
-  Oracle (n, n+2, 4, replicate (n-1) false ++ [true], oraclefun n)
+  Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n)
 ;;
 
 -- ----------------------------------------------------------------------
 -- The time step
 
--- A temporary dummy timestep: empty.
-let timestep (a,b,r,m) = (a,b,r);;
+-- Perform a single diffusion step of the quantum walk. Here, a and b
+-- are m-qubit registers holding node labels to be diffused. r is a
+-- control.
+let timestep (a,b,r,m) = 
+  (a,b,r) <- with_ancilla false (fun h ->
+    (a,b) <- map2 wGate a b;
+    (a,b,h) <- map2_foldl toffoliGate a b h;
+    (h,r) <- controlledExpGate h r;
+    (a,b,h) <- map2_foldr toffoliGate a b h;
+    (a,b) <- map2r wGateInverse a b;
+    return ((a,b,r),h)  
+  );
+  return (a,b,r)
+;;
 
 -- ----------------------------------------------------------------------
 -- The top-level algorithm
