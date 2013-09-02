@@ -6,12 +6,18 @@ let (+) = #builtin ADD ;;
 let (-) = #builtin SUB ;;
 let (*) = #builtin MUL ;;
 let (/) = #builtin DIV ;;
+let (%) = #builtin MOD ;;
 let (^) = #builtin POW ;;
 
+-- COMPARISON OPERATIONS
+let (==) = #builtin EQ ;;
+let (<>) = #builtin NE ;;
+let (<=) = #builtin LE ;;
+let (>=) = #builtin GE ;;
 let (<) = #builtin LT ;;
 let (>) = #builtin GT ;;
-
 
 -- BOOLEAN OPERATIONS
 let (&&) = fun b0 b1 -> if b0 then b1 else false ;;
 let (||) = fun b0 b1 -> if b0 then true else b1 ;;
+let not = fun b0 -> if b0 then false else true ;;

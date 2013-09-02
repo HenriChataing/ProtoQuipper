@@ -63,7 +63,7 @@ let with_ancilla_reg bs f =
 -- 
 -- loop :: int -> a -> (a -> a) -> a
 let rec loop n x f =
-  if n<1 then x else f (loop (n-1) x f)
+  if n <= 0 then x else f (loop (n-1) x f)
 ;;
 
 -- A "for" loop. Counts from a to b in increments of s. Because of the

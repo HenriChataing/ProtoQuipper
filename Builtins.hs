@@ -101,7 +101,7 @@ builtin_gates =
 
 
 -- | Subset of the built-in values that provides the definition of the built-in integer operations.
--- The list of currently defined operations is: ADD, SUB, MUL, DIV, LT, GT, EQ, POW. It is bound to be extended, for
+-- The list of currently defined operations is: ADD, SUB, MUL, DIV, MOD, POW, LE, GE, LT, GT, EQ, NE. It is bound to be extended, for
 -- example with more comparisons.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
@@ -113,13 +113,22 @@ builtin_operations =
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
               ("DIV", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `quot` n))))),
+              ("MOD", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `rem` n))))),
+              ("POW", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))),
+              ("LE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m <= n))))),
+              ("GE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m >= n))))),
               ("LT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m < n))))),
               ("GT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m > n))))),
               ("EQ", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))),
-              ("POW", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))) ] in
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))), 
+              ("NE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m /= n)))))
+            ] in
   Map.fromList ops
 
