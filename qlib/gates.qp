@@ -42,10 +42,13 @@ let gateSInv = unbox (#builtin GATE_S_INV) ;;
 let phase n = unbox (#builtin PHASE n) ;;
 let cphase n = unbox (#builtin CONTROL_PHASE n) ;;
 
+let exp_itZ = unbox (#builtin GATE_EITZ) ;;
+let cexp_itZ = unbox (#builtin CONTROL_GATE_EITZ) ;;
+
 -- BINARY
 let cnot = unbox (#builtin CNOT) ;;
 let gateW = unbox (#builtin GATE_W) ;;
 
 -- TERNARY
-let toffoli = #builtin TOFFOLI ;;
+let toffoli = unbox (#builtin TOFFOLI) ;;
 

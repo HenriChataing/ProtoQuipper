@@ -47,6 +47,8 @@ append_gate (Unary g w) irdoc =
                      "GATE_E_INV" -> ("E", "*")
                      "GATE_V" -> ("V", "")
                      "GATE_V_INV" -> ("V", "*")
+                     "GATE_EITZ" -> ("exp(-itZ)", "")
+                     "GATE_EITZ_INV" -> ("exp(-itZ)", "*")
     in
   irdoc ++ "QGate[\"" ++ prg ++ "\"]" ++ inv ++ "(" ++ show w ++ ")\n" 
 
