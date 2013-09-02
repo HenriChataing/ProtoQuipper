@@ -14,6 +14,7 @@ import Parsing.Location
 data Lvl =
     Nth Int      -- ^ Depth n.
   | Inf          -- ^ Infinite depth (print everything).
+  deriving Show
 
 
 -- | Increase the recursion level.
