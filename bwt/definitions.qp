@@ -110,6 +110,21 @@ let rec map2_foldr f as bs s =
       (c:cs, d:ds, s2)
 ;;
 
+-- Construct a list of length n, by repeatedly cycling the given list.
+-- 
+-- Example: cycle 8 [1,2,3] = [1,2,3,1,2,3,1,2].
+-- 
+-- cycle :: int -> list a -> list a
+let cycle n l =
+  let len = length l in
+  if len == 0 then [] else
+  let rec aux n =
+    if n <= 0 then [] else
+    take n l ++ aux (n-len)
+  in
+  aux n
+;;
+
 -- ----------------------------------------------------------------------
 -- Quantum registers
 

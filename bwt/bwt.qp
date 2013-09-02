@@ -24,19 +24,6 @@ type oracle =
 	     list qubit * list qubit * qubit)   -- (a,b,r) outputs
 
 -- ----------------------------------------------------------------------
--- The orthodox oracle
-
--- A temporary dummy oracle: empty.
-let oraclefun n c (a,b,r) = (a,b,r);;
-
--- The orthodox oracle. The parameter n is the tree depth.
--- 
--- orthodox_oracle :: int -> Oracle
-let oracle_orthodox n =
-  Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n)
-;;
-
--- ----------------------------------------------------------------------
 -- The time step
 
 -- Perform a single diffusion step of the quantum walk. Here, a and b
@@ -86,11 +73,39 @@ let qrwbwt oracle s =
 ;;
 
 -- ----------------------------------------------------------------------
+-- The oracle implementation
+
+-- The functions in this section implement a particular oracle for a
+-- binary welded tree. The oracle is parametric on: 
+-- 
+-- * the tree depth n; 
+-- 
+-- * two "welding vectors" f and g, specifying how the leaves of the
+-- two binary trees are connected to each other. Specifically, f and g
+-- encode the permutations of leaves mapping a to (a xor f) and to 
+-- (a + g), respectively, where "xor" denotes bitwise exclusive or,
+-- and "+" denotes binary addition.
+
+-- The main oracle function. 
+-- 
+-- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
+let oraclefun n f g c (a,b,r) = (a,b,r);;
+
+-- The orthodox oracle. The parameter n is the tree depth.
+-- 
+-- orthodox_oracle :: int -> list bool -> list bool -> Oracle
+let oracle_orthodox n f g =
+  Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n f g)
+;;
+
+-- ----------------------------------------------------------------------
 -- The "main" program: display the circuit for size n.
 -- 
 -- main :: int -> circ((), list qubit)
 let main n =
-  box[] (fun () -> qrwbwt (oracle_orthodox n) 1)
+  let f = cycle n [true, false] in
+  let g = cycle n [false, true] in
+  box[] (fun () -> qrwbwt (oracle_orthodox n f g) 1)
 ;;
 
 main 3;;
