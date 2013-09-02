@@ -218,7 +218,7 @@ instance Show Token where
   show (TkLArrow ex) = "'<-' (" ++ show ex ++ ")"
   show (TkSubType ex) = "'<:' (" ++ show ex ++ ")"
   show (TkDblSemiColon ex) = "';;' (" ++ show ex ++ ")"
-  show (TkDot ex) = "'^' (" ++ show ex ++ ")"
+  show (TkDot ex) = "'.' (" ++ show ex ++ ")"
   show (TkLArrowStar ex) = "'<-*' (" ++ show ex ++ ")"
 
   -- Delimiters
