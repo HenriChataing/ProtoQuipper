@@ -262,7 +262,7 @@ instance PPrint TypeConstraint where
 
   sprintn _ c = pprint c
   sprint c = pprint c
-  pprint c = genprint Inf c [pprint, subvar 'x']
+  pprint c = genprint Inf c [pprint, subvar 'x', subvar 'T']
 
 
 -- | Printing of flag constraints. The function 'genprint' cannot be parameterized.
@@ -317,5 +317,5 @@ instance PPrint ConstraintSet where
 
   sprintn _ cs = pprint cs
   sprint cs = pprint cs
-  pprint cs = genprint Inf cs [pprint, subvar 'X']
+  pprint cs = genprint Inf cs [pprint, subvar 'X', subvar 'T']
 
