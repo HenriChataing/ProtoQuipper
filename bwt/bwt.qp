@@ -51,9 +51,9 @@ let timestep (a,b,r,m) = (a,b,r);;
 -- include classical bits or measurements, we return the unmeasured
 -- quantum register a.
 -- 
--- qrwbwt :: Oracle -> int -> ...
+-- qrwbwt :: oracle -> int -> list qubit
 let qrwbwt oracle s =
-  (n,m,k,entrance,oraclefun) <- oracle;
+  let Oracle (n,m,k,entrance,oraclefun) = oracle in
   a <- qinit_register entrance;
   a <- with_ancilla_reg (replicate m false) (fun b ->
     (a,b) <- with_ancilla false (fun r -> 
@@ -68,9 +68,18 @@ let qrwbwt oracle s =
       );
       return ((a,b),r)
     );
-    return a
+    return (a,b)
   );
   return a
 ;;
 
-qrwbwt (oracle_orthodox 3) 1;;
+-- ----------------------------------------------------------------------
+-- The "main" program: display the circuit for size n.
+-- 
+-- main :: int -> circ((), list qubit)
+let main n =
+  box[] (fun () -> qrwbwt (oracle_orthodox n) 1)
+;;
+
+main 3;;
+
