@@ -349,21 +349,29 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   endtype <- get_context >>= return . type_id
   endflag <- get_context >>= return . flag_id
 
-  -- Generalize the types of the pattern (= polymorphism)
-  gamma_p <- IMap.foldWithKey (\x a rec -> do
-                                  ctx <- rec
-                                  -- Apply the substitution again
-                                  a' <- map_type a
+  -- -- POLYMORPHISM -- --
+  -- If the expression is a VALUE, it can have a generic type.
+  gamma_p <- if is_value e' then
+    -- Generalize the types of the pattern (= polymorphism)
+    IMap.foldWithKey (\x a rec -> do
+                        ctx <- rec
+                        -- Apply the substitution again
+                        --a' <- map_type a
+                        a' <- return a
+                        -- Clean the constraint set 
+                        (fv, ff, cset') <- return $ clean_constraint_set a' csete
 
-                                  -- Clean the constraint set 
-                                  (fv, ff, cset') <- return $ clean_constraint_set a' csete
+                        genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
+                        genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
-                                  genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
+                        gena <- return $ TForall genff genfv cset' a'
+                        -- Update the typing context of u
+                        return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
-                                  gena <- return $ TForall genff genfv cset' a'
-                                  -- Update the typing context of u
-                                  return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
+  -- If the expression is not a value, it has a classical type
+  else
+    return gamma_p
+    
 
   if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p

@@ -480,53 +480,75 @@ constraint_typing gamma (ELet rec p t u) cst = do
              Nonrecursive -> do
                  -- If not recursive, do nothing
                  constraint_typing gamma_t t [a]
- 
-  -- Unify the constraints produced by the typing of t (exact unification)
-  cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
-  csett <- unify True cs                       -- Unify
 
-  -- Last of the free variables of t - to be place after the unification, since
-  -- the algorithm produces new variables that also have to be generic.
-  endtype <- get_context >>= return . type_id
-  endflag <- get_context >>= return . flag_id
+  -- -- POLYMORPHISM -- --
+  -- If the expression is a VALUE, then the type can be generic.
+  if is_value t then do
+    -- Unify the constraints produced by the typing of t (exact unification)
+    cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
+    csett <- unify True cs                       -- Unify
 
-  -- Apply the substitution produced by the unification of csett to the context gamma_u
-  gamma_u <- IMap.foldWithKey (\x a rec -> do
-                                 m <- rec
-                                 a' <- map_type a
-                                 return $ IMap.insert x a' m) (return IMap.empty) gamma_u
+    -- Apply the substitution produced by the unification of csett to the context gamma_u
+    gamma_u <- IMap.foldWithKey (\x a rec -> do
+                                   m <- rec
+                                   a' <- map_type a
+                                   return $ IMap.insert x a' m) (return IMap.empty) gamma_u
+
+    -- Apply the substitution to the context gamma_p
+    gamma_p <- IMap.foldWithKey (\x a rec -> do
+                                   m <- rec
+                                   a' <- map_type a
+                                   return $ IMap.insert x a' m) (return IMap.empty) gamma_p
+
+    -- Unify the flag constraints yet again
+    fls <- unify_flags $ snd csett
+    csett <- return (fst csett, fls)
+
+    -- Last of the free variables of t - to be place after the unification, since
+    -- the algorithm produces new variables that also have to be generic.
+    endtype <- get_context >>= return . type_id
+    endflag <- get_context >>= return . flag_id
 
 
-  -- Generalize the types of the pattern (= polymorphism)
-  gamma_p <- IMap.foldWithKey (\x a rec -> do
-                                  ctx <- rec
-                                  -- First apply the substitution
-                                  a' <- map_type a
+    -- Generalize the types of the pattern (= polymorphism)
+    gamma_p <- IMap.foldWithKey (\x a rec -> do
+                                    ctx <- rec
+                                    -- First apply the substitution
+                                    a' <- map_type a
 
-                                  -- Unify the set again! (flag unification)
-                                  fls <- unify_flags (snd csett)
-                                  csett <- return (fst csett, fls)
+                                    -- Clean the constraint set
+                                    (fv, ff, cset') <- return $ clean_constraint_set a' csett
+                                    
+                                    genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
+                                    genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
 
-                                  -- Clean the constraint set
-                                  (fv, ff, cset') <- return $ clean_constraint_set a' csett
-                                  
-                                  genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
-                                  genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
+                                    gena <- return $ TForall genff genfv cset' a'
 
-                                  gena <- return $ TForall genff genfv cset' a'
+                                    -- Update the typing context of u
+                                    return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
-                                  -- Update the typing context of u
-                                  return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
+    -- Type u - The constraints on the type of the let are transfered to the type of u
+    csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
+    
+    -- Generate the flag constraints for the intersection
+    disunion <- return $ linear_union [fvt, fvu]
+    (_, delta) <- sub_context disunion gamma
+    duplicable_context delta
+    
+    return csetu
 
-  -- Type u - The constraints on the type of the let are transfered to the type of u
-  csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
-  
-  -- Generate the flag constraints for the intersection
-  disunion <- return $ linear_union [fvt, fvu]
-  (_, delta) <- sub_context disunion gamma
-  duplicable_context delta
-  
-  return csetu
+  -- If it is not a VALUE (for example a function application), it is given a simple type
+  else do
+    -- Type u - The constraints on the type of the let are transfered to the type of u
+    csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
+    
+    -- Generate the flag constraints for the intersection
+    disunion <- return $ linear_union [fvt, fvu]
+    (_, delta) <- sub_context disunion gamma
+    duplicable_context delta
+    
+    return $ csetu <> csett
+
 
 
 -- Data typing rule
@@ -981,7 +1003,22 @@ unify_flags fc = do
 -- | Whole unification. First apply the type unification, then the flag unification on the resulting flag constraints.
 -- The boolean flag is passed as an argument to 'unify_flags'.
 unify :: Bool -> ConstraintSet -> QpState ConstraintSet
-unify exact cset = do
+unify exact (lc, fc) = do
+  -- Before type unification : map the types and break the composite constraints
+  lc <- List.foldl (\rec c -> do
+                      lc <- rec
+                      case c of
+                        Sublintype a b info -> do
+                            a' <- map_lintype a
+                            b' <- map_lintype b
+                            return $ (Sublintype a' b' info):lc
+                        Subtype t u info -> do
+                            t' <- map_type t
+                            u' <- map_type u
+                            return $ (Subtype t' u' info):lc) (return []) lc
+
+  cset <- break_composite True (lc, fc)
+
   -- Type unification
   (lc', fc') <- unify_types exact cset
 

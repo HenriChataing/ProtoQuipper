@@ -397,6 +397,28 @@ instance Param Expr where
   subs_var _ _ e = e
 
 
+
+-- | Determine whether an expression is a value or not.
+is_value :: Expr -> Bool
+is_value (ELocated e _) = is_value e
+is_value (EFun _ _) = True
+is_value (ETuple elist) = List.and $ List.map is_value elist
+is_value (EBool _) = True
+is_value (EInt _) = True
+is_value (EDatacon _ e) = case e of
+                            Nothing -> True
+                            Just e -> is_value e
+is_value (EBuiltin _) = True
+is_value (EConstraint e _) = is_value e
+is_value EUnbox = True
+is_value (EBox _) = True
+is_value ERev = True
+is_value EUnit = True
+
+is_value _ = False
+
+
+
 -- | Information about a constraint. This includes the original
 -- expression, location, and orientation (which side of the constraint
 -- is the actual type). It is used in type constraints and flag
