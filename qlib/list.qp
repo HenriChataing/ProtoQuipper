@@ -103,13 +103,13 @@ let rec zip l1 l2 =
   -- other cases give an error
 ;;
 
--- let rec unzip l =
---   match l with
---     [] -> ([],[])
---   | (a,b):t -> 
---       let (as,bs) = unzip t in
---       (a:as, b:bs)
--- ;;
+let rec unzip l =
+  match l with
+    [] -> ([],[])
+  | (a,b):t -> 
+      let (as,bs) = unzip t in
+      (a:as, b:bs)
+;;
 
 let rec foldl f y l =
   match l with
