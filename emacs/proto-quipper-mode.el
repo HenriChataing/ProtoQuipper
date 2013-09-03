@@ -19,8 +19,13 @@
       (let ((synTable (make-syntax-table)))
 
 	;; Haskell-style comment "-- ..." 
-	(modify-syntax-entry ?- ". 12b" synTable)
-	(modify-syntax-entry ?\n "> b" synTable)
+	;; (modify-syntax-entry ?- ". 12b" synTable)
+
+	;; Haskell-style comment "{- ... -}"
+	(modify-syntax-entry ?\{ "(}1nb" synTable)
+	(modify-syntax-entry ?\} "){4nb" synTable)
+	(modify-syntax-entry ?- "_ 123" synTable)
+	(modify-syntax-entry ?\n ">" synTable)
 
 	(modify-syntax-entry ?_ "w")
 	(modify-syntax-entry ?# "w")
