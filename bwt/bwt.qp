@@ -33,7 +33,7 @@ let timestep (a,b,r,m) =
   (a,b,r) <- with_ancilla false (fun h ->
     (a,b) <- map2 wGate a b;
     (h,a,b) <- map2_foldl toffoliGate_10 h a b;
-    (h,r) <- controlledExpGate h r;
+    (h,r) <- controlledExpGate_signed h (r, false);
     (h,a,b) <- map2_foldr toffoliGate_10 h a b;
     (a,b) <- map2r wGateInverse a b;
     return ((a,b,r),h)  

@@ -191,14 +191,11 @@ let wGate x y = gateW (x,y);;
 -- wGateInverse :: qubit -> qubit -> qubit * qubit
 let wGateInverse x y = wGate x y;;
 
--- A negatively-controlled exp(-itZ) gate. The second argument is the
--- control.
+-- An exp(-itZ) gate with a signed control.
 --
--- controlledExpGate :: qubit -> qubit -> qubit * qubit
-let controlledExpGate x y = 
-  y <- qnot y;
-  (x,y) <- cexp_itZ (x,y);
-  y <- qnot y;
+-- controlledExpGate_signed :: qubit -> qubit * bool -> qubit * qubit
+let controlledExpGate_signed x (y, sign) = 
+  (x,y) <- cexp_itZ_signed sign (x,y);
   return (x,y)
 ;;
 
@@ -206,17 +203,9 @@ let controlledExpGate x y =
 -- control fires when the qubit is 1; a sign of 'false' means the
 -- control fires when the qubit is 0.
 -- 
--- Since we do not currently have built-in negatively controlled gates,
--- this is implemented by 
--- 
 -- toffoliGate_signed :: qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
 let toffoliGate_signed x (y,s) (z,t) =
-  y <- (if s then y else qnot y);
-  z <- (if t then z else qnot z);
-  (x, y, z) <- toffoli (x, y, z);
-  z <- (if t then z else qnot z);
-  y <- (if s then y else qnot y);
-  return (x, y, z)  
+  toffoli_signed s t (x, y, z)
 ;;
 
 -- A Toffoli gate specialized to one positive and one negative
