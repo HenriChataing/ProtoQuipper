@@ -27,6 +27,7 @@ tokens :-
 
   $white+                             ;
   "--".*                              ;
+  "{-" ( ~\- | \- ~\} )* "-}"         ;
 
   "_"                                 { locate_token TkJoker }
   "<:"                                { locate_token TkSubType }
