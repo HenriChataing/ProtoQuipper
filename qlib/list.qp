@@ -53,6 +53,13 @@ let rec take n l =
   | h:t -> if n <= 0 then [] else h : take (n-1) t
 ;;
 
+let rec drop n l =
+  if n <= 0 then l else
+  match l with
+    [] -> []
+  | h:t -> drop (n-1) t
+;;
+
 let rec replicate n a =
   if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
@@ -65,6 +72,14 @@ let rec list_index l n =
   match l with
     h:t -> if n <= 0 then h else list_index t (n-1)
   -- other case is an error
+;;
+
+-- Extract elements n..m from a list.  Elements are counted from 0,
+-- and the range n..m is inclusive.
+-- 
+-- list_range :: int -> int -> [a] -> [a]
+let list_range n m xs =
+  drop n (take (m+1) xs)
 ;;
 
 -- ----------------------------------------------------------------------
@@ -126,6 +141,29 @@ let rec sf_list_unindex (a, as) n =
 -- 
 -- sf_insert :: a -> list a -> int -> list a
 let sf_insert a as n = sf_list_unindex (a, as) n;;
+
+-- Split a list after the nth element.
+-- 
+-- splitAt :: int -> [a] -> [a] * [a]
+let rec splitAt n xs =
+  if n <= 0 then ([], xs) else
+  match xs with
+    [] -> ([], [])
+  | h:t -> 
+      let (as, bs) = splitAt (n-1) t in
+      (h:as, bs)
+;;
+
+-- Extract elements n..m from a list, splitting the list into a
+-- "before" part, the requested elements, and an "after" part.
+-- Elements are counted from 0, and the range n..m is inclusive.
+-- 
+-- sf_list_range :: int -> int -> [a] -> [a] * [a] * [a]
+let sf_list_range n m xs =
+  let (as, after) = splitAt (m+1) xs in
+  let (before, range) = splitAt n as in
+  (before, range, after)
+;;
 
 -- ----------------------------------------------------------------------
 -- Maps, zips, folds, etc.
