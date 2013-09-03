@@ -57,6 +57,16 @@ let rec replicate n a =
   if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
 
+-- Return the nth element of l (counting from 0). It is an error for n
+-- to be out of range.
+-- 
+-- list_index :: list a -> int -> a
+let rec list_index l n =
+  match l with
+    h:t -> if n <= 0 then h else list_index t (n-1)
+  -- other case is an error
+;;
+
 -- ----------------------------------------------------------------------
 -- Operations that do not discard the list
 
@@ -86,6 +96,36 @@ let rec sf_length l =
   | x:xs -> let (n, xs) = sf_length xs in
             (n+1, x:xs)
 ;;
+
+-- Return the nth element of l (counting from 0), as well as the list
+-- of remaining elements in their original order. It is an error for n
+-- to be out of range.
+-- 
+-- sf_list_index :: list a -> int -> a * list a
+let rec sf_list_index l n =
+  match l with
+    h:t -> 
+      if n <= 0 then (h, t) else
+      let (a, as) = sf_list_index t (n-1) in
+      (a, h:as)
+    -- other case is an error
+;;
+
+-- The inverse of sf_list_index: re-insert the element at the given
+-- position. It is an error if the list has fewer than n elements.
+-- 
+-- sf_list_unindex :: a * list a -> int -> list a
+let rec sf_list_unindex (a, as) n =
+  if n <= 0 then a:as else
+  match as with
+    h:t -> h : sf_list_unindex (a, t) (n-1)
+;;
+
+-- Insert an element at position n in the given list. It is an error
+-- if the list has fewer than n elements.
+-- 
+-- sf_insert :: a -> list a -> int -> list a
+let sf_insert a as n = sf_list_unindex (a, as) n;;
 
 -- ----------------------------------------------------------------------
 -- Maps, zips, folds, etc.
