@@ -63,7 +63,9 @@ append_gate (Binary "GATE_W" w0 w1) irdoc =
 -- Controlled gates
 append_gate (Controlled g (c:rest)) irdoc =
   let prg = append_gate g "" in
-  irdoc ++ List.init prg ++ " with controls=[+" ++ show c ++ List.foldl (\s w -> s ++ ", +" ++ show w) "" rest ++"]\n"
+  irdoc ++ List.init prg ++ " with controls=[" ++ show_ctrl c ++ List.foldl (\s w -> s ++ ", " ++ show_ctrl w) "" rest ++"]\n"
+  where
+    show_ctrl (w,sign) = (if sign then "+" else "-") ++ show w
 
 
 -- | Add the list of output wires to the document.

@@ -96,7 +96,7 @@ data Gate =
                             -- @
   | Unary String Int        -- ^ Unary gates. The first argument is the gate name, which must belong to the list 'unary_gates' defined above.
   | Binary String Int Int   -- ^ Binary gates. The first argument is the gate name, which must belong to the list 'binary_gates'.
-  | Controlled Gate [Int]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear.
+  | Controlled Gate [(Int,Bool)]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear. Controls can be positive (on state 1; 'True') or negative (on state 0; 'False').
                             -- This constructor will have to be elaborated as soon as controls are added to Proto-Quipper syntax to
                             -- be able to distinguish between positive and negative controls.
     deriving Show
@@ -107,7 +107,7 @@ readdress :: Gate -> Binding -> Gate
 readdress (Phase n q) b = Phase n (apply_binding b q)
 readdress (Unary s q) b = Unary s (apply_binding b q)
 readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb)
-readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (apply_binding b) qlist)
+readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (\(q,s) -> (apply_binding b q,s)) qlist)
 
 
 -- | The reverse function on gates uses the definition of the unary / binary gates
@@ -189,13 +189,14 @@ model (Controlled g qlist) =
   let pg = model g in
   let (qmin, _) = List.minimum pg
       (qmax, _) = List.maximum pg in
-  let (_, _, m) = List.foldl (\(qmn, qmx, mod) q ->
+  let (_, _, m) = List.foldl (\(qmn, qmx, mod) (q,sign) ->
+                               let ctrl = if sign then "-*-" else "-o-" in
                                if 2*q < qmn then
-                                 (2*q, qmx, (2*q, "-*-"):(List.map (\l -> (l, " | ")) [2*q+1 .. qmn-1] ++ mod))
+                                 (2*q, qmx, (2*q, ctrl):(List.map (\l -> (l, " | ")) [2*q+1 .. qmn-1] ++ mod))
                                else if qmx < 2*q then
-                                 (qmn, 2*q, (2*q, "-*-"):(List.map (\l -> (l, " | ")) [qmx+1 .. 2*q-1] ++ mod))
+                                 (qmn, 2*q, (2*q, ctrl):(List.map (\l -> (l, " | ")) [qmx+1 .. 2*q-1] ++ mod))
                                else
-                                 (qmn, qmx, List.map (\(l, s) -> if l == 2*q then (l, "-*-") else (l, s)) mod)) (qmin, qmax, pg) qlist in
+                                 (qmn, qmx, List.map (\(l, s) -> if l == 2*q then (l, ctrl) else (l, s)) mod)) (qmin, qmax, pg) qlist in
   m
 
 model (Init bt q) =
