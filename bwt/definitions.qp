@@ -144,40 +144,6 @@ let qterm_register bs qs =
 ;;
 
 -- ----------------------------------------------------------------------
--- Ancillas
-
--- Execute a block of code with one additional ancilla initialized to
--- b. This should be used as follows:
--- 
--- r <- with_ancilla false (fun q ->
---    <<code block>>
---    return (r,q)   -- r is the result of the code block
--- )
--- 
--- Because of the current purely functional style of Proto-Quipper,
--- the code block must return the ancilla q along with its own result
--- r. This differs from Quipper's with_ancilla operator.
--- 
--- with_ancilla :: bool -> (qubit -> a * qubit) -> a
-let with_ancilla b f =
-  q <- qinit b;
-  (res,q) <- f q;
-  qterm b q;
-  return res
-;;
-
--- Execute a block of code with a list of ancillas, initialized to a
--- list of booleans.
--- 
--- with_ancilla_reg :: list bool -> (list qubit -> a * list qubit) -> a
-let with_ancilla_reg bs f =
-  qs <- qinit_register bs;
-  (res,qs) <- f qs;
-  x <- qterm_register bs qs;
-  return res
-;;
-
--- ----------------------------------------------------------------------
 -- Specific gates used in the BWT algorithm
 
 -- Uncurried version of gateW.
@@ -225,6 +191,87 @@ let toffoliGate_10 h a b =
   toffoliGate_signed h (a, true) (b, false)
 ;;
 
+-- ----------------------------------------------------------------------
+-- Ancillas
+
+-- Execute a block of code with one additional ancilla initialized to
+-- b. This should be used as follows:
+-- 
+-- r <- with_ancilla false (fun q ->
+--    <<code block>>
+--    return (r, q)   -- r is the result of the code block
+-- )
+-- 
+-- Because of the current purely functional style of Proto-Quipper,
+-- the code block must return the ancilla q along with its own result
+-- r. This differs from Quipper's with_ancilla operator.
+-- 
+-- By using this function, the user asserts that the code block
+-- returns the ancilla in the same state that it was initialized to.
+-- 
+-- with_ancilla :: bool -> (qubit -> a * qubit) -> a
+let with_ancilla b f =
+  q <- qinit b;
+  (res,q) <- f q;
+  qterm b q;
+  return res
+;;
+
+-- Execute a block of code with a list of ancillas, initialized to a
+-- list of booleans.
+-- 
+-- with_ancilla_reg :: list bool -> (list qubit -> a * list qubit) -> a
+let with_ancilla_reg bs f =
+  qs <- qinit_register bs;
+  (res,qs) <- f qs;
+  x <- qterm_register bs qs;
+  return res
+;;
+
+-- Execute a block of code with an ancilla initialized to the
+-- disjunction of the given list of qubits. This should be used as
+-- follows:
+-- 
+-- (r, [q1,...,qn]) <- with_disjunction [q1,...,qn] (fun q ->
+--    <<code block>>
+--    return (r, q)   -- r is the result of the code block
+-- )
+-- 
+-- By using this function, the user asserts that the code block
+-- returns the ancilla in the same state that it was initialized to.
+-- 
+-- with_disjunction :: list qubit -> (qubit -> a * qubit) -> a * list qubit
+let with_disjunction qs f = 
+  -- with_disjunction_aux :: list qubit -> (qubit -> a * list qubit * qubit) -> a * list qubit * list qubit
+  let rec with_disjunction_aux qs f =
+    match qs with
+      [] -> 
+        (a, as) <- with_ancilla false (fun q ->
+          (a, as, q) <- f q;
+          return ((a, as), q)
+        );
+        return (a, as, [])
+    | h:t ->
+        (a, h:as, t) <- with_disjunction_aux t (fun p ->
+          (a, h:as, p) <- with_ancilla false (fun q ->
+  	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
+            (q, p) <- cnotGate_signed q (p, true);
+            (a, as, q) <- f q;
+            (q, p) <- cnotGate_signed q (p, true);
+      	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
+            return ((a, h:as, p), q)
+          );
+          return (a, h:as, p)
+        );
+        return (a, as, h:t)
+  in
+  (a, [], qs) <- with_disjunction_aux qs (fun q ->
+    (a, q) <- f q;
+    return (a, [], q)
+  );
+  return (a, qs)
+;;
+    
 -- ----------------------------------------------------------------------
 -- Binary representation of integers
 
