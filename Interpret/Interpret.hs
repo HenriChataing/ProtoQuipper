@@ -160,6 +160,9 @@ bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
   else
     throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
 
+bind_pattern PJoker _ env = do
+  return env
+
 bind_pattern p v _ = do
   throw $ MatchingError (show p) (sprint v)
 
