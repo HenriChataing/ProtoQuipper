@@ -34,7 +34,10 @@ unary_gates =
     ("GATE_E_INV", ("GATE_E", "-E*")),
     ("GATE_OMEGA", ("GATE_OMEGA", "-W-")),
     ("GATE_V", ("GATE_V_INV", "-V-")),
-    ("GATE_V_INV", ("GATE_V", "-V*")) ]
+    ("GATE_V_INV", ("GATE_V", "-V*")), 
+    ("GATE_EITZ", ("GATE_EITZ_INV", "-R-")),
+    ("GATE_EITZ_INV", ("GATE_EITZ", "-R*"))
+    ]
 
 
 -- | The list of binary gates.

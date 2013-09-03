@@ -4,12 +4,129 @@ import List
 import Gates
 import Core
 
+-- ----------------------------------------------------------------------
+-- Loops etc
+
 -- The identity function. Sometimes it is more readable to write 
 -- "return x" instead of "x".
 -- 
 -- return :: a -> a
 let return x = x
 ;;
+
+-- Iterate a function n times. Example:
+-- 
+-- loop 3 x f = f (f (f x)).
+-- 
+-- loop :: int -> a -> (a -> a) -> a
+let rec loop n x f =
+  if n <= 0 then x else f (loop (n-1) x f)
+;;
+
+-- A "for" loop. Counts from a to b in increments of s. Because of the
+-- purely functional style of Proto-Quipper, this also threads a state
+-- along the loop. 
+-- 
+-- Example:
+-- 
+-- x <- for a b s x (fun i -> fun x ->
+--   x' <- commands x;
+--   return x'
+-- );
+-- 
+-- for :: int -> int -> int -> x -> (int -> x -> x) -> x
+let rec for a b s x f = 
+  if a > b then x else 
+  let x = f a x in
+  for (a+1) b s x f
+;;
+
+-- ----------------------------------------------------------------------
+-- List operations
+
+-- Map a function over a pair of lists. Example:
+-- 
+-- map2 f [x1,x2] [y1,y2] = ([a1,a2], [b1,b2])
+--    where
+-- f x1 y1 = (a1,b1)
+-- f x2 y2 = (a2,b2)
+-- 
+-- It is an error if the lists are not of equal length.
+-- 
+-- map2 :: (a -> b -> c * d) -> list a -> list b -> list c * list d
+let rec map2 f as bs = 
+  match (as,bs) with
+    ([],[]) -> ([],[])
+  | (a:as, b:bs) ->
+      let (c, d) = f a b in
+      let (cs, ds) = map2 f as bs in
+      (c:cs, d:ds)
+  -- other cases are errors
+;;
+
+-- Like map2, but traverse the lists in right-to-left order.
+-- It is an error if the lists are not of equal length.
+-- 
+-- map2r :: (a -> b -> c * d) -> list a -> list b -> list c * list d
+let rec map2r f as bs =
+  match (as,bs) with
+    ([],[]) -> ([],[])
+  | (a:as, b:bs) ->
+      let (cs, ds) = map2r f as bs in
+      let (c, d) = f a b in
+      (c:cs, d:ds)
+  -- other cases are errors
+;;
+
+-- Like map2, but also thread a state along the list. Example:
+-- 
+-- map2_foldl f [x1,x2] [y1,y2] s1 = ([a1,a2], [b1,b2], s3)
+--    where
+-- f x1 y1 s1 = (a1,b1,s2)
+-- f x2 y2 s2 = (a2,b2,s3)
+-- 
+-- It is an error if the lists are not of equal length.
+-- 
+-- map2_foldl :: (a -> b -> s -> c * d * s) -> list a -> list b -> s -> list c * list d * s
+let rec map2_foldl f as bs s = 
+  match (as,bs,s) with
+    ([], [], s) -> ([], [], s)
+  | (a:as, b:bs, s) ->
+      let (c, d, s1) = f a b s in
+      let (cs, ds, s2) = map2_foldl f as bs s1 in
+      (c:cs, d:ds, s2)
+;;
+
+-- Like map2_foldl, but traverse the lists in right-to-left order.
+-- It is an error if the lists are not of equal length.
+-- 
+-- map2_foldr :: (a -> b -> s -> c * d * s) -> list a -> list b -> s -> list c * list d * s
+let rec map2_foldr f as bs s = 
+  match (as,bs,s) with
+    ([], [], s) -> ([], [], s)
+  | (a:as, b:bs, s) ->
+      let (cs, ds, s1) = map2_foldr f as bs s in
+      let (c, d, s2) = f a b s1 in
+      (c:cs, d:ds, s2)
+;;
+
+-- Construct a list of length n, by repeatedly cycling the given list.
+-- 
+-- Example: cycle 8 [1,2,3] = [1,2,3,1,2,3,1,2].
+-- 
+-- cycle :: int -> list a -> list a
+let cycle n l =
+  let len = length l in
+  if len == 0 then [] else
+  let rec aux n =
+    if n <= 0 then [] else
+    take n l ++ aux (n-len)
+  in
+  aux n
+;;
+
+-- ----------------------------------------------------------------------
+-- Quantum registers
 
 -- Initialize a list of qubits from a list of boolean parameters.
 -- 
@@ -25,6 +142,9 @@ let qinit_register =
 let qterm_register bs qs = 
   map (fun (b,q) -> qterm b q) (reverse (zip bs qs))
 ;;
+
+-- ----------------------------------------------------------------------
+-- Ancillas
 
 -- Execute a block of code with one additional ancilla initialized to
 -- b. This should be used as follows:
@@ -57,29 +177,26 @@ let with_ancilla_reg bs f =
   return res
 ;;
 
--- Iterate a function n times. Example:
--- 
--- loop 3 x f = f (f (f x)).
--- 
--- loop :: int -> a -> (a -> a) -> a
-let rec loop n x f =
-  if n<1 then x else f (loop (n-1) x f)
-;;
+-- ----------------------------------------------------------------------
+-- Specific gates
 
--- A "for" loop. Counts from a to b in increments of s. Because of the
--- purely functional style of Proto-Quipper, this also threads a state
--- along the loop. 
+-- Uncurried version of gateW.
 -- 
--- Example:
+-- wGate :: qubit -> qubit -> (qubit, qubit)
+let wGate x y = gateW (x,y);;
+
+-- The inverse of wGate. Actually, wGate is self-inverse, so this is
+-- just a synonym for wGate.
 -- 
--- x <- for a b s x (fun i -> fun x ->
---   x' <- commands x;
---   return x'
--- );
--- 
--- for :: int -> int -> int -> x -> (int -> x -> x) -> x
-let rec for a b s x f = 
-  if a > b then x else 
-  let x = f a x in
-  for (a+1) b s x f
-;;
+-- wGateInverse :: qubit -> qubit -> (qubit, qubit)
+let wGateInverse x y = wGate x y;;
+
+-- Uncurried version of toffoli.
+--
+-- toffoliGate :: qubit -> qubit -> qubit -> (qubit, qubit, qubit)
+let toffoliGate x y z = toffoli (x,y,z);;
+
+-- Uncurried version of cexp_itZ.
+--
+-- controlledExpGate :: qubit -> qubit -> (qubit, qubit)
+let controlledExpGate x y = cexp_itZ (x,y);;

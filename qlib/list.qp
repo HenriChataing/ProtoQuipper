@@ -11,8 +11,12 @@ type list a =
 
 let nil = Nil ;;
 
+-- ----------------------------------------------------------------------
+-- Operations that discard the list
 
--- UNSAFE OPERATIONS
+-- The following operations potentially discard or duplicate some list
+-- elements, so they can only be applied to lists of duplicable
+-- elements.
 
 let null l =
   match l with
@@ -37,7 +41,27 @@ let rec (@) l n =
     (tail l) @ (n - 1)
 ;;
 
--- SAFE OPERATIONS
+let rec length l =
+  match l with
+    [] -> 0
+  | x:xs -> 1 + length xs
+;;
+
+let rec take n l =
+  match l with
+    [] -> []
+  | h:t -> if n <= 0 then [] else h : take (n-1) t
+;;
+
+let rec replicate n a =
+  if n <= 0 then [] else a:(replicate (n-1) a)
+;;
+
+-- ----------------------------------------------------------------------
+-- Operations that do not discard the list
+
+-- The following operations preserve the list elements, so they can be
+-- applied, for example, to lists of qubits.
 
 let sf_null l =
   match l with
@@ -63,6 +87,9 @@ let rec sf_length l =
             (n+1, x:xs)
 ;;
 
+-- ----------------------------------------------------------------------
+-- Maps, zips, folds, etc.
+
 let rec map f l =
   match l with
     [] -> []
@@ -75,6 +102,14 @@ let rec zip l1 l2 =
   | (h1:t1, h2:t2) -> (h1,h2) : zip t1 t2
   -- other cases give an error
 ;;
+
+-- let rec unzip l =
+--   match l with
+--     [] -> ([],[])
+--   | (a,b):t -> 
+--       let (as,bs) = unzip t in
+--       (a:as, b:bs)
+-- ;;
 
 let rec foldl f y l =
   match l with
@@ -107,7 +142,4 @@ let reverse l =
   reverse_acc [] l
 ;;
 
-let rec replicate n a =
-  if n < 1 then [] else a:(replicate (n-1) a)
-;;
   

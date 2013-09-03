@@ -86,6 +86,11 @@ builtin_gates =
                                                                (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [1] ], qOut = [0, 1] })
                                                                (VTuple [VQubit 0, VQubit 1])))) ] in
 
+  let ceitz = [("CONTROL_GATE_EITZ", (binary_type,
+                                  VCirc (VTuple [VQubit 0, VQubit 1])
+                                            (Circ { qIn = [0, 1], gates = [ Controlled (Unary "GATE_EITZ" 0) [1] ], qOut = [0, 1] })
+                                            (VTuple [VQubit 0, VQubit 1]))) ] in
+
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
@@ -94,14 +99,14 @@ builtin_gates =
                                    (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [1, 2] ], qOut = [0, 1, 2] })
                                    (VTuple [VQubit 0, VQubit 1, VQubit 2]))) in
 
-  Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ binary))
+  Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ ceitz ++ binary))
 
 
 
 
 
 -- | Subset of the built-in values that provides the definition of the built-in integer operations.
--- The list of currently defined operations is: ADD, SUB, MUL, DIV, LT, GT, EQ, POW. It is bound to be extended, for
+-- The list of currently defined operations is: ADD, SUB, MUL, DIV, MOD, POW, LE, GE, LT, GT, EQ, NE. It is bound to be extended, for
 -- example with more comparisons.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
@@ -113,13 +118,22 @@ builtin_operations =
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
               ("DIV", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `quot` n))))),
+              ("MOD", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `rem` n))))),
+              ("POW", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))),
+              ("LE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m <= n))))),
+              ("GE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m >= n))))),
               ("LT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m < n))))),
               ("GT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m > n))))),
               ("EQ", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))),
-              ("POW", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))) ] in
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m == n))))), 
+              ("NE", (TArrow TInt (TArrow TInt TBool),
+                      VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VBool (m /= n)))))
+            ] in
   Map.fromList ops
 

@@ -15,32 +15,31 @@ import Definitions
 -- circuit oracle_c(a,b,r).
 
 type oracle = 
-  Oracle of int                                 -- n
-  	  * int        				-- m
-	  * int        				-- k
-	  * list bool  				-- entrance label 
+  Oracle of int                                 -- tree depth n
+  	  * int        				-- label length m
+	  * int        				-- number of colors k
+	  * list bool  				-- entrance label
 	  * (int ->    				-- color parameter c
 	     list qubit * list qubit * qubit -> -- (a,b,r) inputs
 	     list qubit * list qubit * qubit)   -- (a,b,r) outputs
 
 -- ----------------------------------------------------------------------
--- The orthodox oracle
-
--- A temporary dummy oracle: empty.
-let oraclefun n c (a,b,r) = (a,b,r);;
-
--- The orthodox oracle. The parameter n is the tree depth.
--- 
--- orthodox_oracle :: int -> Oracle
-let oracle_orthodox n =
-  Oracle (n, n+2, 4, replicate (n-1) false ++ [true], oraclefun n)
-;;
-
--- ----------------------------------------------------------------------
 -- The time step
 
--- A temporary dummy timestep: empty.
-let timestep (a,b,r,m) = (a,b,r);;
+-- Perform a single diffusion step of the quantum walk. Here, a and b
+-- are m-qubit registers holding node labels to be diffused. r is a
+-- control.
+let timestep (a,b,r,m) = 
+  (a,b,r) <- with_ancilla false (fun h ->
+    (a,b) <- map2 wGate a b;
+    (a,b,h) <- map2_foldl toffoliGate a b h;
+    (h,r) <- controlledExpGate h r;
+    (a,b,h) <- map2_foldr toffoliGate a b h;
+    (a,b) <- map2r wGateInverse a b;
+    return ((a,b,r),h)  
+  );
+  return (a,b,r)
+;;
 
 -- ----------------------------------------------------------------------
 -- The top-level algorithm
@@ -51,9 +50,9 @@ let timestep (a,b,r,m) = (a,b,r);;
 -- include classical bits or measurements, we return the unmeasured
 -- quantum register a.
 -- 
--- qrwbwt :: Oracle -> int -> ...
+-- qrwbwt :: oracle -> int -> list qubit
 let qrwbwt oracle s =
-  (n,m,k,entrance,oraclefun) <- oracle;
+  let Oracle (n,m,k,entrance,oraclefun) = oracle in
   a <- qinit_register entrance;
   a <- with_ancilla_reg (replicate m false) (fun b ->
     (a,b) <- with_ancilla false (fun r -> 
@@ -68,9 +67,46 @@ let qrwbwt oracle s =
       );
       return ((a,b),r)
     );
-    return a
+    return (a,b)
   );
   return a
 ;;
 
-qrwbwt (oracle_orthodox 3) 1;;
+-- ----------------------------------------------------------------------
+-- The oracle implementation
+
+-- The functions in this section implement a particular oracle for a
+-- binary welded tree. The oracle is parametric on: 
+-- 
+-- * the tree depth n; 
+-- 
+-- * two "welding vectors" f and g, specifying how the leaves of the
+-- two binary trees are connected to each other. Specifically, f and g
+-- encode the permutations of leaves mapping a to (a xor f) and to 
+-- (a + g), respectively, where "xor" denotes bitwise exclusive or,
+-- and "+" denotes binary addition.
+
+-- The main oracle function. 
+-- 
+-- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
+let oraclefun n f g c (a,b,r) = (a,b,r);;
+
+-- The orthodox oracle. The parameter n is the tree depth.
+-- 
+-- orthodox_oracle :: int -> list bool -> list bool -> Oracle
+let oracle_orthodox n f g =
+  Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n f g)
+;;
+
+-- ----------------------------------------------------------------------
+-- The "main" program: display the circuit for size n.
+-- 
+-- main :: int -> circ((), list qubit)
+let main n =
+  let f = cycle n [true, false] in
+  let g = cycle n [false, true] in
+  box[] (fun () -> qrwbwt (oracle_orthodox n f g) 1)
+;;
+
+main 3;;
+

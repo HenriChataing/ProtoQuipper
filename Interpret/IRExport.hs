@@ -47,6 +47,8 @@ append_gate (Unary g w) irdoc =
                      "GATE_E_INV" -> ("E", "*")
                      "GATE_V" -> ("V", "")
                      "GATE_V_INV" -> ("V", "*")
+                     "GATE_EITZ" -> ("exp(-itZ)", "")
+                     "GATE_EITZ_INV" -> ("exp(-itZ)", "*")
     in
   irdoc ++ "QGate[\"" ++ prg ++ "\"]" ++ inv ++ "(" ++ show w ++ ")\n" 
 
@@ -54,14 +56,14 @@ append_gate (Unary g w) irdoc =
 append_gate (Binary "CNOT" w0 w1) irdoc =
   irdoc ++ "QGate[\"not\"](" ++ show w0 ++ ") with controls=[+" ++ show w1 ++ "]\n"
 append_gate (Binary "SWAP" w0 w1) irdoc =
-  irdoc ++ "QGate[\"swap\"](" ++ show w0 ++ " " ++ show w1 ++ ")\n"
+  irdoc ++ "QGate[\"swap\"](" ++ show w0 ++ ", " ++ show w1 ++ ")\n"
 append_gate (Binary "GATE_W" w0 w1) irdoc =
-  irdoc ++ "QGate[\"W\"](" ++ show w0 ++ show w1 ++ ")\n"
+  irdoc ++ "QGate[\"W\"](" ++ show w0 ++ ", " ++ show w1 ++ ")\n"
 
 -- Controlled gates
 append_gate (Controlled g (c:rest)) irdoc =
   let prg = append_gate g "" in
-  irdoc ++ List.init prg ++ " with controls=[+" ++ show c ++ List.foldl (\s w -> s ++ " +" ++ show w) "" rest ++"]\n"
+  irdoc ++ List.init prg ++ " with controls=[+" ++ show c ++ List.foldl (\s w -> s ++ ", +" ++ show w) "" rest ++"]\n"
 
 
 -- | Add the list of output wires to the document.
