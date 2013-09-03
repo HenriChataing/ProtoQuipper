@@ -97,14 +97,19 @@ builtin_gates =
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
-  let toffoli = ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
+  let cnot = [("CNOT", (TArrow TBool (TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])),
+                             VBuiltin (\(VBool sign) ->
+                                        VCirc (VTuple [VQubit 0, VQubit 1])
+                                               (Circ { qIn = [0, 1], gates = [ Controlled (Unary "NOT" 0) [(1,sign)] ], qOut = [0, 1] })
+                                               (VTuple [VQubit 0, VQubit 1])))),
+              ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
                              VBuiltin (\(VBool sign1) ->
                                         VBuiltin (\(VBool sign2) ->
                                                    VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
                                                           (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [(1,sign1), (2,sign2)] ], qOut = [0, 1, 2] })
-                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) in
+                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ] in
 
-  Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ ceitz ++ binary))
+  Map.fromList (cnot ++ init ++ term ++ unary ++ phase ++ ceitz ++ binary)
 
 
 

@@ -46,7 +46,6 @@ unary_gates =
 binary_gates :: [(String, (String, (String, String)))]
 binary_gates =
   [ ("SWAP", ("SWAP", ("-x-", "-x-"))),
-    ("CNOT", ("CNOT", ("(+)", "-*-"))),
     ("GATE_W", ("GATE_W", ("-W1", "-W2"))) ]
 
 
@@ -149,7 +148,7 @@ instance Caps Gate where
 
 
 -- | Return the gate concrete display. More specifically, each gate is printed in one column, and this function
--- returns what part of a gate appears on what line. For example, considering the gate CNOT (0, 1), its display is
+-- returns what part of a gate appears on what line. For example, considering the gate Controlled (NOT 0) [(1,True)], its display is
 --
 -- @
 --  0  (+)
