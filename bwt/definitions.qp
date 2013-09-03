@@ -36,9 +36,9 @@ let rec loop n x f =
 -- 
 -- for :: int -> int -> int -> x -> (int -> x -> x) -> x
 let rec for a b s x f = 
-  if a > b then x else 
+  if ((s >= 0) && (a > b)) || ((s <= 0) && (a < b)) then x else 
   let x = f a x in
-  for (a+1) b s x f
+  for (a+s) b s x f
 ;;
 
 -- ----------------------------------------------------------------------
@@ -149,7 +149,7 @@ let qterm_register bs qs =
 -- Execute a block of code with one additional ancilla initialized to
 -- b. This should be used as follows:
 -- 
--- with_ancilla false (fun q ->
+-- r <- with_ancilla false (fun q ->
 --    <<code block>>
 --    return (r,q)   -- r is the result of the code block
 -- )
@@ -196,6 +196,14 @@ let wGateInverse x y = wGate x y;;
 -- controlledExpGate_signed :: qubit -> qubit * bool -> qubit * qubit
 let controlledExpGate_signed x (y, sign) = 
   (x,y) <- cexp_itZ_signed sign (x,y);
+  return (x,y)
+;;
+
+-- A controlled-not gate with a signed control.
+-- 
+-- cnotGate_signed :: qubit -> qubit * bool -> qubit * qubit
+let cnotGate_signed x (y, sign) =
+  (x,y) <- cnot_signed sign (x,y);
   return (x,y)
 ;;
 
