@@ -83,9 +83,7 @@ bind_pattern (PTuple plist) = do
 
   return (TBang 0 (TTensor ptypes), ctx, emptyset)
 
--- The datacon already has a type. Instead of creating an entirely new one
--- for the pattern, and stating it must be an instance of the datacon's type,
--- the type of the datacon is used to bind the pattern.
+-- Data constructors
 bind_pattern (PDatacon dcon p) = do
   -- Retrieves the type of data constructor 
   dtype <- datacon_def dcon
@@ -96,9 +94,8 @@ bind_pattern (PDatacon dcon p) = do
   -- Check the arguments
   case (typ, p) of
     (TBang _ (TArrow t u@(TBang n _)), Just p) -> do
-        -- The pattern is bound to the type of the argument, and the return type is the return type of the data constructor
-        (ctx, cset') <- bind_pattern_to_type p t
-        return (u, ctx, cset <> cset')
+        (t', ctx, csett) <- bind_pattern p
+        return (u, ctx, [t' <: t] <> cset <> csett)
 
     (TBang n _, Nothing) -> do
         -- No binding
