@@ -81,23 +81,28 @@ builtin_gates =
                           VBuiltin (\(VInt n) -> VCirc (VQubit 0)
                                                        (Circ { qIn = [0], gates = [ Phase n 0 ], qOut = [0] })
                                                        (VQubit 0)))),
-               ("CONTROL_PHASE", (TArrow TInt binary_type,
-                                  VBuiltin (\(VInt n) -> VCirc (VTuple [VQubit 0, VQubit 1])
-                                                               (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [(1,True)] ], qOut = [0, 1] })
-                                                               (VTuple [VQubit 0, VQubit 1])))) ] in
+               ("CONTROL_PHASE", (TArrow TInt (TArrow TBool binary_type),
+                                  VBuiltin (\(VInt n) -> 
+                                             VBuiltin (\(VBool sign) -> 
+                                                        VCirc (VTuple [VQubit 0, VQubit 1])
+                                                               (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [(1,sign)] ], qOut = [0, 1] })
+                                                               (VTuple [VQubit 0, VQubit 1]))))) ] in
 
-  let ceitz = [("CONTROL_GATE_EITZ", (binary_type,
-                                  VCirc (VTuple [VQubit 0, VQubit 1])
-                                            (Circ { qIn = [0, 1], gates = [ Controlled (Unary "GATE_EITZ" 0) [(1,True)] ], qOut = [0, 1] })
-                                            (VTuple [VQubit 0, VQubit 1]))) ] in
+  let ceitz = [("CONTROL_GATE_EITZ", (TArrow TBool binary_type,
+                                  VBuiltin (\(VBool sign) ->
+                                             VCirc (VTuple [VQubit 0, VQubit 1])
+                                                    (Circ { qIn = [0, 1], gates = [ Controlled (Unary "GATE_EITZ" 0) [(1,sign)] ], qOut = [0, 1] })
+                                                    (VTuple [VQubit 0, VQubit 1])))) ] in
 
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
 
-  let toffoli = ("TOFFOLI", (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]),
-                             VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
-                                   (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [(1,True), (2,True)] ], qOut = [0, 1, 2] })
-                                   (VTuple [VQubit 0, VQubit 1, VQubit 2]))) in
+  let toffoli = ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
+                             VBuiltin (\(VBool sign1) ->
+                                        VBuiltin (\(VBool sign2) ->
+                                                   VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
+                                                          (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [(1,sign1), (2,sign2)] ], qOut = [0, 1, 2] })
+                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) in
 
   Map.fromList (toffoli:(init ++ term ++ unary ++ phase ++ ceitz ++ binary))
 
