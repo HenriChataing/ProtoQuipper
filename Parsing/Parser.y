@@ -23,6 +23,7 @@ import Data.List as List
 
 %token
   '*' { TkStar $$ }
+  '-' { TkMinus $$ }
   '.' { TkDot $$ }
   ',' { TkComma $$ }
   ':' { TkColon $$ }
@@ -80,7 +81,7 @@ import Data.List as List
 %right ':'
 %left INFIX0
 %right INFIX1
-%left INFIX2
+%left INFIX2 '-'
 %left INFIX3 '*'
 %nonassoc '!'
 
@@ -193,6 +194,7 @@ Op_expr :
     | Op_expr INFIX3 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_expr ':' Op_expr                        { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | Op_expr '*' Op_expr                        { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_expr '-' Op_expr                        { locate_opt (EApp (EApp (locate (EVar "-") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Apply_expr                                 { $1 }
 
 
@@ -200,12 +202,15 @@ Infix_op :
       INFIX0                                     { $1 }
     | INFIX1                                     { $1 }
     | INFIX2                                     { $1 }
+    | '-'                                        { ($1, "-") }
     | INFIX3                                     { $1 }
     | '*'                                        { ($1, "*") }
 
 
 Apply_expr :
       Apply_expr Atom_expr                       { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
+    | '-' Atom_expr                              { let negation_symbol = locate (EVar "negation_symbol") (fromto $1 $1) in
+                                                   locate_opt (EApp negation_symbol $2) (fromto_opt (Just $1) (location $2)) }
     | Atom_expr                                  { $1 }
 
 

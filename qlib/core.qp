@@ -9,6 +9,9 @@ let (/) = #builtin DIV ;;
 let (%) = #builtin MOD ;;
 let (^) = #builtin POW ;;
 
+-- The parser hard-wires unary "-" to "negation_symbol".
+let negation_symbol = #builtin NEG ;; 
+
 -- COMPARISON OPERATIONS
 let (==) = #builtin EQ ;;
 let (<>) = #builtin NE ;;
