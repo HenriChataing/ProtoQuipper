@@ -24,7 +24,7 @@ let qterm b q = if b then
 
 -- UNARY
 let hadamard = unbox (#builtin GATE_H) ;;
-let not = unbox (#builtin NOT) ;;
+let qnot = unbox (#builtin NOT) ;;
 
 let gateOmega = unbox (#builtin GATE_OMEGA) ;;
 let gateE = unbox (#builtin GATE_E) ;;

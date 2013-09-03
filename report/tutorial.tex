@@ -94,7 +94,7 @@ not accessible to the programmer. In its place, we provide a set of
 primitive quantum gates. The module \verb#Gates#, which can be found in the 
 \verb#qlib# directory, contains a set of basic gates. 
 These include: \verb#init0#, \verb#init1#, \verb#term0#, \verb#term1#, 
-\verb#not#, \verb#hadamard#, \verb#T#, \verb#S#, \verb#Y#, \verb#Z#, 
+\verb#qnot#, \verb#hadamard#, \verb#T#, \verb#S#, \verb#Y#, \verb#Z#, 
 \verb#phase#, \verb#W#, \verb#E#, \verb#toffoli#, among others. Please
 refer to the documentation for a complete list.
 
@@ -268,7 +268,7 @@ let double f q = f (f q) ;;
 can be used as follows:
 \begin{verbatim}
 box[qubit * qubit] (fun (q, r) ->
-  q <- double not q;
+  q <- double qnot q;
   (q, r) <- double cnot (q, r);
   (q, r)
 ) ;;
