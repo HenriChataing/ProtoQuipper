@@ -1,0 +1,53 @@
+-- -- FUNCTION MODULE -- --
+-- This module provides some basic combinators for tuples, functions,
+-- etc.
+
+-- The identity function.
+-- 
+-- id :: a -> a
+let id x = x ;;
+
+-- Function composition.
+-- 
+-- (**) :: (b -> c) -> (a -> b) -> (a -> c)
+let (**) g f x = g (f x) ;;
+
+-- Return the first element of a pair.
+-- 
+-- fst :: a * b -> a
+let fst (x,y) = x ;;
+
+-- Return the second element of a pair.
+-- 
+-- snd :: a * b -> b
+let snd (x,y) = y ;;
+
+-- Map a pair of functions over a pair. For example:
+-- 
+-- (id >< f) (x,y) = (x, f y)
+-- 
+-- (><) :: (a -> b) -> (c -> d) -> a *c -> b * d
+let (><) f g (x,y) = (f x, g y) ;;
+
+-- Swap the two components of a pair.
+-- 
+-- swap :: a * b -> b * a
+let swap (x,y) = (y,x) ;;
+
+-- Swap the two arguments of a function.
+-- 
+-- flip :: (a -> b -> c) -> (b -> a -> c)
+let flip f b a = f a b ;;
+
+-- Function application, with low precedence. This is sometimes useful
+-- for avoiding excessive parentheses, as in 
+-- 
+-- f $ g x = f (g x),
+-- 
+-- and in higher-order situation, such as map ($) fs xs.
+-- 
+-- Note that, unlike Haskell's ($), this is currently left associative, so
+-- f $ g $ h x will not work.
+-- 
+-- ($) :: (a -> b) -> a -> b
+let ($) f x = f x ;;
