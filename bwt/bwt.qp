@@ -3,6 +3,8 @@
 
 import Core
 import List
+import Function
+import Gates
 import Definitions
 
 -- ----------------------------------------------------------------------
@@ -87,14 +89,13 @@ let qrwbwt oracle s =
 -- and "+" denotes binary addition.
 
 -- DUMMY FUNCTIONS: not yet implemented.
-let parseNodeEven (a, even, n) = (a, even);;
 let testIsParent (a, root, even, isparent, color, n, really, ismatch) = (a, root, even, isparent, ismatch);;
 let testIsChild (even, ischild, direction, color, n) = (even, ischild, direction);;
 let setParent (a, b, isparent, n) = (a, b, isparent);;
 let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 
--- Input a node label a of length at least n+1. Negate both root
--- and even if a is a root node.
+-- Input a node label 'a' of length at least n+1. Negate both 'root'
+-- and 'even' if 'a' is a root node.
 -- 
 -- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
 let parseNodeRoot (a, root, even, n) = 
@@ -108,6 +109,35 @@ let parseNodeRoot (a, root, even, n) =
   );
   a <- before ++ a ++ after;
   return (a, root, even)
+;;
+
+-- Input a node label 'a' of length at least n+1. Negate 'even' if the
+-- node 'a' occurs at an even height in the tree.
+-- 
+-- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
+let parseNodeEven (as, even, n) =
+  as <- number_elements as;
+  (before, as, after) <- sf_list_range 1 n as;
+  (as, even) <- with_ancilla false (fun flag ->
+
+    (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
+      scratch <- qinit false;
+      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+      (even, flag, a) <- toffoliGate_signed_if (is_even index) even (flag, false) (a, true);
+      (flag, scratch) <- cnotGate_signed flag (scratch, true);
+      return ((a, index, scratch), (flag, even))
+    );
+    (as, flag) <- for_each_map scratches flag (fun (a, index, scratch) flag ->
+      (flag, scratch) <- cnotGate_signed flag (scratch, true);
+      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+      qterm false scratch;
+      return ((a, index), flag)
+    );
+    return ((as, even), flag)
+  );
+  as <- before ++ as ++ after;
+  as <- unnumber_elements as;
+  return (as, even)
 ;;
 
 -- The main oracle function. 
@@ -153,4 +183,3 @@ let main n =
 ;;
 
 main 3;;
-

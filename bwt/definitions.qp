@@ -3,6 +3,7 @@
 import List
 import Gates
 import Core
+import Function
 
 -- ----------------------------------------------------------------------
 -- Loops etc
@@ -43,6 +44,22 @@ let rec for a b s x f =
 
 -- ----------------------------------------------------------------------
 -- List operations
+
+-- Number the elements of a list. Example:
+-- 
+-- number_elements [x,y,z] = [(x,0), (y,1), (z,2)].
+-- 
+-- number_elements :: list a -> list (a * int)
+let number_elements l =
+  snd (map_foldl (fun n x -> (n+1, (x,n))) 0 l)
+;;
+
+-- The inverse of number_elements.
+-- 
+-- unnumber_elements :: list (a * int) -> list a
+let unnumber_elements l =
+  map fst l
+;;
 
 -- ----------------------------------------------------------------------
 -- Quantum registers
@@ -108,6 +125,16 @@ let toffoliGate_signed x (y,s) (z,t) =
 -- toffoliGate_10 :: qubit -> qubit -> qubit -> qubit * qubit * qubit 
 let toffoliGate_10 h a b = 
   toffoliGate_signed h (a, true) (b, false)
+;;
+
+-- Like toffoliGate_signed, but also condition on a classical bit.
+-- 
+-- toffoliGate_signed_if :: bool -> qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
+let toffoliGate_signed_if cond x (y,s) (z,t) =
+  if cond then 
+    toffoliGate_signed x (y,s) (z,t) 
+  else
+    (x, y, z)
 ;;
 
 -- ----------------------------------------------------------------------
@@ -190,7 +217,71 @@ let with_disjunction qs f =
   );
   return (a, qs)
 ;;
-    
+
+-- A version of foldl with the arguments in a different order. The idea is
+-- to use this as a block:
+-- 
+-- s <- for_each [x,y,z] s body
+-- 
+-- is equivalent to:
+-- 
+-- s <- body x s;
+-- s <- body y s;
+-- s <- body z s
+-- 
+-- for_each :: list a -> s -> (a -> s -> s) -> s
+let for_each xs s body = foldl body xs s ;;
+
+-- Like for_each, but traverse the list in right-to-left order. For
+-- example:
+-- 
+-- s <- for_eachr [x,y,z] s body
+-- 
+-- is equivalent to:
+-- 
+-- s <- body z s;
+-- s <- body y s;
+-- s <- body x s
+-- 
+-- for_eachr :: list a -> s -> (a -> s -> s) -> s
+let for_eachr xs s body = foldr body xs s ;;
+
+-- A version of map_foldl with the arguments in a different order. The
+-- idea is to use this as a block:
+-- 
+-- ([a,b,c], s) <- for_each_map [x,y,z] s body
+-- 
+-- is equivalent to:
+-- 
+-- (a,s) <- body x s;
+-- (b,s) <- body y s;
+-- (c,s) <- body z s
+-- 
+-- for_each_map :: list a -> s -> (a -> s -> b * s) -> (list b) * s
+let for_each_map xs s body = 
+  let f s a = swap (body a s) in
+  let (s, ys) = map_foldl f s xs in
+  (ys, s)
+;;
+
+-- Like for_each_map, but traverse the list in right-to-left order.
+-- For example:
+-- 
+-- ([a,b,c], s) <- for_each_mapr [x,y,z] s body
+-- 
+-- is equivalent to:
+-- 
+-- (c,s) <- body z s;
+-- (b,s) <- body y s;
+-- (a,s) <- body x s
+-- 
+-- for_each_mapr :: list a -> s -> (a -> s -> b * s) -> (list b) * s
+let for_each_mapr xs s body = 
+  let f s a = swap (body a s) in
+  let (s, ys) = map_foldr f s xs in
+  (ys, s)
+;;
+
 -- ----------------------------------------------------------------------
 -- Binary representation of integers
 
@@ -198,6 +289,11 @@ let with_disjunction qs f =
 -- 
 -- is_odd :: int -> bool
 let is_odd x = x % 2 <> 0;;
+
+-- Check whether an integer is even.
+-- 
+-- is_even :: int -> bool
+let is_even x = x % 2 == 0;;
 
 -- Convert an integer to its binary representation. The representation
 -- is little-endian, i.e., the least significant digit is at index 0
@@ -208,3 +304,4 @@ let rec boolreg_of_int_le m x =
   if m <= 0 then [] else
   is_odd x : boolreg_of_int_le (m-1) (x/2)
 ;;
+
