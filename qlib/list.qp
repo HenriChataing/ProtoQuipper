@@ -101,28 +101,6 @@ let list_range n m xs =
   drop n (take (m+1) xs)
 ;;
 
--- Return a list of n identical elements.
--- 
--- replicate :: int -> a -> list a
-let rec replicate n a =
-  if n <= 0 then [] else a:(replicate (n-1) a)
-;;
-
--- Construct a list of length n, by repeatedly cycling the given list.
--- 
--- Example: cycle 8 [1,2,3] = [1,2,3,1,2,3,1,2].
--- 
--- cycle :: int -> list a -> list a
-let cycle n l =
-  let len = length l in
-  if len == 0 then [] else
-  let rec aux n =
-    if n <= 0 then [] else
-    take n l ++ aux (n-len)
-  in
-  aux n
-;;
-
 -- ----------------------------------------------------------------------
 -- Operations that do not discard the list
 
@@ -213,6 +191,30 @@ let sf_list_range n m xs =
   let (as, after) = splitAt (m+1) xs in
   let (before, range) = splitAt n as in
   (before, range, after)
+;;
+
+-- Append two lists.
+-- 
+-- (++) :: list a -> list a -> list a
+let rec (++) l0 l1 =
+  match (l0, l1) with
+    ([], l) -> l
+  | (l, []) -> l
+  | (x:xs, l) -> let l = xs ++ l in
+                 x:l
+;;
+
+-- Reverse a list.
+-- 
+-- reverse :: list a -> list a
+let reverse l =
+  let rec reverse_acc acc l =
+    match l with
+      [] -> acc
+    | x:xs -> reverse_acc (x:acc) xs
+  in
+
+  reverse_acc [] l
 ;;
 
 -- ----------------------------------------------------------------------
@@ -415,26 +417,28 @@ let rec unzip l =
       (a:as, b:bs)
 ;;
 
--- Append two lists.
+-- ----------------------------------------------------------------------
+-- Other list constructors
+
+-- Return a list of n identical elements.
 -- 
--- (++) :: list a -> list a -> list a
-let rec (++) l0 l1 =
-  match (l0, l1) with
-    ([], l) -> l
-  | (l, []) -> l
-  | (x:xs, l) -> let l = xs ++ l in
-                 x:l
+-- replicate :: int -> a -> list a
+let rec replicate n a =
+  if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
 
--- Reverse a list.
+-- Construct a list of length n, by repeatedly cycling the given list.
 -- 
--- reverse :: list a -> list a
-let reverse l =
-  let rec reverse_acc acc l =
-    match l with
-      [] -> acc
-    | x:xs -> reverse_acc (x:acc) xs
+-- Example: cycle 8 [1,2,3] = [1,2,3,1,2,3,1,2].
+-- 
+-- cycle :: int -> list a -> list a
+let cycle n l =
+  let len = length l in
+  if len == 0 then [] else
+  let rec aux n =
+    if n <= 0 then [] else
+    take n l ++ aux (n-len)
   in
-
-  reverse_acc [] l
+  aux n
 ;;
+
