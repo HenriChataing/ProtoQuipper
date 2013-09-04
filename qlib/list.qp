@@ -4,11 +4,14 @@
 
 import Core
 
--- Type of lists
+-- The type of lists.
 type list a =
     Nil
   | Cons of a * list a
 
+-- A synonym for the empty list. It can also be denoted [].
+-- 
+-- nil :: list a
 let nil = Nil ;;
 
 -- ----------------------------------------------------------------------
@@ -18,41 +21,66 @@ let nil = Nil ;;
 -- elements, so they can only be applied to lists of duplicable
 -- elements.
 
+-- Check whether the given list is empty.
+-- 
+-- null :: list a -> bool
 let null l =
   match l with
     [] -> true
   | _ -> false
 ;;
 
+-- Return the head of a non-empty list.
+-- 
+-- head :: list a -> a
 let head (x:_) = x ;;
 
+-- Return the tail of a non-empty list.
+-- 
+-- tail :: list a -> list a
 let tail (_:xs) = xs ;;
 
+-- Return the last element of a non-empty list.
+-- 
+-- last :: list a -> a
 let rec last l =
   match l with
     [x] -> x
   | _:xs -> last xs
 ;;
 
+-- Return the nth element of a list. Elements are counted from 0.
+-- 
+-- (@) :: list a -> int -> a
 let rec (@) l n =
-  if n < 1 then
+  if n <= 0 then
     head l
   else
     (tail l) @ (n - 1)
 ;;
 
+-- Return the length of a list.
+-- 
+-- length :: list a -> int
 let rec length l =
   match l with
     [] -> 0
   | x:xs -> 1 + length xs
 ;;
 
+-- Return the first n element of the given list (or the whole list,
+-- if it has fewer than n elements).
+-- 
+-- take :: int -> list a -> list a
 let rec take n l =
   match l with
     [] -> []
   | h:t -> if n <= 0 then [] else h : take (n-1) t
 ;;
 
+-- Drop the first n elements (if any) from the given list. 
+-- 
+-- drop :: int -> list a -> list a
 let rec drop n l =
   if n <= 0 then l else
   match l with
@@ -60,6 +88,9 @@ let rec drop n l =
   | h:t -> drop (n-1) t
 ;;
 
+-- Return a list of n identical elements.
+-- 
+-- replicate :: int -> a -> list a
 let rec replicate n a =
   if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
@@ -88,16 +119,24 @@ let list_range n m xs =
 -- The following operations preserve the list elements, so they can be
 -- applied, for example, to lists of qubits.
 
+-- Check whether a list is non-empty, and also return the unmodified list.
+-- 
+-- sf_null :: list a -> bool * list a
 let sf_null l =
   match l with
     [] -> (true, [])
   | xs -> (false, xs)
 ;;
 
+-- Split a non-empty list into a head and a tail.
+-- 
+-- sf_head :: list a -> a * list a
 let sf_head (x:xs) = (x, xs) ;;
-let sf_tail (x:xs) = (xs, x) ;;
- 
 
+-- Return the last element of a non-empty list, and also the list of
+-- remaining elements.
+-- 
+-- sf_last :: list a -> a * list a
 let rec sf_last l =
   match l with
     [x] -> (x, [])
@@ -105,6 +144,7 @@ let rec sf_last l =
             (d, x:xs)
 ;;
 
+-- Return the length of a list, and also return the unmodified list.
 let rec sf_length l =
   match l with
     [] -> (0, [])
@@ -168,12 +208,27 @@ let sf_list_range n m xs =
 -- ----------------------------------------------------------------------
 -- Maps, zips, folds, etc.
 
+-- Map a function over all the elements of a list. 
+-- 
+-- Example:
+-- 
+-- map f [1,2,3] = [f 1, f 2, f 3].
+-- 
+-- map :: (a -> b) -> list a -> list b
 let rec map f l =
   match l with
     [] -> []
   | x:xs -> (f x):(map f xs)
 ;;
 
+-- Turn two equal length lists into a single list of pairs. It is an
+-- error if the lists have unequal length.
+-- 
+-- Example:
+-- 
+-- zip [1,2,3] [a,b,c] = [(1,a), (2,b), (3,c)]
+-- 
+-- zip :: list a -> list b -> list (a * b)
 let rec zip l1 l2 =
   match (l1,l2) with
     ([],[]) -> []
@@ -181,6 +236,13 @@ let rec zip l1 l2 =
   -- other cases give an error
 ;;
 
+-- Turn a list of pairs into a pair of lists. 
+-- 
+-- Example: 
+-- 
+-- unzip [(1,a), (2,b), (3,c)] = ([1,2,3], [a,b,c])
+-- 
+-- unzip :: list (a * b) -> list a * list b
 let rec unzip l =
   match l with
     [] -> ([],[])
@@ -189,12 +251,34 @@ let rec unzip l =
       (a:as, b:bs)
 ;;
 
+-- Fold a state over the elements of a list, left-to-right.
+-- 
+-- Example:
+-- 
+-- foldl f s0 [x,y,z] = s3
+-- where
+--   s1 = f s0 x
+--   s2 = f s1 y
+--   s3 = f s2 z
+-- 
+-- foldl :: (a -> b -> a) -> a -> list b -> a
 let rec foldl f y l =
   match l with
     [] -> y
   | x:xs -> foldl f (f y x) xs
 ;;
 
+-- Fold a state over the elements of a list, right-to-left.
+-- 
+-- Example:
+-- 
+-- foldr f [x,y,z] s0 = s3
+-- where
+--   s1 = f z s0
+--   s2 = f y s1
+--   s3 = f x s2
+-- 
+-- foldr :: (b -> a -> a) -> list b -> a -> a
 let rec foldr f l y =
   match l with
     [] -> y
@@ -202,6 +286,9 @@ let rec foldr f l y =
             f x y
 ;;
 
+-- Append two lists.
+-- 
+-- (++) :: list a -> list a -> list a
 let rec (++) l0 l1 =
   match (l0, l1) with
     ([], l) -> l
@@ -210,6 +297,9 @@ let rec (++) l0 l1 =
                  x:l
 ;;
 
+-- Reverse a list.
+-- 
+-- reverse :: list a -> list a
 let reverse l =
   let rec reverse_acc acc l =
     match l with
