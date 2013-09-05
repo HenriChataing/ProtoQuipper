@@ -10,7 +10,7 @@
    ("\\brec\\b" . font-lock-function-name-face)
    (";;" . font-lock-function-name-face)
    ("\\b\\(let\\|else\\|fun\\|if\\|in\\|match\\|of\\|then\\|with\\)\\b" . font-lock-keyword-face)
-   ("[-=.<>+]" . font-lock-keyword-face)
+   ("[-=.<>+*]" . font-lock-keyword-face)
   )
 )
 
