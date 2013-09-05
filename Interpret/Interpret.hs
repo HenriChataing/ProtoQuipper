@@ -175,6 +175,9 @@ match_value (PLocated p _) v =
 match_value (PConstraint p _) v =
   match_value p v
 
+match_value PJoker _ =
+  True
+
 match_value (PVar _) _  =
   True
 
