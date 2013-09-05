@@ -32,6 +32,7 @@ tokens :-
   "_"                                 { locate_token TkJoker }
   "<:"                                { locate_token TkSubType }
   "*"                                 { locate_token TkStar }
+  "-"                                 { locate_token TkMinus }
   "."                                 { locate_token TkDot }
   ","                                 { locate_token TkComma }
   ":"                                 { locate_token TkColon }
@@ -140,6 +141,7 @@ data Token =
   -- Punctuation marks, and other symbols
   | TkJoker Extent         -- ^ The symbol \'@_@'.
   | TkStar Extent          -- ^ The symbol \'@\*@'.
+  | TkMinus Extent         -- ^ The symbol \'@\-@'.
   | TkBar Extent           -- ^ The symbol \'@|@'.
   | TkComma Extent         -- ^ The symbol \'@,@'.
   | TkColon Extent         -- ^ The symbol \'@:@'.
@@ -209,6 +211,7 @@ instance Show Token where
 
   show (TkJoker ex) = "'_' (" ++ show ex ++ ")"
   show (TkStar ex) = "'*' (" ++ show ex ++ ")"
+  show (TkMinus ex) = "'-' (" ++ show ex ++ ")"
   show (TkBar ex) = "'|' (" ++ show ex ++ ")"
   show (TkComma ex) = "',' (" ++ show ex ++ ")"
   show (TkColon ex) = "':' (" ++ show ex ++ ")"
@@ -280,6 +283,7 @@ locate_token_in_file f (TkBuiltin ex) = TkBuiltin ex { file = f }
 
 locate_token_in_file f (TkJoker ex) = TkJoker ex { file = f }
 locate_token_in_file f (TkStar ex) = TkStar ex { file = f }
+locate_token_in_file f (TkMinus ex) = TkMinus ex { file = f }
 locate_token_in_file f (TkBar ex) = TkBar ex { file = f }
 locate_token_in_file f (TkComma ex) = TkComma ex { file = f }
 locate_token_in_file f (TkColon ex) = TkColon ex { file = f }

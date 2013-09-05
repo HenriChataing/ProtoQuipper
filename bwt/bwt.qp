@@ -3,6 +3,8 @@
 
 import Core
 import List
+import Function
+import Gates
 import Definitions
 
 -- ----------------------------------------------------------------------
@@ -87,59 +89,55 @@ let qrwbwt oracle s =
 -- and "+" denotes binary addition.
 
 -- DUMMY FUNCTIONS: not yet implemented.
-let parseNodeEven (a, even, n) = (a, even);;
 let testIsParent (a, root, even, isparent, color, n, really, ismatch) = (a, root, even, isparent, ismatch);;
 let testIsChild (even, ischild, direction, color, n) = (even, ischild, direction);;
 let setParent (a, b, isparent, n) = (a, b, isparent);;
 let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 
--- Input a node label a of length at least n+1. Negate both root
--- and even if a is a root node.
+-- Input a node label 'a' of length at least n+1. Negate both 'root'
+-- and 'even' if 'a' is a root node.
 -- 
 -- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
 let parseNodeRoot (a, root, even, n) = 
-  (a, root, even) <- with_ancilla_reg (replicate (n+1) false) (fun scratch -> 
-    (a, scratch) <- for n 1 (0-1) (a, scratch) (fun index -> fun (a, scratch) ->
-      -- The purely functional style means lots of stuff needs to be passed around.
+  (before, a, after) <- sf_list_range 1 n a;
+  ((root, even), a) <- with_disjunction a (fun q -> 
 
-      -- Extract the relevant qubits from the registers:
-      (scratch_index, scratch) <- sf_list_index scratch index;
-      (scratch_index_1, scratch) <- sf_list_index scratch (index-1);
-      (a_index, a) <- sf_list_index a index;
-      -- Operate on them:
-      (scratch_index_1, scratch_index, a_index) <- toffoliGate_signed scratch_index_1 (scratch_index, false) (a_index, true);
-      (scratch_index_1, scratch_index) <- cnotGate_signed scratch_index_1 (scratch_index, true);
-      -- Re-insert qubits in their respective registers:
-      a <- sf_list_unindex (a_index, a) index;
-      scratch <- sf_list_unindex (scratch_index_1, scratch) (index-1);
-      scratch <- sf_list_unindex (scratch_index, scratch) index;
+    (root, q) <- cnotGate_signed root (q, false);
+    (even, q) <- cnotGate_signed even (q, false);
 
-      return (a, scratch)
-    );
-    
-    (scratch_0, scratch) <- sf_list_index scratch 0;
-    (root, scratch_0) <- cnotGate_signed root (scratch_0, false);
-    (even, scratch_0) <- cnotGate_signed even (scratch_0, false);
-    scratch <- sf_list_unindex (scratch_0, scratch) 0;
-
-    (a, scratch) <- for 1 n 1 (a, scratch) (fun index -> fun (a, scratch) ->
-
-      (scratch_index, scratch) <- sf_list_index scratch index;
-      (scratch_index_1, scratch) <- sf_list_index scratch (index-1);
-      (a_index, a) <- sf_list_index a index;
-
-      (scratch_index_1, scratch_index) <- cnotGate_signed scratch_index_1 (scratch_index, true);
-      (scratch_index_1, scratch_index, a_index) <- toffoliGate_signed scratch_index_1 (scratch_index, false) (a_index, true);
-
-      a <- sf_list_unindex (a_index, a) index;
-      scratch <- sf_list_unindex (scratch_index_1, scratch) (index-1);
-      scratch <- sf_list_unindex (scratch_index, scratch) index;
-
-      return (a, scratch)
-    );
-    return ((a, root, even), scratch)
+    return ((root, even), q)
   );
+  a <- before ++ a ++ after;
   return (a, root, even)
+;;
+
+-- Input a node label 'a' of length at least n+1. Negate 'even' if the
+-- node 'a' occurs at an even height in the tree.
+-- 
+-- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
+let parseNodeEven (as, even, n) =
+  as <- number_elements as;
+  (before, as, after) <- sf_list_range 1 n as;
+  (as, even) <- with_ancilla false (fun flag ->
+
+    (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
+      scratch <- qinit false;
+      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+      (even, flag, a) <- toffoliGate_signed_if (is_even index) even (flag, false) (a, true);
+      (flag, scratch) <- cnotGate_signed flag (scratch, true);
+      return ((a, index, scratch), (flag, even))
+    );
+    (as, flag) <- for_each_map scratches flag (fun (a, index, scratch) flag ->
+      (flag, scratch) <- cnotGate_signed flag (scratch, true);
+      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+      qterm false scratch;
+      return ((a, index), flag)
+    );
+    return ((as, even), flag)
+  );
+  as <- before ++ as ++ after;
+  as <- unnumber_elements as;
+  return (as, even)
 ;;
 
 -- The main oracle function. 
@@ -185,4 +183,3 @@ let main n =
 ;;
 
 main 3;;
-

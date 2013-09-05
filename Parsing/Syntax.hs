@@ -292,9 +292,17 @@ expr_of_pattern (PDatacon d p) = EDatacon d (fmap expr_of_pattern p)
 -- | The inverse of 'expr_of_pattern'. Translate an expression to the corresponding pattern. While
 -- 'expr_of_pattern' always succeeds, 'pattern_of_expr' may fail if called on a term that is \"not a pattern\", for example,
 -- a lambda abstraction. Any location annotations are preserved.
-pattern_of_expr :: Expr -> Pattern
-pattern_of_expr EUnit = PUnit
-pattern_of_expr (EVar x) = PVar x
-pattern_of_expr (ETuple elist) = PTuple $ List.map pattern_of_expr elist
-pattern_of_expr (ELocated e ex) = PLocated (pattern_of_expr e) ex
-pattern_of_expr (EDatacon d p) = PDatacon d (fmap pattern_of_expr p)
+pattern_of_expr :: Expr -> Maybe Pattern
+pattern_of_expr EUnit = Just PUnit
+pattern_of_expr (EVar x) = Just (PVar x)
+pattern_of_expr (ETuple elist) = do
+  plist <- mapM pattern_of_expr elist
+  return (PTuple plist)
+pattern_of_expr (ELocated e ex) = do
+  p <- pattern_of_expr e
+  return (PLocated p ex)
+pattern_of_expr (EDatacon d Nothing) = Just (PDatacon d Nothing)
+pattern_of_expr (EDatacon d (Just e)) = do
+  p <- pattern_of_expr e
+  return (PDatacon d (Just p))
+pattern_of_expr _ = Nothing

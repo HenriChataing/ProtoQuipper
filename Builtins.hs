@@ -124,6 +124,8 @@ builtin_operations =
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m + n))))),
               ("SUB", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m - n))))),
+              ("NEG", (TArrow TInt TInt,
+                       VBuiltin (\(VInt m) -> VInt (-m)))),
               ("MUL", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
               ("DIV", (TArrow TInt (TArrow TInt TInt),
