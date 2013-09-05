@@ -338,6 +338,52 @@ let rec for_each_map2r xs ys s body =
       return (a:as, b:bs, s2)
 ;;
 
+-- Like for_each_map, but traverse three lists simultaneously.
+-- For example:
+-- 
+-- ([a,b,c], [d,e,f], [g,h,i], s) <- for_each_map3 [x,y,z] [u,v,w] [q,r,t] s body
+-- 
+-- is equivalent to:
+-- 
+-- (a,d,g,s) <- body x u q s;
+-- (b,e,h,s) <- body y v r s;
+-- (c,f,i,s) <- body z w t s
+-- 
+-- It is an error if the three lists are not of equal length.
+-- 
+-- for_each_map3 :: list a -> list b -> list c -> s -> (a -> b -> c -> s -> d * e * f * s) -> list d * list e * list f * s
+let rec for_each_map3 xs ys zs s body =
+  match (xs, ys, zs) with
+    ([], [], []) -> ([], [], [], s)
+  | (x:xs, y:ys, z:zs) -> 
+      (a, b, c, s1) <- body x y z s;
+      (as, bs, cs, s2) <- for_each_map3 xs ys zs s1 body;
+      return (a:as, b:bs, c:cs, s2)
+;;
+
+-- Like for_each_map3, but traverse the lists in right-to-left order.
+-- For example:
+-- 
+-- ([a,b,c], [d,e,f], [g,h,i], s) <- for_each_map3r [x,y,z] [u,v,w] [q,r,t] s body
+-- 
+-- is equivalent to:
+-- 
+-- (c,f,i,s) <- body z w t s;
+-- (b,e,h,s) <- body y v r s;
+-- (a,d,g,s) <- body x u q s
+-- 
+-- It is an error if the three lists are not of equal length.
+-- 
+-- for_each_map3r :: list a -> list b -> list c -> s -> (a -> b -> c -> s -> d * e * f * s) -> list d * list e * list f * s
+let rec for_each_map3r xs ys zs s body =
+  match (xs, ys, zs) with
+    ([], [], []) -> ([], [], [], s)
+  | (x:xs, y:ys, z:zs) -> 
+      (as, bs, cs, s1) <- for_each_map3r xs ys zs s body;
+      (a, b, c, s2) <- body x y z s1;
+      return (a:as, b:bs, c:cs, s2)
+;;
+
 -- Run the block while accessing one particular element of a list.
 -- Example:
 -- 

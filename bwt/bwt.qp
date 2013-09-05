@@ -193,16 +193,16 @@ let testIsChild (even, ischild, direction, color, n) =
 -- register 'b' of length at least n+2, initialized to 0.  If
 -- 'isparent' is set, set 'b' to the node label of the parent of
 -- 'a'. This is self-inverse.
--- 
+--
 -- setParent :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
-let setParent (a, b, isparent, n) = 
+let setParent (a, b, isparent, n) =
 
   (a, (b, isparent)) <- with_list_range 1 n a (b, isparent) (fun as (b, isparent) ->
     (b, (as, isparent)) <- with_list_range 0 (n-1) b (as, isparent) (fun bs (as, isparent) ->
       (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
         (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
         return (a, b, isparent)
-      ); 
+      );
       return (bs, (as, isparent))
     );
     return (as, (b, isparent))
@@ -219,14 +219,37 @@ let setParent (a, b, isparent, n) =
   return (a, b, isparent)
 ;;
 
--- DUMMY FUNCTIONS: not yet implemented. ###
-let doWeld0 (a, b, weldctrl, f, n) = (a, b, weldctrl);;
-let doWeld1 (a, b, weldctrl, f, n) = (a, b, weldctrl);;
+-- Input a node label 'a', and a register 'b' initialized to 0. If
+-- 'weldctrl' is set, set 'b' to the node connected to 'a' by the
+-- welding function 'g'. This is self-inverse. Here, 'a' and 'b' are
+-- quantum registers of length at least n+2, and 'g' is a boolean
+-- register of length n.
+-- 
+-- doWeld0 :: list qubit * list qubit * qubit * list bool * int -> list qubit * list qubit * qubit
+let doWeld0 (a, b, weldctrl, f, n) = 
 
+  (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
+  (bbefore, bs, bafter) <- sf_list_range 0 (n-1) b;
+  (fbefore, fs, fafter) <- sf_list_range 0 (n-1) f;
+
+  (as, bs, fs, weldctrl) <- for_each_map3 as bs fs weldctrl (fun ai bi fi weldctrl ->
+    (bi, weldctrl, ai) <- toffoliGate_signed bi (weldctrl, true) (ai, not fi);
+    return (ai, bi, fi, weldctrl)
+  );
+
+  a <- sf_list_unrange (abefore, as, aafter);
+  b <- sf_list_unrange (bbefore, bs, bafter);
+  f <- sf_list_unrange (fbefore, fs, fafter);
+
+  return (a, b, weldctrl)
+;;
+
+-- DUMMY FUNCTIONS: not yet implemented. ###
+let doWeld1 (a, b, weldctrl, g, n) = (a, b, weldctrl);;
 
 -- A special case of 'setChild', where the child is in the opposite
 -- binary tree, i.e., we follow one of the welding edges.
--- 
+--
 -- setWeld :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
 let setWeld (a, b, childctrl, direction, f, g, n) =
   with_ancilla false (fun weldctrl ->
@@ -235,7 +258,7 @@ let setWeld (a, b, childctrl, direction, f, g, n) =
     (weldctrl, childctrl) <- cnotGate_signed weldctrl (childctrl, true);
     (a, b, weldctrl) <- doWeld1 (a, b, weldctrl, g, n);
     (weldctrl, childctrl, direction) <- toffoliGate_signed weldctrl (childctrl, true) (direction, true);
-    
+
     (abefore, an1, aafter) <- sf_list_index (n+1) a;
     (bbefore, [bn, bn1], bafter) <- sf_list_range n (n+1) b;
     (bn1, childctrl, an1) <- toffoliGate_signed bn1 (childctrl, true) (an1, true);
@@ -250,7 +273,7 @@ let setWeld (a, b, childctrl, direction, f, g, n) =
 
 -- A special case of 'setChild', where the child is inside the same
 -- binary tree (i.e., not via the welding).
--- 
+--
 -- setChildInTree :: list qubit * list qubit * qubit * qubit * int -> list qubit * list qubit * qubit * qubit
 let setChildInTree (a, b, childctrl, direction, n) =
   (bbefore, b0, bafter) <- sf_list_index 0 b;
@@ -271,7 +294,7 @@ let setChildInTree (a, b, childctrl, direction, n) =
   (bn1, childctrl, an1) <- toffoliGate_signed bn1 (childctrl, true) (an1, true);
   a <- sf_list_unindex (abefore, an1, aafter);
   b <- sf_list_unindex (bbefore, bn1, bafter);
-  
+
   return (a, b, childctrl, direction)
 ;;
 
@@ -279,9 +302,9 @@ let setChildInTree (a, b, childctrl, direction, n) =
 -- indicated child of 'a'. Here 'a' and 'b' are quantum registers of
 -- length at least n+2, and 'f' and 'g' are boolean registers of
 -- length n.
--- 
+--
 -- setChild :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
-let setChild (a, b, ischild, direction, f, g, n) = 
+let setChild (a, b, ischild, direction, f, g, n) =
   with_ancilla false (fun childctrl ->
     (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
       (childctrl, ischild, an) <- toffoliGate_signed childctrl (ischild, true) (an, true);
