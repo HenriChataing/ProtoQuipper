@@ -197,17 +197,17 @@ let rec sf_insert a as n =
 
 -- Split a list after the nth element.
 -- 
--- splitAt :: int -> [a] -> [a] * [a]
-let rec splitAt n xs =
+-- list_split :: int -> [a] -> [a] * [a]
+let rec list_split n xs =
   if n <= 0 then ([], xs) else
   match xs with
     [] -> ([], [])
   | h:t -> 
-      let (as, bs) = splitAt (n-1) t in
+      let (as, bs) = list_split (n-1) t in
       (h:as, bs)
 ;;
 
--- The inverse of splitAt. Re-assemble the elements in the original
+-- The inverse of list_split. Re-assemble the elements in the original
 -- order.
 -- 
 -- list_unsplit :: [a] * [a] -> [a]
@@ -221,8 +221,8 @@ let list_unsplit (xs, rest) =
 -- 
 -- sf_list_range :: int -> int -> [a] -> [a] * [a] * [a]
 let sf_list_range n m xs =
-  let (as, after) = splitAt (m+1) xs in
-  let (before, range) = splitAt n as in
+  let (as, after) = list_split (m+1) xs in
+  let (before, range) = list_split n as in
   (before, range, after)
 ;;
 

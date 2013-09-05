@@ -95,26 +95,26 @@ let wGateInverse x y = wGate x y;;
 
 -- An exp(-itZ) gate with a signed control.
 --
--- controlledExpGate_signed :: qubit -> qubit * bool -> qubit * qubit
-let controlledExpGate_signed x (y, sign) = 
+-- controlledExpGate :: qubit -> qubit * bool -> qubit * qubit
+let controlledExpGate x (y, sign) = 
   (x,y) <- cexp_itZ_signed sign (x,y);
   return (x,y)
 ;;
 
 -- A controlled-not gate with a signed control.
 -- 
--- cnotGate_signed :: qubit -> qubit * bool -> qubit * qubit
-let cnotGate_signed x (y, sign) =
+-- cnotGate :: qubit -> qubit * bool -> qubit * qubit
+let cnotGate x (y, sign) =
   (x,y) <- cnot_signed sign (x,y);
   return (x,y)
 ;;
 
--- Like cnotGate_signed, but also conditioned on a classical bit.
+-- Like cnotGate, but also conditioned on a classical bit.
 -- 
--- cnotGate_signed_if :: bool -> qubit -> qubit * bool -> qubit * qubit
-let cnotGate_signed_if cond x (y,s) =
+-- cnotGate_if :: bool -> qubit -> qubit * bool -> qubit * qubit
+let cnotGate_if cond x (y,s) =
   if cond then 
-    cnotGate_signed x (y,s)
+    cnotGate x (y,s)
   else
     (x, y)
 ;;
@@ -123,8 +123,8 @@ let cnotGate_signed_if cond x (y,s) =
 -- control fires when the qubit is 1; a sign of 'false' means the
 -- control fires when the qubit is 0.
 -- 
--- toffoliGate_signed :: qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
-let toffoliGate_signed x (y,s) (z,t) =
+-- toffoliGate :: qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
+let toffoliGate x (y,s) (z,t) =
   toffoli_signed s t (x, y, z)
 ;;
 
@@ -134,15 +134,15 @@ let toffoliGate_signed x (y,s) (z,t) =
 -- 
 -- toffoliGate_10 :: qubit -> qubit -> qubit -> qubit * qubit * qubit 
 let toffoliGate_10 h a b = 
-  toffoliGate_signed h (a, true) (b, false)
+  toffoliGate h (a, true) (b, false)
 ;;
 
--- Like toffoliGate_signed, but also conditioned on a classical bit.
+-- Like toffoliGate, but also conditioned on a classical bit.
 -- 
--- toffoliGate_signed_if :: bool -> qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
-let toffoliGate_signed_if cond x (y,s) (z,t) =
+-- toffoliGate_if :: bool -> qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
+let toffoliGate_if cond x (y,s) (z,t) =
   if cond then 
-    toffoliGate_signed x (y,s) (z,t) 
+    toffoliGate x (y,s) (z,t) 
   else
     (x, y, z)
 ;;
@@ -220,11 +220,11 @@ let with_disjunction qs body =
     | h:t ->
         (a, h:as, t) <- with_disjunction_aux t (fun p ->
           (a, h:as, p) <- with_ancilla false (fun q ->
-  	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
-            (q, p) <- cnotGate_signed q (p, true);
+  	    (q, p, h) <- toffoliGate q (p, false) (h, true);
+            (q, p) <- cnotGate q (p, true);
             (a, as, q) <- body q;
-            (q, p) <- cnotGate_signed q (p, true);
-      	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
+            (q, p) <- cnotGate q (p, true);
+      	    (q, p, h) <- toffoliGate q (p, false) (h, true);
             return ((a, h:as, p), q)
           );
           return (a, h:as, p)
