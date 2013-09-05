@@ -184,6 +184,8 @@ type Datacon = Int
 data Pattern =
     PJoker                                          -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
   | PUnit                                           -- ^ Unit pattern: @()@.
+  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Int                                        -- ^ Integer pattern.
   | PVar Variable                                   -- ^ Variable pattern: /x/.
   | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".

@@ -147,6 +147,18 @@ bind_pattern (PTuple plist) (VTuple vlist) env = do
 bind_pattern PUnit VUnit env = do
   return env
 
+bind_pattern (PBool b) (VBool b') env = do
+  if b == b' then 
+    return env 
+    else
+    throw $ MatchingError (sprint $ PBool b) (sprint $ VBool b')
+
+bind_pattern (PInt n) (VInt n') env = do
+  if n == n' then 
+    return env 
+    else
+    throw $ MatchingError (sprint $ PInt n) (sprint $ VInt n')
+
 bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
   if dcon == dcon' then
     case (p, v) of
@@ -197,6 +209,12 @@ match_value (PTuple plist) (VTuple vlist) =
 
 match_value PUnit VUnit =
   True
+
+match_value (PBool b) (VBool b') =
+  b == b'
+
+match_value (PInt n) (VInt n') =
+  n == n'
 
 match_value (PDatacon dcon p) (VDatacon dcon' v) =
   if dcon == dcon' then

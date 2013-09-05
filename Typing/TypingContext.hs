@@ -62,10 +62,18 @@ bind_pattern PJoker = do
   a <- fresh_type
   return (TBang 1 $ TVar a, IMap.empty, emptyset)
 
--- Unit value
+-- Unit pattern
 bind_pattern PUnit = do
   return (TBang 0 TUnit, IMap.empty, emptyset)
 
+-- Boolean pattern
+bind_pattern (PBool b) = do
+  return (TBang 0 TBool, IMap.empty, emptyset)
+  
+-- Integer pattern
+bind_pattern (PInt n) = do
+  return (TBang 0 TInt, IMap.empty, emptyset)
+  
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) = do
   -- Create a new type, add some information to the flag
@@ -88,7 +96,7 @@ bind_pattern (PDatacon dcon p) = do
   -- Retrieves the type of data constructor 
   dtype <- datacon_def dcon
   
-  -- Instanciate the type
+  -- Instantiate the type
   (typ, cset) <- instantiate dtype
 
   -- Check the arguments
@@ -137,6 +145,14 @@ bind_pattern_to_type (PVar x) t@(TBang n _) = do
 
 -- The unit pattern bound to the unit type
 bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
+  return (IMap.empty, emptyset)
+
+-- A boolean pattern bound to the boolean type
+bind_pattern_to_type (PBool b) t@(TBang _ TBool) = do
+  return (IMap.empty, emptyset)
+
+-- The unit pattern bound to the unit type
+bind_pattern_to_type (PInt n) t@(TBang _ TInt) = do
   return (IMap.empty, emptyset)
 
 -- Two things have to be done to bind a tuple to a tensor: first
@@ -189,7 +205,6 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
         ex <- get_location
         ndcon <- datacon_name dcon
         throwQ $ LocatedError (WrongDataArguments ndcon) ex
-
 
 -- Same as with the function bind_pattern
 bind_pattern_to_type (PConstraint p (t, typs)) typ = do

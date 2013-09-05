@@ -179,6 +179,8 @@ data Pattern =
     PJoker                               -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
                                          -- In Proto-Quipper, a wildcard can only match a duplicable value. 
   | PUnit                                -- ^ Unit pattern: @()@.
+  | PBool Bool                           -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Int                             -- ^ Integer pattern.
   | PVar String                          -- ^ Variable pattern: /x/.
   | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
@@ -285,6 +287,8 @@ instance Located Expr where
 -- preserved.
 pattern_of_expr :: Expr -> Maybe Pattern
 pattern_of_expr EUnit = Just PUnit
+pattern_of_expr (EBool b) = Just (PBool b)
+pattern_of_expr (EInt n) = Just (PInt n)
 pattern_of_expr (EVar x) = Just (PVar x)
 pattern_of_expr (ETuple elist) = do
   plist <- mapM pattern_of_expr elist

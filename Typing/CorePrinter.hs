@@ -103,6 +103,8 @@ instance PPrint Pattern where
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
   genprint _ (PVar x) [fvar, _] =  fvar x
   genprint _ PUnit _ = "()"
+  genprint _ (PBool b) _ = if b then "true" else "false"
+  genprint _ (PInt n) _ = show n
   genprint _ PJoker _ = "_"
   genprint (Nth 0) _ _= "..."
 

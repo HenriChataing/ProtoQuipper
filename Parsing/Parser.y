@@ -255,6 +255,9 @@ Pattern :
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
     | Pattern ':' Pattern                       { locate_opt (PDatacon "Cons" (Just $ PTuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
+    | TRUE                                      { locate (PBool True) $1 }
+    | FALSE                                     { locate (PBool False) $1 }
+    | INT                                       { locate (PInt (read $ snd $1)) (fst $1) }
     | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
     | '(' ')'                                   { locate PUnit (fromto $1 $2) }
     | '(' Pattern_sep_list ')'                  { case $2 of
