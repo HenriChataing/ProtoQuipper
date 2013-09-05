@@ -91,9 +91,6 @@ let qrwbwt oracle s =
 -- (a + g), respectively, where "xor" denotes bitwise exclusive or,
 -- and "+" denotes binary addition.
 
--- DUMMY FUNCTIONS: not yet implemented.
-let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
-
 -- Input a node label 'a' of length at least n+1. Negate both 'root'
 -- and 'even' if 'a' is a root node.
 --
@@ -220,6 +217,37 @@ let setParent (a, b, isparent, n) =
   );
 
   return (a, b, isparent)
+;;
+
+-- DUMMY FUNCTIONS: not yet implemented. ###
+let setWeld (a, b, childctrl, direction, f, g, n) =
+  return (a, b, childctrl, direction)
+;;
+let setChildInTree (a, b, childctrl, direction, n) =
+  return (a, b, childctrl, direction)
+;;
+
+-- Similar to 'setParent', but set 'b' to the node label of the
+-- indicated child of 'a'. Here 'a' and 'b' are quantum registers of
+-- length at least n+2, and 'f' and 'g' are boolean registers of
+-- length n.
+-- 
+-- setChild :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
+let setChild (a, b, ischild, direction, f, g, n) = 
+  with_ancilla false (fun childctrl ->
+    (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
+      (childctrl, ischild, an) <- toffoliGate_signed childctrl (ischild, true) (an, true);
+      return (an, (childctrl, ischild))
+    );
+    (a, b, childctrl, direction) <- setWeld (a, b, childctrl, direction, f, g, n);
+    (childctrl, ischild) <- cnotGate_signed childctrl (ischild, true);
+    (a, b, childctrl, direction) <- setChildInTree (a, b, childctrl, direction, n);
+    (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
+      (childctrl, ischild, an) <- toffoliGate_signed childctrl (ischild, true) (an, false);
+      return (an, (childctrl, ischild))
+    );
+    return ((a, b, ischild, direction), childctrl)
+  )
 ;;
 
 ----------------------------------------------------------------------
