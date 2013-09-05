@@ -140,6 +140,30 @@ let rec sf_length l =
             (n+1, x:xs)
 ;;
 
+-- Append two lists.
+-- 
+-- (++) :: list a -> list a -> list a
+let rec (++) l0 l1 =
+  match (l0, l1) with
+    ([], l) -> l
+  | (l, []) -> l
+  | (x:xs, l) -> let l = xs ++ l in
+                 x:l
+;;
+
+-- Reverse a list.
+-- 
+-- reverse :: list a -> list a
+let reverse l =
+  let rec reverse_acc acc l =
+    match l with
+      [] -> acc
+    | x:xs -> reverse_acc (x:acc) xs
+  in
+
+  reverse_acc [] l
+;;
+
 -- Return the nth element of l (counting from 0), as well as the list
 -- of remaining elements in their original order. It is an error for n
 -- to be out of range.
@@ -193,28 +217,12 @@ let sf_list_range n m xs =
   (before, range, after)
 ;;
 
--- Append two lists.
+-- The inverse of sf_list_range: re-assemble the elements in the
+-- original order.
 -- 
--- (++) :: list a -> list a -> list a
-let rec (++) l0 l1 =
-  match (l0, l1) with
-    ([], l) -> l
-  | (l, []) -> l
-  | (x:xs, l) -> let l = xs ++ l in
-                 x:l
-;;
-
--- Reverse a list.
--- 
--- reverse :: list a -> list a
-let reverse l =
-  let rec reverse_acc acc l =
-    match l with
-      [] -> acc
-    | x:xs -> reverse_acc (x:acc) xs
-  in
-
-  reverse_acc [] l
+-- sf_list_unrange :: [a] * [a] * [a] -> [a]
+let sf_list_unrange (before, range, after) =
+  before ++ range ++ after
 ;;
 
 -- ----------------------------------------------------------------------

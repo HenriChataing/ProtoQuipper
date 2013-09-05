@@ -219,11 +219,35 @@ let setParent (a, b, isparent, n) =
   return (a, b, isparent)
 ;;
 
--- DUMMY FUNCTIONS: not yet implemented. ###
-let setWeld (a, b, childctrl, direction, f, g, n) =
+-- A special case of 'setChild', where the child is inside the same
+-- binary tree (i.e., not via the welding).
+-- 
+-- setChildInTree :: list qubit * list qubit * qubit * qubit * int -> list qubit * list qubit * qubit * qubit
+let setChildInTree (a, b, childctrl, direction, n) =
+  (b0, rest) <- sf_list_index b 0;
+  (b0, childctrl, direction) <- toffoliGate_signed b0 (childctrl, true) (direction, true);
+  b <- sf_list_unindex (b0, rest) 0;
+
+  (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
+  (bbefore, bs, bafter) <- sf_list_range 1 n b;
+  (as, bs, childctrl) <- for_each_map2 as bs childctrl (fun a b childctrl ->
+    (b, childctrl, a) <- toffoliGate_signed b (childctrl, true) (a, true);
+    return (a, b, childctrl)
+  );
+  b <- sf_list_unrange (bbefore, bs, bafter);
+  a <- sf_list_unrange (abefore, as, aafter);
+
+  (an1, arest) <- sf_list_index a (n+1);
+  (bn1, brest) <- sf_list_index b (n+1);
+  (bn1, childctrl, an1) <- toffoliGate_signed bn1 (childctrl, true) (an1, true);
+  a <- sf_list_unindex (an1, arest) (n+1);
+  b <- sf_list_unindex (bn1, brest) (n+1);
+  
   return (a, b, childctrl, direction)
 ;;
-let setChildInTree (a, b, childctrl, direction, n) =
+
+-- DUMMY FUNCTION: not yet implemented. ###
+let setWeld (a, b, childctrl, direction, f, g, n) =
   return (a, b, childctrl, direction)
 ;;
 
