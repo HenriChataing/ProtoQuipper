@@ -99,15 +99,16 @@ let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 --
 -- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
 let parseNodeRoot (a, root, even, n) =
-  (before, a, after) <- sf_list_range 1 n a;
-  ((root, even), a) <- with_disjunction a (fun q ->
+  (a, (root, even)) <- with_list_range 1 n a (root, even) (fun a (root, even) ->
+    ((root, even), a) <- with_disjunction a (fun q ->
 
-    (root, q) <- cnotGate_signed root (q, false);
-    (even, q) <- cnotGate_signed even (q, false);
+      (root, q) <- cnotGate_signed root (q, false);
+      (even, q) <- cnotGate_signed even (q, false);
 
-    return ((root, even), q)
+      return ((root, even), q)
+    );
+    return (a, (root, even))
   );
-  a <- before ++ a ++ after;
   return (a, root, even)
 ;;
 
@@ -117,25 +118,26 @@ let parseNodeRoot (a, root, even, n) =
 -- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
 let parseNodeEven (as, even, n) =
   as <- number_elements as;
-  (before, as, after) <- sf_list_range 1 n as;
-  (as, even) <- with_ancilla false (fun flag ->
+  (as, even) <- with_list_range 1 n as even (fun as even ->
+    (as, even) <- with_ancilla false (fun flag ->
 
-    (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
-      scratch <- qinit false;
-      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
-      (even, flag, a) <- toffoliGate_signed_if (is_even index) even (flag, false) (a, true);
-      (flag, scratch) <- cnotGate_signed flag (scratch, true);
-      return ((a, index, scratch), (flag, even))
+      (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
+        scratch <- qinit false;
+        (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+        (even, flag, a) <- toffoliGate_signed_if (is_even index) even (flag, false) (a, true);
+        (flag, scratch) <- cnotGate_signed flag (scratch, true);
+        return ((a, index, scratch), (flag, even))
+      );
+      (as, flag) <- for_each_map scratches flag (fun (a, index, scratch) flag ->
+        (flag, scratch) <- cnotGate_signed flag (scratch, true);
+        (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
+        qterm false scratch;
+        return ((a, index), flag)
+      );
+      return ((as, even), flag)
     );
-    (as, flag) <- for_each_map scratches flag (fun (a, index, scratch) flag ->
-      (flag, scratch) <- cnotGate_signed flag (scratch, true);
-      (scratch, flag, a) <- toffoliGate_signed scratch (flag, false) (a, true);
-      qterm false scratch;
-      return ((a, index), flag)
-    );
-    return ((as, even), flag)
+    return (as, even)
   );
-  as <- before ++ as ++ after;
   as <- unnumber_elements as;
   return (as, even)
 ;;
@@ -198,20 +200,24 @@ let testIsChild (even, ischild, direction, color, n) =
 -- setParent :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
 let setParent (a, b, isparent, n) = 
 
-  (a0, as, a1) <- sf_list_range 1 n a;
-  (b0, bs, b1) <- sf_list_range 0 (n-1) b;
-  (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
-    (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
-    return (a, b, isparent)
-  ); 
-  b <- b0 ++ bs ++ b1;
-  a <- a0 ++ as ++ a1;
+  (a, (b, isparent)) <- with_list_range 1 n a (b, isparent) (fun as (b, isparent) ->
+    (b, (as, isparent)) <- with_list_range 0 (n-1) b (as, isparent) (fun bs (as, isparent) ->
+      (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
+        (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
+        return (a, b, isparent)
+      ); 
+      return (bs, (as, isparent))
+    );
+    return (as, (b, isparent))
+  );
 
-  (a, as) <- sf_list_index a (n+1);
-  (b, bs) <- sf_list_index b (n+1);
-  (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
-  a <- sf_list_unindex (a, as) (n+1);
-  b <- sf_list_unindex (b, bs) (n+1);
+  (a, (b, isparent)) <- with_list_index (n+1) a (b, isparent) (fun a (b, isparent) ->
+    (b, (a, isparent)) <- with_list_index (n+1) b (a, isparent) (fun b (a, isparent) ->
+      (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
+      return (b, (a, isparent))
+    );
+    return (a, (b, isparent))
+  );
 
   return (a, b, isparent)
 ;;

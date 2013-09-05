@@ -338,6 +338,47 @@ let rec for_each_map2r xs ys s body =
       return (a:as, b:bs, s2)
 ;;
 
+-- Run the block while accessing one particular element of a list.
+-- Example:
+-- 
+-- (as, s) <- with_list_index n as s (fun a s ->
+--   (a, s) <- update a s;
+--   return (a, s)
+-- )
+-- 
+-- will update the nth element of 'as'. This is an alternative to
+-- 'sf_list_index' for "safely" accessing an element of a list (i.e.,
+-- without accidentally erasing or duplicating the rest of the list).
+-- 
+-- with_list_index :: int -> list a -> s -> (a -> s -> (a, t)) -> (list a, t)
+let with_list_index n as s body =
+  (a, as) <- sf_list_index as n;
+  (a, s) <- body a s;
+  as <- sf_list_unindex (a, as) n;
+  return (as, s)
+;;
+
+-- Run the block while accessing a particular sub-range of a list.
+-- Example:
+-- 
+-- (as, s) <- with_list_range n m as s (fun as_range s ->
+--   (as_range, s) <- update as_range s;
+--   return (as_range, s)
+-- )
+-- 
+-- will update the nth to mth element of 'as'. This is an alternative
+-- to 'sf_list_range' for "safely" accessing a subrange of a list
+-- (i.e., without accidentally erasing or duplicating the rest of the
+-- list).
+-- 
+-- with_list_range :: int -> int -> list a -> s -> (list a -> s -> (list a, t)) -> (list a, t)
+let with_list_range n m as s body =
+  (before, as, after) <- sf_list_range n m as;
+  (as, s) <- body as s;
+  as <- before ++ as ++ after;
+  return (as, s)
+;;
+
 -- ----------------------------------------------------------------------
 -- * Binary representation of integers
 
