@@ -149,3 +149,6 @@ builtin_operations =
             ] in
   Map.fromList ops
 
+-- | The collection of all built-in operations.
+builtin_all :: Map String (Type, Value)
+builtin_all = Map.union builtin_gates builtin_operations

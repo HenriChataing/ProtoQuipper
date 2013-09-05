@@ -138,7 +138,7 @@ import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do
                       m <- rec
                       t' <- translate_bound_type t empty_label 
-                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
+                      return $ Map.insert b (t', v) m) (return Map.empty) builtin_all
   ctx <- get_context
   set_context $ ctx { builtins = mb }
 
