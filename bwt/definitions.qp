@@ -6,7 +6,7 @@ import Core
 import Function
 
 -- ----------------------------------------------------------------------
--- Loops etc
+-- * Loops etc
 
 -- The identity function. Sometimes it is more readable to write 
 -- "return x" instead of "x".
@@ -43,7 +43,7 @@ let rec for a b s x f =
 ;;
 
 -- ----------------------------------------------------------------------
--- List operations
+-- * List operations
 
 -- Number the elements of a list. Example:
 -- 
@@ -62,7 +62,7 @@ let unnumber_elements l =
 ;;
 
 -- ----------------------------------------------------------------------
--- Quantum registers
+-- * Quantum registers
 
 -- Initialize a list of qubits from a list of boolean parameters.
 -- 
@@ -80,7 +80,7 @@ let qterm_register bs qs =
 ;;
 
 -- ----------------------------------------------------------------------
--- Specific gates used in the BWT algorithm
+-- * Specific gates used in the BWT algorithm
 
 -- Uncurried version of gateW.
 -- 
@@ -127,7 +127,7 @@ let toffoliGate_10 h a b =
   toffoliGate_signed h (a, true) (b, false)
 ;;
 
--- Like toffoliGate_signed, but also condition on a classical bit.
+-- Like toffoliGate_signed, but also conditioned on a classical bit.
 -- 
 -- toffoliGate_signed_if :: bool -> qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
 let toffoliGate_signed_if cond x (y,s) (z,t) =
@@ -137,8 +137,18 @@ let toffoliGate_signed_if cond x (y,s) (z,t) =
     (x, y, z)
 ;;
 
+-- Like qnot, but also conditioned on a classical bit.
+-- 
+-- qnot_if :: bool -> qubit -> qubit
+let qnot_if cond q = 
+  if cond then
+    qnot q
+  else
+    q
+;;
+
 -- ----------------------------------------------------------------------
--- Ancillas
+-- * Ancillas and other block structures
 
 -- Execute a block of code with one additional ancilla initialized to
 -- b. This should be used as follows:
@@ -156,9 +166,9 @@ let toffoliGate_signed_if cond x (y,s) (z,t) =
 -- returns the ancilla in the same state that it was initialized to.
 -- 
 -- with_ancilla :: bool -> (qubit -> a * qubit) -> a
-let with_ancilla b f =
+let with_ancilla b body =
   q <- qinit b;
-  (res,q) <- f q;
+  (res,q) <- body q;
   qterm b q;
   return res
 ;;
@@ -167,9 +177,9 @@ let with_ancilla b f =
 -- list of booleans.
 -- 
 -- with_ancilla_reg :: list bool -> (list qubit -> a * list qubit) -> a
-let with_ancilla_reg bs f =
+let with_ancilla_reg bs body =
   qs <- qinit_register bs;
-  (res,qs) <- f qs;
+  (res,qs) <- body qs;
   x <- qterm_register bs qs;
   return res
 ;;
@@ -187,13 +197,13 @@ let with_ancilla_reg bs f =
 -- returns the ancilla in the same state that it was initialized to.
 -- 
 -- with_disjunction :: list qubit -> (qubit -> a * qubit) -> a * list qubit
-let with_disjunction qs f = 
+let with_disjunction qs body = 
   -- with_disjunction_aux :: list qubit -> (qubit -> a * list qubit * qubit) -> a * list qubit * list qubit
-  let rec with_disjunction_aux qs f =
+  let rec with_disjunction_aux qs body =
     match qs with
       [] -> 
         (a, as) <- with_ancilla false (fun q ->
-          (a, as, q) <- f q;
+          (a, as, q) <- body q;
           return ((a, as), q)
         );
         return (a, as, [])
@@ -202,7 +212,7 @@ let with_disjunction qs f =
           (a, h:as, p) <- with_ancilla false (fun q ->
   	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
             (q, p) <- cnotGate_signed q (p, true);
-            (a, as, q) <- f q;
+            (a, as, q) <- body q;
             (q, p) <- cnotGate_signed q (p, true);
       	    (q, p, h) <- toffoliGate_signed q (p, false) (h, true);
             return ((a, h:as, p), q)
@@ -212,7 +222,7 @@ let with_disjunction qs f =
         return (a, as, h:t)
   in
   (a, [], qs) <- with_disjunction_aux qs (fun q ->
-    (a, q) <- f q;
+    (a, q) <- body q;
     return (a, [], q)
   );
   return (a, qs)
@@ -283,7 +293,7 @@ let for_each_mapr xs s body =
 ;;
 
 -- ----------------------------------------------------------------------
--- Binary representation of integers
+-- * Binary representation of integers
 
 -- Check whether an integer is odd.
 -- 

@@ -8,7 +8,7 @@ import Gates
 import Definitions
 
 -- ----------------------------------------------------------------------
--- Oracle abstraction
+-- * Oracle abstraction
 
 -- A data structure to hold an oracle. An oracle encodes a graph, and
 -- provides the following information: the tree depth n, the label
@@ -26,7 +26,7 @@ type oracle =
 	     list qubit * list qubit * qubit)   -- (a,b,r) outputs
 
 -- ----------------------------------------------------------------------
--- The time step
+-- * The diffusion step
 
 -- Perform a single diffusion step of the quantum walk. Here, a and b
 -- are m-qubit registers holding node labels to be diffused. r is a
@@ -44,7 +44,7 @@ let timestep (a,b,r,m) =
 ;;
 
 -- ----------------------------------------------------------------------
--- The top-level algorithm
+-- * The top-level algorithm
 
 -- The main loop of the binary welded tree algorithm. Because there is
 -- currently no built-in real number type in Proto-Quipper, we leave
@@ -75,7 +75,10 @@ let qrwbwt oracle s =
 ;;
 
 -- ----------------------------------------------------------------------
--- The oracle implementation
+-- * The oracle implementation
+
+-- ----------------------------------------------------------------------
+-- ** Oracle subroutines
 
 -- The functions in this section implement a particular oracle for a
 -- binary welded tree. The oracle is parametric on:
@@ -89,7 +92,6 @@ let qrwbwt oracle s =
 -- and "+" denotes binary addition.
 
 -- DUMMY FUNCTIONS: not yet implemented.
-let testIsChild (even, ischild, direction, color, n) = (even, ischild, direction);;
 let setParent (a, b, isparent, n) = (a, b, isparent);;
 let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 
@@ -176,6 +178,22 @@ let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
   return (a, root, even, isparent, ismatch)
 ;;
 
+-- Consider a node 'a', and negate 'ischild' if 'a' has a child
+-- node of color 'color'. Also set 'direction' to indicate whether
+-- it is a "left" or "right" child. Here, 'color' is a boolean
+-- register of length 2, representing a color. This function is
+-- self-inverse.
+-- 
+-- testIsChild :: qubit * qubit * qubit * list bool * int -> qubit * qubit * qubit                       
+let testIsChild (even, ischild, direction, color, n) = 
+  (ischild, even) <- cnotGate_signed ischild (even, not (color @ 1));
+  direction <- qnot_if (color @ 0) direction;
+  return (even, ischild, direction)
+;;
+
+----------------------------------------------------------------------
+-- ** The main oracle function
+
 -- The main oracle function.
 --
 -- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
@@ -209,7 +227,9 @@ let oracle_orthodox n f g =
 ;;
 
 -- ----------------------------------------------------------------------
--- The "main" program: display the circuit for size n.
+-- * The main program
+
+-- Display the circuit for size n.
 --
 -- main :: int -> circ((), list qubit)
 let main n =
