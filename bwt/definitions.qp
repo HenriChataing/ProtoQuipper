@@ -375,7 +375,7 @@ let with_list_index n as s body =
 let with_list_range n m as s body =
   (before, as, after) <- sf_list_range n m as;
   (as, s) <- body as s;
-  as <- before ++ as ++ after;
+  as <- sf_list_unrange (before, as, after);
   return (as, s)
 ;;
 

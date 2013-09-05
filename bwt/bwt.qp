@@ -219,6 +219,35 @@ let setParent (a, b, isparent, n) =
   return (a, b, isparent)
 ;;
 
+-- DUMMY FUNCTIONS: not yet implemented. ###
+let doWeld0 (a, b, weldctrl, f, n) = (a, b, weldctrl);;
+let doWeld1 (a, b, weldctrl, f, n) = (a, b, weldctrl);;
+
+
+-- A special case of 'setChild', where the child is in the opposite
+-- binary tree, i.e., we follow one of the welding edges.
+-- 
+-- setWeld :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
+let setWeld (a, b, childctrl, direction, f, g, n) =
+  with_ancilla false (fun weldctrl ->
+    (weldctrl, childctrl, direction) <- toffoliGate_signed weldctrl (childctrl, true) (direction, false);
+    (a, b, weldctrl) <- doWeld0 (a, b, weldctrl, f, n);
+    (weldctrl, childctrl) <- cnotGate_signed weldctrl (childctrl, true);
+    (a, b, weldctrl) <- doWeld1 (a, b, weldctrl, g, n);
+    (weldctrl, childctrl, direction) <- toffoliGate_signed weldctrl (childctrl, true) (direction, true);
+    
+    (abefore, an1, aafter) <- sf_list_index (n+1) a;
+    (bbefore, [bn, bn1], bafter) <- sf_list_range n (n+1) b;
+    (bn1, childctrl, an1) <- toffoliGate_signed bn1 (childctrl, true) (an1, true);
+    (bn, childctrl) <- cnotGate_signed bn (childctrl, true);
+    (bn1, childctrl) <- cnotGate_signed bn1 (childctrl, true);
+    b <- sf_list_unrange (bbefore, [bn, bn1], bafter);
+    a <- sf_list_unindex (abefore, an1, aafter);
+
+    return ((a, b, childctrl, direction), weldctrl)
+  )
+;;
+
 -- A special case of 'setChild', where the child is inside the same
 -- binary tree (i.e., not via the welding).
 -- 
@@ -243,11 +272,6 @@ let setChildInTree (a, b, childctrl, direction, n) =
   a <- sf_list_unindex (abefore, an1, aafter);
   b <- sf_list_unindex (bbefore, bn1, bafter);
   
-  return (a, b, childctrl, direction)
-;;
-
--- DUMMY FUNCTION: not yet implemented. ###
-let setWeld (a, b, childctrl, direction, f, g, n) =
   return (a, b, childctrl, direction)
 ;;
 
