@@ -83,8 +83,6 @@ import Data.List as List
 %right INFIX1
 %left INFIX2 '-'
 %left INFIX3 '*'
-%right ';'
-%left LET
 %nonassoc '!'
 
 %%
@@ -166,33 +164,33 @@ Decl :
 
 {- Syntax of expressions : organized as
      Expr
-     Keyword_expr
+     Seq_expr
      Op_expr
      Apply_epxr
      Atom_expr
 -}
 
 Expr :
-      Atom_expr "<-" Keyword_expr ';' Expr       { case pattern_of_expr $1 of 
-                                                     Nothing -> throw $ locate_opt (ParsingError "<-: bad pattern") (location $1)
-                                                     Just p -> locate_opt (ELet Nonrecursive p $3 $5) (fromto_opt (location $1) (location $5))
-                                                 }
-    | Atom_expr "<-*" Keyword_expr ';' Expr      { case pattern_of_expr $1 of 
-                                                     Nothing -> throw $ locate_opt (ParsingError "<-*: bad pattern") (location $1)
-                                                     Just p -> locate_opt (ELet Nonrecursive p (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) 
-                                                 }
-    | Keyword_expr ';' Expr                      { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
-    | Keyword_expr %prec LET                     { $1 }
-
-
-Keyword_expr :
       FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH Expr WITH Matching_list              { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
     | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | LET LID Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
     | LET REC LID Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
-    | Op_expr                                    { $1 }
+    | Seq_expr                                   { $1 }
+
+
+Seq_expr :
+      Op_expr                                    { $1 }
+    | Atom_expr "<-" Op_expr ';' Expr            { case pattern_of_expr $1 of 
+                                                     Nothing -> throw $ locate_opt (ParsingError "<-: bad pattern") (location $1)
+                                                     Just p -> locate_opt (ELet Nonrecursive p $3 $5) (fromto_opt (location $1) (location $5))
+                                                 }
+    | Atom_expr "<-*" Op_expr ';' Expr           { case pattern_of_expr $1 of 
+                                                     Nothing -> throw $ locate_opt (ParsingError "<-*: bad pattern") (location $1)
+                                                     Just p -> locate_opt (ELet Nonrecursive p (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) 
+                                                 }
+    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
 
 
 Op_expr :
