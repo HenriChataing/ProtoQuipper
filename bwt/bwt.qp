@@ -163,10 +163,10 @@ let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
     [true, true] ->
       (ismatch, even, a0) <- toffoliGate_signed ismatch (even, true) (a0, true);
       return (ismatch, isparent, even, a0)
-  | [true, false] ->
+  | [false, true] ->
       (ismatch, even, a0) <- toffoliGate_signed ismatch (even, true) (a0, false);
       return (ismatch, isparent, even, a0)
-  | [false, true] ->
+  | [true, false] ->
       (isparent, even, a0) <- toffoliGate_signed isparent (even, false) (a0, true);
       return (ismatch, isparent, even, a0)
   | [false, false] ->
