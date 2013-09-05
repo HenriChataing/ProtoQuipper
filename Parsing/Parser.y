@@ -190,7 +190,7 @@ Seq_expr :
                                                      Nothing -> throw $ locate_opt (ParsingError "<-*: bad pattern") (location $1)
                                                      Just p -> locate_opt (ELet Nonrecursive p (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) 
                                                  }
-    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PUnit $1 $3) (fromto_opt (location $1) (location $3)) }
+    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PJoker $1 $3) (fromto_opt (location $1) (location $3)) }
 
 
 Op_expr :
