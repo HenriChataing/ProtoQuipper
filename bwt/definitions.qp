@@ -352,9 +352,9 @@ let rec for_each_map2r xs ys s body =
 -- 
 -- with_list_index :: int -> list a -> s -> (a -> s -> (a, t)) -> (list a, t)
 let with_list_index n as s body =
-  (a, as) <- sf_list_index as n;
+  (before, a, after) <- sf_list_index n as;
   (a, s) <- body a s;
-  as <- sf_list_unindex (a, as) n;
+  as <- sf_list_unindex (before, a, after);
   return (as, s)
 ;;
 

@@ -224,9 +224,9 @@ let setParent (a, b, isparent, n) =
 -- 
 -- setChildInTree :: list qubit * list qubit * qubit * qubit * int -> list qubit * list qubit * qubit * qubit
 let setChildInTree (a, b, childctrl, direction, n) =
-  (b0, rest) <- sf_list_index b 0;
+  (bbefore, b0, bafter) <- sf_list_index 0 b;
   (b0, childctrl, direction) <- toffoliGate_signed b0 (childctrl, true) (direction, true);
-  b <- sf_list_unindex (b0, rest) 0;
+  b <- sf_list_unindex (bbefore, b0, bafter);
 
   (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
   (bbefore, bs, bafter) <- sf_list_range 1 n b;
@@ -237,11 +237,11 @@ let setChildInTree (a, b, childctrl, direction, n) =
   b <- sf_list_unrange (bbefore, bs, bafter);
   a <- sf_list_unrange (abefore, as, aafter);
 
-  (an1, arest) <- sf_list_index a (n+1);
-  (bn1, brest) <- sf_list_index b (n+1);
+  (abefore, an1, aafter) <- sf_list_index (n+1) a;
+  (bbefore, bn1, bafter) <- sf_list_index (n+1) b;
   (bn1, childctrl, an1) <- toffoliGate_signed bn1 (childctrl, true) (an1, true);
-  a <- sf_list_unindex (an1, arest) (n+1);
-  b <- sf_list_unindex (bn1, brest) (n+1);
+  a <- sf_list_unindex (abefore, an1, aafter);
+  b <- sf_list_unindex (bbefore, bn1, bafter);
   
   return (a, b, childctrl, direction)
 ;;
