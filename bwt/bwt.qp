@@ -445,7 +445,7 @@ let setChild (a, b, ischild, direction, f, g, n) =
 -- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
 let oraclefun n f g c (a,b,r) =
   let color = boolreg_of_int_le 2 c in
-  (a,b,r) <- with_ancilla_reg [false, false, false, false, false, false] (fun [root, even, isparent, ischild, direction, ismatch] ->
+  (a,b,r) <- with_ancilla_reg [false, false, false, false, false, false] (fun [ismatch, direction, ischild, isparent, even, root] ->
     (a, root, even) <- parseNodeRoot (a, root, even, n);
     (a, even) <- parseNodeEven (a, even, n);
     (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);

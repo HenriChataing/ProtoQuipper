@@ -68,7 +68,7 @@ let unnumber_elements l =
 -- 
 -- qinit_register :: list bool -> list qubit
 let qinit_register = 
-  map qinit
+  mapr qinit
 ;;
 
 -- Terminate a list of qubits asserted to be in the state given by a
@@ -76,7 +76,8 @@ let qinit_register =
 -- 
 -- qterm_register :: list bool -> list qubit -> ()
 let qterm_register bs qs = 
-  map (fun (b,q) -> qterm b q) (reverse (zip bs qs))
+  map (fun (b,q) -> qterm b q) (zip bs qs);
+  ()
 ;;
 
 -- ----------------------------------------------------------------------
