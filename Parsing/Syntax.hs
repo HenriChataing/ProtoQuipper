@@ -279,19 +279,10 @@ instance Located Expr where
   clear_location e = e
 
 
-
--- | Translate a pattern to the corresponding expression. For example, the pattern (/x/, /y/) is transformed
--- into the expression (/x/, /y/). Any location annotations are preserved.
-expr_of_pattern :: Pattern -> Expr
-expr_of_pattern PUnit = EUnit
-expr_of_pattern (PVar x) = EVar x
-expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
-expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
-expr_of_pattern (PDatacon d p) = EDatacon d (fmap expr_of_pattern p)
-
--- | The inverse of 'expr_of_pattern'. Translate an expression to the corresponding pattern. While
--- 'expr_of_pattern' always succeeds, 'pattern_of_expr' may fail if called on a term that is \"not a pattern\", for example,
--- a lambda abstraction. Any location annotations are preserved.
+-- | Translate an expression to the corresponding pattern. This
+-- returns 'Nothing' if called on a term that is \"not a pattern\",
+-- for example, a lambda abstraction. Any location annotations are
+-- preserved.
 pattern_of_expr :: Expr -> Maybe Pattern
 pattern_of_expr EUnit = Just PUnit
 pattern_of_expr (EVar x) = Just (PVar x)
