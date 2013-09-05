@@ -25,7 +25,16 @@ instance PPrint LinType where
   genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
   genprint _ TQubit _ = "qubit"
-  genprint lv (TUser n arg) opts@[_, _, fuser] = fuser n ++ List.foldr (\t rec -> " " ++ genprint lv t opts ++ rec) "" arg
+  genprint lv (TUser n arg) opts@[_, _, fuser] =
+    fuser n ++ List.foldr (\t rec -> let prt = genprint lv t opts in
+                                    " " ++
+                                    (case no_bang t of
+                                       TArrow _ _ -> "(" ++ prt ++ ")"
+                                       TTensor _ -> "(" ++ prt ++ ")"
+                                       TCirc _ _ -> "(" ++ prt ++ ")"
+                                       TUser _ [] -> prt
+                                       TUser _ _ -> "(" ++ prt ++ ")"
+                                       _ -> prt)) "" arg
 
   genprint (Nth 0) _ _ = "..."
 
