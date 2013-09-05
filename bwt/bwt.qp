@@ -224,9 +224,9 @@ let setParent (a, b, isparent, n) =
 -- welding function 'g'. This is self-inverse. Here, 'a' and 'b' are
 -- quantum registers of length at least n+2, and 'g' is a boolean
 -- register of length n.
--- 
+--
 -- doWeld0 :: list qubit * list qubit * qubit * list bool * int -> list qubit * list qubit * qubit
-let doWeld0 (a, b, weldctrl, f, n) = 
+let doWeld0 (a, b, weldctrl, f, n) =
 
   (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
   (bbefore, bs, bafter) <- sf_list_range 0 (n-1) b;
@@ -245,14 +245,38 @@ let doWeld0 (a, b, weldctrl, f, n) =
 ;;
 
 -- DUMMY FUNCTIONS: not yet implemented. ###
-let doWeld1 (a, b, weldctrl, g, n) = (a, b, weldctrl);;
+let cAddNum (addsub, b, a, g, n) = (addsub, b, a);;
+let cSubNum (addsub, b, a, g, n) = (addsub, b, a);;
+
+-- Input a node label 'a', and a register 'b' initialized to 0. If
+-- 'weldctrl' is set, set 'b' to the node connected to 'a' by the
+-- welding function 'f'. This is self-inverse. Here, 'a' and 'b' are
+-- quantum registers of length at least n+2, and 'f' is a boolean
+-- register of length n.
+let doWeld1 (a, b, weldctrl, g, n) = 
+  (a, b, weldctrl) <- with_ancilla false (fun addsub ->
+
+    (as, an1, aafter) <- sf_list_index (n+1) a;
+
+    (addsub, weldctrl, an1) <- toffoliGate_signed addsub (weldctrl, true) (an1, false);
+    (addsub, b, as) <- cAddNum (addsub, b, as, g, n);
+    (addsub, weldctrl) <- cnotGate_signed addsub (weldctrl, true);
+    (addsub, b, as) <- cSubNum (addsub, b, as, g, n);
+    (addsub, weldctrl, an1) <- toffoliGate_signed addsub (weldctrl, true) (an1, true);
+
+    a <- sf_list_unindex (as, an1, aafter);
+
+    return ((a, b, weldctrl), addsub)
+  );
+  return (a, b, weldctrl)
+;;
 
 -- A special case of 'setChild', where the child is in the opposite
 -- binary tree, i.e., we follow one of the welding edges.
 --
 -- setWeld :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
 let setWeld (a, b, childctrl, direction, f, g, n) =
-  with_ancilla false (fun weldctrl ->
+  (a, b, childctrl, direction) <- with_ancilla false (fun weldctrl ->
     (weldctrl, childctrl, direction) <- toffoliGate_signed weldctrl (childctrl, true) (direction, false);
     (a, b, weldctrl) <- doWeld0 (a, b, weldctrl, f, n);
     (weldctrl, childctrl) <- cnotGate_signed weldctrl (childctrl, true);
@@ -268,7 +292,8 @@ let setWeld (a, b, childctrl, direction, f, g, n) =
     a <- sf_list_unindex (abefore, an1, aafter);
 
     return ((a, b, childctrl, direction), weldctrl)
-  )
+  );
+  return (a, b, childctrl, direction)
 ;;
 
 -- A special case of 'setChild', where the child is inside the same
@@ -305,7 +330,7 @@ let setChildInTree (a, b, childctrl, direction, n) =
 --
 -- setChild :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
 let setChild (a, b, ischild, direction, f, g, n) =
-  with_ancilla false (fun childctrl ->
+  (a, b, ischild, direction) <- with_ancilla false (fun childctrl ->
     (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
       (childctrl, ischild, an) <- toffoliGate_signed childctrl (ischild, true) (an, true);
       return (an, (childctrl, ischild))
@@ -318,7 +343,8 @@ let setChild (a, b, ischild, direction, f, g, n) =
       return (an, (childctrl, ischild))
     );
     return ((a, b, ischild, direction), childctrl)
-  )
+  );
+  return (a, b, ischild, direction)
 ;;
 
 ----------------------------------------------------------------------
