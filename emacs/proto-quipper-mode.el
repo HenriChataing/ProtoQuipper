@@ -6,7 +6,8 @@
 (setq proto-quipper-myKeywords
  '(("\\b\\(and\\|box\\|false\\|rev\\|unbox\\|true\\|#builtin\\)\\b" . font-lock-constant-face)
    ("\\b\\(bool\\|circ\\|int\\|qubit\\|list\\)\\b" . font-lock-type-face)
-   ("^\\(let\\|rec\\|type\\|val\\|import\\)\\b" . font-lock-function-name-face)
+   ("^\\(let\\|type\\|val\\|import\\)\\b" . font-lock-function-name-face)
+   ("\\brec\\b" . font-lock-function-name-face)
    (";;" . font-lock-function-name-face)
    ("\\b\\(let\\|else\\|fun\\|if\\|in\\|match\\|of\\|then\\|with\\)\\b" . font-lock-keyword-face)
    ("[-=.<>+]" . font-lock-keyword-face)
