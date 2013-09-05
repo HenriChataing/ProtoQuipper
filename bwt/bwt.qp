@@ -16,7 +16,7 @@ import Definitions
 -- entrance label, and for each color c in {0..k-1}, a reversible
 -- circuit oracle_c(a,b,r).
 
-type oracle = 
+type oracle =
   Oracle of int                                 -- tree depth n
   	  * int        				-- label length m
 	  * int        				-- number of colors k
@@ -31,14 +31,14 @@ type oracle =
 -- Perform a single diffusion step of the quantum walk. Here, a and b
 -- are m-qubit registers holding node labels to be diffused. r is a
 -- control.
-let timestep (a,b,r,m) = 
+let timestep (a,b,r,m) =
   (a,b,r) <- with_ancilla false (fun h ->
     (a,b) <- map2 wGate a b;
     (h,a,b) <- map2_foldl toffoliGate_10 h a b;
     (h,r) <- controlledExpGate_signed h (r, false);
     (h,a,b) <- map2_foldr toffoliGate_10 h a b;
     (a,b) <- map2r wGateInverse a b;
-    return ((a,b,r),h)  
+    return ((a,b,r),h)
   );
   return (a,b,r)
 ;;
@@ -51,15 +51,15 @@ let timestep (a,b,r,m) =
 -- the timestep implicit. Also, since Proto-Quipper currently does not
 -- include classical bits or measurements, we return the unmeasured
 -- quantum register a.
--- 
+--
 -- qrwbwt :: oracle -> int -> list qubit
 let qrwbwt oracle s =
   let Oracle (n,m,k,entrance,oraclefun) = oracle in
   a <- qinit_register entrance;
   a <- with_ancilla_reg (replicate m false) (fun b ->
-    (a,b) <- with_ancilla false (fun r -> 
-      (a,b,r) <- loop s (a,b,r) (fun (a,b,r) -> 
-        (a,b,r) <- for 0 (k-1) 1 (a,b,r) (fun c -> fun (a,b,r) -> 
+    (a,b) <- with_ancilla false (fun r ->
+      (a,b,r) <- loop s (a,b,r) (fun (a,b,r) ->
+        (a,b,r) <- for 0 (k-1) 1 (a,b,r) (fun c -> fun (a,b,r) ->
           (a,b,r) <- oraclefun c (a,b,r);
           (a,b,r) <- timestep (a,b,r,m);
           (a,b,r) <- oraclefun c (a,b,r);
@@ -78,29 +78,28 @@ let qrwbwt oracle s =
 -- The oracle implementation
 
 -- The functions in this section implement a particular oracle for a
--- binary welded tree. The oracle is parametric on: 
--- 
--- * the tree depth n; 
--- 
+-- binary welded tree. The oracle is parametric on:
+--
+-- * the tree depth n;
+--
 -- * two "welding vectors" f and g, specifying how the leaves of the
 -- two binary trees are connected to each other. Specifically, f and g
--- encode the permutations of leaves mapping a to (a xor f) and to 
+-- encode the permutations of leaves mapping a to (a xor f) and to
 -- (a + g), respectively, where "xor" denotes bitwise exclusive or,
 -- and "+" denotes binary addition.
 
 -- DUMMY FUNCTIONS: not yet implemented.
-let testIsParent (a, root, even, isparent, color, n, really, ismatch) = (a, root, even, isparent, ismatch);;
 let testIsChild (even, ischild, direction, color, n) = (even, ischild, direction);;
 let setParent (a, b, isparent, n) = (a, b, isparent);;
 let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 
 -- Input a node label 'a' of length at least n+1. Negate both 'root'
 -- and 'even' if 'a' is a root node.
--- 
+--
 -- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
-let parseNodeRoot (a, root, even, n) = 
+let parseNodeRoot (a, root, even, n) =
   (before, a, after) <- sf_list_range 1 n a;
-  ((root, even), a) <- with_disjunction a (fun q -> 
+  ((root, even), a) <- with_disjunction a (fun q ->
 
     (root, q) <- cnotGate_signed root (q, false);
     (even, q) <- cnotGate_signed even (q, false);
@@ -113,7 +112,7 @@ let parseNodeRoot (a, root, even, n) =
 
 -- Input a node label 'a' of length at least n+1. Negate 'even' if the
 -- node 'a' occurs at an even height in the tree.
--- 
+--
 -- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
 let parseNodeEven (as, even, n) =
   as <- number_elements as;
@@ -140,15 +139,52 @@ let parseNodeEven (as, even, n) =
   return (as, even)
 ;;
 
--- The main oracle function. 
+-- Input a node label 'a' of length at least 1, and flags 'root'
+-- and 'even' describing whether 'a' is a root and at an even level,
+-- respectively. Negate 'isparent' if 'a' has a parent of color
+-- 'color' in the tree.
+--
+-- The qubit 'ismatch' is an ancilla, and 'really' is either false or
+-- true. They are jointly used to control uncomputation, so that the
+-- following sequence will compute and then uncompute 'testIsParent':
+--
+-- > ismatch <- qinit false;
+-- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);
+-- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, false, ismatch);
+-- > qterm false ismatch;
 -- 
+-- testIsParent :: list qubit * qubit * qubit * qubit * list bool * int * bool * qubit -> list qubit * qubit * qubit * qubit * qubit
+let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
+  (a0, as) <- sf_head a;
+  (isparent, root, ismatch) <- toffoliGate_signed_if (not really) isparent (root, false) (ismatch, true);
+  (ismatch, isparent, even, a0) <- (match color with
+    [true, true] ->
+      (ismatch, even, a0) <- toffoliGate_signed ismatch (even, true) (a0, true);
+      return (ismatch, isparent, even, a0)
+  | [true, false] ->
+      (ismatch, even, a0) <- toffoliGate_signed ismatch (even, true) (a0, false);
+      return (ismatch, isparent, even, a0)
+  | [false, true] ->
+      (isparent, even, a0) <- toffoliGate_signed isparent (even, false) (a0, true);
+      return (ismatch, isparent, even, a0)
+  | [false, false] ->
+      (isparent, even, a0) <- toffoliGate_signed isparent (even, false) (a0, false);
+      return (ismatch, isparent, even, a0)
+  );
+  (isparent, root, ismatch) <- toffoliGate_signed isparent (root, false) (ismatch, true);
+  a <- a0 : as;
+  return (a, root, even, isparent, ismatch)
+;;
+
+-- The main oracle function.
+--
 -- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
-let oraclefun n f g c (a,b,r) = 
+let oraclefun n f g c (a,b,r) =
   let color = boolreg_of_int_le 2 c in
   (a,b,r) <- with_ancilla_reg [false, false, false, false, false, false] (fun [root, even, isparent, ischild, direction, ismatch] ->
     (a, root, even) <- parseNodeRoot (a, root, even, n);
     (a, even) <- parseNodeEven (a, even, n);
-    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, 1, ismatch);
+    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);
     (even, ischild, direction) <- testIsChild (even, ischild, direction, color, n);
     (a, b, isparent) <- setParent (a, b, isparent, n);
     (a, b, ischild, direction) <- setChild (a, b, ischild, direction, f, g, n);
@@ -156,7 +192,7 @@ let oraclefun n f g c (a,b,r) =
     (r, isparent, ischild) <- toffoliGate_signed r (isparent, false) (ischild, false);
 
     (even, ischild, direction) <- testIsChild (even, ischild, direction, color, n);
-    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, 0, ismatch);
+    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, false, ismatch);
     (a, even) <- parseNodeEven (a, even, n);
     (a, root, even) <- parseNodeRoot (a, root, even, n);
 
@@ -166,7 +202,7 @@ let oraclefun n f g c (a,b,r) =
 ;;
 
 -- The orthodox oracle. The parameter n is the tree depth.
--- 
+--
 -- orthodox_oracle :: int -> list bool -> list bool -> Oracle
 let oracle_orthodox n f g =
   Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n f g)
@@ -174,7 +210,7 @@ let oracle_orthodox n f g =
 
 -- ----------------------------------------------------------------------
 -- The "main" program: display the circuit for size n.
--- 
+--
 -- main :: int -> circ((), list qubit)
 let main n =
   let f = cycle n [true, false] in
