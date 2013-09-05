@@ -469,7 +469,10 @@ let oraclefun n f g c (a,b,r) =
 --
 -- orthodox_oracle :: int -> list bool -> list bool -> Oracle
 let oracle_orthodox n f g =
-  Oracle (n, n+2, 4, replicate (n+1) false ++ [true], oraclefun n f g)
+  let m = n+2 in
+  let k = 4 in
+  let entrance = boolreg_of_int_le (n+2) 1 in
+  Oracle (n, m, k, entrance, oraclefun n f g)
 ;;
 
 -- ----------------------------------------------------------------------
