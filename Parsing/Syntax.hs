@@ -176,7 +176,7 @@ instance Located Type where
 
 -- | A pattern.
 data Pattern =
-    PJoker                               -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
+    PWildcard                               -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
                                          -- In Proto-Quipper, a wildcard can only match a duplicable value. 
   | PUnit                                -- ^ Unit pattern: @()@.
   | PBool Bool                           -- ^ Boolean pattern: @true@ or @false@.

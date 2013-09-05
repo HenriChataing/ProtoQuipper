@@ -172,7 +172,7 @@ bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
   else
     throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
 
-bind_pattern PJoker _ env = do
+bind_pattern PWildcard _ env = do
   return env
 
 bind_pattern p v _ = do
@@ -187,7 +187,7 @@ match_value (PLocated p _) v =
 match_value (PConstraint p _) v =
   match_value p v
 
-match_value PJoker _ =
+match_value PWildcard _ =
   True
 
 match_value (PVar _) _  =

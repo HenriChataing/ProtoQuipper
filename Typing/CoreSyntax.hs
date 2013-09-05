@@ -182,7 +182,7 @@ type Datacon = Int
 -- variable), is not syntactic sugar.  It differs from the application
 -- @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
-    PJoker                                          -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
+    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
   | PUnit                                           -- ^ Unit pattern: @()@.
   | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
   | PInt Int                                        -- ^ Integer pattern.

@@ -105,7 +105,7 @@ instance PPrint Pattern where
   genprint _ PUnit _ = "()"
   genprint _ (PBool b) _ = if b then "true" else "false"
   genprint _ (PInt n) _ = show n
-  genprint _ PJoker _ = "_"
+  genprint _ PWildcard _ = "_"
   genprint (Nth 0) _ _= "..."
 
   genprint lv (PTuple (p:rest)) opts =

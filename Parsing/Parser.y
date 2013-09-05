@@ -41,7 +41,7 @@ import Data.List as List
   "<-" { TkLArrow $$ }
   "<-*" { TkLArrowStar $$ }
   "<:" { TkSubType $$ }
-  "_" { TkJoker $$ }
+  "_" { TkWildcard $$ }
 
   INFIX0 { TkInfix0 $$ }
   INFIX1 { TkInfix1 $$ }
@@ -190,7 +190,7 @@ Seq_expr :
                                                      Nothing -> throw $ locate_opt (ParsingError "<-*: bad pattern") (location $1)
                                                      Just p -> locate_opt (ELet Nonrecursive p (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) 
                                                  }
-    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PJoker $1 $3) (fromto_opt (location $1) (location $3)) }
+    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
 
 
 Op_expr :
@@ -250,7 +250,7 @@ Expr_sep_list :
 
 
 Pattern :
-      "_"                                       { locate PJoker $1 }
+      "_"                                       { locate PWildcard $1 }
     | LID                                       { locate (PVar (snd $1)) (fst $1) }
     | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
     | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }

@@ -609,8 +609,8 @@ translate_pattern (S.PBool b) label = do
 translate_pattern (S.PInt n) label = do
   return (PInt n, l_variables label)
 
-translate_pattern S.PJoker label = do
-  return (PJoker, l_variables label)
+translate_pattern S.PWildcard label = do
+  return (PWildcard, l_variables label)
 
 translate_pattern (S.PVar x) label = do
   ex <- get_location

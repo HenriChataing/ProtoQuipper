@@ -29,7 +29,7 @@ tokens :-
   "--".*                              ;
   "{-" ( ~\- | [\r\n] | ( \-+ ( [^\-\}] | [\r\n] ) ) )* \-+\} ;
 
-  "_"                                 { locate_token TkJoker }
+  "_"                                 { locate_token TkWildcard }
   "<:"                                { locate_token TkSubType }
   "*"                                 { locate_token TkStar }
   "-"                                 { locate_token TkMinus }
@@ -139,7 +139,7 @@ data Token =
   | TkBuiltin Extent       -- ^ The reserved name \'\#builtin'.
 
   -- Punctuation marks, and other symbols
-  | TkJoker Extent         -- ^ The symbol \'@_@'.
+  | TkWildcard Extent         -- ^ The symbol \'@_@'.
   | TkStar Extent          -- ^ The symbol \'@\*@'.
   | TkMinus Extent         -- ^ The symbol \'@\-@'.
   | TkBar Extent           -- ^ The symbol \'@|@'.
@@ -209,7 +209,7 @@ instance Show Token where
   show (TkWith ex) = "'with' (" ++ show ex ++ ")" 
   show (TkBuiltin ex) = "'#builtin' (" ++ show ex ++ ")"
 
-  show (TkJoker ex) = "'_' (" ++ show ex ++ ")"
+  show (TkWildcard ex) = "'_' (" ++ show ex ++ ")"
   show (TkStar ex) = "'*' (" ++ show ex ++ ")"
   show (TkMinus ex) = "'-' (" ++ show ex ++ ")"
   show (TkBar ex) = "'|' (" ++ show ex ++ ")"
@@ -281,7 +281,7 @@ locate_token_in_file f (TkVal ex) = TkVal ex { file = f }
 locate_token_in_file f (TkWith ex) = TkWith ex { file = f }
 locate_token_in_file f (TkBuiltin ex) = TkBuiltin ex { file = f }
 
-locate_token_in_file f (TkJoker ex) = TkJoker ex { file = f }
+locate_token_in_file f (TkWildcard ex) = TkWildcard ex { file = f }
 locate_token_in_file f (TkStar ex) = TkStar ex { file = f }
 locate_token_in_file f (TkMinus ex) = TkMinus ex { file = f }
 locate_token_in_file f (TkBar ex) = TkBar ex { file = f }

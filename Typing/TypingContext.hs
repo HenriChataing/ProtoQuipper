@@ -56,9 +56,9 @@ type_of x ctx = do
 -- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
--- Joker: the joker must have a duplicable type, since
+-- Wildcard: the wildcard must have a duplicable type, since
 -- the value is discarded. No binding is generated.
-bind_pattern PJoker = do
+bind_pattern PWildcard = do
   a <- fresh_type
   return (TBang 1 $ TVar a, IMap.empty, emptyset)
 
@@ -134,8 +134,8 @@ bind_pattern (PLocated p ex) = do
 -- the data constructor contains its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this.
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
--- The joker can be bound to any type, as long as it is duplicable.
-bind_pattern_to_type PJoker a@(TBang n _) = do
+-- The wildcard can be bound to any type, as long as it is duplicable.
+bind_pattern_to_type PWildcard a@(TBang n _) = do
   -- Set the flag to one, and return
   set_flag n no_info
   return (IMap.empty, emptyset)
