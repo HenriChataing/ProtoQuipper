@@ -207,6 +207,14 @@ let rec splitAt n xs =
       (h:as, bs)
 ;;
 
+-- The inverse of splitAt. Re-assemble the elements in the original
+-- order.
+-- 
+-- list_unsplit :: [a] * [a] -> [a]
+let list_unsplit (xs, rest) = 
+  xs ++ rest 
+;;
+
 -- Extract elements n..m from a list, splitting the list into a
 -- "before" part, the requested elements, and an "after" part.
 -- Elements are counted from 0, and the range n..m is inclusive.

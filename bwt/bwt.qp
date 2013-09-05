@@ -244,8 +244,92 @@ let doWeld0 (a, b, weldctrl, f, n) =
   return (a, b, weldctrl)
 ;;
 
+-- majority q (a, b, n): negate q iff the majority of a, b, and n is 1.
+-- Here, a and b are qubits, and n is a boolean.
+--
+-- majority :: qubit -> qubit * qubit * bool -> qubit * qubit * qubit
+let majority q (a, b, n) =
+  if n then   -- q += (a or b)
+    (q, a) <- cnotGate_signed q (a, true);
+    (q, a, b) <- toffoliGate_signed q (a, true) (b, true);
+    (q, b) <- cnotGate_signed q (b, true);
+    return (q, a, b)
+  else        -- q += (a and b)
+    (q, a, b) <- toffoliGate_signed q (a, true) (b, true);
+    return (q, a, b)
+;;
+
+-- This function implements integer addition with carry. Input a
+-- quantum register 'input', a boolean register 'num', representing
+-- integers, a quantum register 'output' initialized to 0, and a qubit
+-- 'carry'. If 'control' is set, set 'output' to 'input' + 'num' +
+-- 'carry', otherwise do nothing. The registers 'input' and 'carry'
+-- are unmodified, and the function is self-inverse. The register
+-- 'input', 'output', and 'num' must all have equal length. The
+-- integers are represented in little-headian order, i.e., the head of
+-- the list holds the least significant bit.
+--
+-- cAddNum_carry :: qubit * list qubit * list qubit * list bool * qubit -> qubit * list qubit * list qubit * qubit
+let rec cAddNum_carry (control, output, input, num, carry) =
+  match (output, input, num) with
+    ([], [], []) ->
+      return (control, [], [], carry)
+  | (o:os, i:is, n:ns) ->
+      (o, i, control) <- toffoliGate_signed o (i, true) (control, true);
+      (o, control) <- cnotGate_signed_if n o (control, true);
+      (o, carry, control) <- toffoliGate_signed o (carry, true) (control, true);
+      (control, os, is, carry, i) <- with_ancilla false (fun carry2 ->
+        (carry2, i, carry) <- majority carry2 (i, carry, n);
+        (control, os, is, carry2) <- cAddNum_carry (control, os, is, ns, carry2);
+        (carry2, carry, i) <- majority carry2 (carry, i, n);
+	return ((control, os, is, carry, i), carry2)
+      );
+      return (control, o:os, i:is, carry)
+;;
+
+-- This function implements integer addition. Input a quantum register
+-- 'input' and a boolean register 'num', representing integers, and a
+-- quantum register 'output' initialized to 0. If 'control' is set, set
+-- 'output' to 'input' + 'num', otherwise do nothing.  Here 'input',
+-- 'output', and 'num' are registers of length at least n.
+--
+-- Our implementation deviates from the GFI-specified one, because in
+-- a functional language, it is more natural to implement addition
+-- recursively. However, we did this in such a way that the resulting
+-- sequence of gates is still the "orthodox" one. (### check this)
+--
+-- cAddNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
+let cAddNum (control, output, input, num, n) =
+  -- Trim the lists to length n.
+  (output, orest) <- splitAt n output;
+  (input, irest) <- splitAt n input;
+  (num, nrest) <- splitAt n num;
+
+  (control, output, input) <- (
+    match (output, input, num) with
+      ([], [], []) ->
+        return (control, [], [])
+    | (o:os, i:is, n:ns) ->
+        (o, i, control) <- toffoliGate_signed o (i, true) (control, true);
+        (o, control) <- cnotGate_signed_if n o (control, true);
+        (control, os, is, i) <- with_ancilla false (fun carry ->
+          (carry, i) <- cnotGate_signed_if n carry (i, true);
+          (control, os, is, carry) <- cAddNum_carry (control, os, is, ns, carry);
+          (carry, i) <- cnotGate_signed_if n carry (i, true);
+  	  return ((control, os, is, i), carry)
+        );
+        return (control, o:os, i:is)
+  );
+
+  -- Untrim the lists.
+  output <- list_unsplit (output, orest);
+  input <- list_unsplit (input, irest);
+
+  return (control, output, input)
+;;
+
+
 -- DUMMY FUNCTIONS: not yet implemented. ###
-let cAddNum (addsub, b, a, g, n) = (addsub, b, a);;
 let cSubNum (addsub, b, a, g, n) = (addsub, b, a);;
 
 -- Input a node label 'a', and a register 'b' initialized to 0. If
@@ -253,7 +337,7 @@ let cSubNum (addsub, b, a, g, n) = (addsub, b, a);;
 -- welding function 'f'. This is self-inverse. Here, 'a' and 'b' are
 -- quantum registers of length at least n+2, and 'f' is a boolean
 -- register of length n.
-let doWeld1 (a, b, weldctrl, g, n) = 
+let doWeld1 (a, b, weldctrl, g, n) =
   (a, b, weldctrl) <- with_ancilla false (fun addsub ->
 
     (as, an1, aafter) <- sf_list_index (n+1) a;

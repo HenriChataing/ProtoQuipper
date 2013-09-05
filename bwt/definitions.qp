@@ -109,6 +109,16 @@ let cnotGate_signed x (y, sign) =
   return (x,y)
 ;;
 
+-- Like cnotGate_signed, but also conditioned on a classical bit.
+-- 
+-- cnotGate_signed_if :: bool -> qubit -> qubit * bool -> qubit * qubit
+let cnotGate_signed_if cond x (y,s) =
+  if cond then 
+    cnotGate_signed x (y,s)
+  else
+    (x, y)
+;;
+
 -- A Toffoli gate with signed controls. A sign of 'true' means the
 -- control fires when the qubit is 1; a sign of 'false' means the
 -- control fires when the qubit is 0.
@@ -313,6 +323,7 @@ let rec for_each_map2 xs ys s body =
       (a, b, s1) <- body x y s;
       (as, bs, s2) <- for_each_map2 xs ys s1 body;
       return (a:as, b:bs, s2)
+  -- other cases are errors
 ;;
 
 -- Like for_each_map2, but traverse the lists in right-to-left order.
@@ -336,6 +347,7 @@ let rec for_each_map2r xs ys s body =
       (as, bs, s1) <- for_each_map2r xs ys s body;
       (a, b, s2) <- body x y s1;
       return (a:as, b:bs, s2)
+  -- other cases are errors
 ;;
 
 -- Like for_each_map, but traverse three lists simultaneously.
@@ -359,6 +371,7 @@ let rec for_each_map3 xs ys zs s body =
       (a, b, c, s1) <- body x y z s;
       (as, bs, cs, s2) <- for_each_map3 xs ys zs s1 body;
       return (a:as, b:bs, c:cs, s2)
+  -- other cases are errors
 ;;
 
 -- Like for_each_map3, but traverse the lists in right-to-left order.
@@ -382,6 +395,7 @@ let rec for_each_map3r xs ys zs s body =
       (as, bs, cs, s1) <- for_each_map3r xs ys zs s body;
       (a, b, c, s2) <- body x y z s1;
       return (a:as, b:bs, c:cs, s2)
+  -- other cases are errors
 ;;
 
 -- Run the block while accessing one particular element of a list.
