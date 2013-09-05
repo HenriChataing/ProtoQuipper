@@ -92,7 +92,6 @@ let qrwbwt oracle s =
 -- and "+" denotes binary addition.
 
 -- DUMMY FUNCTIONS: not yet implemented.
-let setParent (a, b, isparent, n) = (a, b, isparent);;
 let setChild (a, b, ischild, direction, f, g, n) = (a, b, ischild, direction);;
 
 -- Input a node label 'a' of length at least n+1. Negate both 'root'
@@ -154,7 +153,7 @@ let parseNodeEven (as, even, n) =
 -- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);
 -- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, false, ismatch);
 -- > qterm false ismatch;
--- 
+--
 -- testIsParent :: list qubit * qubit * qubit * qubit * list bool * int * bool * qubit -> list qubit * qubit * qubit * qubit * qubit
 let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
   (a0, as) <- sf_head a;
@@ -178,17 +177,43 @@ let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
   return (a, root, even, isparent, ismatch)
 ;;
 
--- Consider a node 'a', and negate 'ischild' if 'a' has a child
--- node of color 'color'. Also set 'direction' to indicate whether
--- it is a "left" or "right" child. Here, 'color' is a boolean
--- register of length 2, representing a color. This function is
--- self-inverse.
--- 
--- testIsChild :: qubit * qubit * qubit * list bool * int -> qubit * qubit * qubit                       
-let testIsChild (even, ischild, direction, color, n) = 
+-- Consider a node 'a', and negate 'ischild' if 'a' has a child node
+-- of color 'color'. Also set 'direction' to indicate whether it is a
+-- "left" or "right" child. Here, 'color' is a boolean register of
+-- length 2, representing a color. This function is self-inverse.
+--
+-- testIsChild :: qubit * qubit * qubit * list bool * int -> qubit * qubit * qubit
+let testIsChild (even, ischild, direction, color, n) =
   (ischild, even) <- cnotGate_signed ischild (even, not (color @ 1));
   direction <- qnot_if (color @ 0) direction;
   return (even, ischild, direction)
+;;
+
+-- Input a node label 'a' of length at least n+2, and a flag
+-- 'isparent' that has been initialized accordingly. Also input a
+-- register 'b' of length at least n+2, initialized to 0.  If
+-- 'isparent' is set, set 'b' to the node label of the parent of
+-- 'a'. This is self-inverse.
+-- 
+-- setParent :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
+let setParent (a, b, isparent, n) = 
+
+  (a0, as, a1) <- sf_list_range 1 n a;
+  (b0, bs, b1) <- sf_list_range 0 (n-1) b;
+  (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
+    (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
+    return (a, b, isparent)
+  ); 
+  b <- b0 ++ bs ++ b1;
+  a <- a0 ++ as ++ a1;
+
+  (a, as) <- sf_list_index a (n+1);
+  (b, bs) <- sf_list_index b (n+1);
+  (b, isparent, a) <- toffoliGate_signed b (isparent, true) (a, true);
+  a <- sf_list_unindex (a, as) (n+1);
+  b <- sf_list_unindex (b, bs) (n+1);
+
+  return (a, b, isparent)
 ;;
 
 ----------------------------------------------------------------------

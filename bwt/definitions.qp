@@ -292,6 +292,52 @@ let for_each_mapr xs s body =
   (ys, s)
 ;;
 
+-- Like for_each_map, but traverse two lists simultaneously.
+-- For example:
+-- 
+-- ([a,b,c], [d,e,f], s) <- for_each_map2 [x,y,z] [u,v,w] s body
+-- 
+-- is equivalent to:
+-- 
+-- (a,d,s) <- body x u s;
+-- (b,e,s) <- body y v s;
+-- (c,f,s) <- body z w s
+-- 
+-- It is an error if the two lists are not of equal length.
+-- 
+-- for_each_map2 :: list a -> list b -> s -> (a -> b -> s -> c * d * s) -> list c * list d * s
+let rec for_each_map2 xs ys s body =
+  match (xs, ys) with
+    ([], []) -> ([], [], s)
+  | (x:xs, y:ys) -> 
+      (a, b, s1) <- body x y s;
+      (as, bs, s2) <- for_each_map2 xs ys s1 body;
+      return (a:as, b:bs, s2)
+;;
+
+-- Like for_each_map2, but traverse the lists in right-to-left order.
+-- For example:
+-- 
+-- ([a,b,c], [d,e,f], s) <- for_each_map2r [x,y,z] [u,v,w] s body
+-- 
+-- is equivalent to:
+-- 
+-- (c,f,s) <- body z w s;
+-- (b,e,s) <- body y v s;
+-- (a,d,s) <- body x u s
+-- 
+-- It is an error if the two lists are not of equal length.
+-- 
+-- for_each_map2r :: list a -> list b -> s -> (a -> b -> s -> c * d * s) -> list c * list d * s
+let rec for_each_map2r xs ys s body =
+  match (xs, ys) with
+    ([], []) -> ([], [], s)
+  | (x:xs, y:ys) -> 
+      (as, bs, s1) <- for_each_map2r xs ys s body;
+      (a, b, s2) <- body x y s1;
+      return (a:as, b:bs, s2)
+;;
+
 -- ----------------------------------------------------------------------
 -- * Binary representation of integers
 
