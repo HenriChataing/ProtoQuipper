@@ -116,7 +116,7 @@ builtin_gates =
 
 
 -- | Subset of the built-in values that provides the definition of the built-in integer operations.
--- The list of currently defined operations is: ADD, SUB, MUL, DIV, MOD, POW, LE, GE, LT, GT, EQ, NE. It is bound to be extended, for
+-- The list of currently defined operations is: ADD, SUB, MUL, QUOT, REM, DIV, MOD, POW, LE, GE, LT, GT, EQ, NE. It is bound to be extended, for
 -- example with more comparisons.
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
@@ -128,10 +128,14 @@ builtin_operations =
                        VBuiltin (\(VInt m) -> VInt (-m)))),
               ("MUL", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m * n))))),
-              ("DIV", (TArrow TInt (TArrow TInt TInt),
+              ("QUOT", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `quot` n))))),
-              ("MOD", (TArrow TInt (TArrow TInt TInt),
+              ("REM", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `rem` n))))),
+              ("DIV", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `div` n))))),
+              ("MOD", (TArrow TInt (TArrow TInt TInt),
+                       VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m `mod` n))))),
               ("POW", (TArrow TInt (TArrow TInt TInt),
                        VBuiltin (\(VInt m) -> VBuiltin (\(VInt n) -> VInt (m ^ n))))),
               ("LE", (TArrow TInt (TArrow TInt TBool),
