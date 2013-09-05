@@ -462,3 +462,13 @@ let rec boolreg_of_int_le m x =
   is_odd x : boolreg_of_int_le (m-1) (x/2)
 ;;
 
+-- Take the two's complement of a binary number, represented as a
+-- little-headian list of booleans.
+-- 
+-- two's_complement :: list bool -> list bool
+let rec two's_complement xs =
+  match xs with
+    [] -> []
+  | false:t -> false : two's_complement t
+  | true:t  -> true : map not t
+;;

@@ -278,11 +278,11 @@ let rec cAddNum_carry (control, output, input, num, carry) =
       (o, i, control) <- toffoliGate o (i, true) (control, true);
       (o, control) <- cnotGate_if n o (control, true);
       (o, carry, control) <- toffoliGate o (carry, true) (control, true);
-      (control, os, is, carry, i) <- with_ancilla false (fun carry2 ->
-        (carry2, i, carry) <- majority carry2 (i, carry, n);
-        (control, os, is, carry2) <- cAddNum_carry (control, os, is, ns, carry2);
-        (carry2, carry, i) <- majority carry2 (carry, i, n);
-	return ((control, os, is, carry, i), carry2)
+      (control, os, is, carry, i) <- with_ancilla false (fun carry' ->
+        (carry', i, carry) <- majority carry' (i, carry, n);
+        (control, os, is, carry') <- cAddNum_carry (control, os, is, ns, carry');
+        (carry', carry, i) <- majority carry' (carry, i, n);
+	return ((control, os, is, carry, i), carry')
       );
       return (control, o:os, i:is, carry)
 ;;
@@ -328,9 +328,15 @@ let cAddNum (control, output, input, num, n) =
   return (control, output, input)
 ;;
 
-
--- DUMMY FUNCTIONS: not yet implemented. ###
-let cSubNum (addsub, b, a, g, n) = (addsub, b, a);;
+-- | Like 'cAddNum', except subtract instead of adding.
+-- 
+-- Rather than following the GFI implementation, we take advantage of
+-- the fact that subtracing is the same thing as adding the two's
+-- complement.
+let cSubNum (control, output, input, num, n) =
+  let num' = two's_complement num in
+  cAddNum (control, output, input, num', n)
+;;
 
 -- Input a node label 'a', and a register 'b' initialized to 0. If
 -- 'weldctrl' is set, set 'b' to the node connected to 'a' by the
