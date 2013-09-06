@@ -31,6 +31,8 @@ type oracle =
 -- Perform a single diffusion step of the quantum walk. Here, a and b
 -- are m-qubit registers holding node labels to be diffused. r is a
 -- control.
+-- 
+-- timestep :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
 let timestep (a,b,r,m) =
   (a,b,r) <- with_ancilla false (fun h ->
     (a,b) <- map2 wGate a b;
@@ -333,6 +335,8 @@ let cAddNum (control, output, input, num, n) =
 -- Rather than following the GFI implementation, we take advantage of
 -- the fact that subtracing is the same thing as adding the two's
 -- complement.
+-- 
+-- cSubNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
 let cSubNum (control, output, input, num, n) =
   let num' = two's_complement num in
   cAddNum (control, output, input, num', n)
@@ -343,6 +347,8 @@ let cSubNum (control, output, input, num, n) =
 -- welding function 'f'. This is self-inverse. Here, 'a' and 'b' are
 -- quantum registers of length at least n+2, and 'f' is a boolean
 -- register of length n.
+-- 
+-- doWeld1 :: list qubit * list qubit * qubit * list bool * int -> list qubit * list qubit * qubit
 let doWeld1 (a, b, weldctrl, g, n) =
   (a, b, weldctrl) <- with_ancilla false (fun addsub ->
 
