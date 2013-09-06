@@ -411,10 +411,10 @@ let rec for_each_map3r xs ys zs s body =
 -- 'sf_list_index' for "safely" accessing an element of a list (i.e.,
 -- without accidentally erasing or duplicating the rest of the list).
 -- 
--- with_list_index :: int -> list a -> s -> (a -> s -> (a, t)) -> (list a, t)
-let with_list_index n as s body =
+-- with_list_index :: int -> list a -> (a -> (a, t)) -> (list a, t)
+let with_list_index n as body =
   (before, a, after) <- sf_list_index n as;
-  (a, s) <- body a s;
+  (a, s) <- body a;
   as <- sf_list_unindex (before, a, after);
   return (as, s)
 ;;
@@ -422,7 +422,7 @@ let with_list_index n as s body =
 -- Run the block while accessing a particular sub-range of a list.
 -- Example:
 -- 
--- (as, s) <- with_list_range n m as s (fun as_range s ->
+-- (as, s) <- with_list_range n m as (fun as_range ->
 --   (as_range, s) <- update as_range s;
 --   return (as_range, s)
 -- )
@@ -432,10 +432,10 @@ let with_list_index n as s body =
 -- (i.e., without accidentally erasing or duplicating the rest of the
 -- list).
 -- 
--- with_list_range :: int -> int -> list a -> s -> (list a -> s -> (list a, t)) -> (list a, t)
-let with_list_range n m as s body =
+-- with_list_range :: int -> int -> list a -> (list a -> (list a, t)) -> (list a, t)
+let with_list_range n m as body =
   (before, as, after) <- sf_list_range n m as;
-  (as, s) <- body as s;
+  (as, s) <- body as;
   as <- sf_list_unrange (before, as, after);
   return (as, s)
 ;;

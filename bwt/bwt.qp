@@ -96,7 +96,7 @@ let qrwbwt oracle s =
 --
 -- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
 let parseNodeRoot (a, root, even, n) =
-  (a, (root, even)) <- with_list_range 1 n a (root, even) (fun a (root, even) ->
+  (a, (root, even)) <- with_list_range 1 n a (fun a ->
     ((root, even), a) <- with_disjunction a (fun q ->
 
       (root, q) <- cnotGate root (q, false);
@@ -115,7 +115,7 @@ let parseNodeRoot (a, root, even, n) =
 -- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
 let parseNodeEven (as, even, n) =
   as <- number_elements as;
-  (as, even) <- with_list_range 1 n as even (fun as even ->
+  (as, even) <- with_list_range 1 n as (fun as ->
     (as, even) <- with_ancilla false (fun flag ->
 
       (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
@@ -197,8 +197,8 @@ let testIsChild (even, ischild, direction, color, n) =
 -- setParent :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
 let setParent (a, b, isparent, n) =
 
-  (a, (b, isparent)) <- with_list_range 1 n a (b, isparent) (fun as (b, isparent) ->
-    (b, (as, isparent)) <- with_list_range 0 (n-1) b (as, isparent) (fun bs (as, isparent) ->
+  (a, (b, isparent)) <- with_list_range 1 n a (fun as ->
+    (b, (as, isparent)) <- with_list_range 0 (n-1) b (fun bs ->
       (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
         (b, isparent, a) <- toffoliGate b (isparent, true) (a, true);
         return (a, b, isparent)
@@ -208,8 +208,8 @@ let setParent (a, b, isparent, n) =
     return (as, (b, isparent))
   );
 
-  (a, (b, isparent)) <- with_list_index (n+1) a (b, isparent) (fun a (b, isparent) ->
-    (b, (a, isparent)) <- with_list_index (n+1) b (a, isparent) (fun b (a, isparent) ->
+  (a, (b, isparent)) <- with_list_index (n+1) a (fun a ->
+    (b, (a, isparent)) <- with_list_index (n+1) b (fun b ->
       (b, isparent, a) <- toffoliGate b (isparent, true) (a, true);
       return (b, (a, isparent))
     );
@@ -421,14 +421,14 @@ let setChildInTree (a, b, childctrl, direction, n) =
 -- setChild :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
 let setChild (a, b, ischild, direction, f, g, n) =
   (a, b, ischild, direction) <- with_ancilla false (fun childctrl ->
-    (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
+    (a, (childctrl, ischild)) <- with_list_index n a (fun an ->
       (childctrl, ischild, an) <- toffoliGate childctrl (ischild, true) (an, true);
       return (an, (childctrl, ischild))
     );
     (a, b, childctrl, direction) <- setWeld (a, b, childctrl, direction, f, g, n);
     (childctrl, ischild) <- cnotGate childctrl (ischild, true);
     (a, b, childctrl, direction) <- setChildInTree (a, b, childctrl, direction, n);
-    (a, (childctrl, ischild)) <- with_list_index n a (childctrl, ischild) (fun an (childctrl, ischild) ->
+    (a, (childctrl, ischild)) <- with_list_index n a (fun an ->
       (childctrl, ischild, an) <- toffoliGate childctrl (ischild, true) (an, false);
       return (an, (childctrl, ischild))
     );
