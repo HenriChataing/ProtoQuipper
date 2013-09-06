@@ -1,4 +1,6 @@
--- This module provides general-purpose quantum functions.
+-- This module provides various auxiliary functions and operators that
+-- are useful in the implementation of the Binary Welded Tree
+-- algorithm.
 
 import List
 import Gates

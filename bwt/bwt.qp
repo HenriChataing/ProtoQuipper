@@ -298,7 +298,7 @@ let rec cAddNum_carry (control, output, input, num, carry) =
 -- Our implementation deviates from the GFI-specified one, because in
 -- a functional language, it is more natural to implement addition
 -- recursively. However, we did this in such a way that the resulting
--- sequence of gates is still the "orthodox" one. (### check this)
+-- sequence of gates is still the "orthodox" one.
 --
 -- cAddNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
 let cAddNum (control, output, input, num, n) =
@@ -334,7 +334,8 @@ let cAddNum (control, output, input, num, n) =
 -- 
 -- Rather than following the GFI implementation, we take advantage of
 -- the fact that subtracing is the same thing as adding the two's
--- complement.
+-- complement. The generated sequence of gates is slightly different,
+-- but nevertheless correct.
 -- 
 -- cSubNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
 let cSubNum (control, output, input, num, n) =
@@ -484,13 +485,15 @@ let oracle_orthodox n f g =
 -- ----------------------------------------------------------------------
 -- * The main program
 
--- Display the circuit for size n.
+-- Display the circuit for tree depth n, repetition count s=1, and
+-- some arbitrary choice of welding vectors f and g.
 --
 -- main :: int -> circ((), list qubit)
 let main n =
   let f = cycle n [true, false] in
   let g = cycle n [false, true] in
-  box[] (fun () -> qrwbwt (oracle_orthodox n f g) 1)
+  let s = 1 in
+  box[] (fun () -> qrwbwt (oracle_orthodox n f g) s)
 ;;
 
 main 3;;
