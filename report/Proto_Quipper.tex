@@ -105,6 +105,8 @@ we discuss possible future work, including how Proto-Quipper could be
 extended with additional Quipper features.
 Section~\ref{sec-user-guide} provides a user-level tutorial guide to
 the Proto-Quipper implementation.
+In Section~\ref{sec-bwt}, we describe an implementation of the Binary
+Welded Tree algorithm in Proto-Quipper.
 
 \subsection{Additional materials}
 
@@ -2134,6 +2136,222 @@ In this section, we provide a tutorial-style introduction to
 programming in Proto-Quipper. 
 
 \input{tutorial}
+
+% ----------------------------------------------------------------------
+\clearpage
+\section{An implementation of the Binary Welded Tree algorithm}
+\label{sec-bwt}
+
+Although Proto-Quipper is a very limited language, it is nevertheless
+expressive enough to express quantum algorithms in a non-trivial way.
+To illustrate Proto-Quipper's feasibility, we have implemented the
+Binary Welded Tree algorithm. The implementation is contained in the
+directory \verb!bwt! of the Proto-Quipper distribution.
+
+\subsection{Invocation}
+
+The Proto-Quipper implementation of the Binary Welded Tree algorithm
+can be invoked with the command:
+
+\begin{code}
+\begin{verbatim}
+./ProtoQuipper -iqlib -ibwt bwt > circ.ir
+\end{verbatim}
+\end{code}
+
+This will generate the circuit for tree depth $n=3$, repetition count
+$s=1$, and some arbitrarily chosen welding vectors $f$ and $g$. The
+circuit is written to the standard output stream in the PLATO
+Intermediate Representation format, where it can be processed by other
+tools. For example, it can then be previewed using the Quipper
+previewing tool (in \verb!Programs/Tools! within the Quipper
+distribution), like this:
+
+\begin{code}
+\begin{verbatim}
+Preview < circ.ir
+\end{verbatim}
+\end{code}
+
+The circuit looks as follows (when reading this report in a PDF
+viewer, more details can be viewed by switching to an appropriate zoom
+level):
+\[ \resizebox{\textwidth}{!}{\includegraphics{bwt}}
+\]
+Here is the beginning of the circuit:
+\[ \resizebox{\textwidth}{!}{\includegraphics[clip=true,trim=0in 0in 27in 0in]{bwt}}
+\]
+We note that, since Proto-Quipper does not have any facilities for
+processing command-line options in user-level programs, to change the
+parameter (such as $n$, $s$, or the welding vectors), the user must
+update the source code of the \verb!main! function in \verb!bwt/bwt.qp!.
+
+\subsection{Correctness}
+
+The correctness of the Binary Welded Tree algorithm implementation can
+be established in a modular fashion. First, the correctness of the
+diffusion step can be verified by direct inspection of the generated
+circuits, since the diffusion step is small and very regular. Second,
+the correctness of the oracle can be verified by simulation, keeping
+in mind that the oracle only uses classical gates, which can therefore
+be simulated efficiently. Here, the use of the PLATO intermediate
+representation is convenient, as the circuit can be simulated by
+simply copying and pasting the relevant circuit fragments and feeding
+them into the Quipper standalone simulation tool. For example, to
+simulate the first oracle (for the color $c=0$), one should
+copy-and-paste the block of gates from lines 7 to 193 of the IR,
+starting with ``\verb!QInit0(5)!'' and ending with
+``\verb!QTerm0(16)!''. Assuming that the circuit fragment is pasted
+into a file \verb!oracle.ir!, the circuit can then be simulated using
+the tool \verb!Simulate!, which can be found in the directory
+\verb!Programs/Tools! of the Quipper distribution:
+\begin{code}
+\begin{verbatim}
+Simulate < oracle.ir
+\end{verbatim}
+\end{code}
+The resulting simulation shows the output corresponding to every
+possible input state, and starts like this:
+\begin{code}
+\begin{verbatim}
+|00000> ->
+           |00000000000> 1.000000000000000000000000000000
+|00001> ->
+           |00001000100> 1.000000000000000000000000000000
+|00010> ->
+           |00010000010> 1.000000000000000000000000000000
+|00011> ->
+           |00011000001> 1.000000000000000000000000000000
+\end{verbatim}
+\end{code}
+The correctness of the outputs can be verified either manually, by
+direct comparison with its specification, or by comparing it to the
+output of other implementations of the Binary Welded Tree algorithm.
+
+\subsection{Performance}
+
+In the current implementation, Proto-Quipper code is interpreted,
+rather than compiled. As such, the execution is relatively slow.  On
+the laptop that was used to generate these examples, running the
+Binary Welded Tree algorithm took over 40 seconds, even for the very
+small parameters $n=3$ and $s=1$. This compares to less than 0.05
+seconds in Quipper.
+
+However, the main goal in designing Proto-Quipper was to explore
+custom type systems, not to design a high-performance system. Better
+performance can always be achieved through better implementation
+techniques, such as a custom compiler, or even translation into
+Quipper after type-checking.
+
+\subsection{Limitations of purely functional syntax}
+
+As the implementation of the Binary Welded Tree algorithm illustrates,
+the purely functional nature of Proto-Quipper leads to a relatively
+awkward programming style. The non-existence of side effects means
+that state must always be explicitly passed into and out of every
+function. For example, in Quipper, one can write gates in imperative
+style, such as
+\begin{code}
+\begin{verbatim}
+controlled_not_at (q, c),
+\end{verbatim}
+\end{code}
+\noindent or in semi-imperative style, such as
+\begin{code}
+\begin{verbatim}
+q <- qnot q `controlled` c.
+\end{verbatim}
+\end{code}
+\noindent By contrast, in Proto-Quipper, both $q$ and $c$ must be treated as
+inputs and outputs to the gate, resulting in the syntax
+\begin{code}
+\begin{verbatim}
+(q, c) <- cnot (q, c).
+\end{verbatim}
+\end{code}
+\noindent While this seems adequate for a single gate with not too many
+parameters, the syntax quickly gets awkward when scaled to larger
+systems. The file \verb!bwt.qc! contains many examples of this
+programming style. 
+
+In an attempt to emulate imperative-style programming, Proto-Quipper
+also provides the ``\verb!<-*!'' operator,
+\begin{code}
+\begin{verbatim}
+(q, c) <-* gate x
+\end{verbatim}
+\end{code}
+\noindent which is a syntactic abbreviation for
+\begin{code}
+\begin{verbatim}
+(q, c) <- gate x (q, c).
+\end{verbatim}
+\end{code}
+\noindent The systematic use of this syntax is illustrated in the file
+\verb!bwt_imp.qc!. However, we did not find the resulting programming
+style very natural either. The resulting program is no easier to read
+than its purely functional counterpart. Moreover, the use of this
+syntax often forces function arguments to be re-ordered in unnatural
+ways. We also note an important limitation of the ``\verb!<-*!''
+syntax; namely, it only works for first-order constructions such as
+gates, but it is not so useful in block structures. For example, in
+Quipper, one would be able to write
+\begin{code}
+\begin{verbatim}
+for 1 n 1 $ \index -> do
+  gate_1_at index a
+  gate_2_at index a
+  ...
+  gate_n_at index a.
+\end{verbatim}
+\end{code}
+\noindent By contrast, in Proto-Quipper, any state modified by the
+loop body must be explicitly passed into and out of the block,
+resulting in more awkward idioms such as the following:
+\begin{code}
+\begin{verbatim}
+out_state <- for 1 n 1 in_state (fun index body_in_state ->
+  body_state <- gate_1 index body_in_state;
+  body_state <- gate_2 index body_state;
+  ...
+  body_out_state <- gaten index body_state;
+  return body_out_state
+);
+\end{verbatim}
+\end{code}
+Another problem with purely functional syntax is that indexed array
+accesses cannot be used as $\ell$-values. Thus, to update the $n$th element
+of an array $a$, one must first disassemble the array, then update
+the element, and then re-assemble the array. Quipper code such as
+\begin{code}
+\begin{verbatim}
+gate_at (a !! n)
+\end{verbatim}
+\end{code}
+\noindent must in Proto-Quipper be replaced by something like this:
+\begin{code}
+\begin{verbatim}
+(before, an, after) <- sf_list_index n a;
+an <- gate an;
+a <- sf_list_unindex (before, an, after)
+\end{verbatim}
+\end{code}
+The design of a more succinct and expressive syntax for Proto-Quipper,
+while retaining the type-safety that is associated with purely
+functional programming, is a question for ongoing research.
+
+\subsection{Expressivity}
+
+Despite the above drawbacks of purely functional programming, there
+are also some benefits. One of them is the ease with which new kinds
+of higher-order operators and combinators can be defined. Recall that
+Proto-Quipper is a language with a relatively small grammar. Yet, it
+is possible to define any number of powerful custom operators, which
+can then be used to structure programs. The source code file
+\verb!bwt/definitions.qp! contains many examples. This includes looping
+combinators such as \verb!loop!, \verb!for!, and \verb!for_each!,
+block-structuring operators such as \verb!with_ancilla!,
+\verb!with_disjunction!, among many others.
 
 % ----------------------------------------------------------------------
 \clearpage
