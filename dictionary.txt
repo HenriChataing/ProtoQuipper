@@ -83,7 +83,9 @@ genprint
 GrState
 gsize
 GT
+href
 hs
+html
 Hughes's
 HughesPJ
 iff
@@ -144,9 +146,10 @@ Param
 parseError
 parseOpts
 ParsingError
+PBool
 PConstraint
 PDatacon
-PJoker
+PInt
 PLocated
 pn
 polymorphism
@@ -166,6 +169,7 @@ PUnit
 putStrC
 putStrLnC
 PVar
+PWildcard
 qdata
 qdatatype
 QError
@@ -176,11 +180,13 @@ qubit
 qubits
 Quipper
 QuipperError
+QUOT
 readdress
 ReadLine
 rec
 RecFlag
 RefFlag
+REM
 resp
 runInterpret
 runS
@@ -224,7 +230,6 @@ TkIn
 TkInfix
 TkInt
 TkInteger
-TkJoker
 TkLArrow
 TkLArrowStar
 TkLBracket
@@ -233,6 +238,7 @@ TkLet
 TkLId
 TkLParen
 TkMatch
+TkMinus
 TkOf
 TkQLId
 TkQuBit
@@ -252,6 +258,7 @@ TkType
 TkUId
 TkUnbox
 TkVal
+TkWildcard
 TkWith
 TLocated
 tn

@@ -73,11 +73,15 @@ For a tutorial introduction to Proto-Quipper, see Section 8,
 Browsing the documentation and source code
 ==========================================
 
-While it is possible the browse the Proto-Quipper source code in a
-text editor, it is much nicer to browse the documented source by
-pointing your web browser to doc/frames.html in this Proto-Quipper
-distribution. The documented source is fully cross-referenced and
-indexed, with links to color-coded raw source files.
+While it is possible the browse the source code of the Proto-Quipper
+implementation in a text editor, it is much nicer to browse the
+documented source by pointing your web browser to doc/frames.html in
+this Proto-Quipper distribution. The documented source is fully
+cross-referenced and indexed, with links to color-coded raw source
+files.
+
+The distribution also contains object code examples, written in
+Proto-Quipper. These can be found in the directories qlib and bwt.
 
 
 Building the documentation
@@ -85,6 +89,25 @@ Building the documentation
 
 If the programs "haddock" and "HsColour" are installed, the
 documentation can be built with "make haddock".
+
+
+Emacs mode
+==========
+
+A very basic emacs editing mode for Proto-Quipper files (file
+extension .qp) is located in the emacs directory. It currently does
+nothing but some syntax coloring.
+
+
+Frequently asked questions
+==========================
+
+Q: Why do you use the acronym "QP" and not "PQ"?
+
+A: Some of the Proto-Quipper implementors are from France, where "PQ"
+apparently is a vulgar term for "toilet paper". (Among French speakers
+in Canada, there are no such sensitivities, as PQ is the acronym for a
+well-known political party here).
 
 
 Contact

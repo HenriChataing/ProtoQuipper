@@ -5,8 +5,10 @@
 let (+) = #builtin ADD ;;
 let (-) = #builtin SUB ;;
 let (*) = #builtin MUL ;;
-let (/) = #builtin DIV ;;
-let (%) = #builtin MOD ;;
+let (/) = #builtin QUOT ;;  -- division with rounding toward 0
+let (%) = #builtin REM ;;   -- remainder w.r.t. QUOT (may be negative)
+let div = #builtin DIV ;;   -- division with rounding toward -infinity
+let mod = #builtin MOD ;;   -- remainder w.r.t. DIV (never negative)
 let (^) = #builtin POW ;;
 
 -- The parser hard-wires unary "-" to "negation_symbol".

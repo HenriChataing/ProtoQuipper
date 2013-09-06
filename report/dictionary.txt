@@ -24,6 +24,7 @@ def
 Derivability
 downdeal
 Eastin
+Expressivity
 FinHilb
 FlagUnification
 formedness
@@ -47,6 +48,7 @@ Nat'l
 nB
 OCaml
 openproblem
+PDF
 pic
 polymorphism
 poset

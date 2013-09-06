@@ -205,7 +205,7 @@ data MOptions = MOptions {
 
 
 
--- | Processe a list of top-level declarations (corresponding to either commands in interactive mode, or
+-- | Process a list of top-level declarations (corresponding to either commands in interactive mode, or
 -- the body of a module). The arguments include the vector of command options, the current module,
 -- an extensive context, and a declaration.
 process_declaration :: (Options, MOptions)       -- ^ The command line and module options combined.

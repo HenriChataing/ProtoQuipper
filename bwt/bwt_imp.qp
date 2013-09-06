@@ -1,11 +1,13 @@
--- This module provides an implementation of the Binary Welded Tree
--- algorithm.
+-- This module provides an alternative implementation of the Binary
+-- Welded Tree algorithm. It is similar to the implementation in
+-- bwt.qp, but using a more "imperative-style" syntax.
 
 import Core
 import List
 import Function
 import Gates
 import Definitions
+import Definitions_imp
 
 -- ----------------------------------------------------------------------
 -- * Oracle abstraction
@@ -32,14 +34,14 @@ type oracle =
 -- are m-qubit registers holding node labels to be diffused. r is a
 -- control.
 -- 
--- timestep :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
-let timestep (a,b,r,m) =
+-- timestep :: int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
+let timestep m (a,b,r) =
   (a,b,r) <- with_ancilla false (fun h ->
-    (a,b) <- map2 wGate a b;
-    (h,a,b) <- map2_foldl toffoliGate_10 h a b;
-    (h,r) <- controlledExpGate h (r, false);
-    (h,a,b) <- map2_foldr toffoliGate_10 h a b;
-    (a,b) <- map2r wGateInverse a b;
+    (a,b) <-* map2_imp wGate;
+    (h,a,b) <-* map2_foldl_imp toffoliGate_10;
+    (h,r) <-* cexp_itZ_signed false;
+    (h,a,b) <-* map2_foldr_imp toffoliGate_10;
+    (a,b) <-* map2r_imp wGateInverse;
     return ((a,b,r),h)
   );
   return (a,b,r)
@@ -60,11 +62,11 @@ let qrwbwt oracle s =
   a <- qinit_register entrance;
   a <- with_ancilla_reg (replicate m false) (fun b ->
     (a,b) <- with_ancilla false (fun r ->
-      (a,b,r) <- loop s (a,b,r) (fun (a,b,r) ->
-        (a,b,r) <- for 0 (k-1) 1 (a,b,r) (fun c -> fun (a,b,r) ->
-          (a,b,r) <- oraclefun c (a,b,r);
-          (a,b,r) <- timestep (a,b,r,m);
-          (a,b,r) <- oraclefun c (a,b,r);
+      (a,b,r) <-* loop_imp s (fun (a,b,r) ->
+        (a,b,r) <-* for_imp 0 (k-1) 1 (fun c -> fun (a,b,r) ->
+          (a,b,r) <-* oraclefun c;
+          (a,b,r) <-* timestep m;
+          (a,b,r) <-* oraclefun c;
           return (a,b,r)
         );
         return (a,b,r)
@@ -96,13 +98,13 @@ let qrwbwt oracle s =
 -- Input a node label 'a' of length at least n+1. Negate both 'root'
 -- and 'even' if 'a' is a root node.
 --
--- parseNodeRoot :: list qubit * qubit * qubit * int -> list qubit * qubit * qubit
-let parseNodeRoot (a, root, even, n) =
+-- parseNodeRoot :: int -> list qubit * qubit * qubit -> list qubit * qubit * qubit
+let parseNodeRoot n (a, root, even) =
   (a, (root, even)) <- with_list_range 1 n a (fun a ->
     ((root, even), a) <- with_disjunction a (fun q ->
 
-      (root, q) <- cnotGate root (q, false);
-      (even, q) <- cnotGate even (q, false);
+      (root, q) <-* cnot_signed false;
+      (even, q) <-* cnot_signed false;
 
       return ((root, even), q)
     );
@@ -114,22 +116,22 @@ let parseNodeRoot (a, root, even, n) =
 -- Input a node label 'a' of length at least n+1. Negate 'even' if the
 -- node 'a' occurs at an even height in the tree.
 --
--- parseNodeEven :: list qubit * qubit * int -> list qubit * qubit
-let parseNodeEven (as, even, n) =
-  as <- number_elements as;
+-- parseNodeEven :: int -> list qubit * qubit -> list qubit * qubit
+let parseNodeEven n (as, even) =
+  as <-* number_elements;
   (as, even) <- with_list_range 1 n as (fun as ->
     (as, even) <- with_ancilla false (fun flag ->
 
       (scratches, (flag, even)) <- for_each_mapr as (flag, even) (fun (a, index) (flag, even) ->
         scratch <- qinit false;
-        (scratch, flag, a) <- toffoliGate scratch (flag, false) (a, true);
-        (even, flag, a) <- toffoliGate_if (is_even index) even (flag, false) (a, true);
-        (flag, scratch) <- cnotGate flag (scratch, true);
+        (scratch, flag, a) <-* toffoli_signed false true;
+        (even, flag, a) <-* toffoli_signed_if (is_even index) false true;
+        (flag, scratch) <-* cnot_signed true;
         return ((a, index, scratch), (flag, even))
       );
       (as, flag) <- for_each_map scratches flag (fun (a, index, scratch) flag ->
-        (flag, scratch) <- cnotGate flag (scratch, true);
-        (scratch, flag, a) <- toffoliGate scratch (flag, false) (a, true);
+        (flag, scratch) <-* cnot_signed true;
+        (scratch, flag, a) <-* toffoli_signed false true;
         qterm false scratch;
         return ((a, index), flag)
       );
@@ -137,7 +139,7 @@ let parseNodeEven (as, even, n) =
     );
     return (as, even)
   );
-  as <- unnumber_elements as;
+  as <-* unnumber_elements;
   return (as, even)
 ;;
 
@@ -151,29 +153,29 @@ let parseNodeEven (as, even, n) =
 -- following sequence will compute and then uncompute 'testIsParent':
 --
 -- > ismatch <- qinit false;
--- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);
--- > (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, false, ismatch);
+-- > (a, root, even, isparent, ismatch) <-* testIsParent color n true;
+-- > (a, root, even, isparent, ismatch) <-* testIsParent color n false;
 -- > qterm false ismatch;
 --
--- testIsParent :: list qubit * qubit * qubit * qubit * list bool * int * bool * qubit -> list qubit * qubit * qubit * qubit * qubit
-let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
+-- testIsParent :: list bool -> int -> bool -> list qubit * qubit * qubit * qubit * qubit -> list qubit * qubit * qubit * qubit * qubit
+let testIsParent color n really (a, root, even, isparent, ismatch) =
   (a0, as) <- sf_head a;
-  (isparent, root, ismatch) <- toffoliGate_if (not really) isparent (root, false) (ismatch, true);
+  (isparent, root, ismatch) <-* toffoli_signed_if (not really) false true;
   (ismatch, isparent, even, a0) <- (match color with
     [true, true] ->
-      (ismatch, even, a0) <- toffoliGate ismatch (even, true) (a0, true);
+      (ismatch, even, a0) <-* toffoli_signed true true;
       return (ismatch, isparent, even, a0)
   | [false, true] ->
-      (ismatch, even, a0) <- toffoliGate ismatch (even, true) (a0, false);
+      (ismatch, even, a0) <-* toffoli_signed true false;
       return (ismatch, isparent, even, a0)
   | [true, false] ->
-      (isparent, even, a0) <- toffoliGate isparent (even, false) (a0, true);
+      (isparent, even, a0) <-* toffoli_signed false true;
       return (ismatch, isparent, even, a0)
   | [false, false] ->
-      (isparent, even, a0) <- toffoliGate isparent (even, false) (a0, false);
+      (isparent, even, a0) <-* toffoli_signed false false;
       return (ismatch, isparent, even, a0)
   );
-  (isparent, root, ismatch) <- toffoliGate isparent (root, false) (ismatch, true);
+  (isparent, root, ismatch) <-* toffoli_signed false true;
   a <- a0 : as;
   return (a, root, even, isparent, ismatch)
 ;;
@@ -183,10 +185,10 @@ let testIsParent (a, root, even, isparent, color, n, really, ismatch) =
 -- "left" or "right" child. Here, 'color' is a boolean register of
 -- length 2, representing a color. This function is self-inverse.
 --
--- testIsChild :: qubit * qubit * qubit * list bool * int -> qubit * qubit * qubit
-let testIsChild (even, ischild, direction, color, n) =
-  (ischild, even) <- cnotGate ischild (even, not (color @ 1));
-  direction <- qnot_if (color @ 0) direction;
+-- testIsChild :: list bool -> int -> qubit * qubit * qubit -> qubit * qubit * qubit
+let testIsChild color n (even, ischild, direction) =
+  (ischild, even) <-* cnot_signed (not (color @ 1));
+  direction <-* qnot_if (color @ 0);
   return (even, ischild, direction)
 ;;
 
@@ -196,13 +198,13 @@ let testIsChild (even, ischild, direction, color, n) =
 -- 'isparent' is set, set 'b' to the node label of the parent of
 -- 'a'. This is self-inverse.
 --
--- setParent :: list qubit * list qubit * qubit * int -> list qubit * list qubit * qubit
-let setParent (a, b, isparent, n) =
+-- setParent :: int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
+let setParent n (a, b, isparent) =
 
   (a, (b, isparent)) <- with_list_range 1 n a (fun as ->
     (b, (as, isparent)) <- with_list_range 0 (n-1) b (fun bs ->
-      (as, bs, isparent) <- for_each_map2 as bs isparent (fun a b isparent ->
-        (b, isparent, a) <- toffoliGate b (isparent, true) (a, true);
+      (as, bs, isparent) <-* for_each_map2_imp (fun a b isparent ->
+        (b, isparent, a) <-* toffoli_signed true true;
         return (a, b, isparent)
       );
       return (bs, (as, isparent))
@@ -212,7 +214,7 @@ let setParent (a, b, isparent, n) =
 
   (a, (b, isparent)) <- with_list_index (n+1) a (fun a ->
     (b, (a, isparent)) <- with_list_index (n+1) b (fun b ->
-      (b, isparent, a) <- toffoliGate b (isparent, true) (a, true);
+      (b, isparent, a) <-* toffoli_signed true true;
       return (b, (a, isparent))
     );
     return (a, (b, isparent))
@@ -227,15 +229,15 @@ let setParent (a, b, isparent, n) =
 -- quantum registers of length at least n+2, and 'g' is a boolean
 -- register of length n.
 --
--- doWeld0 :: list qubit * list qubit * qubit * list bool * int -> list qubit * list qubit * qubit
-let doWeld0 (a, b, weldctrl, f, n) =
+-- doWeld0 :: list bool -> int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
+let doWeld0 f n (a, b, weldctrl) =
 
   (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
   (bbefore, bs, bafter) <- sf_list_range 0 (n-1) b;
   (fbefore, fs, fafter) <- sf_list_range 0 (n-1) f;
 
-  (as, bs, fs, weldctrl) <- for_each_map3 as bs fs weldctrl (fun ai bi fi weldctrl ->
-    (bi, weldctrl, ai) <- toffoliGate bi (weldctrl, true) (ai, not fi);
+  (as, bs, fs, weldctrl) <-* for_each_map3_imp (fun ai bi fi weldctrl ->
+    (bi, weldctrl, ai) <-* toffoli_signed true (not fi);
     return (ai, bi, fi, weldctrl)
   );
 
@@ -249,15 +251,15 @@ let doWeld0 (a, b, weldctrl, f, n) =
 -- majority q (a, b, n): negate q iff the majority of a, b, and n is 1.
 -- Here, a and b are qubits, and n is a boolean.
 --
--- majority :: qubit -> qubit * qubit * bool -> qubit * qubit * qubit
-let majority q (a, b, n) =
+-- majority :: bool -> qubit * qubit * qubit -> qubit * qubit * qubit
+let majority n (q, a, b) =
   if n then   -- q += (a or b)
-    (q, a) <- cnotGate q (a, true);
-    (q, a, b) <- toffoliGate q (a, true) (b, true);
-    (q, b) <- cnotGate q (b, true);
+    (q, a) <-* cnot_signed true;
+    (q, a, b) <-* toffoli_signed true true;
+    (q, b) <-* cnot_signed true;
     return (q, a, b)
   else        -- q += (a and b)
-    (q, a, b) <- toffoliGate q (a, true) (b, true);
+    (q, a, b) <-* toffoli_signed true true;
     return (q, a, b)
 ;;
 
@@ -271,19 +273,19 @@ let majority q (a, b, n) =
 -- integers are represented in little-headian order, i.e., the head of
 -- the list holds the least significant bit.
 --
--- cAddNum_carry :: qubit * list qubit * list qubit * list bool * qubit -> qubit * list qubit * list qubit * qubit
-let rec cAddNum_carry (control, output, input, num, carry) =
+-- cAddNum_carry :: list bool -> qubit * list qubit * list qubit * qubit -> qubit * list qubit * list qubit * qubit
+let rec cAddNum_carry num (control, output, input, carry) =
   match (output, input, num) with
     ([], [], []) ->
       return (control, [], [], carry)
   | (o:os, i:is, n:ns) ->
-      (o, i, control) <- toffoliGate o (i, true) (control, true);
-      (o, control) <- cnotGate_if n o (control, true);
-      (o, carry, control) <- toffoliGate o (carry, true) (control, true);
+      (o, i, control) <-* toffoli_signed true true;
+      (o, control) <-* cnot_signed_if n true;
+      (o, carry, control) <-* toffoli_signed true true;
       (control, os, is, carry, i) <- with_ancilla false (fun carry' ->
-        (carry', i, carry) <- majority carry' (i, carry, n);
-        (control, os, is, carry') <- cAddNum_carry (control, os, is, ns, carry');
-        (carry', carry, i) <- majority carry' (carry, i, n);
+        (carry', i, carry) <-* majority n;
+        (control, os, is, carry') <-* cAddNum_carry ns;
+        (carry', carry, i) <-* majority n;
 	return ((control, os, is, carry, i), carry')
       );
       return (control, o:os, i:is, carry)
@@ -298,10 +300,10 @@ let rec cAddNum_carry (control, output, input, num, carry) =
 -- Our implementation deviates from the GFI-specified one, because in
 -- a functional language, it is more natural to implement addition
 -- recursively. However, we did this in such a way that the resulting
--- sequence of gates is still the "orthodox" one.
+-- sequence of gates is still the "orthodox" one. (### check this)
 --
--- cAddNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
-let cAddNum (control, output, input, num, n) =
+-- cAddNum :: list bool -> int -> qubit * list qubit * list qubit -> qubit * list qubit * list qubit
+let cAddNum num n (control, output, input) =
   -- Trim the lists to length n.
   (output, orest) <- list_split n output;
   (input, irest) <- list_split n input;
@@ -312,12 +314,12 @@ let cAddNum (control, output, input, num, n) =
       ([], [], []) ->
         return (control, [], [])
     | (o:os, i:is, n:ns) ->
-        (o, i, control) <- toffoliGate o (i, true) (control, true);
-        (o, control) <- cnotGate_if n o (control, true);
+        (o, i, control) <-* toffoli_signed true true;
+        (o, control) <-* cnot_signed_if n true;
         (control, os, is, i) <- with_ancilla false (fun carry ->
-          (carry, i) <- cnotGate_if n carry (i, true);
-          (control, os, is, carry) <- cAddNum_carry (control, os, is, ns, carry);
-          (carry, i) <- cnotGate_if n carry (i, true);
+          (carry, i) <-* cnot_signed_if n true;
+          (control, os, is, carry) <-* cAddNum_carry ns;
+          (carry, i) <-* cnot_signed_if n true;
   	  return ((control, os, is, i), carry)
         );
         return (control, o:os, i:is)
@@ -334,13 +336,13 @@ let cAddNum (control, output, input, num, n) =
 -- 
 -- Rather than following the GFI implementation, we take advantage of
 -- the fact that subtracing is the same thing as adding the two's
--- complement. The generated sequence of gates is slightly different,
--- but nevertheless correct.
+-- complement.
 -- 
--- cSubNum :: qubit * list qubit * list qubit * list bool * int -> qubit * list qubit * list qubit
-let cSubNum (control, output, input, num, n) =
-  let num' = two's_complement num in
-  cAddNum (control, output, input, num', n)
+-- cSubNum :: list bool -> int -> qubit * list qubit * list qubit -> qubit * list qubit * list qubit
+let cSubNum num n (control, output, input) =
+  num <-* two's_complement;
+  (control, output, input) <-* cAddNum num n;
+  return (control, output, input)
 ;;
 
 -- Input a node label 'a', and a register 'b' initialized to 0. If
@@ -349,17 +351,17 @@ let cSubNum (control, output, input, num, n) =
 -- quantum registers of length at least n+2, and 'f' is a boolean
 -- register of length n.
 -- 
--- doWeld1 :: list qubit * list qubit * qubit * list bool * int -> list qubit * list qubit * qubit
-let doWeld1 (a, b, weldctrl, g, n) =
+-- doWeld1 :: list bool -> int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
+let doWeld1 g n (a, b, weldctrl) =
   (a, b, weldctrl) <- with_ancilla false (fun addsub ->
 
     (as, an1, aafter) <- sf_list_index (n+1) a;
 
-    (addsub, weldctrl, an1) <- toffoliGate addsub (weldctrl, true) (an1, false);
-    (addsub, b, as) <- cAddNum (addsub, b, as, g, n);
-    (addsub, weldctrl) <- cnotGate addsub (weldctrl, true);
-    (addsub, b, as) <- cSubNum (addsub, b, as, g, n);
-    (addsub, weldctrl, an1) <- toffoliGate addsub (weldctrl, true) (an1, true);
+    (addsub, weldctrl, an1) <-* toffoli_signed true false;
+    (addsub, b, as) <-* cAddNum g n;
+    (addsub, weldctrl) <-* cnot_signed true;
+    (addsub, b, as) <-* cSubNum g n;
+    (addsub, weldctrl, an1) <-* toffoli_signed true true;
 
     a <- sf_list_unindex (as, an1, aafter);
 
@@ -371,20 +373,20 @@ let doWeld1 (a, b, weldctrl, g, n) =
 -- A special case of 'setChild', where the child is in the opposite
 -- binary tree, i.e., we follow one of the welding edges.
 --
--- setWeld :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
-let setWeld (a, b, childctrl, direction, f, g, n) =
+-- setWeld :: list bool -> list bool -> int -> list qubit * list qubit * qubit * qubit -> list qubit * list qubit * qubit * qubit
+let setWeld f g n (a, b, childctrl, direction) =
   (a, b, childctrl, direction) <- with_ancilla false (fun weldctrl ->
-    (weldctrl, childctrl, direction) <- toffoliGate weldctrl (childctrl, true) (direction, false);
-    (a, b, weldctrl) <- doWeld0 (a, b, weldctrl, f, n);
-    (weldctrl, childctrl) <- cnotGate weldctrl (childctrl, true);
-    (a, b, weldctrl) <- doWeld1 (a, b, weldctrl, g, n);
-    (weldctrl, childctrl, direction) <- toffoliGate weldctrl (childctrl, true) (direction, true);
+    (weldctrl, childctrl, direction) <-* toffoli_signed true false;
+    (a, b, weldctrl) <-* doWeld0 f n;
+    (weldctrl, childctrl) <-* cnot_signed true;
+    (a, b, weldctrl) <-* doWeld1 g n;
+    (weldctrl, childctrl, direction) <-* toffoli_signed true true;
 
     (abefore, an1, aafter) <- sf_list_index (n+1) a;
     (bbefore, [bn, bn1], bafter) <- sf_list_range n (n+1) b;
-    (bn1, childctrl, an1) <- toffoliGate bn1 (childctrl, true) (an1, true);
-    (bn, childctrl) <- cnotGate bn (childctrl, true);
-    (bn1, childctrl) <- cnotGate bn1 (childctrl, true);
+    (bn1, childctrl, an1) <-* toffoli_signed true true;
+    (bn, childctrl) <-* cnot_signed true;
+    (bn1, childctrl) <-* cnot_signed true;
     b <- sf_list_unrange (bbefore, [bn, bn1], bafter);
     a <- sf_list_unindex (abefore, an1, aafter);
 
@@ -396,16 +398,16 @@ let setWeld (a, b, childctrl, direction, f, g, n) =
 -- A special case of 'setChild', where the child is inside the same
 -- binary tree (i.e., not via the welding).
 --
--- setChildInTree :: list qubit * list qubit * qubit * qubit * int -> list qubit * list qubit * qubit * qubit
-let setChildInTree (a, b, childctrl, direction, n) =
+-- setChildInTree :: int -> list qubit * list qubit * qubit * qubit -> list qubit * list qubit * qubit * qubit
+let setChildInTree n (a, b, childctrl, direction) =
   (bbefore, b0, bafter) <- sf_list_index 0 b;
-  (b0, childctrl, direction) <- toffoliGate b0 (childctrl, true) (direction, true);
+  (b0, childctrl, direction) <-* toffoli_signed true true;
   b <- sf_list_unindex (bbefore, b0, bafter);
 
   (abefore, as, aafter) <- sf_list_range 0 (n-1) a;
   (bbefore, bs, bafter) <- sf_list_range 1 n b;
-  (as, bs, childctrl) <- for_each_map2 as bs childctrl (fun a b childctrl ->
-    (b, childctrl, a) <- toffoliGate b (childctrl, true) (a, true);
+  (as, bs, childctrl) <-* for_each_map2_imp (fun a b childctrl ->
+    (b, childctrl, a) <-* toffoli_signed true true;
     return (a, b, childctrl)
   );
   b <- sf_list_unrange (bbefore, bs, bafter);
@@ -413,7 +415,7 @@ let setChildInTree (a, b, childctrl, direction, n) =
 
   (abefore, an1, aafter) <- sf_list_index (n+1) a;
   (bbefore, bn1, bafter) <- sf_list_index (n+1) b;
-  (bn1, childctrl, an1) <- toffoliGate bn1 (childctrl, true) (an1, true);
+  (bn1, childctrl, an1) <-* toffoli_signed true true;
   a <- sf_list_unindex (abefore, an1, aafter);
   b <- sf_list_unindex (bbefore, bn1, bafter);
 
@@ -425,18 +427,18 @@ let setChildInTree (a, b, childctrl, direction, n) =
 -- length at least n+2, and 'f' and 'g' are boolean registers of
 -- length n.
 --
--- setChild :: list qubit * list qubit * qubit * qubit * list bool * list bool * int -> list qubit * list qubit * qubit * qubit
-let setChild (a, b, ischild, direction, f, g, n) =
+-- setChild :: list bool -> list bool -> int -> list qubit * list qubit * qubit * qubit -> list qubit * list qubit * qubit * qubit
+let setChild f g n (a, b, ischild, direction) =
   (a, b, ischild, direction) <- with_ancilla false (fun childctrl ->
     (a, (childctrl, ischild)) <- with_list_index n a (fun an ->
-      (childctrl, ischild, an) <- toffoliGate childctrl (ischild, true) (an, true);
+      (childctrl, ischild, an) <-* toffoli_signed true true;
       return (an, (childctrl, ischild))
     );
-    (a, b, childctrl, direction) <- setWeld (a, b, childctrl, direction, f, g, n);
-    (childctrl, ischild) <- cnotGate childctrl (ischild, true);
-    (a, b, childctrl, direction) <- setChildInTree (a, b, childctrl, direction, n);
+    (a, b, childctrl, direction) <-* setWeld f g n;
+    (childctrl, ischild) <-* cnot_signed true;
+    (a, b, childctrl, direction) <-* setChildInTree n;
     (a, (childctrl, ischild)) <- with_list_index n a (fun an ->
-      (childctrl, ischild, an) <- toffoliGate childctrl (ischild, true) (an, false);
+      (childctrl, ischild, an) <-* toffoli_signed true false;
       return (an, (childctrl, ischild))
     );
     return ((a, b, ischild, direction), childctrl)
@@ -449,23 +451,23 @@ let setChild (a, b, ischild, direction, f, g, n) =
 
 -- The main oracle function.
 --
--- oraclefun :: int -> list bool -> list bool -> int -> (list qubit * list qubit * qubit -> list qubit * list qubit * qubit)
+-- oraclefun :: int -> list bool -> list bool -> int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
 let oraclefun n f g c (a,b,r) =
   let color = boolreg_of_int_le 2 c in
   (a,b,r) <- with_ancilla_reg [false, false, false, false, false, false] (fun [ismatch, direction, ischild, isparent, even, root] ->
-    (a, root, even) <- parseNodeRoot (a, root, even, n);
-    (a, even) <- parseNodeEven (a, even, n);
-    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, true, ismatch);
-    (even, ischild, direction) <- testIsChild (even, ischild, direction, color, n);
-    (a, b, isparent) <- setParent (a, b, isparent, n);
-    (a, b, ischild, direction) <- setChild (a, b, ischild, direction, f, g, n);
+    (a, root, even) <-* parseNodeRoot n;
+    (a, even) <-* parseNodeEven n;
+    (a, root, even, isparent, ismatch) <-* testIsParent color n true;
+    (even, ischild, direction) <-* testIsChild color n;
+    (a, b, isparent) <-* setParent n;
+    (a, b, ischild, direction) <-* setChild f g n;
 
-    (r, isparent, ischild) <- toffoliGate r (isparent, false) (ischild, false);
+    (r, isparent, ischild) <-* toffoli_signed false false;
 
-    (even, ischild, direction) <- testIsChild (even, ischild, direction, color, n);
-    (a, root, even, isparent, ismatch) <- testIsParent (a, root, even, isparent, color, n, false, ismatch);
-    (a, even) <- parseNodeEven (a, even, n);
-    (a, root, even) <- parseNodeRoot (a, root, even, n);
+    (even, ischild, direction) <-* testIsChild color n;
+    (a, root, even, isparent, ismatch) <-* testIsParent color n false;
+    (a, even) <-* parseNodeEven n;
+    (a, root, even) <-* parseNodeRoot n;
 
     return ((a,b,r), [root, even, isparent, ischild, direction, ismatch])
   );
@@ -485,15 +487,13 @@ let oracle_orthodox n f g =
 -- ----------------------------------------------------------------------
 -- * The main program
 
--- Display the circuit for tree depth n, repetition count s=1, and
--- some arbitrary choice of welding vectors f and g.
+-- Display the circuit for size n.
 --
 -- main :: int -> circ((), list qubit)
 let main n =
   let f = cycle n [true, false] in
   let g = cycle n [false, true] in
-  let s = 1 in
-  box[] (fun () -> qrwbwt (oracle_orthodox n f g) s)
+  box[] (fun () -> qrwbwt (oracle_orthodox n f g) 1)
 ;;
 
 main 3;;

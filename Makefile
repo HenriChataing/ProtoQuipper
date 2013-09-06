@@ -25,8 +25,6 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Typing/TypingContext.hs Utils.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
-SUBDIRS = Interpret Monad Typing Parsing
-
 all : $(MODULES)
 	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
@@ -84,7 +82,7 @@ haddock-simple : $(MODULES)
 # Distribution
 
 
-VERSION = 0.1
+VERSION = 0.2
 DISTDIR = proto-quipper-$(VERSION)
 DISTZIP = $(DISTDIR).zip
 DISTTAR = $(DISTDIR).tgz
@@ -92,8 +90,10 @@ DISTTAR = $(DISTDIR).tgz
 MAKEFILES_DIST = Makefile
 MAKEFILES_PUBLIC = $(MAKEFILEs_DIST:%=%-public)
 
-QLIB_MODULES = qlib/core.qp qlib/qft.qp qlib/list.qp qlib/gates.qp
-QLIB = qlib
+QP_MODULES = qlib/core.qp qlib/qft.qp qlib/list.qp qlib/gates.qp \
+ bwt/definitions.qp bwt/bwt.qp bwt/definitions_imp.qp bwt/bwt_imp.qp
+
+OTHER_DIST = emacs/proto-quipper-mode.el
 
 # The README, Makefile, etc used for distribution are not the same as
 # the analogous files used by developers.
@@ -108,11 +108,8 @@ RIGHT_COPY = maintainer/right_copy
 dist: $(PUBLIC) $(MAKEFILES_PUBLIC)
 	rm -rf "$(DISTDIR)"
 	mkdir "$(DISTDIR)"
-	mkdir "$(DISTDIR)/$(QLIB)"
 	mkdir "$(DISTDIR)/$(BUILD_DIR)"
-	for i in $(SUBDIRS); do mkdir "$(DISTDIR)/$$i" || exit 1; done
-	for i in $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QLIB_MODULES); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
-	for i in $(MAKEFILES_DIST); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
+	for i in $(MAKEFILES_DIST) $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QP_MODULES) $(OTHER_DIST); do mkdir -p "$(DISTDIR)/`dirname "$$i"`" && $(RIGHT_COPY) "$$i" "$(DISTDIR)/$$i" || exit 1; done
 	for i in $(PUBLIC); do $(RIGHT_COPY) "$$i" "$(DISTDIR)/" || exit 1; done
 	cd "$(DISTDIR)"; make doc
 	cd "$(DISTDIR)"; make clean

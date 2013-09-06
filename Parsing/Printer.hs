@@ -72,8 +72,10 @@ instance PPrint Pattern where
     sprintn lv p
 
   -- Print unto Lvl = n
-  sprintn _ PJoker = "_"
+  sprintn _ PWildcard = "_"
   sprintn _ PUnit = "()"
+  sprintn lv (PBool b) = if b then "true" else "false"
+  sprintn lv (PInt n) = show n
   sprintn _ (PVar x) = x
   sprintn (Nth 0) _ = "..."
 

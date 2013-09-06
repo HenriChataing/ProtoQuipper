@@ -31,11 +31,8 @@ case "$(basename "$FROM")" in
     *.awk | *.sh | Makefile* )
   PREFIX="# "
   ;;
-    *.qcl )
-  PREFIX="// "
-  ;;
-    QCL-*.out )
-  PREFIX="# "
+    *.el )
+  PREFIX=";; "
   ;;
     README | INSTALLING.* )
   PREFIX=""

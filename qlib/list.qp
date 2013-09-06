@@ -15,11 +15,11 @@ type list a =
 let nil = Nil ;;
 
 -- ----------------------------------------------------------------------
--- Operations that discard the list
+-- Irreversible list operations
 
 -- The following operations potentially discard or duplicate some list
--- elements, so they can only be applied to lists of duplicable
--- elements.
+-- elements, so they cannot be reversed, and can only be applied to
+-- lists of duplicable elements.
 
 -- Check whether the given list is empty.
 -- 
@@ -102,10 +102,10 @@ let list_range n m xs =
 ;;
 
 -- ----------------------------------------------------------------------
--- Operations that do not discard the list
+-- Reversible list operations
 
--- The following operations preserve the list elements, so they can be
--- applied, for example, to lists of qubits.
+-- The following operations preserve the list elements, so they are
+-- reversible, and can be applied, for example, to lists of qubits.
 
 -- Check whether a list is non-empty, and also return the unmodified list.
 -- 
@@ -140,59 +140,6 @@ let rec sf_length l =
             (n+1, x:xs)
 ;;
 
--- Return the nth element of l (counting from 0), as well as the list
--- of remaining elements in their original order. It is an error for n
--- to be out of range.
--- 
--- sf_list_index :: list a -> int -> a * list a
-let rec sf_list_index l n =
-  match l with
-    h:t -> 
-      if n <= 0 then (h, t) else
-      let (a, as) = sf_list_index t (n-1) in
-      (a, h:as)
-    -- other case is an error
-;;
-
--- The inverse of sf_list_index: re-insert the element at the given
--- position. It is an error if the list has fewer than n elements.
--- 
--- sf_list_unindex :: a * list a -> int -> list a
-let rec sf_list_unindex (a, as) n =
-  if n <= 0 then a:as else
-  match as with
-    h:t -> h : sf_list_unindex (a, t) (n-1)
-;;
-
--- Insert an element at position n in the given list. It is an error
--- if the list has fewer than n elements.
--- 
--- sf_insert :: a -> list a -> int -> list a
-let sf_insert a as n = sf_list_unindex (a, as) n;;
-
--- Split a list after the nth element.
--- 
--- splitAt :: int -> [a] -> [a] * [a]
-let rec splitAt n xs =
-  if n <= 0 then ([], xs) else
-  match xs with
-    [] -> ([], [])
-  | h:t -> 
-      let (as, bs) = splitAt (n-1) t in
-      (h:as, bs)
-;;
-
--- Extract elements n..m from a list, splitting the list into a
--- "before" part, the requested elements, and an "after" part.
--- Elements are counted from 0, and the range n..m is inclusive.
--- 
--- sf_list_range :: int -> int -> [a] -> [a] * [a] * [a]
-let sf_list_range n m xs =
-  let (as, after) = splitAt (m+1) xs in
-  let (before, range) = splitAt n as in
-  (before, range, after)
-;;
-
 -- Append two lists.
 -- 
 -- (++) :: list a -> list a -> list a
@@ -215,6 +162,76 @@ let reverse l =
   in
 
   reverse_acc [] l
+;;
+
+-- Return the nth element of l (counting from 0). To make this
+-- reversible, we also return the list of elements "before" and
+-- "after". It is an error for n to be out of range.
+-- 
+-- sf_list_index :: int -> list a -> list a * a * list a
+let rec sf_list_index n as =
+  match as with
+    h:t -> 
+      if n <= 0 then ([], h, t) else
+      let (before, a, after) = sf_list_index (n-1) t in
+      (h:before, a, after)
+    -- other case is an error
+;;
+
+-- The inverse of sf_list_index: re-assemble the elements in their original order. 
+-- 
+-- sf_list_unindex :: list a * a * list a -> list a
+let rec sf_list_unindex (before, a, after) =
+  before ++ [a] ++ after
+;;
+
+-- Insert an element at position n in the given list. It is an error
+-- if the list has fewer than n elements.
+-- 
+-- sf_insert :: a -> list a -> int -> list a
+let rec sf_insert a as n =
+  if n <= 0 then a:as else
+  match as with
+    h:t -> h : sf_insert a t (n-1)
+;;
+
+-- Split a list after the nth element.
+-- 
+-- list_split :: int -> [a] -> [a] * [a]
+let rec list_split n xs =
+  if n <= 0 then ([], xs) else
+  match xs with
+    [] -> ([], [])
+  | h:t -> 
+      let (as, bs) = list_split (n-1) t in
+      (h:as, bs)
+;;
+
+-- The inverse of list_split. Re-assemble the elements in the original
+-- order.
+-- 
+-- list_unsplit :: [a] * [a] -> [a]
+let list_unsplit (xs, rest) = 
+  xs ++ rest 
+;;
+
+-- Extract elements n..m from a list, splitting the list into a
+-- "before" part, the requested elements, and an "after" part.
+-- Elements are counted from 0, and the range n..m is inclusive.
+-- 
+-- sf_list_range :: int -> int -> [a] -> [a] * [a] * [a]
+let sf_list_range n m xs =
+  let (as, after) = list_split (m+1) xs in
+  let (before, range) = list_split n as in
+  (before, range, after)
+;;
+
+-- The inverse of sf_list_range: re-assemble the elements in the
+-- original order.
+-- 
+-- sf_list_unrange :: [a] * [a] * [a] -> [a]
+let sf_list_unrange (before, range, after) =
+  before ++ range ++ after
 ;;
 
 -- ----------------------------------------------------------------------
@@ -243,7 +260,7 @@ let rec mapr f l =
   match l with
     [] -> []
   | x:xs ->
-      let ys = map f xs in
+      let ys = mapr f xs in
       let y = f x in 
       y:ys
 ;;

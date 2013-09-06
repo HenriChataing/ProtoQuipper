@@ -176,9 +176,11 @@ instance Located Type where
 
 -- | A pattern.
 data Pattern =
-    PJoker                               -- ^ The \"wildcard\" pattern: \"@_@\". This is also sometimes called the /joker/. This pattern matches any value, and the value is to be discarded.
+    PWildcard                               -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
                                          -- In Proto-Quipper, a wildcard can only match a duplicable value. 
   | PUnit                                -- ^ Unit pattern: @()@.
+  | PBool Bool                           -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Int                             -- ^ Integer pattern.
   | PVar String                          -- ^ Variable pattern: /x/.
   | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
@@ -279,21 +281,14 @@ instance Located Expr where
   clear_location e = e
 
 
-
--- | Translate a pattern to the corresponding expression. For example, the pattern (/x/, /y/) is transformed
--- into the expression (/x/, /y/). Any location annotations are preserved.
-expr_of_pattern :: Pattern -> Expr
-expr_of_pattern PUnit = EUnit
-expr_of_pattern (PVar x) = EVar x
-expr_of_pattern (PTuple plist) = ETuple $ List.map expr_of_pattern plist
-expr_of_pattern (PLocated p ex) = ELocated (expr_of_pattern p) ex
-expr_of_pattern (PDatacon d p) = EDatacon d (fmap expr_of_pattern p)
-
--- | The inverse of 'expr_of_pattern'. Translate an expression to the corresponding pattern. While
--- 'expr_of_pattern' always succeeds, 'pattern_of_expr' may fail if called on a term that is \"not a pattern\", for example,
--- a lambda abstraction. Any location annotations are preserved.
+-- | Translate an expression to the corresponding pattern. This
+-- returns 'Nothing' if called on a term that is \"not a pattern\",
+-- for example, a lambda abstraction. Any location annotations are
+-- preserved.
 pattern_of_expr :: Expr -> Maybe Pattern
 pattern_of_expr EUnit = Just PUnit
+pattern_of_expr (EBool b) = Just (PBool b)
+pattern_of_expr (EInt n) = Just (PInt n)
 pattern_of_expr (EVar x) = Just (PVar x)
 pattern_of_expr (ETuple elist) = do
   plist <- mapM pattern_of_expr elist

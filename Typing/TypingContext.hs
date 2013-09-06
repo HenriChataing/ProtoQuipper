@@ -56,16 +56,24 @@ type_of x ctx = do
 -- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
 bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
 
--- Joker: the joker must have a duplicable type, since
+-- Wildcard: the wildcard must have a duplicable type, since
 -- the value is discarded. No binding is generated.
-bind_pattern PJoker = do
+bind_pattern PWildcard = do
   a <- fresh_type
   return (TBang 1 $ TVar a, IMap.empty, emptyset)
 
--- Unit value
+-- Unit pattern
 bind_pattern PUnit = do
   return (TBang 0 TUnit, IMap.empty, emptyset)
 
+-- Boolean pattern
+bind_pattern (PBool b) = do
+  return (TBang 0 TBool, IMap.empty, emptyset)
+  
+-- Integer pattern
+bind_pattern (PInt n) = do
+  return (TBang 0 TInt, IMap.empty, emptyset)
+  
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar x) = do
   -- Create a new type, add some information to the flag
@@ -88,7 +96,7 @@ bind_pattern (PDatacon dcon p) = do
   -- Retrieves the type of data constructor 
   dtype <- datacon_def dcon
   
-  -- Instanciate the type
+  -- Instantiate the type
   (typ, cset) <- instantiate dtype
 
   -- Check the arguments
@@ -126,8 +134,8 @@ bind_pattern (PLocated p ex) = do
 -- the data constructor contains its own type, so rather than creating an entirely new one and saying
 -- that it must be a subtype of the required one, it is best to bind the pattern directly to this.
 bind_pattern_to_type :: Pattern -> Type -> QpState (TypingContext, ConstraintSet)
--- The joker can be bound to any type, as long as it is duplicable.
-bind_pattern_to_type PJoker a@(TBang n _) = do
+-- The wildcard can be bound to any type, as long as it is duplicable.
+bind_pattern_to_type PWildcard a@(TBang n _) = do
   -- Set the flag to one, and return
   set_flag n no_info
   return (IMap.empty, emptyset)
@@ -137,6 +145,14 @@ bind_pattern_to_type (PVar x) t@(TBang n _) = do
 
 -- The unit pattern bound to the unit type
 bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
+  return (IMap.empty, emptyset)
+
+-- A boolean pattern bound to the boolean type
+bind_pattern_to_type (PBool b) t@(TBang _ TBool) = do
+  return (IMap.empty, emptyset)
+
+-- The unit pattern bound to the unit type
+bind_pattern_to_type (PInt n) t@(TBang _ TInt) = do
   return (IMap.empty, emptyset)
 
 -- Two things have to be done to bind a tuple to a tensor: first
@@ -189,7 +205,6 @@ bind_pattern_to_type (PDatacon dcon p) typ = do
         ex <- get_location
         ndcon <- datacon_name dcon
         throwQ $ LocatedError (WrongDataArguments ndcon) ex
-
 
 -- Same as with the function bind_pattern
 bind_pattern_to_type (PConstraint p (t, typs)) typ = do

@@ -138,7 +138,7 @@ import_builtins = do
   mb <- Map.foldWithKey (\b (t, v) rec -> do
                       m <- rec
                       t' <- translate_bound_type t empty_label 
-                      return $ Map.insert b (t', v) m) (return Map.empty) (Map.union builtin_gates builtin_operations)
+                      return $ Map.insert b (t', v) m) (return Map.empty) builtin_all
   ctx <- get_context
   set_context $ ctx { builtins = mb }
 
@@ -603,8 +603,14 @@ translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map Stri
 translate_pattern S.PUnit label = do
   return (PUnit, l_variables label)
 
-translate_pattern S.PJoker label = do
-  return (PJoker, l_variables label)
+translate_pattern (S.PBool b) label = do
+  return (PBool b, l_variables label)
+
+translate_pattern (S.PInt n) label = do
+  return (PInt n, l_variables label)
+
+translate_pattern S.PWildcard label = do
+  return (PWildcard, l_variables label)
 
 translate_pattern (S.PVar x) label = do
   ex <- get_location
@@ -775,6 +781,12 @@ with_interface :: S.Program -> LabellingContext -> Pattern -> QpState Pattern
 with_interface _ _ PUnit =
   return PUnit
 
+with_interface _ _ (PBool b) =
+  return (PBool b)
+
+with_interface _ _ (PInt n) =
+  return (PInt n)
+
 with_interface prog label (PLocated p _) =
   with_interface prog label p
 
@@ -874,6 +886,12 @@ unfold_tuples (PLocated p ex) =
 unfold_tuples PUnit =
   PUnit
 
+unfold_tuples (PBool b) =
+  PBool b
+
+unfold_tuples (PInt n) =
+  PInt n
+
 unfold_tuples (PVar x) =
   (PVar x)
 
@@ -957,6 +975,16 @@ desugar (ELet r p e f) = do
         f' <- desugar f
         return $ ELet r p' e' f'
 
+    -- If the pattern is boolean: do nothing
+    (PBool b) -> do
+        f' <- desugar f
+        return $ ELet r p' e' f'
+
+    -- If the pattern is an integer: do nothing
+    (PInt n) -> do
+        f' <- desugar f
+        return $ ELet r p' e' f'
+
     -- If the pattern is one variable, do nothing
     -- The let binding can't be removed because of let-polymorphism
     PVar _ -> do
@@ -1036,7 +1064,7 @@ desugar (EMatch e blist) = do
                                 f' <- desugar $ ELet Nonrecursive p (EVar x) f
                                 return $ (PDatacon dcon $ Just (PVar x), f'):r) (return []) blist
 
-                            -- The other cases are ignored for now, as syntactic equlity hasn't been developped yet
+                            -- The other cases are ignored for now, as syntactic equality hasn't been developed yet
   return $ EMatch e' blist'
 
 desugar (EBox typ) = do
