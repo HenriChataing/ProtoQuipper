@@ -7,7 +7,9 @@ module Parsing.Syntax where
 import Classes
 
 import Parsing.Location
+import Monad.QuipperError
 
+import Control.Exception
 import Data.Char
 import Data.Map
 import Data.List as List
@@ -285,19 +287,29 @@ instance Located Expr where
 -- returns 'Nothing' if called on a term that is \"not a pattern\",
 -- for example, a lambda abstraction. Any location annotations are
 -- preserved.
-pattern_of_expr :: Expr -> Maybe Pattern
-pattern_of_expr EUnit = Just PUnit
-pattern_of_expr (EBool b) = Just (PBool b)
-pattern_of_expr (EInt n) = Just (PInt n)
-pattern_of_expr (EVar x) = Just (PVar x)
-pattern_of_expr (ETuple elist) = do
-  plist <- mapM pattern_of_expr elist
+maybe_pattern_of_expr :: Expr -> Maybe Pattern
+maybe_pattern_of_expr EUnit = Just PUnit
+maybe_pattern_of_expr (EBool b) = Just (PBool b)
+maybe_pattern_of_expr (EInt n) = Just (PInt n)
+maybe_pattern_of_expr (EVar x) = Just (PVar x)
+maybe_pattern_of_expr (ETuple elist) = do
+  plist <- mapM maybe_pattern_of_expr elist
   return (PTuple plist)
-pattern_of_expr (ELocated e ex) = do
-  p <- pattern_of_expr e
+maybe_pattern_of_expr (ELocated e ex) = do
+  p <- maybe_pattern_of_expr e
   return (PLocated p ex)
-pattern_of_expr (EDatacon d Nothing) = Just (PDatacon d Nothing)
-pattern_of_expr (EDatacon d (Just e)) = do
-  p <- pattern_of_expr e
+maybe_pattern_of_expr (EDatacon d Nothing) = Just (PDatacon d Nothing)
+maybe_pattern_of_expr (EDatacon d (Just e)) = do
+  p <- maybe_pattern_of_expr e
   return (PDatacon d (Just p))
-pattern_of_expr _ = Nothing
+maybe_pattern_of_expr _ = Nothing
+
+-- | Translate an expression to the corresponding pattern. If the term
+-- is \"not a pattern\", for example, a lambda abstraction, then throw a
+-- 'ParsingError' with text \"bad pattern\".
+pattern_of_expr :: Expr -> Pattern
+pattern_of_expr e = 
+  case maybe_pattern_of_expr e of
+    Just p -> p
+    Nothing ->
+      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
