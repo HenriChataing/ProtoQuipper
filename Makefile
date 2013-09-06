@@ -25,7 +25,9 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Typing/TypingContext.hs Utils.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
-all : $(MODULES)
+all : $(MAIN)
+
+$(MAIN) : $(MODULES)
 	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parsing/Parser.hs : Parsing/Parser.y
@@ -40,11 +42,15 @@ Parsing/IParser.hs : Parsing/IParser.y
 Parsing/Lexer.hs : Parsing/Lexer.x
 	$(ALEX) Parsing/Lexer.x
 
+bwt.circ : $(MAIN)
+	./$(MAIN) -iqlib -ibwt bwt > bwt.circ
+
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
 	rm -f $(MAIN) $(MAIN).exe
 	rm -rf $(BUILD_DIR)/*
+	rm -f bwt.circ
 
 count : clean
 	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y Parsing/IParser.y Parsing/ConstraintParser.y
@@ -124,6 +130,7 @@ distcheck: $(DISTZIP)
 	unzip "$(DISTZIP)"
 	cp -rp "$(DISTDIR)" "$(DISTDIR)-orig"
 	cd "$(DISTDIR)"; $(MAKE) all
+	cd "$(DISTDIR)"; $(MAKE) bwt.circ
 	cd "$(DISTDIR)"; $(MAKE) clean
 	diff -rq "$(DISTDIR)-orig" "$(DISTDIR)" || (echo "Some files were not cleaned" >& 2 ; exit 1)
 	cd "$(DISTDIR)-orig"; $(MAKE) doc
