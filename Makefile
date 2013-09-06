@@ -82,7 +82,7 @@ haddock-simple : $(MODULES)
 # Distribution
 
 
-VERSION = 0.1
+VERSION = 0.2
 DISTDIR = proto-quipper-$(VERSION)
 DISTZIP = $(DISTDIR).zip
 DISTTAR = $(DISTDIR).tgz

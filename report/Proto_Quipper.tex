@@ -16,7 +16,7 @@
 
 % ----------------------------------------------------------------------
 % General Information.
-\title{Report on Proto-Quipper 0.1}
+\title{Report on Proto-Quipper 0.2}
 \author{Report authors: \\
   Henri Chataing (Dalhousie University)\\
   Neil J. Ross (Dalhousie University)\\
@@ -111,7 +111,7 @@ Welded Tree algorithm in Proto-Quipper.
 \subsection{Additional materials}
 
 This document is accompanied by the Proto-Quipper software version
-0.1:
+0.2:
 \begin{compactitemize}
 \item the Proto-Quipper language implementation, including
 \item the Proto-Quipper browsable documentation (in the doc/ directory).
@@ -125,7 +125,7 @@ Section~\ref{sec-user-guide}.
 
 \subsection{Disclaimer}
 
-The Proto-Quipper implementation, version 0.1, is experimental and
+The current Proto-Quipper implementation, is experimental and
 should be considered ``beta'' software. While we gave a mathematical
 proof, in Section~\ref{sec-type-safety}, of the type-safety of Core
 Proto-Quipper based on its {\em formal definition}, there is not yet
@@ -144,7 +144,7 @@ basis for future language extensions. The idea is to eventually close
 the gap between Proto-Quipper and Quipper by extending Proto-Quipper
 with one feature at a time while retaining type-safety. 
 
-The current version of Proto-Quipper (0.1) was designed with two goals
+The current version of Proto-Quipper was designed with two goals
 in mind:
 \begin{itemize}
   \item to incorporate Quipper's ability to generate and act on 
@@ -2042,13 +2042,13 @@ Proto-Quipper and the proofs of its meta-properties.
 
 \subsection{Reversibility and measurements}
 
-In Proto-Quipper 0.1, all circuits are reversible. This follows from
-the definition of the $(\rev)$ and $(\rul{circ})$ typing rules and
-will have to be modified to accommodate non-reversible gates such as
-measurements. In such a setting, the type system should ensure that
-circuits are reversed only if it is meaningful to do so. In
-particular, if a circuit contains a measurement, then it should not be
-possible to reverse it.
+In the current version of Proto-Quipper, all circuits are
+reversible. This follows from the definition of the $(\rev)$ and
+$(\rul{circ})$ typing rules and will have to be modified to
+accommodate non-reversible gates such as measurements. In such a
+setting, the type system should ensure that circuits are reversed only
+if it is meaningful to do so. In particular, if a circuit contains a
+measurement, then it should not be possible to reverse it.
 
 \subsection{Dependent types and parameterized families of circuits}
  
