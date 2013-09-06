@@ -95,8 +95,7 @@ bind_pattern (PDatacon dcon p) = do
   case (typ, p) of
     (TBang _ (TArrow t u), Just p) -> do
         (t', ctx, csett) <- bind_pattern p
-        a <- new_type
-        return (a, ctx, [t <: t', a <: u] <> cset <> csett)
+        return (u, ctx, [t <: t'] <> cset <> csett)
 
     (TBang n _, Nothing) -> do
         -- No binding
