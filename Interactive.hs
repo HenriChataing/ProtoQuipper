@@ -4,6 +4,7 @@ module Interactive where
 import Options
 import Classes
 import Console
+import Utils
 
 import Parsing.Lexer
 import Parsing.Parser
@@ -97,7 +98,7 @@ run_command opts prog ctx = do
 -- | Run the interactive mode, parsing the input commands and sending information back accordingly.
 -- Two kind of commands are interpreted:
 --
--- * Proto-Quipper code: anything that ends with the suffix \";;\".
+-- * Proto-Quipper code: anything that contains the string \";;\".
 --   Multi-line commands are permitted. Anything that is part of a module implementation can be passed as a command: import statements, 
 --   type definitions, and top-level declarations.
 --
@@ -121,7 +122,7 @@ run_interactive opts ctx buffer = do
         exit ctx
 
     Just l ->
-        if List.isSuffixOf ";;" l then do
+        if string_ends_with ";;" l then do
           -- Add the command to the history
           add_history $ List.foldl (\r c -> c ++ "\n" ++ r) l buffer
 
