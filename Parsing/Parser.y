@@ -153,20 +153,20 @@ Decl :
       Typeblock                                            { DTypes $1 }
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
-    | LET Op_expr '=' Expr ";;"                            { case gen_pattern_of_expr $2 of
+    | LET GenPattern '=' Expr ";;"                         { case $2 of
                                                                 SimplePattern p ->
                                                                   DLet Nonrecursive p $4
                                                                 AppPattern (p, ps) ->
                                                                   DLet Nonrecursive p (List.foldr EFun $4 ps)
                                                            }
-    | LET REC Op_expr '=' Expr ";;"                        { let (p, ps) = app_pattern_of_expr $3 in
+    | LET REC AppPattern '=' Expr ";;"                     { let (p, ps) = $3 in
                                                               DLet Recursive p (List.foldr EFun $5 ps) 
                                                            }
     | Expr ";;"                                            { DExpr $1 }
 
 
 
-{- Syntax of expressions : organized as
+{- Syntax of expressions: organized as
      Expr
      Seq_expr
      Op_expr
@@ -178,15 +178,15 @@ Expr :
       FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH Expr WITH Matching_list              { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
-    | LET Op_expr '=' Expr IN Expr               { flip locate_opt (fromto_opt (Just $1) (location $6)) $ 
-                                                   case gen_pattern_of_expr $2 of
+    | LET GenPattern '=' Expr IN Expr            { flip locate_opt (fromto_opt (Just $1) (location $6)) $ 
+                                                   case $2 of
                                                       SimplePattern p ->
                                                         ELet Nonrecursive p $4 $6
                                                       AppPattern (p, ps) ->
                                                         ELet Nonrecursive p (List.foldr EFun $4 ps) $6
                                                  }
-    | LET REC Op_expr '=' Expr IN Expr           { flip locate_opt (fromto_opt (Just $1) (location $7)) $
-                                                   let (p, ps) = app_pattern_of_expr $3 in
+    | LET REC AppPattern '=' Expr IN Expr        { flip locate_opt (fromto_opt (Just $1) (location $7)) $
+                                                   let (p, ps) = $3 in
                                                     ELet Recursive p (List.foldr EFun $5 ps) $7
                                                  }
     | Seq_expr                                   { $1 }
@@ -194,8 +194,8 @@ Expr :
 
 Seq_expr :
       Op_expr                                    { $1 }
-    | Op_expr "<-" Op_expr ';' Expr              { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Op_expr "<-*" Op_expr ';' Expr             { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
+    | SimplePattern "<-" Op_expr ';' Expr        { locate_opt (ELet Nonrecursive $1 $3 $5) (fromto_opt (location $1) (location $5)) }
+    | LValue "<-*" Op_expr ';' Expr              { locate_opt (ELet Nonrecursive (fst $1) (EApp $3 (snd $1)) $5) (fromto_opt (location (snd $1)) (location $5)) }
     | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
 
 
@@ -254,46 +254,46 @@ Expr_sep_list :
       Expr                                      { [$1] }
     | Expr ',' Expr_sep_list                    { $1:$3 }
 
+{- Patterns are organized as follows.
+   
+   * A simple pattern is something that can be directly bound to a value, like (x,y) or _ or Con x.
+   
+   * An applicative pattern is something used in a function definition, like f x y, or x + y.
 
-Pattern :
-      "_"                                       { locate PWildcard $1 }
-    | LID                                       { locate (PVar (snd $1)) (fst $1) }
-    | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
-    | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
-    | Pattern ':' Pattern                       { locate_opt (PDatacon "Cons" (Just $ PTuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
-    | TRUE                                      { locate (PBool True) $1 }
-    | FALSE                                     { locate (PBool False) $1 }
-    | INT                                       { locate (PInt (read $ snd $1)) (fst $1) }
-    | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
-    | '(' ')'                                   { locate PUnit (fromto $1 $2) }
-    | '(' Pattern_sep_list ')'                  { case $2 of
-                                                    [x] -> x
-                                                    _ -> locate (PTuple $2) (fromto $1 $3) }
-    | '[' ']'                                   { locate (PDatacon "Nil" Nothing) (fromto $1 $2) }
-    | '[' Pattern_sep_list ']'                  { List.foldr (\p rest -> PDatacon "Cons" (Just $ PTuple [p,rest])) (PDatacon "Nil" Nothing) $2 } 
-    | '(' Pattern "<:" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
+   * A general pattern is either a simple pattern or an applicative pattern.
 
+   * An lvalue is simultaneously a simple pattern and an expression.
+
+   All patterns are initially parsed as an expression, then converted
+   to the appropriate pattern type.  This is necessary because of the
+   constraints of LR parsers. It also allows more flexibility of
+   notation.  -}
+
+SimplePattern :
+      Op_expr                                   { pattern_of_expr $1 }
+
+AppPattern :
+      Op_expr                                   { app_pattern_of_expr $1 }
+
+GenPattern :
+      Op_expr                                   { gen_pattern_of_expr $1 }
+
+LValue :
+      Op_expr                                   { (pattern_of_expr $1, $1) }
 
 Pattern_list :
-      Pattern                                   { [$1] }
-    | Pattern Pattern_list                      { $1:$2 }
-
-
-Pattern_sep_list :
-      Pattern                                   { [$1] }
-    | Pattern ',' Pattern_sep_list              { $1:$3 }
-
+      Atom_expr                                 { pattern_of_expr $1 : [] }
+    | Atom_expr Pattern_list                    { pattern_of_expr $1 : $2 }
 
 Matching :
-      Pattern "->" Expr                         { ($1, $3) }
-
+      SimplePattern "->" Expr                   { ($1, $3) }
 
 Matching_list :
       Matching                                  { [$1] }
     | Matching_list '|' Matching                { $1 ++ [$3] }
 
 
-{- Definition of types : organized as
+{- Definition of types: organized as
      Type
      Tensor_type
      Type_app

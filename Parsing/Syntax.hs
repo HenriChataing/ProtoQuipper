@@ -301,7 +301,7 @@ isPVar _ = False
 isPDatacon :: Pattern -> Maybe Datacon
 isPDatacon (PDatacon d Nothing) = Just d
 isPDatacon (PLocated p ex) = isPDatacon p
-isPDataon _ = Nothing
+isPDatacon _ = Nothing
 
 -- | A \"general pattern\" is either a simple pattern (such as 
 -- (/x/, /y/) or /h/:/t/), or an applicative pattern.
