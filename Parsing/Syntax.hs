@@ -345,6 +345,15 @@ type Expr = XExpr Empty
 -- ----------------------------------------------------------------------
 -- * Converting x-expressions to patterns
 
+-- $ Because LR parsers have limited look-ahead, we initially parse a
+-- pattern as an expression, but then immediately convert it to a
+-- pattern. Parsing patterns as expressions has the added benefit that
+-- patterns can make use of data constructors and infix operators. For
+-- example, the following is a legal definition of a binary operator
+-- \"+\":
+-- 
+-- > let Pair (x, y) + Pair (x', y') = Pair (x+x', y+y');;
+
 -- | Check whether a pattern is a single identifier (possibly located),
 -- and therefore appropriate as the head of an applicative pattern.
 isPVar :: Pattern -> Bool
@@ -370,114 +379,79 @@ data GenPattern =
 
 -- | Translate an expression to the corresponding pattern, which may
 -- be a simple or applicative pattern.  If the input expression is not
--- a pattern, for example, a lambda abstraction, then return 'Nothing'
--- 
--- Because LR parsers have limited look-ahead, we initially parse a
--- pattern as an expression, but then immediately convert it to a
--- pattern. Parsing patterns as expressions has the added benefit that
--- patterns can make use of data constructors and infix operators. For
--- example, the following is a legal definition of a binary operator
--- \"+\":
--- 
--- > let Pair (x, y) + Pair (x', y') = Pair (x+x', y+y');;
-maybe_gen_pattern_of_xexpr :: XExpr a -> Maybe GenPattern
-maybe_gen_pattern_of_xexpr (EWildcard a) = do
-  return (SimplePattern PWildcard)
-maybe_gen_pattern_of_xexpr (EVar x) = do
-  return (SimplePattern (PVar x))
-maybe_gen_pattern_of_xexpr (ETuple elist) = do
-  plist <- mapM maybe_pattern_of_xexpr elist
-  return (SimplePattern (PTuple plist))
-maybe_gen_pattern_of_xexpr EUnit = do
-  return (SimplePattern PUnit)
-maybe_gen_pattern_of_xexpr (EDatacon d Nothing) = do
-  return (SimplePattern (PDatacon d Nothing))
-maybe_gen_pattern_of_xexpr (EDatacon d (Just e)) = do
-  p <- maybe_pattern_of_xexpr e
-  return (SimplePattern (PDatacon d (Just p)))
-maybe_gen_pattern_of_xexpr (EBool b) = do
-  return (SimplePattern (PBool b))
-maybe_gen_pattern_of_xexpr (EInt n) = do
-  return (SimplePattern (PInt n))
-maybe_gen_pattern_of_xexpr (ELocated e ex) = do
-  p <- maybe_gen_pattern_of_xexpr e
-  case p of
-    SimplePattern sp ->
-      return (SimplePattern (PLocated sp ex))
-    AppPattern ap ->
-      -- we cannot locate an applicative pattern
-      return (AppPattern ap)
-maybe_gen_pattern_of_xexpr (EApp e1 e2) = do
-  p1 <- maybe_gen_pattern_of_xexpr e1
-  p2 <- maybe_pattern_of_xexpr e2
-  case p1 of
-    SimplePattern sp -> 
+-- a pattern, for example, a lambda abstraction, trow a
+-- 'ParsingOtherError' with text \"bad pattern\".
+gen_pattern_of_xexpr :: XExpr a -> GenPattern
+gen_pattern_of_xexpr = gen_pattern_of_xexpr_loc Nothing
+
+-- | Like 'gen_pattern_of_xexpr', but only accept simple patterns.
+pattern_of_xexpr :: XExpr a -> Pattern
+pattern_of_xexpr = pattern_of_xexpr_loc Nothing
+
+-- | Like 'gen_pattern_of_xexpr', but only accept applicative
+-- patterns.
+app_pattern_of_xexpr :: XExpr a -> AppPattern
+app_pattern_of_xexpr = app_pattern_of_xexpr_loc Nothing
+
+-- | Auxiliary function for 'gen_pattern_of_xexpr'. The first argument
+-- is the location of the surrounding expression, if known.
+gen_pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> GenPattern
+gen_pattern_of_xexpr_loc ex (EWildcard a) = SimplePattern (PWildcard)
+gen_pattern_of_xexpr_loc ex (EVar x) = SimplePattern (PVar x)
+gen_pattern_of_xexpr_loc ex (ETuple elist) = SimplePattern (PTuple plist) where
+  plist = List.map (pattern_of_xexpr_loc ex) elist
+gen_pattern_of_xexpr_loc ex (EUnit) = SimplePattern (PUnit)
+gen_pattern_of_xexpr_loc ex (EDatacon d Nothing) = SimplePattern (PDatacon d Nothing)
+gen_pattern_of_xexpr_loc ex (EDatacon d (Just e)) = SimplePattern (PDatacon d (Just p)) where
+  p = pattern_of_xexpr_loc ex e
+gen_pattern_of_xexpr_loc ex (EBool b) = SimplePattern (PBool b)
+gen_pattern_of_xexpr_loc ex (EInt n) = SimplePattern (PInt n)
+gen_pattern_of_xexpr_loc ex (ELocated e ex') = 
+  case gen_pattern_of_xexpr_loc (Just ex') e of
+    SimplePattern p -> SimplePattern (PLocated p ex')
+    AppPattern ap -> AppPattern ap       -- we cannot locate an applicative pattern
+gen_pattern_of_xexpr_loc ex (EApp e1 e2) = 
+  case gen_pattern_of_xexpr_loc ex e1 of
+    AppPattern (x, ps) -> AppPattern (x, ps ++ [p2])
+    SimplePattern p ->
       -- This could be an applicative pattern f x or a data
       -- constructor pattern Con x, depending on whether the head is a
       -- variable or a data constructor.
-      if isPVar sp then do
-        return (AppPattern (sp, [p2]))
-      else case isPDatacon sp of
-        Just d -> do
-          return (SimplePattern (PDatacon d (Just p2)))
-        Nothing -> do         
-          Nothing
-    AppPattern (x, ps) -> do
-      return (AppPattern (x, ps ++ [p2]))
-maybe_gen_pattern_of_xexpr _ = Nothing
+      if isPVar p then AppPattern (p, [p2])
+      else case isPDatacon p of
+        Just d -> SimplePattern (PDatacon d (Just p2))
+        Nothing -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
+  where
+    p2 = pattern_of_xexpr_loc ex e2
+gen_pattern_of_xexpr_loc ex _ = throw $ locate_opt (ParsingOtherError "bad pattern") ex
 
--- | Like 'maybe_gen_pattern_of_xexpr', but only accept simple patterns.
-maybe_pattern_of_xexpr :: XExpr a -> Maybe Pattern
-maybe_pattern_of_xexpr e = do
-  p <- maybe_gen_pattern_of_xexpr e
-  case p of
-    SimplePattern sp -> return sp
-    _ -> Nothing
+-- | Auxiliary function for 'pattern_of_xexpr'. The first argument
+-- is the location of the surrounding expression, if known.
+pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> Pattern
+pattern_of_xexpr_loc ex e = 
+  case gen_pattern_of_xexpr_loc ex e of
+    SimplePattern p -> p
+    _ -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
 
--- | Translate an expression to a functional pattern, or return
--- 'Nothing' if the expression is not a valid functional pattern.
-maybe_app_pattern_of_xexpr :: XExpr a -> Maybe AppPattern
-maybe_app_pattern_of_xexpr e = do
-  p <- maybe_gen_pattern_of_xexpr e
-  case p of
-    AppPattern ap -> return ap
-    _ -> Nothing
-
--- | Like 'maybe_gen_pattern_of_xexpr', but in case of an invalid
--- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
-gen_pattern_of_xexpr :: XExpr a -> GenPattern
-gen_pattern_of_xexpr e =
-  case maybe_gen_pattern_of_xexpr e of
-    Just p -> p
-    Nothing ->
-      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
-
--- | Like 'maybe_pattern_of_xexpr', but in case of an invalid simple
--- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
-pattern_of_xexpr :: XExpr a -> Pattern
-pattern_of_xexpr e = 
-  case maybe_pattern_of_xexpr e of
-    Just p -> p
-    Nothing ->
-      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
-
--- | Like 'maybe_app_pattern_of_xexpr', but in case of an invalid
--- functional pattern, trow a 'ParsingOtherError' with text \"bad
--- pattern\".
-app_pattern_of_xexpr :: XExpr a -> AppPattern
-app_pattern_of_xexpr e = 
-  case maybe_app_pattern_of_xexpr e of
-    Just p -> p
-    Nothing ->
-      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
+-- | Auxiliary function for 'app_pattern_of_xexpr'. The first argument
+-- is the location of the surrounding expression, if known.
+app_pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> AppPattern
+app_pattern_of_xexpr_loc ex e = 
+  case gen_pattern_of_xexpr_loc ex e of
+    AppPattern ap -> ap
+    _ -> throw $ locate_opt (ParsingOtherError "bad pattern: defined function needs at least one parameter") ex
 
 -- ----------------------------------------------------------------------
 -- * Converting x-expressions to expressions.
 
 -- | Convert an extended expression to an expression, by checking that
 -- it does not contain any wildcards. If a wildcard if found, throw a
--- 'ParsingError'. The first argument is the location of the
--- surrounding expression, if known.
+-- 'ParsingError'.
+expr_of_xexpr :: XExpr a -> Expr
+expr_of_xexpr = expr_of_xexpr_loc Nothing
+
+-- | Auxiliary function for 'expr_of_xexpr'. The first argument is the
+-- location of the surrounding expression, if known.
 expr_of_xexpr_loc :: Maybe Extent -> XExpr a -> Expr
 expr_of_xexpr_loc ex (EWildcard a) = throw $ locate_opt (ParsingError "_") ex
 expr_of_xexpr_loc ex (EVar x) = EVar x
@@ -505,8 +479,3 @@ expr_of_xexpr_loc ex (EBuiltin s) = EBuiltin s
 expr_of_xexpr_loc ex (ELocated e ex') = ELocated e' ex' where
   e' = expr_of_xexpr_loc (Just ex') e
 
--- | Convert an extended expression to an expression, by checking that
--- it does not contain any wildcards. If a wildcard if found, throw a
--- 'ParsingError'.
-expr_of_xexpr :: XExpr a -> Expr
-expr_of_xexpr = expr_of_xexpr_loc Nothing
