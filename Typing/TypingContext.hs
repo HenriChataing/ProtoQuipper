@@ -6,6 +6,7 @@
 module Typing.TypingContext where
 
 import Utils
+import Classes
 
 import Typing.CoreSyntax
 import Typing.TransSyntax
@@ -84,12 +85,12 @@ bind_pattern (PVar x) = do
 -- Tuples
 bind_pattern (PTuple plist) = do
   -- Bind the patterns of the tuple
-  (ptypes, ctx) <- List.foldr (\p rec -> do
-                                 (r, ctx) <- rec
-                                 (a, ctx', _) <- bind_pattern p
-                                 return (a:r, IMap.union ctx' ctx)) (return ([], IMap.empty)) plist
+  (ptypes, ctx, cset) <- List.foldr (\p rec -> do
+                                      (r, ctx, cset) <- rec
+                                      (a, ctx', cset') <- bind_pattern p
+                                      return (a:r, IMap.union ctx' ctx, cset' <> cset)) (return ([], IMap.empty, emptyset)) plist
 
-  return (TBang 0 (TTensor ptypes), ctx, emptyset)
+  return (TBang 0 (TTensor ptypes), ctx, cset)
 
 -- Data constructors
 bind_pattern (PDatacon dcon p) = do
@@ -99,15 +100,17 @@ bind_pattern (PDatacon dcon p) = do
   -- Instantiate the type
   (typ, cset) <- instantiate dtype
 
+  a <- new_type
+
   -- Check the arguments
   case (typ, p) of
     (TBang _ (TArrow t u), Just p) -> do
         (t', ctx, csett) <- bind_pattern p
-        return (u, ctx, [t <: t'] <> cset <> csett)
+        return (a, ctx, [t <: t',a <: u] <> cset <> csett)
 
     (TBang n _, Nothing) -> do
         -- No binding
-        return (typ, IMap.empty, cset)
+        return (a, IMap.empty, [a <: typ] <> cset)
 
     _ -> do
         ex <- get_location
