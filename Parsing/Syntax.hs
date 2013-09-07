@@ -282,34 +282,131 @@ instance Located Expr where
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 
+-- | An applicative pattern, such as /f/ /x/ /y/, consists of an
+-- identifier and one or more arguments. Such patterns are appropriate
+-- for \"let rec\", and are also permitted for non-recursive \"let\".
+type AppPattern = (Pattern, [Pattern])
 
--- | Translate an expression to the corresponding pattern. This
--- returns 'Nothing' if called on a term that is \"not a pattern\",
--- for example, a lambda abstraction. Any location annotations are
--- preserved.
-maybe_pattern_of_expr :: Expr -> Maybe Pattern
-maybe_pattern_of_expr EUnit = Just PUnit
-maybe_pattern_of_expr (EBool b) = Just (PBool b)
-maybe_pattern_of_expr (EInt n) = Just (PInt n)
-maybe_pattern_of_expr (EVar x) = Just (PVar x)
-maybe_pattern_of_expr (ETuple elist) = do
+-- | Check whether a pattern is a single identifier (possibly located),
+-- and therefore appropriate as the head of an applicative pattern.
+isPVar :: Pattern -> Bool
+isPVar (PVar x) = True
+isPVar (PLocated p ex) = isPVar p
+isPVar _ = False
+
+-- | Check whether a pattern is a single data constructor (possibly
+-- located), and therefore appropriate as the head of a data
+-- constructor pattern. If yes, return the data constructor; if no,
+-- return 'Nothing'.
+isPDatacon :: Pattern -> Maybe Datacon
+isPDatacon (PDatacon d Nothing) = Just d
+isPDatacon (PLocated p ex) = isPDatacon p
+isPDataon _ = Nothing
+
+-- | A \"general pattern\" is either a simple pattern (such as 
+-- (/x/, /y/) or /h/:/t/), or an applicative pattern.
+data GenPattern =
+    SimplePattern Pattern  -- ^ A simple pattern.
+  | AppPattern AppPattern  -- ^ An applicative pattern.
+    deriving (Show)
+
+-- | Translate an expression to the corresponding pattern, which may
+-- be a simple or applicative pattern.  If the input expression is not
+-- a pattern, for example, a lambda abstraction, then return 'Nothing'
+-- 
+-- Because LR parsers have limited look-ahead, we initially parse a
+-- pattern as an expression, but then immediately convert it to a
+-- pattern. Parsing patterns as expressions has the added benefit that
+-- patterns can make use of data constructors and infix operators. For
+-- example, the following is a legal definition of a binary operator
+-- \"+\":
+-- 
+-- > let Pair (x, y) + Pair (x', y') = Pair (x+x', y+y');;
+maybe_gen_pattern_of_expr :: Expr -> Maybe GenPattern
+maybe_gen_pattern_of_expr (EVar x) = do
+  return (SimplePattern (PVar x))
+maybe_gen_pattern_of_expr (ETuple elist) = do
   plist <- mapM maybe_pattern_of_expr elist
-  return (PTuple plist)
-maybe_pattern_of_expr (ELocated e ex) = do
+  return (SimplePattern (PTuple plist))
+maybe_gen_pattern_of_expr EUnit = do
+  return (SimplePattern PUnit)
+maybe_gen_pattern_of_expr (EDatacon d Nothing) = do
+  return (SimplePattern (PDatacon d Nothing))
+maybe_gen_pattern_of_expr (EDatacon d (Just e)) = do
   p <- maybe_pattern_of_expr e
-  return (PLocated p ex)
-maybe_pattern_of_expr (EDatacon d Nothing) = Just (PDatacon d Nothing)
-maybe_pattern_of_expr (EDatacon d (Just e)) = do
-  p <- maybe_pattern_of_expr e
-  return (PDatacon d (Just p))
-maybe_pattern_of_expr _ = Nothing
+  return (SimplePattern (PDatacon d (Just p)))
+maybe_gen_pattern_of_expr (EBool b) = do
+  return (SimplePattern (PBool b))
+maybe_gen_pattern_of_expr (EInt n) = do
+  return (SimplePattern (PInt n))
+maybe_gen_pattern_of_expr (ELocated e ex) = do
+  p <- maybe_gen_pattern_of_expr e
+  case p of
+    SimplePattern sp ->
+      return (SimplePattern (PLocated sp ex))
+    AppPattern ap ->
+      -- we cannot locate an applicative pattern
+      return (AppPattern ap)
+maybe_gen_pattern_of_expr (EApp e1 e2) = do
+  p1 <- maybe_gen_pattern_of_expr e1
+  p2 <- maybe_pattern_of_expr e2
+  case p1 of
+    SimplePattern sp -> 
+      -- This could be an applicative pattern f x or a data
+      -- constructor pattern Con x, depending on whether the head is a
+      -- variable or a data constructor.
+      if isPVar sp then do
+        return (AppPattern (sp, [p2]))
+      else case isPDatacon sp of
+        Just d -> do
+          return (SimplePattern (PDatacon d (Just p2)))
+        Nothing -> do         
+          Nothing
+    AppPattern (x, ps) -> do
+      return (AppPattern (x, ps ++ [p2]))
+maybe_gen_pattern_of_expr _ = Nothing
 
--- | Translate an expression to the corresponding pattern. If the term
--- is \"not a pattern\", for example, a lambda abstraction, then throw a
--- 'ParsingError' with text \"bad pattern\".
+-- | Like 'maybe_gen_pattern_of_expr', but only accept simple patterns.
+maybe_pattern_of_expr :: Expr -> Maybe Pattern
+maybe_pattern_of_expr e = do
+  p <- maybe_gen_pattern_of_expr e
+  case p of
+    SimplePattern sp -> return sp
+    _ -> Nothing
+
+-- | Translate an expression to a functional pattern, or return
+-- 'Nothing' if the expression is not a valid functional pattern.
+maybe_app_pattern_of_expr :: Expr -> Maybe AppPattern
+maybe_app_pattern_of_expr e = do
+  p <- maybe_gen_pattern_of_expr e
+  case p of
+    AppPattern ap -> return ap
+    _ -> Nothing
+
+-- | Like 'maybe_gen_pattern_of_expr', but in case of an invalid
+-- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
+gen_pattern_of_expr :: Expr -> GenPattern
+gen_pattern_of_expr e =
+  case maybe_gen_pattern_of_expr e of
+    Just p -> p
+    Nothing ->
+      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
+
+-- | Like 'maybe_pattern_of_expr', but in case of an invalid simple
+-- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
 pattern_of_expr :: Expr -> Pattern
 pattern_of_expr e = 
   case maybe_pattern_of_expr e of
+    Just p -> p
+    Nothing ->
+      throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
+
+-- | Like 'maybe_app_pattern_of_expr', but in case of an invalid
+-- functional pattern, trow a 'ParsingOtherError' with text \"bad
+-- pattern\".
+app_pattern_of_expr :: Expr -> AppPattern
+app_pattern_of_expr e = 
+  case maybe_app_pattern_of_expr e of
     Just p -> p
     Nothing ->
       throw $ locate_opt (ParsingOtherError "bad pattern") (location e)

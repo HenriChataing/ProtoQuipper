@@ -153,11 +153,15 @@ Decl :
       Typeblock                                            { DTypes $1 }
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
-    | LET Pattern '=' Expr ";;"                            { DLet Nonrecursive $2 $4 }
-    | LET REC LID Pattern_list '=' Expr ";;"               { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
-    | LET REC '(' Infix_op ')' Pattern_list '=' Expr ";;"  { DLet Recursive (PVar (snd $4)) (List.foldr EFun $8 $6) }
-    | LET LID Pattern_list '=' Expr ";;"                   { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
-    | LET '(' Infix_op ')' Pattern_list '=' Expr ";;"      { DLet Nonrecursive (PVar (snd $3)) (List.foldr EFun $7 $5) }
+    | LET Op_expr '=' Expr ";;"                            { case gen_pattern_of_expr $2 of
+                                                                SimplePattern p ->
+                                                                  DLet Nonrecursive p $4
+                                                                AppPattern (p, ps) ->
+                                                                  DLet Nonrecursive p (List.foldr EFun $4 ps)
+                                                           }
+    | LET REC Op_expr '=' Expr ";;"                        { let (p, ps) = app_pattern_of_expr $3 in
+                                                              DLet Recursive p (List.foldr EFun $5 ps) 
+                                                           }
     | Expr ";;"                                            { DExpr $1 }
 
 
@@ -174,16 +178,24 @@ Expr :
       FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH Expr WITH Matching_list              { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
-    | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | LET LID Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
-    | LET REC LID Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
+    | LET Op_expr '=' Expr IN Expr               { flip locate_opt (fromto_opt (Just $1) (location $6)) $ 
+                                                   case gen_pattern_of_expr $2 of
+                                                      SimplePattern p ->
+                                                        ELet Nonrecursive p $4 $6
+                                                      AppPattern (p, ps) ->
+                                                        ELet Nonrecursive p (List.foldr EFun $4 ps) $6
+                                                 }
+    | LET REC Op_expr '=' Expr IN Expr           { flip locate_opt (fromto_opt (Just $1) (location $7)) $
+                                                   let (p, ps) = app_pattern_of_expr $3 in
+                                                    ELet Recursive p (List.foldr EFun $5 ps) $7
+                                                 }
     | Seq_expr                                   { $1 }
 
 
 Seq_expr :
       Op_expr                                    { $1 }
-    | Atom_expr "<-" Op_expr ';' Expr            { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Atom_expr "<-*" Op_expr ';' Expr           { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
+    | Op_expr "<-" Op_expr ';' Expr              { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
+    | Op_expr "<-*" Op_expr ';' Expr             { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
     | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
 
 
