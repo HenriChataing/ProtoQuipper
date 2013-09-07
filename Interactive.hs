@@ -131,7 +131,7 @@ run_interactive opts ctx buffer = do
             prog <- return $ parse tokens
 
             run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
-                                                                                                      liftIO $ putStrLn $ show e
+                                                                                                      liftIO $ hPutStrLn stderr $ show e
                                                                                                       return ctx)
 
           -- Resume the command input
@@ -213,7 +213,7 @@ run_interactive opts ctx buffer = do
 
                             -- Display the type
                             liftIO $ putStrLn $ "-: " ++ inferred) `catchQ` (\e -> do
-                                                                               liftIO $ putStrLn $ show e
+                                                                               liftIO $ hPutStrLn stderr $ show e
                                                                                return ())
 
                 run_interactive opts ctx []
