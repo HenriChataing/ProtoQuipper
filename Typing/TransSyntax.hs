@@ -778,6 +778,9 @@ translate_expression (S.EConstraint e t) label = do
 -- | If an interface file is provided, modify the pattern by adding type constraints corresponding to the types
 -- written in the interface.
 with_interface :: S.Program -> LabellingContext -> Pattern -> QpState Pattern
+with_interface _ _ PWildcard =
+  return PWildcard
+
 with_interface _ _ PUnit =
   return PUnit
 

@@ -182,14 +182,8 @@ Expr :
 
 Seq_expr :
       Op_expr                                    { $1 }
-    | Atom_expr "<-" Op_expr ';' Expr            { case pattern_of_expr $1 of 
-                                                     Nothing -> throw $ locate_opt (ParsingError "<-: bad pattern") (location $1)
-                                                     Just p -> locate_opt (ELet Nonrecursive p $3 $5) (fromto_opt (location $1) (location $5))
-                                                 }
-    | Atom_expr "<-*" Op_expr ';' Expr           { case pattern_of_expr $1 of 
-                                                     Nothing -> throw $ locate_opt (ParsingError "<-*: bad pattern") (location $1)
-                                                     Just p -> locate_opt (ELet Nonrecursive p (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) 
-                                                 }
+    | Atom_expr "<-" Op_expr ';' Expr            { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
+    | Atom_expr "<-*" Op_expr ';' Expr           { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
     | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
 
 

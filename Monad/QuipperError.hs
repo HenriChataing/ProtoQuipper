@@ -31,6 +31,7 @@ data QError =
 -- SYNTAX ERRORS
 
   | ParsingError String                                                                   -- ^ Parsing error, the argument is the token on which the error occurred.
+  | ParsingOtherError String                                                              -- ^ Other parsing error (e.g., bad pattern).
   | ErrorEndOfFile                                                                        -- ^ Thrown when the parser arrived at the end of a file with an incomplete expression.
   | WrongTypeArguments String Int Int                                                     -- ^ An algebraic type has been called with a wrong number of arguments. The first
                                                                                           -- argument is the name of the type, the two next the actual and expected number of
@@ -116,6 +117,8 @@ instance Show QError where
 
   show (ParsingError tk) =
     "Parsing error: on token " ++ tk
+  show (ParsingOtherError tk) =
+    "Parsing error: " ++ tk
   show ErrorEndOfFile =
     "Parsing error: unexpected end of file"
 
