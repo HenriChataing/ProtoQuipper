@@ -82,10 +82,27 @@ fresh_address [] = 0
 fresh_address l = (maximum l) + 1
 
 
+-- | A type of bits. They are similar to booleans, but show as \"0\"
+-- and \"1\".
+data Bit = Bit Bool
+
+instance Show Bit where
+  show (Bit False) = "0"
+  show (Bit True) = "1"
+
+instance Num Bit where
+  (Bit a) + (Bit b) = Bit (a /= b)
+  (Bit a) * (Bit b) = Bit (a && b)
+  x - y = x + y
+  negate x = x
+  abs x = x
+  signum x = x
+  fromInteger n = Bit (odd n)
+
 -- | Definition of the basic gates.
 data Gate =
-    Init Int Int            -- ^ The initialization gates  @0|-@  and  @1|-@.
-  | Term Int Int            -- ^ The assertive termination gates  @-|0@  and  @-|1@.
+    Init Bit Int            -- ^ The initialization gates  @0|-@  and  @1|-@.
+  | Term Bit Int            -- ^ The assertive termination gates  @-|0@  and  @-|1@.
   | Phase Int Int           -- ^ The phase gate, represented by the matrix:
                             -- 
                             -- @
