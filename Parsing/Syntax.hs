@@ -14,6 +14,25 @@ import Data.Char
 import Data.Map
 import Data.List as List
 
+-- ----------------------------------------------------------------------
+-- * Auxiliary definitions
+
+-- | An empty type.
+data Empty
+
+-- | Elimination rule for the empty type.
+absurd :: Empty -> a
+absurd x = undefined
+
+instance Show Empty where
+  show x = absurd x
+
+-- ----------------------------------------------------------------------
+-- * Syntax
+
+-- ----------------------------------------------------------------------
+-- ** Declarations
+
 -- | A data constructor. A data constructor is uniquely determined by its name.
 type Datacon = String
 
@@ -51,7 +70,8 @@ data Declaration =
   | DTypes [Typedef]                         -- ^ A list of type definitions. The types are mutually recursive.
   | DSyn Typesyn                             -- ^ A type synonym definition.
 
-
+-- ----------------------------------------------------------------------
+-- ** Programs
 
 -- | A program (or equivalently, a module).
 data Program = Prog {
@@ -80,19 +100,22 @@ dummy_program = Prog {
   interface = Nothing
 }
 
+-- | Modules are compared based on their name.
+-- This implies two different modules can't have the same name.
+instance Eq Program where
+  (==) p1 p2 = module_name p1 == module_name p2
+
+-- ----------------------------------------------------------------------
+-- ** Interface files
+
 
 -- | An interface file. This consists of a list of type declarations,
 -- which must be a subset of the global variables of the module
 -- implementation.
 type Interface = [(String, Type)]
 
-
--- | Modules are compared based on their name.
--- This implies two different modules can't have the same name.
-instance Eq Program where
-  (==) p1 p2 = module_name p1 == module_name p2
-
-
+-- ----------------------------------------------------------------------
+-- ** Types
 
 -- | A type.
 data Type =
@@ -176,6 +199,9 @@ instance Located Type where
   clear_location t = t
 
 
+-- ----------------------------------------------------------------------
+-- ** Patterns
+
 -- | A pattern.
 data Pattern =
     PWildcard                               -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
@@ -211,6 +237,17 @@ instance Located Pattern where
   clear_location (PConstraint p t) = PConstraint (clear_location p) t
   clear_location p = p
 
+-- | An applicative pattern, such as /f/ /x/ /y/, consists of an
+-- identifier and one or more arguments. Such patterns are appropriate
+-- for \"let rec\", and are also permitted for non-recursive \"let\".
+type AppPattern = (Pattern, [Pattern])
+
+-- ----------------------------------------------------------------------
+-- ** X-expressions
+
+-- $ An /X-expression/ is an expression that may possibly contain
+-- wildcards. X-expressions are used by the parser before they are
+-- converted either to expressions or to patterns.
 
 -- | A recursive flag. This is used in the expression 'ELet' to indicate
 -- whether the function is recursive or not. The parser only allows functions (and not arbitrary values)
@@ -221,21 +258,31 @@ data RecFlag =
   deriving (Show, Eq)
 
 
--- | A term.
-data Expr =
+-- | The type of X-expressions. The type argument /a/ determines
+-- whether wildcards are permitted or not. If /a/ is non-empty, then
+-- wildcards are allowed. If /a/ is empty, wildcards are not allowed,
+-- and therefore, 'XExpr' 'Empty' is just the type of ordinary
+-- expressions.
+
+data XExpr a =
+    EWildcard a                    -- ^ A \"wildcard\": \"@_@\". This is only permitted when /a/ is non-empty, so actual
+                                   -- expressions, which are of type 'XExpr' 'Empty', contain no wildcards. However,
+                                   -- wildcards are temporarily permitted during parsing, for expressions that are to be
+                                   -- converted to patterns.  
+    
 -- STLC
-    EVar String                    -- ^ Variable: /x/.
+  | EVar String                    -- ^ Variable: /x/.
   | EQualified String String       -- ^ Qualified variable: @Module.x@.
   | EFun Pattern Expr              -- ^ Function abstraction: @fun p -> e@.
-  | EApp Expr Expr                 -- ^ Function application: @e f@.
+  | EApp (XExpr a) (XExpr a)       -- ^ Function application: @e f@.
 
 -- Addition of tensors
-  | ETuple [Expr]                  -- ^ Tuple: @(/e/1, .., /en/)@. By construction, must have /n/ >= 2.
+  | ETuple [XExpr a]               -- ^ Tuple: @(/e/1, .., /en/)@. By construction, must have /n/ >= 2.
   | ELet RecFlag Pattern Expr Expr -- ^ Let-binding: @let [rec] p = e in f@.
   | EUnit                          -- ^ Unit term: @()@.
 
 -- Addition of sum types
-  | EDatacon String (Maybe Expr)   -- ^ Data constructor: @Datacon e@.
+  | EDatacon String (Maybe (XExpr a)) -- ^ Data constructor: @Datacon e@.
   | EMatch Expr [(Pattern, Expr)]  -- ^ Case distinction: @match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)@.
   | EIf Expr Expr Expr             -- ^ Conditional: @if e then f else g@
   | EBool Bool                     -- ^ Boolean constant: @true@ or @false@.
@@ -249,13 +296,19 @@ data Expr =
 -- Unrelated
   | EConstraint Expr Type          -- ^ Expression with type constraint: @(e <: A)@.
   | EBuiltin String                -- ^ Built-in primitive: @#builtin s@.
-  | ELocated Expr Extent           -- ^ A located expression.
+  | ELocated (XExpr a) Extent      -- ^ A located expression.
   deriving Show
 
+-- | A version of the 'EFun' constructor that constructs an n-ary
+-- function. We assume n >= 1.
+multi_EFun :: [Pattern] -> Expr -> XExpr a
+multi_EFun [p] e = EFun p e
+multi_EFun (p:ps) e = EFun p (multi_EFun ps e)
+multi_EFun [] e = throw $ ProgramError "multi_EFun: empty pattern list"
 
 
--- | Expressions are located objects.
-instance Located Expr where
+-- | X-expressions are located objects.
+instance Located (XExpr a) where
   -- | Add some location information to an expression.
   locate (ELocated e ex) _ = ELocated e ex
   locate e ex = ELocated e ex
@@ -282,10 +335,15 @@ instance Located Expr where
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
 
--- | An applicative pattern, such as /f/ /x/ /y/, consists of an
--- identifier and one or more arguments. Such patterns are appropriate
--- for \"let rec\", and are also permitted for non-recursive \"let\".
-type AppPattern = (Pattern, [Pattern])
+-- ----------------------------------------------------------------------
+-- ** Expressions
+
+-- | The type of expressions. 
+type Expr = XExpr Empty
+
+
+-- ----------------------------------------------------------------------
+-- * Converting x-expressions to patterns
 
 -- | Check whether a pattern is a single identifier (possibly located),
 -- and therefore appropriate as the head of an applicative pattern.
@@ -322,34 +380,36 @@ data GenPattern =
 -- \"+\":
 -- 
 -- > let Pair (x, y) + Pair (x', y') = Pair (x+x', y+y');;
-maybe_gen_pattern_of_expr :: Expr -> Maybe GenPattern
-maybe_gen_pattern_of_expr (EVar x) = do
+maybe_gen_pattern_of_xexpr :: XExpr a -> Maybe GenPattern
+maybe_gen_pattern_of_xexpr (EWildcard a) = do
+  return (SimplePattern PWildcard)
+maybe_gen_pattern_of_xexpr (EVar x) = do
   return (SimplePattern (PVar x))
-maybe_gen_pattern_of_expr (ETuple elist) = do
-  plist <- mapM maybe_pattern_of_expr elist
+maybe_gen_pattern_of_xexpr (ETuple elist) = do
+  plist <- mapM maybe_pattern_of_xexpr elist
   return (SimplePattern (PTuple plist))
-maybe_gen_pattern_of_expr EUnit = do
+maybe_gen_pattern_of_xexpr EUnit = do
   return (SimplePattern PUnit)
-maybe_gen_pattern_of_expr (EDatacon d Nothing) = do
+maybe_gen_pattern_of_xexpr (EDatacon d Nothing) = do
   return (SimplePattern (PDatacon d Nothing))
-maybe_gen_pattern_of_expr (EDatacon d (Just e)) = do
-  p <- maybe_pattern_of_expr e
+maybe_gen_pattern_of_xexpr (EDatacon d (Just e)) = do
+  p <- maybe_pattern_of_xexpr e
   return (SimplePattern (PDatacon d (Just p)))
-maybe_gen_pattern_of_expr (EBool b) = do
+maybe_gen_pattern_of_xexpr (EBool b) = do
   return (SimplePattern (PBool b))
-maybe_gen_pattern_of_expr (EInt n) = do
+maybe_gen_pattern_of_xexpr (EInt n) = do
   return (SimplePattern (PInt n))
-maybe_gen_pattern_of_expr (ELocated e ex) = do
-  p <- maybe_gen_pattern_of_expr e
+maybe_gen_pattern_of_xexpr (ELocated e ex) = do
+  p <- maybe_gen_pattern_of_xexpr e
   case p of
     SimplePattern sp ->
       return (SimplePattern (PLocated sp ex))
     AppPattern ap ->
       -- we cannot locate an applicative pattern
       return (AppPattern ap)
-maybe_gen_pattern_of_expr (EApp e1 e2) = do
-  p1 <- maybe_gen_pattern_of_expr e1
-  p2 <- maybe_pattern_of_expr e2
+maybe_gen_pattern_of_xexpr (EApp e1 e2) = do
+  p1 <- maybe_gen_pattern_of_xexpr e1
+  p2 <- maybe_pattern_of_xexpr e2
   case p1 of
     SimplePattern sp -> 
       -- This could be an applicative pattern f x or a data
@@ -364,49 +424,88 @@ maybe_gen_pattern_of_expr (EApp e1 e2) = do
           Nothing
     AppPattern (x, ps) -> do
       return (AppPattern (x, ps ++ [p2]))
-maybe_gen_pattern_of_expr _ = Nothing
+maybe_gen_pattern_of_xexpr _ = Nothing
 
--- | Like 'maybe_gen_pattern_of_expr', but only accept simple patterns.
-maybe_pattern_of_expr :: Expr -> Maybe Pattern
-maybe_pattern_of_expr e = do
-  p <- maybe_gen_pattern_of_expr e
+-- | Like 'maybe_gen_pattern_of_xexpr', but only accept simple patterns.
+maybe_pattern_of_xexpr :: XExpr a -> Maybe Pattern
+maybe_pattern_of_xexpr e = do
+  p <- maybe_gen_pattern_of_xexpr e
   case p of
     SimplePattern sp -> return sp
     _ -> Nothing
 
 -- | Translate an expression to a functional pattern, or return
 -- 'Nothing' if the expression is not a valid functional pattern.
-maybe_app_pattern_of_expr :: Expr -> Maybe AppPattern
-maybe_app_pattern_of_expr e = do
-  p <- maybe_gen_pattern_of_expr e
+maybe_app_pattern_of_xexpr :: XExpr a -> Maybe AppPattern
+maybe_app_pattern_of_xexpr e = do
+  p <- maybe_gen_pattern_of_xexpr e
   case p of
     AppPattern ap -> return ap
     _ -> Nothing
 
--- | Like 'maybe_gen_pattern_of_expr', but in case of an invalid
+-- | Like 'maybe_gen_pattern_of_xexpr', but in case of an invalid
 -- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
-gen_pattern_of_expr :: Expr -> GenPattern
-gen_pattern_of_expr e =
-  case maybe_gen_pattern_of_expr e of
+gen_pattern_of_xexpr :: XExpr a -> GenPattern
+gen_pattern_of_xexpr e =
+  case maybe_gen_pattern_of_xexpr e of
     Just p -> p
     Nothing ->
       throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
 
--- | Like 'maybe_pattern_of_expr', but in case of an invalid simple
+-- | Like 'maybe_pattern_of_xexpr', but in case of an invalid simple
 -- pattern, trow a 'ParsingOtherError' with text \"bad pattern\".
-pattern_of_expr :: Expr -> Pattern
-pattern_of_expr e = 
-  case maybe_pattern_of_expr e of
+pattern_of_xexpr :: XExpr a -> Pattern
+pattern_of_xexpr e = 
+  case maybe_pattern_of_xexpr e of
     Just p -> p
     Nothing ->
       throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
 
--- | Like 'maybe_app_pattern_of_expr', but in case of an invalid
+-- | Like 'maybe_app_pattern_of_xexpr', but in case of an invalid
 -- functional pattern, trow a 'ParsingOtherError' with text \"bad
 -- pattern\".
-app_pattern_of_expr :: Expr -> AppPattern
-app_pattern_of_expr e = 
-  case maybe_app_pattern_of_expr e of
+app_pattern_of_xexpr :: XExpr a -> AppPattern
+app_pattern_of_xexpr e = 
+  case maybe_app_pattern_of_xexpr e of
     Just p -> p
     Nothing ->
       throw $ locate_opt (ParsingOtherError "bad pattern") (location e)
+
+-- ----------------------------------------------------------------------
+-- * Converting x-expressions to expressions.
+
+-- | Convert an extended expression to an expression, by checking that
+-- it does not contain any wildcards. If a wildcard if found, throw a
+-- 'ParsingError'. The first argument is the location of the
+-- surrounding expression, if known.
+expr_of_xexpr_loc :: Maybe Extent -> XExpr a -> Expr
+expr_of_xexpr_loc ex (EWildcard a) = throw $ locate_opt (ParsingError "_") ex
+expr_of_xexpr_loc ex (EVar x) = EVar x
+expr_of_xexpr_loc ex (EQualified x y) = EQualified x y
+expr_of_xexpr_loc ex (EFun p e) = EFun p e
+expr_of_xexpr_loc ex (EApp e1 e2) = EApp e1' e2' where
+  e1' = expr_of_xexpr_loc ex e1
+  e2' = expr_of_xexpr_loc ex e2
+expr_of_xexpr_loc ex (ETuple es) = ETuple es' where
+  es' = [ expr_of_xexpr_loc ex e | e <- es ]
+expr_of_xexpr_loc ex (ELet r p e f) = ELet r p e f
+expr_of_xexpr_loc ex (EUnit) = EUnit
+expr_of_xexpr_loc ex (EDatacon d Nothing) = EDatacon d Nothing
+expr_of_xexpr_loc ex (EDatacon d (Just e)) = EDatacon d (Just e') where
+  e' = expr_of_xexpr_loc ex e
+expr_of_xexpr_loc ex (EMatch e ps) = EMatch e ps
+expr_of_xexpr_loc ex (EIf e f g) = EIf e f g
+expr_of_xexpr_loc ex (EBool b) = EBool b
+expr_of_xexpr_loc ex (EInt n) = EInt n
+expr_of_xexpr_loc ex (EBox t) = EBox t
+expr_of_xexpr_loc ex (EUnbox) = EUnbox
+expr_of_xexpr_loc ex (ERev) = ERev
+expr_of_xexpr_loc ex (EConstraint e t) = EConstraint e t
+expr_of_xexpr_loc ex (EBuiltin s) = EBuiltin s
+expr_of_xexpr_loc ex (ELocated e ex') = expr_of_xexpr_loc (Just ex') e
+
+-- | Convert an extended expression to an expression, by checking that
+-- it does not contain any wildcards. If a wildcard if found, throw a
+-- 'ParsingError'.
+expr_of_xexpr :: XExpr a -> Expr
+expr_of_xexpr = expr_of_xexpr_loc Nothing
