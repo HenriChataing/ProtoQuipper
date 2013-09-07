@@ -502,7 +502,8 @@ expr_of_xexpr_loc ex (EUnbox) = EUnbox
 expr_of_xexpr_loc ex (ERev) = ERev
 expr_of_xexpr_loc ex (EConstraint e t) = EConstraint e t
 expr_of_xexpr_loc ex (EBuiltin s) = EBuiltin s
-expr_of_xexpr_loc ex (ELocated e ex') = expr_of_xexpr_loc (Just ex') e
+expr_of_xexpr_loc ex (ELocated e ex') = ELocated e' ex' where
+  e' = expr_of_xexpr_loc (Just ex') e
 
 -- | Convert an extended expression to an expression, by checking that
 -- it does not contain any wildcards. If a wildcard if found, throw a
