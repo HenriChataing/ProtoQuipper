@@ -243,7 +243,8 @@ Atom_XExpr :
                                                     [x] -> x
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
     | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
-    | '[' XExpr_sep_list ']'                    { List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
+    | '[' XExpr_sep_list ']'                    { flip locate (fromto $1 $3) $
+                                                  List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
     | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 XExpr_sep_list :
