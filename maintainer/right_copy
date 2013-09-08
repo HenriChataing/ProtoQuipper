@@ -34,7 +34,7 @@ case "$(basename "$FROM")" in
     *.el )
   PREFIX=";; "
   ;;
-    README | INSTALLING.* )
+    README | INSTALLING.* | NEWS )
   PREFIX=""
   ;;
     *.gz | *.tgz )

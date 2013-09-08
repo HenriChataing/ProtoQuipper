@@ -103,7 +103,7 @@ OTHER_DIST = emacs/proto-quipper-mode.el
 
 # The README, Makefile, etc used for distribution are not the same as
 # the analogous files used by developers.
-PUBLIC = README COPYRIGHT prologue.txt
+PUBLIC = README COPYRIGHT prologue.txt NEWS
 #            LICENSE
 
 $(DISTZIP) $(DISTTAR): dist
