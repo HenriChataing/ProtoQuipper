@@ -26,6 +26,7 @@ import Data.Map (Map)
 type Variable = Int
 
 
+
 -- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three values are reserved:
 --
 -- *    0: the flag equal to zero (meaning not duplicable);

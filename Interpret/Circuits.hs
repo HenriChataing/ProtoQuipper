@@ -16,6 +16,11 @@ import Data.Map as Map
 import Classes
 
 
+-- | The type of quantum addresses.
+type Qubit = Int
+
+
+
 -- | The list of unary gates.
 -- Unary gates are defined by: their name, the name of the reversed gate, and the symbol used to represent it in
 -- the display of the circuit (three characters).
@@ -62,12 +67,12 @@ class Caps a where
 
 
 -- | A binding is defined as a list of mappings q |-> q'.
-type Binding = [(Int, Int)]
+type Binding = [(Qubit, Qubit)]
 
 
 -- | Apply a binding. The binding function behaves as the identity function
 -- on addresses that are not in the mapping list.
-apply_binding :: [(Int, Int)] -> Int -> Int
+apply_binding :: Binding -> Qubit -> Qubit
 apply_binding b a =
   case List.lookup a b of
   Just a' -> a'
@@ -77,28 +82,47 @@ apply_binding b a =
 -- | Given the input of a circuit, select an new unused address.
 -- Since no list keeps track of the unused wires, new wire identifiers are chosen by taking the smallest value
 -- not yet in use.
-fresh_address :: [Int] -> Int
+fresh_address :: [Qubit] -> Qubit
 fresh_address [] = 0
 fresh_address l = (maximum l) + 1
 
 
 -- | Definition of the basic gates.
 data Gate =
-    Init Int Int            -- ^ The initialization gates  @0|-@  and  @1|-@.
-  | Term Int Int            -- ^ The assertive termination gates  @-|0@  and  @-|1@.
-  | Phase Int Int           -- ^ The phase gate, represented by the matrix:
+    Init Int Qubit          -- ^ The initialization gates  @0|-@  and  @1|-@.
+  | Term Int Qubit          -- ^ The assertive termination gates  @-|0@  and  @-|1@.
+  | Phase Int Qubit         -- ^ The phase gate, represented by the matrix:
                             -- 
                             -- @
                             --               | 1        0     |
                             --        R(n) = |                |
                             --               | 0   e^(i Pi/n) |
                             -- @
-  | Unary String Int        -- ^ Unary gates. The first argument is the gate name, which must belong to the list 'unary_gates' defined above.
-  | Binary String Int Int   -- ^ Binary gates. The first argument is the gate name, which must belong to the list 'binary_gates'.
-  | Controlled Gate [(Int,Bool)]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear. Controls can be positive (on state 1; 'True') or negative (on state 0; 'False').
-                            -- This constructor will have to be elaborated as soon as controls are added to Proto-Quipper syntax to
-                            -- be able to distinguish between positive and negative controls.
+  | Unary String Qubit      -- ^ Unary gates. The first argument is the gate name, which must belong to the list 'unary_gates' defined above.
+  | Binary String Qubit Qubit        -- ^ Binary gates. The first argument is the gate name, which must belong to the list 'binary_gates'.
+  | Controlled Gate [(Qubit,Bool)]   -- ^ Controlled gates. The second argument is a list of control wires, not necessarily linear. Controls can be positive (on state 1; 'True') or negative (on state 0; 'False').
     deriving Show
+
+
+-- | Return the list of input wires of a gate.
+input_wires :: Gate -> [Qubit]
+input_wires (Init _ _) = []
+input_wires (Term _ q) = [q]
+input_wires (Unary _ q) = [q]
+input_wires (Binary _ q0 q1) = [q0,q1]
+input_wires (Phase _ q) = [q]
+input_wires (Controlled g controls) = List.nub (input_wires g ++ fst (List.unzip controls))
+
+
+-- | Return the list of ouput wires of a gate.
+output_wires :: Gate -> [Qubit]
+output_wires (Init _ q) = [q]
+output_wires (Term _ _) = []
+output_wires (Unary _ q) = [q]
+output_wires (Binary _ q0 q1) = [q0,q1]
+output_wires (Phase _ q) = [q]
+output_wires (Controlled g controls) = List.nub (output_wires g ++ fst (List.unzip controls))
+
 
 
 -- | Re-address a gate by applying the given binding to its inputs and outputs.
@@ -142,9 +166,17 @@ instance Caps Gate where
 
   -- Creation / deletion of wires
   unencap c (Term bt q) b = let q' = apply_binding b q in
-    (c { gates = (gates c) ++ [Term bt q'], qOut = List.delete q' (qOut c) }, List.delete (q, q') b)
-  unencap c (Init bt q) b = let q' = fresh_address (qOut c) in
-    (c { gates = (gates c) ++ [Init bt q'], qOut = q':(qOut c) }, (q, q'):b)
+    (c { gates = (gates c) ++ [Term bt q'],
+         qOut = List.delete q' (qOut c),
+         unused_ids = q':(unused_ids c) }, List.delete (q, q') b)
+
+  unencap c (Init bt q) b =
+    let (c', q') = case unused_ids c of
+                     [] -> (c { qubit_id = 1 + (qubit_id c) }, qubit_id c)
+                     q':r -> (c { unused_ids = r }, q') in
+
+    (c' { gates = (gates c) ++ [Init bt q'],
+          qOut = q':(qOut c) }, (q, q'):b)
 
 
 -- | Return the gate concrete display. More specifically, each gate is printed in one column, and this function
@@ -163,7 +195,7 @@ instance Caps Gate where
 -- @
 -- 
 -- Note that the wire identifiers are multiplied by two, as intermediate lines are added to lighten the display.
-model :: Gate -> [(Int, String)]
+model :: Gate -> [(Qubit, String)]
 model (Binary s qa qb) =
   let sym = case List.lookup s binary_gates of
               Just (_, sy) -> sy
@@ -208,20 +240,28 @@ model (Term bt q) =
 
 -- | The data type of circuits.
 data Circuit = Circ {
-  qIn :: [Int],     -- ^ List of input wires
-  qOut :: [Int],    -- ^ List of output wires
-  gates :: [Gate]   -- ^ List of component gates
+  qIn :: [Qubit],          -- ^ List of input wires.
+  qOut :: [Qubit],         -- ^ List of output wires.
+  gates :: [Gate],         -- ^ List of component gates.
+
+  qubit_id :: Qubit,       -- ^ Largest unused qubit address.
+  unused_ids :: [Qubit]    -- ^ List of unused qubits.
 } deriving Show
 
 
 -- | A circuit is reversed by reversing the gates and the order of application of the gates.
 instance Reversible Circuit where
   rev c =
+    let (qm, unused) = unused_addresses $ qIn c in
     Circ {
       qIn = qOut c,
       qOut = qIn c,
-      gates = List.map rev $ reverse $ gates c
+      gates = List.map rev $ reverse $ gates c,
+
+      unused_ids = unused,
+      qubit_id = qm
     }
+
 
 -- | A circuit is unencapsulated by unencapsulating all the gates successively.
 instance Caps Circuit where
@@ -229,129 +269,44 @@ instance Caps Circuit where
     List.foldl (\(nc, b) g -> unencap nc g b) (c, b) (gates c')
 
 
+-- | Return the list of missing addresses from a list of identifiers, along with the largest unused address.
+unused_addresses :: [Qubit] -> (Qubit, [Qubit])
+unused_addresses qubits =
+  let qm = case qubits of
+             [] -> 0
+             _ -> List.maximum qubits in
+  let all = [0..qm] in
+  (qm+1,all List.\\ qubits) 
+
+
+-- | Create a circuit based on a list of input wires.
+create_circuit :: [Qubit] -> Circuit
+create_circuit input =
+  Circ {
+    qIn = input,
+    qOut = input,
+    gates = [],
+    qubit_id = case input of
+                 [] -> 0
+                 _ -> List.maximum input + 1,
+    unused_ids = []
+  }
+
+
+-- | Create a circuit which contains only one gate.
+singleton_circuit :: Gate -> Circuit
+singleton_circuit g =
+  Circ {
+    qIn = input_wires g,
+    qOut = output_wires g,
+    gates = [g],
+    qubit_id = 0,
+    unused_ids = []
+  }
+
+
 
 --- Circuit pretty printing ---
-
-
--- | This data type defines a state that allocates each wire to a line
--- number. When a line becomes unused (after a termination, for
--- example), the line is remembered and used to display any new wire.
-data Addressing = Address { wires :: Int,         -- ^ Number of wires.
-                            unused :: [Int],      -- ^ Unused wires.
-                            bind :: Binding }     -- ^ Binding from addresses to wires.
-
--- | A state monad to hide the addressing.
-newtype AdState a = AdState (Addressing -> (Addressing, a))
-instance Monad AdState where
-  return a = AdState (\ad -> (ad, a))
-  AdState run >>= action = AdState (\ad -> let (ad', a) = run ad in
-                                           let AdState run' = action a in
-                                           run' ad')
-
--- | Return the addressing state.
-get_addressing :: AdState Addressing
-get_addressing =
-  AdState (\ad -> (ad, ad))
-
-
--- | Set the addressing state.
-set_addressing :: Addressing -> AdState ()
-set_addressing adr =
-  AdState (\_ -> (adr, ()))
-
-
--- | Bind a wire to some unused line in the grid.  If an existing line
--- is unused, it is used preferentially; otherwise a new line is
--- created.
-bind_wire :: Int -> AdState Int
-bind_wire q = do
-  adr <- get_addressing
-  case unused adr of
-    [] -> do
-        -- No unused line : create a new one
-        set_addressing $ adr { wires = (+1) $ wires adr,
-                               bind = (q, wires adr):(bind adr) }
-        return $ wires adr
-
-    w:cw -> do
-        -- Else use the first unused line
-        set_addressing $ adr { unused = cw,
-                               bind = (q, w):(bind adr) }
-        return w
-
-
--- | Look up the line number a wire has been mapped to.
-assoc_wire :: Int -> AdState Int
-assoc_wire q = do
-  adr <- get_addressing
-  case List.lookup q $ bind adr of
-    Just w -> return w
-    Nothing -> error $ "Circuit construction: Unbound wire " ++ show q
-
-
--- | Return the associated gate: a gate whose wires have been replaced by their respective line numbers.
-assoc_gate :: Gate -> AdState Gate
-assoc_gate g = do
-  binding <- get_addressing >>= return . bind
-  return $ readdress g binding
-
-
--- | Delete a wire, and set it up to be reused.
-delete_vire :: (Int, Int) -> AdState ()
-delete_vire (q, w) = do
-  adr <- get_addressing
-  set_addressing $ adr { unused = w:(unused adr),
-                         bind = List.delete (q, w) $ bind adr }
-
-
--- | Allocate a list of gates, and return the list of modified gates.
-state_allocate :: [Gate] -> AdState [Gate]
-state_allocate [] = do
-  return []
-
-state_allocate (Init bt q:cg) = do
-  w <- bind_wire q
-  cg' <- state_allocate cg
-  return (Init bt w:cg')
-
-state_allocate (Term bt q: cg) = do
-  w <- assoc_wire q
-  delete_vire (q, w)
-  cg' <- state_allocate cg
-  return (Term bt w:cg')
-
-state_allocate (g:cg) = do
-  g' <- assoc_gate g
-  cg' <- state_allocate cg
-  return (g':cg')
-
-
--- | Allocate a whole circuit, and return the modified circuit, along with the total number
--- of lines that are occupied.
-allocate :: Circuit -> (Circuit, Int)
-allocate c =
-  let AdState run = do
-      -- Bind the input wires (the inputs list is reversed)
-      inputs <- List.foldl (\rec w -> do
-                              r <- rec
-                              w' <- bind_wire w
-                              return $ w':r) (return []) $ qIn c
-      -- Translate the whole circuit
-      gs <- state_allocate $ gates c
-      -- Translate the output wires (reversed list)
-      outputs <- List.foldl (\rec w -> do
-                               r <- rec
-                               w' <- assoc_wire w
-                               return $ w':r) (return []) $ qOut c
-      return $ Circ { qIn = List.reverse inputs,
-                      gates = gs,
-                      qOut = List.reverse outputs }
-      
-  in
-  -- Run the addressing in the initially empty state
-  let (ad, c) = run $ Address { wires = 0, unused = [], bind = [] } in
-  (c, wires ad)
-
 
 
 -- | A data type to encode a column of the circuit visual display. It is represented by a map
@@ -535,8 +490,7 @@ print_circuit c n =
 -- wire \<-\> line, then prints the circuit on a grid, before flushing the whole output.
 instance PPrint Circuit where
   pprint c =
-    let (c', n) = allocate c in
-    print_circuit c' n
+    print_circuit c (qubit_id c)
 
   sprintn _ c = pprint c
   sprint c = pprint c

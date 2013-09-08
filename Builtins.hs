@@ -33,7 +33,12 @@ binary_type = TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])
 -- where /N/ is the name of the gate.
 unary_value :: String -> Value
 unary_value g =
-  VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Unary g 0 ], qOut = [0] }) (VQubit 0) 
+  VCirc (VQubit 0) (Circ {
+                      qIn = [0],
+                      gates = [ Unary g 0 ],
+                      qOut = [0],
+                      qubit_id = 1,
+                      unused_ids = [] }) (VQubit 0) 
 
 
 -- | Generic value of binary gates, parameterized over the name of the gate.
@@ -50,7 +55,11 @@ unary_value g =
 binary_value :: String -> Value
 binary_value g =
   VCirc (VTuple [VQubit 0, VQubit 1])
-        (Circ { qIn = [0, 1], gates = [ Binary g 0 1 ], qOut = [0, 1] })
+        (Circ { qIn = [0, 1],
+                gates = [ Binary g 0 1 ],
+                qOut = [0, 1],
+                qubit_id = 2,
+                unused_ids = [] })
         (VTuple [VQubit 0, VQubit 1])
 
 
@@ -68,31 +77,29 @@ binary_value g =
 builtin_gates :: Map String (Type, Value)
 builtin_gates =
   let init = [("INIT0", (TCirc TUnit TQubit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ Init 0 0 ], qOut = [0] }) (VQubit 0))),
+                         VCirc VUnit (singleton_circuit $ Init 0 0) (VQubit 0))),
               ("INIT1", (TCirc TUnit TQubit,
-                         VCirc VUnit (Circ { qIn = [], gates = [ Init 1 0 ], qOut = [0] }) (VQubit 0)))] in
+                         VCirc VUnit (singleton_circuit $ Init 1 0) (VQubit 0)))] in
 
   let term = [("TERM0", (TCirc TQubit TUnit,
-                         VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Term 0 0 ], qOut = [] }) VUnit)),
+                         VCirc (VQubit 0) (singleton_circuit $ Term 0 0) VUnit)),
               ("TERM1", (TCirc TQubit TUnit,
-                         VCirc (VQubit 0) (Circ { qIn = [0], gates = [ Term 1 0 ], qOut = [] }) VUnit))] in
+                         VCirc (VQubit 0) (singleton_circuit $ Term 1 0) VUnit))] in
 
   let phase = [("PHASE", (TArrow TInt unary_type,
-                          VBuiltin (\(VInt n) -> VCirc (VQubit 0)
-                                                       (Circ { qIn = [0], gates = [ Phase n 0 ], qOut = [0] })
-                                                       (VQubit 0)))),
+                          VBuiltin (\(VInt n) -> VCirc (VQubit 0) (singleton_circuit $ Phase n 0) (VQubit 0)))),
                ("CONTROL_PHASE", (TArrow TInt (TArrow TBool binary_type),
                                   VBuiltin (\(VInt n) -> 
                                              VBuiltin (\(VBool sign) -> 
                                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                                               (Circ { qIn = [0, 1], gates = [ Controlled (Phase n 0) [(1,sign)] ], qOut = [0, 1] })
-                                                               (VTuple [VQubit 0, VQubit 1]))))) ] in
+                                                              (singleton_circuit $ Controlled (Phase n 0) [(1,sign)]) 
+                                                              (VTuple [VQubit 0, VQubit 1]))))) ] in
 
   let ceitz = [("CONTROL_GATE_EITZ", (TArrow TBool binary_type,
                                   VBuiltin (\(VBool sign) ->
                                              VCirc (VTuple [VQubit 0, VQubit 1])
-                                                    (Circ { qIn = [0, 1], gates = [ Controlled (Unary "GATE_EITZ" 0) [(1,sign)] ], qOut = [0, 1] })
-                                                    (VTuple [VQubit 0, VQubit 1])))) ] in
+                                                   (singleton_circuit $ Controlled (Unary "GATE_EITZ" 0) [(1,sign)])
+                                                   (VTuple [VQubit 0, VQubit 1])))) ] in
 
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
   let binary = List.map (\(g, _) -> (g, (binary_type, binary_value g))) binary_gates in
@@ -100,14 +107,14 @@ builtin_gates =
   let cnot = [("CNOT", (TArrow TBool (TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])),
                              VBuiltin (\(VBool sign) ->
                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                               (Circ { qIn = [0, 1], gates = [ Controlled (Unary "NOT" 0) [(1,sign)] ], qOut = [0, 1] })
-                                               (VTuple [VQubit 0, VQubit 1])))),
+                                              (singleton_circuit $ Controlled (Unary "NOT" 0) [(1,sign)])
+                                              (VTuple [VQubit 0, VQubit 1])))),
               ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
                              VBuiltin (\(VBool sign1) ->
                                         VBuiltin (\(VBool sign2) ->
                                                    VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
-                                                          (Circ { qIn = [0, 1, 2], gates = [ Controlled (Unary "NOT" 0) [(1,sign1), (2,sign2)] ], qOut = [0, 1, 2] })
-                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ] in
+                                                         (singleton_circuit $ Controlled (Unary "NOT" 0) [(1,sign1),(2,sign2)])
+                                                         (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ] in
 
   Map.fromList (cnot ++ init ++ term ++ unary ++ phase ++ ceitz ++ binary)
 

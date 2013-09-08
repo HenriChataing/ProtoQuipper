@@ -82,10 +82,9 @@ append_outputs (w:wires) irdoc =
 -- wires.
 export_to_IR :: Circuit -> IRDoc
 export_to_IR circ =
-  let (circ', _) = allocate circ in
-  let irnew = new_with_inputs $ qIn circ' in
-  let irgates = List.foldl (\irdoc g -> append_gate g irdoc) irnew $ gates circ' in
-  append_outputs (qOut circ') irgates
+  let irnew = new_with_inputs $ qIn circ in
+  let irgates = List.foldl (\irdoc g -> append_gate g irdoc) irnew $ gates circ in
+  append_outputs (qOut circ) irgates
 
 
 

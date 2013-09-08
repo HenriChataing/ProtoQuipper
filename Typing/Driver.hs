@@ -456,7 +456,7 @@ process_module opts prog = do
 
   -- Reset the circuit stack
   ctx <- get_context
-  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [] }] }
+  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
  
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do

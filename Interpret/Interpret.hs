@@ -18,7 +18,7 @@ import Parsing.Printer
 
 import Typing.CoreSyntax
 
-import Interpret.Circuits (Circuit (..), Binding)
+import Interpret.Circuits (Circuit, Binding, create_circuit)
 import qualified Interpret.Circuits as C
 import Interpret.Values
 
@@ -53,6 +53,21 @@ reset_qubits = do
   set_context $ ctx { qubit_id = 0 }
 
 
+-- | Return, without incrementing it, the value of the quantum address counter.
+last_qubit :: QpState Int
+last_qubit = do
+  ctx <- get_context
+  return $ qubit_id ctx
+
+
+-- | Set the counter of qubit values.
+set_qubits :: Int -> QpState ()
+set_qubits q = do
+  ctx <- get_context
+  set_context $ ctx { qubit_id = q }
+
+
+
 -- | Create a specimen of a given linear type. The quantum addresses of
 -- the specimen range from 0 to /n/-1, /n/ being the number of qubits in the type.
 linspec :: LinType -> QpState Value
@@ -81,7 +96,7 @@ spec (TBang _ t) = linspec t
 open_box :: [Int] -> QpState ()
 open_box ql = do
   ctx <- get_context
-  newc <- return $ Circ { qIn = ql, gates = [], qOut = ql }
+  newc <- return $ create_circuit ql
   set_context $ ctx { circuits = newc:(circuits ctx) }
 
 
@@ -357,8 +372,10 @@ do_application env f x =
         if not $ is_user_type typ then do
           -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
           -- n the number of qubits in the type typ
+          qinit <- last_qubit
           reset_qubits
           s <- spec typ
+          
           -- Open a new circuit, initialized with the quantum addresses of the specimen
           ql <- extract s
           open_box ql
@@ -366,6 +383,9 @@ do_application env f x =
           s' <- do_application env x s
           -- Close the box, and return the corresponding circuit
           c <- close_box
+          
+          -- Reset the counter for qubit values
+          set_qubits qinit
           return (VCirc s c s')
  
         -- If not, the construction is delayed till use of the box.

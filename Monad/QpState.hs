@@ -109,7 +109,7 @@ data Context = Ctx {
 -- Id generation
   type_id :: Int,                                     -- ^ Used to generate fresh type variables.
   flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
-  qubit_id :: Int,                                     -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
+  qubit_id :: Int,                                    -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
      
 -- Substitution from type variable to types
   mappings :: IntMap LinType                          -- ^ The result of the unification: a mapping from type variables to linear types.
@@ -187,11 +187,11 @@ empty_context =  Ctx {
   flags = IMap.empty,
 
 -- Circuit stack initialized with a void circuit.
-  circuits = [ Circ { qIn = [], gates = [], qOut = [] } ],
+  circuits = [ Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] } ],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
-  qubit_id = 0,
+  Monad.QpState.qubit_id = 0,
       
   mappings = IMap.empty
 }
