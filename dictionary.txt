@@ -1,6 +1,9 @@
 AdState
+app
 appmap
+AppPattern
 args
+ary
 assoc
 bk
 bool
@@ -66,6 +69,7 @@ ETuple
 EUnbox
 EUnit
 EVar
+EWildcard
 expr
 ext
 ExtensiveContext
@@ -79,6 +83,8 @@ FlagValue
 fn
 foo
 fromto
+gen
+GenPattern
 genprint
 GrState
 gsize
@@ -103,6 +109,8 @@ IParser
 ir
 IRDoc
 IRExport
+isPDatacon
+isPVar
 Jones's
 KType
 LabellingContext
@@ -139,6 +147,7 @@ noref
 NotBoolError
 NotFunctionError
 NSpace
+Num
 OptDescr
 optFail
 Ord
@@ -146,6 +155,7 @@ Param
 parseError
 parseOpts
 ParsingError
+ParsingOtherError
 PBool
 PConstraint
 PDatacon
@@ -190,6 +200,7 @@ REM
 resp
 runInterpret
 runS
+SimplePattern
 sprintn
 stderr
 stdout
@@ -204,6 +215,7 @@ TArrow
 TBang
 TBool
 TCirc
+td
 TForall
 throwQ
 TInt
@@ -324,4 +336,6 @@ VUnit
 WithDebugInfo
 WrongDataArguments
 WrongTypeArguments
+XExpr
+xexpr
 xn

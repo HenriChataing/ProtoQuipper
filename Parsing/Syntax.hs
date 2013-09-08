@@ -299,8 +299,8 @@ data XExpr a =
   | ELocated (XExpr a) Extent      -- ^ A located expression.
   deriving Show
 
--- | A version of the 'EFun' constructor that constructs an n-ary
--- function. We assume n >= 1.
+-- | A version of the 'EFun' constructor that constructs an /n/-ary
+-- function. We assume /n/ >= 1.
 multi_EFun :: [Pattern] -> Expr -> XExpr a
 multi_EFun [p] e = EFun p e
 multi_EFun (p:ps) e = EFun p (multi_EFun ps e)
@@ -379,7 +379,7 @@ data GenPattern =
 
 -- | Translate an expression to the corresponding pattern, which may
 -- be a simple or applicative pattern.  If the input expression is not
--- a pattern, for example, a lambda abstraction, trow a
+-- a pattern, for example, a lambda abstraction, throw a
 -- 'ParsingOtherError' with text \"bad pattern\".
 gen_pattern_of_xexpr :: XExpr a -> GenPattern
 gen_pattern_of_xexpr = gen_pattern_of_xexpr_loc Nothing
