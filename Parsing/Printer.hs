@@ -188,6 +188,7 @@ print_doc (EMatch e plist) =
 print_doc (EConstraint e t) = print_doc e
 print_doc (EBuiltin s) = text "#builin" <+> text s
 print_doc (ELocated e _) = print_doc e
+print_doc (EError msg) = text $ "error \"" ++ msg ++ "\""
  
 instance PPrint Expr where
   genprint lv e _ = sprintn lv e

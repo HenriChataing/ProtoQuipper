@@ -54,26 +54,30 @@ import_modules opts mnames ctx = do
 
   -- Process everything, finishing by the main file
   ctx <- List.foldl (\rec p -> do
-                ctx <- rec
-                mopts <- return $ MOptions { toplevel = False, disp_decls = False }
-                -- Check whether the module has already been imported or not
-                imported <- get_context >>= return . modules
-                -- If needed, process the module, in any case return the module contents
-                m <- case List.lookup (S.module_name p) imported of
-                  Just m -> do
-                      -- Return the module contents
-                      return m
-               
-                  Nothing -> do
-                      -- Process the module
-                      process_module (opts, mopts) p
+                  ctx <- rec
+                  mopts <- return $ MOptions { toplevel = False, disp_decls = False }
+                  -- Check whether the module has already been imported or not
+                  imported <- get_context >>= return . modules
+                  -- If needed, process the module, in any case return the module contents
+                  m <- case List.lookup (S.module_name p) imported of
+                    Just m -> do
+                        -- Return the module contents
+                        return m
+                 
+                    Nothing -> do
+                        -- Process the module
+                        process_module (opts, mopts) p
 
-                -- Insert again the names in the labelling map.
-                vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
-                typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
-                return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
-                                                    l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
-                                                    l_types = Map.union typs $ l_types $ labelling ctx } } ) (return ctx) deps
+                  -- Insert again the names in the labelling map.
+                  -- The module is imported only if asked
+                  if List.elem (S.module_name p) mnames then do
+                    vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
+                    typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
+                    return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
+                                                        l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
+                                                        l_types = Map.union typs $ l_types $ labelling ctx } }
+                  else
+                    return ctx) (return ctx) deps
   set_file file_unknown
   return ctx
 

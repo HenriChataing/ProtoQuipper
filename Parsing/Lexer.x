@@ -53,11 +53,14 @@ tokens :-
   "{"                                 { locate_token TkLCurlyBracket }
   "}"                                 { locate_token TkRCurlyBracket }
 
+  \" .* \"                            { \p s -> TkString (posn_to_extent p s, List.init $ List.tail s) }
+
   and                                 { locate_token TkAnd }
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
   circ                                { locate_token TkCirc }
   else                                { locate_token TkElse }
+  error                               { locate_token TkError }
   false                               { locate_token TkFalse }
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
@@ -89,7 +92,7 @@ tokens :-
   $infix2 $symbolchar*                { locate_named_token TkInfix2 } 
   $infix3 $symbolchar*                { locate_named_token TkInfix3 } 
 
-  [^tokens]                           { locate_named_token TkError }
+  [^tokens]                           { locate_named_token TkUnknownToken }
 
 {
 
@@ -112,7 +115,8 @@ data Token =
   | TkQLId (Extent, String)      -- ^ A qualified lower-case identifier.
   | TkQUId (Extent, String)      -- ^ A qualified upper-case identifier.
   | TkInt (Extent, String)       -- ^ An integer literal. The value of the integer is left unparsed.
-  | TkError (Extent, String)     -- ^ An error token.
+  | TkString (Extent, String)    -- ^ A string: a list of characters delimited by double quotes.
+  | TkUnknownToken (Extent, String)     -- ^ An error token.
 
   -- Reserved notations : list of reserved names
   | TkAnd Extent           -- ^ The reserved name \'and'.
@@ -120,6 +124,7 @@ data Token =
   | TkBox Extent           -- ^ The reserved name \'box'.
   | TkCirc Extent          -- ^ The reserved name \'circ'.
   | TkElse Extent          -- ^ The reserved name \'else'.
+  | TkError Extent         -- ^ The reserved name \'error\'.
   | TkFalse Extent         -- ^ The reserved name \'false'.
   | TkFun Extent           -- ^ The reserved name \'fun'.
   | TkIf Extent            -- ^ The reserved name \'if'.
@@ -141,7 +146,7 @@ data Token =
   | TkBuiltin Extent       -- ^ The reserved name \'\#builtin'.
 
   -- Punctuation marks, and other symbols
-  | TkWildcard Extent         -- ^ The symbol \'@_@'.
+  | TkWildcard Extent      -- ^ The symbol \'@_@'.
   | TkStar Extent          -- ^ The symbol \'@\*@'.
   | TkMinus Extent         -- ^ The symbol \'@\-@'.
   | TkBar Extent           -- ^ The symbol \'@|@'.
@@ -174,7 +179,7 @@ data Token =
 
 -- | Identify the error token.
 is_error :: Token -> Bool
-is_error (TkError _) = True
+is_error (TkUnknownToken _) = True
 is_error _ = False
 
 
@@ -184,13 +189,15 @@ instance Show Token where
   show (TkQLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkQUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
-  show (TkError (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkString (ex,s)) = "'\"" ++ s ++ "\"' (" ++ show ex ++ ")" 
+  show (TkUnknownToken (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
   show (TkAnd ex) = "'and' (" ++ show ex ++ ")"
   show (TkBool ex) = "'bool' (" ++ show ex ++ ")"
   show (TkBox ex) = "'box' (" ++ show ex ++ ")"
   show (TkCirc ex) = "'circ' (" ++ show ex ++ ")"
   show (TkElse ex) = "'else' (" ++ show ex ++ ")"
+  show (TkError ex) = "'error' (" ++ show ex ++ ")"
   show (TkFalse ex) = "'false' (" ++ show ex ++ ")"
   show (TkFun ex) = "'fun' (" ++ show ex ++ ")"
   show (TkIf ex) = "'if' (" ++ show ex ++ ")"
@@ -256,13 +263,15 @@ locate_token_in_file f (TkUId (ex, s)) = TkUId (ex { file = f}, s)
 locate_token_in_file f (TkQLId (ex, s)) = TkQLId (ex { file = f }, s)
 locate_token_in_file f (TkQUId (ex, s)) = TkQUId (ex { file = f }, s)
 locate_token_in_file f (TkInt (ex, s)) = TkInt (ex { file = f }, s)
-locate_token_in_file f (TkError (ex, s)) = TkError (ex { file = f }, s)
+locate_token_in_file f (TkString (ex, s)) = TkString (ex { file = f }, s)
+locate_token_in_file f (TkUnknownToken (ex, s)) = TkUnknownToken (ex { file = f }, s)
 
 locate_token_in_file f (TkAnd ex) = TkAnd ex { file = f }
 locate_token_in_file f (TkBool ex) = TkBool ex { file = f }
 locate_token_in_file f (TkBox ex) = TkBox ex { file = f }
 locate_token_in_file f (TkCirc ex) = TkCirc ex { file = f }
 locate_token_in_file f (TkElse ex) = TkElse ex { file = f }
+locate_token_in_file f (TkError ex) = TkError ex { file = f }
 locate_token_in_file f (TkFalse ex) = TkFalse ex { file = f }
 locate_token_in_file f (TkFun ex) = TkFun ex { file = f }
 locate_token_in_file f (TkIf ex) = TkIf ex { file = f }
@@ -321,8 +330,8 @@ mylex filename contents = do
   tokens <- return $ alexScanTokens contents
   tokens <- return $ List.map (locate_token_in_file filename) tokens
   case List.find (\tk -> case tk of
-                           TkError _ -> True
+                           TkUnknownToken _ -> True
                            _ -> False) tokens of
-    Just (TkError (ex, s)) -> throwQ $ LexicalError s ex
+    Just (TkUnknownToken (ex, s)) -> throwQ $ LexicalError s ex
     _ -> return tokens 
 }

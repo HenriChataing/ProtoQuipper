@@ -412,6 +412,9 @@ interpret env (ELocated e ex) = do
   set_location ex
   interpret env e
 
+interpret _ (EError msg) = do
+  throwQ (UserError msg)
+
 -- Empty
 interpret _ EUnit = do
   return VUnit
