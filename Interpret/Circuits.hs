@@ -451,7 +451,7 @@ output_line input l = do
   gr <- get_grid
   -- First characters of the line
   init <- if input then
-            return ("---", True)
+            return ("---  w" ++ show (l `quot` 2), True)
           else
             return ("   ", False)
   
