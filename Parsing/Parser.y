@@ -153,49 +153,57 @@ Decl :
       Typeblock                                            { DTypes $1 }
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
-    | LET Pattern '=' Expr ";;"                            { DLet Nonrecursive $2 $4 }
-    | LET REC LID Pattern_list '=' Expr ";;"               { DLet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) }
-    | LET REC '(' Infix_op ')' Pattern_list '=' Expr ";;"  { DLet Recursive (PVar (snd $4)) (List.foldr EFun $8 $6) }
-    | LET LID Pattern_list '=' Expr ";;"                   { DLet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) }
-    | LET '(' Infix_op ')' Pattern_list '=' Expr ";;"      { DLet Nonrecursive (PVar (snd $3)) (List.foldr EFun $7 $5) }
+    | LET GenPattern '=' Expr ";;"                         { case $2 of
+                                                                SimplePattern p ->
+                                                                  DLet Nonrecursive p $4
+                                                                AppPattern (p, ps) ->
+                                                                  DLet Nonrecursive p (multi_EFun ps $4) }
+    | LET REC AppPattern '=' Expr ";;"                     { let (p, ps) = $3 in
+                                                              DLet Recursive p (multi_EFun ps $5) }
     | Expr ";;"                                            { DExpr $1 }
 
 
 
-{- Syntax of expressions : organized as
-     Expr
-     Seq_expr
-     Op_expr
-     Apply_epxr
-     Atom_expr
+{- Syntax of x-expressions: organized as
+     XExpr
+     Seq_XExpr
+     Op_XExpr
+     Apply_XExpr
+     Atom_XExpr
 -}
 
-Expr :
-      FUN Pattern_list "->" Expr                 { locate_opt (List.foldr EFun $4 $2) (fromto_opt (Just $1) (location $4)) }
+XExpr :
+      FUN Pattern_list "->" Expr                 { locate_opt (multi_EFun $2 $4) (fromto_opt (Just $1) (location $4)) }
+
     | IF Expr THEN Expr ELSE Expr                { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH Expr WITH Matching_list              { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
-    | LET Pattern '=' Expr IN Expr               { locate_opt (ELet Nonrecursive $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
-    | LET LID Pattern_list '=' Expr IN Expr      { locate_opt (ELet Nonrecursive (PVar (snd $2)) (List.foldr EFun $5 $3) $7) (fromto_opt (Just $1) (location $7)) }
-    | LET REC LID Pattern_list '=' Expr IN Expr  { locate_opt (ELet Recursive (PVar (snd $3)) (List.foldr EFun $6 $4) $8) (fromto_opt (Just $1) (location $8)) }
-    | Seq_expr                                   { $1 }
+    | LET GenPattern '=' Expr IN Expr            { flip locate_opt (fromto_opt (Just $1) (location $6)) $ 
+                                                   case $2 of
+                                                      SimplePattern p ->
+                                                        ELet Nonrecursive p $4 $6
+                                                      AppPattern (p, ps) ->
+                                                        ELet Nonrecursive p (multi_EFun ps $4) $6 }
+    | LET REC AppPattern '=' Expr IN Expr        { flip locate_opt (fromto_opt (Just $1) (location $7)) $
+                                                   let (p, ps) = $3 in
+                                                    ELet Recursive p (multi_EFun ps $5) $7 }
+    | Seq_XExpr                                  { $1 }
 
 
-Seq_expr :
-      Op_expr                                    { $1 }
-    | Atom_expr "<-" Op_expr ';' Expr            { locate_opt (ELet Nonrecursive (pattern_of_expr $1) $3 $5) (fromto_opt (location $1) (location $5)) }
-    | Atom_expr "<-*" Op_expr ';' Expr           { locate_opt (ELet Nonrecursive (pattern_of_expr $1) (EApp $3 $1) $5) (fromto_opt (location $1) (location $5)) }
-    | Op_expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
+Seq_XExpr :
+      Op_XExpr                                   { $1 }
+    | SimplePattern "<-" Op_Expr ';' Expr        { locate_opt (ELet Nonrecursive $1 $3 $5) (fromto_opt (location $1) (location $5)) }
+    | LValue "<-*" Op_Expr ';' Expr              { locate_opt (ELet Nonrecursive (fst $1) (EApp $3 (snd $1)) $5) (fromto_opt (location (snd $1)) (location $5)) }
+    | Op_Expr ';' Expr                           { locate_opt (ELet Nonrecursive PWildcard $1 $3) (fromto_opt (location $1) (location $3)) }
 
-
-Op_expr :
-      Op_expr INFIX0 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_expr INFIX1 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_expr INFIX2 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_expr INFIX3 Op_expr                     { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_expr ':' Op_expr                        { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
-    | Op_expr '*' Op_expr                        { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_expr '-' Op_expr                        { locate_opt (EApp (EApp (locate (EVar "-") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Apply_expr                                 { $1 }
+Op_XExpr :
+      Op_XExpr INFIX0 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr INFIX1 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr INFIX2 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr INFIX3 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr ':' Op_XExpr                      { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr '*' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr '-' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "-") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
+    | Apply_XExpr                                { $1 }
 
 
 Infix_op :
@@ -207,15 +215,16 @@ Infix_op :
     | '*'                                        { ($1, "*") }
 
 
-Apply_expr :
-      Apply_expr Atom_expr                       { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | '-' Atom_expr                              { let negation_symbol = locate (EVar "negation_symbol") (fromto $1 $1) in
+Apply_XExpr :
+      Apply_XExpr Atom_XExpr                     { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
+    | '-' Atom_XExpr                             { let negation_symbol = locate (EVar "negation_symbol") (fromto $1 $1) in
                                                    locate_opt (EApp negation_symbol $2) (fromto_opt (Just $1) (location $2)) }
-    | Atom_expr                                  { $1 }
+    | Atom_XExpr                                 { $1 }
 
 
-Atom_expr :
-      TRUE                                      { locate (EBool True) $1 }
+Atom_XExpr :
+      "_"                                       { locate (EWildcard ()) $1 }
+    | TRUE                                      { locate (EBool True) $1 }
     | FALSE                                     { locate (EBool False) $1 }
     | INT                                       { locate (EInt (read $ snd $1)) (fst $1) }
     | LID                                       { locate (EVar (snd $1)) (fst $1) }
@@ -230,58 +239,73 @@ Atom_expr :
     | REV                                       { locate ERev $1 }
     | '(' ')'                                   { locate EUnit (fromto $1 $2) }
     | '(' Infix_op ')'                          { locate (EVar (snd $2)) (fst $2) }
-    | '(' Expr_sep_list ')'                     { case $2 of
+    | '(' XExpr_sep_list ')'                    { case $2 of
                                                     [x] -> x
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
     | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
-    | '[' Expr_sep_list ']'                     { List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
+    | '[' XExpr_sep_list ']'                    { flip locate (fromto $1 $3) $
+                                                  List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
     | '(' Expr "<:" Type ')'                    { locate (EConstraint $2 $4) (fromto $1 $5) }
 
+XExpr_sep_list :
+      XExpr                                     { [$1] }
+    | XExpr ',' XExpr_sep_list                  { $1:$3 }
 
-Expr_sep_list :
-      Expr                                      { [$1] }
-    | Expr ',' Expr_sep_list                    { $1:$3 }
 
 
-Pattern :
-      "_"                                       { locate PWildcard $1 }
-    | LID                                       { locate (PVar (snd $1)) (fst $1) }
-    | UID Pattern                               { locate_opt (PDatacon (snd $1) (Just $2)) (fromto_opt (Just $ fst $1) (location $2)) }
-    | UID                                       { locate (PDatacon (snd $1) Nothing) (fst $1) }
-    | Pattern ':' Pattern                       { locate_opt (PDatacon "Cons" (Just $ PTuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
-    | TRUE                                      { locate (PBool True) $1 }
-    | FALSE                                     { locate (PBool False) $1 }
-    | INT                                       { locate (PInt (read $ snd $1)) (fst $1) }
-    | '(' Infix_op ')'                          { locate (PVar (snd $2)) (fst $2) }
-    | '(' ')'                                   { locate PUnit (fromto $1 $2) }
-    | '(' Pattern_sep_list ')'                  { case $2 of
-                                                    [x] -> x
-                                                    _ -> locate (PTuple $2) (fromto $1 $3) }
-    | '[' ']'                                   { locate (PDatacon "Nil" Nothing) (fromto $1 $2) }
-    | '[' Pattern_sep_list ']'                  { List.foldr (\p rest -> PDatacon "Cons" (Just $ PTuple [p,rest])) (PDatacon "Nil" Nothing) $2 } 
-    | '(' Pattern "<:" Type ')'                 { locate (PConstraint $2 $4) (fromto $1 $5) }
+{- Syntax of expressions: organized as
+     Expr
+     Op_Expr
+-}
 
+Expr :
+      XExpr                                     { expr_of_xexpr $1 }
+
+Op_Expr :
+      Op_XExpr                                  { expr_of_xexpr $1 }
+
+
+
+{- Patterns are organized as follows.
+   
+   * A simple pattern is something that can be directly bound to a value, like (x,y) or _ or Con x.
+   
+   * An applicative pattern is something used in a function definition, like f x y, or x + y.
+
+   * A general pattern is either a simple pattern or an applicative pattern.
+
+   * An lvalue is simultaneously a simple pattern and an expression.
+
+   All patterns are initially parsed as an expression, then converted
+   to the appropriate pattern type.  This is necessary because of the
+   constraints of LR parsers. It also allows more flexibility of
+   notation.  -}
+
+SimplePattern :
+      Op_XExpr                                  { pattern_of_xexpr $1 }
+
+AppPattern :
+      Op_XExpr                                  { app_pattern_of_xexpr $1 }
+
+GenPattern :
+      Op_XExpr                                  { gen_pattern_of_xexpr $1 }
+
+LValue :
+      Op_XExpr                                  { (pattern_of_xexpr $1, expr_of_xexpr $1) }
 
 Pattern_list :
-      Pattern                                   { [$1] }
-    | Pattern Pattern_list                      { $1:$2 }
-
-
-Pattern_sep_list :
-      Pattern                                   { [$1] }
-    | Pattern ',' Pattern_sep_list              { $1:$3 }
-
+      Atom_XExpr                                { pattern_of_xexpr $1 : [] }
+    | Atom_XExpr Pattern_list                   { pattern_of_xexpr $1 : $2 }
 
 Matching :
-      Pattern "->" Expr                         { ($1, $3) }
-
+      SimplePattern "->" Expr                   { ($1, $3) }
 
 Matching_list :
       Matching                                  { [$1] }
     | Matching_list '|' Matching                { $1 ++ [$3] }
 
 
-{- Definition of types : organized as
+{- Definition of types: organized as
      Type
      Tensor_type
      Type_app

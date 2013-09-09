@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 -- | This module contains the 'Classes.PPrint' instance declarations
 -- for the types 'Type', 'Pattern', and 'Expr' of the /surface syntax/. 
 -- Please note that

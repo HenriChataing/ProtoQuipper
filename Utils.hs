@@ -91,3 +91,19 @@ linear_union l =
   let all = List.concat l in
   List.concat $ List.map (\a -> let alla = all \\ a in
                                 a \\ alla) l
+
+-- | Delete whitespace from the end of a string.
+trim_end :: String -> String
+trim_end [] = []
+trim_end (h:t) 
+  | isSpace h =
+    if t' == "" then "" else h:t'
+  | otherwise =
+    h:t'
+  where
+    t' = trim_end t
+
+-- | Check whether the first string is a suffix of the second one,
+-- possibly followed by whitespace.
+string_ends_with :: String -> String -> Bool 
+string_ends_with suffix string = List.isSuffixOf suffix (trim_end string)

@@ -1,0 +1,24 @@
+September 8, 2013: Release 0.2
+
+ * Algorithms: added an implementation of the Binary Welded Tree
+   algorithm
+ * Libraries: core.qp: new built-in operations %, div, mod, ==, <>,
+   <=, >=, not
+ * Libraries: gates.qp: new built-in gates exp_itZ, cnot_signed,
+   cphase_signed, cexp_itZ_signed, toffoli_signed
+ * Libraries: gates.qp: "not" gate renamed to "qnot"
+ * Libraries: list.qp: added more list functions
+ * Libraries: function.qp: new library added
+ * Syntax: added {- ... -} style comments
+ * Syntax: let-patterns can now contain infix operators
+ * Syntax: added boolean and integer patterns
+ * Syntax: permit apostrophe "'" in variable names
+ * Internal: fixed a bug in the IR output format
+ * Internal: fixed many bugs in syntax and type inference
+ * Internal: improved some error messages
+ * Internal: fixed display of types
+ * Emacs: added a syntax highlighting mode for Emacs
+
+August 30, 2013: Release 0.1
+
+ First release to TCT.
