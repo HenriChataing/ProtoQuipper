@@ -466,29 +466,31 @@ output_line input l = do
                                                lpad <- return $ (width c - List.length sm) `quot` 2
                                                rpad <- return (width c - List.length sm - lpad)
                                                if isSuffixOf "|-" sm then
-                                                 return (s ++ nspaces lpad ++ sm ++ ndashes rpad, True)
+                                                 return (nspaces lpad ++ sm ++ ndashes rpad ++ s, False)
                                                else if isPrefixOf "-|" sm then
-                                                 return (s ++ ndashes lpad ++ sm ++ nspaces rpad, False)
+                                                 return (ndashes lpad ++ sm ++ nspaces rpad ++ s, True)
                                                else if alloc then
-                                                 return (s ++ ndashes lpad ++ sm ++ ndashes rpad, alloc)
+                                                 return (ndashes lpad ++ sm ++ ndashes rpad ++ s, alloc)
                                                else
-                                                 return (s ++ nspaces lpad ++ sm ++ nspaces rpad, alloc)
+                                                 return (nspaces lpad ++ sm ++ nspaces rpad ++ s, alloc)
 
                                            Nothing -> do
                                                if alloc then
-                                                 return (s ++ ndashes (width c), alloc)
+                                                 return (ndashes (width c) ++ s, alloc)
                                                else
-                                                 return (s ++ nspaces (width c), alloc)
+                                                 return (nspaces (width c) ++ s, alloc)
       
                            -- Printing wires
                            if alloc then
-                             return (s ++ "---", alloc)
+                             return ("---" ++ s, alloc)
                            else
-                             return (s ++ "   ", alloc)) (return init) $ columns gr
+                             return ("   " ++ s, alloc)) (return init) $ columns gr
 
-  -- If the circuit was cut, add some dots..., if not just return the line
+  -- If the circuit was cut, add some dots ..., if not just return the line
   if cut gr && alloc then
-    return $ s ++ " .."
+    return $ ".. " ++ s
+  else if cut gr then
+    return $ "   " ++ s
   else
     return s
 
@@ -500,7 +502,7 @@ print_circuit :: Circuit -> Int -> String
 print_circuit c n =
   let GrState run = do
       -- Print the gates
-      List.foldl (\rec g -> do
+      List.foldr (\g rec -> do
                     rec
                     print_gate g) (return ()) $ gates c
       -- Output the grid
@@ -508,7 +510,7 @@ print_circuit c n =
       disp <- List.foldl (\rec l -> do
                             s <- rec
                             input <- if l `mod` 2 == 0 then
-                                       return $ List.elem (l `quot` 2) $ qIn c
+                                       return $ List.elem (l `quot` 2) $ qOut c
                                      else
                                        return False
                             pl <- output_line input l
