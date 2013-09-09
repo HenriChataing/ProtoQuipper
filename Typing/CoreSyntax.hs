@@ -18,7 +18,9 @@ import Utils
 import Parsing.Location
 import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
+import Monad.QuipperError
 
+import Control.Exception
 import Data.List as List
 import Data.Map (Map)
 
@@ -106,12 +108,24 @@ data Type =
   deriving Show
 
 
+-- | Return the top-level annotation flag of a 'Type'.
+top_flag :: Type -> RefFlag  
+top_flag (TBang f _) = f
+top_flag (TForall _ _ _ t) = top_flag t
+
+
+-- | String the quantifiers from a 'Type'.
+strip_forall :: Type -> (RefFlag, LinType)
+strip_forall (TBang f t) = (f, t)
+strip_forall (TForall _ _ _ t) = strip_forall t
+
+
 -- | Remove the flag annotation from a type, returning a linear type.
 -- This function does not make sense on typing schemes, and can only
 -- be applied to types. It is an error to do otherwise.
 no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
-
+no_bang (TForall _ _ _ _) = throw $ ProgramError "no_bang: cannot be applied to a type scheme"
 
 -- | Check whether a linear type uses algebraic data types.
 is_user_lintype :: LinType -> Bool
@@ -122,9 +136,12 @@ is_user_lintype (TArrow t u) = is_user_type t || is_user_type u
 is_user_lintype _ = False
 
 
--- | Check whether a type uses algebraic data types.
+-- | Check whether a type uses algebraic data types. This function can
+-- only be applied to types. It is an error to apply it to a typing
+-- scheme.
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
+is_user_type (TForall _ _ _ _) = throw $ ProgramError "is_user_type: cannot be applied to a type scheme"
 
 
 
@@ -320,15 +337,19 @@ instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
   free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
+  subs_typ_var a b (TForall _ _ _ _) = throw $ ProgramError "Type:subs_typ_var: cannot be applied to a type scheme"
 
   free_flag (TBang n t) = List.insert n (free_flag t)
+  free_flag (TForall _ _ _ _) = throw $ ProgramError "Type:free_flag: cannot be applied to a type scheme"
+  
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
     if n == p then
       TBang m t'
     else
       TBang p t'
-
+  subs_flag n m (TForall _ _ _ _) = throw $ ProgramError "Type:subs_flag: cannot be applied to a type scheme"
+  
 
 
 
@@ -336,10 +357,10 @@ instance KType Type where
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
   -- Normally, the alpha equivalence would have to be checked. However, it may
-  -- be useless as : this function is never used, the generic instance is always the same, never
+  -- be useless as: this function is never used, the generic instance is always the same, never
   -- changed.
   (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
-
+  (==) _ _ = False
 
 
 instance Param Pattern where

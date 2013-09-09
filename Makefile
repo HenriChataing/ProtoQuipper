@@ -4,7 +4,9 @@ HADDOCK := haddock
 
 BUILD_DIR = _build
 
-GHC = ghc --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
+GHC_OPTS:=-fwarn-incomplete-patterns -Werror
+
+GHC = ghc $(GHC_OPTS) --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
 HAPPY = happy --ghc --info
 ALEX = alex
 

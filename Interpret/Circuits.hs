@@ -148,7 +148,8 @@ readdress (Phase n q) b = Phase n (apply_binding b q)
 readdress (Unary s q) b = Unary s (apply_binding b q)
 readdress (Binary s qa qb) b = Binary s (apply_binding b qa) (apply_binding b qb)
 readdress (Controlled g qlist) b = Controlled (readdress g b) (List.map (\(q,s) -> (apply_binding b q,s)) qlist)
-
+readdress (Init s q) b = Init s (apply_binding b q)
+readdress (Term s q) b = Init s (apply_binding b q)
 
 -- | The reverse function on gates uses the definition of the unary / binary gates
 -- to know the name of the reversed gate.
@@ -390,13 +391,12 @@ set_grid gr =
 print_at :: Int -> Int -> String -> GrState ()
 print_at l n s = do
   gr <- get_grid
-  at_rec <- return (let at = (\n cols ->
-                                case (n, cols) of
-                                  (0, c:cs) -> c { chars = Map.insert l s $ chars c, width = max (width c) (List.length s) }:cs
-                                  (n, c:cs) -> c:(at (n-1) cs)) in at)
-  cols' <- return $ at_rec n $ columns gr
+  cols' <- return $ at n $ columns gr
   set_grid $ gr { columns = cols' }
-
+  where 
+    at _ [] = []
+    at 0 (c:cs) = c { chars = Map.insert l s $ chars c, width = max (width c) (List.length s) }:cs
+    at n (c:cs) = c:(at (n-1) cs)
 
 -- | Produce a string of n white spaces.
 nspaces :: Int -> String
@@ -415,7 +415,7 @@ print_multi :: [(Int, String)] -> GrState ()
 print_multi ls = do
   gr <- get_grid
   if not $ cut gr then do
-    -- The display stil hasn't overflown
+    -- The display still hasn't overflown
     d <- return $ free_common_depth (fst $ unzip ls) $ columns gr
 
     if d == -1 then

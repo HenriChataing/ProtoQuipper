@@ -239,20 +239,19 @@ bind_pattern_to_type p t = do
 -- | Return the set of annotation flags of the context.
 context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
-  return $ IMap.foldWithKey (\x t ann -> case t of
-                                           (TBang f _) -> (x, f):ann
-                                           (TForall _ _ _ (TBang f _)) -> (x, f):ann) [] ctx
-
+  return $ IMap.foldWithKey aux [] ctx 
+    where
+      aux x t ann = (x, top_flag t):ann
 
 -- | Return a set of flag constraints forcing the context to be duplicable.
 duplicable_context :: TypingContext -> QpState ()
 duplicable_context ctx = do
-  IMap.foldWithKey (\x t rec -> do
-                      rec
-                      ex <- variable_location x
-                      case t of
-                        TBang f _ -> set_flag f no_info { expression = EVar x, loc = ex } 
-                        TForall _ _ _ (TBang f _) -> set_flag f no_info { expression = EVar x, loc = ex }) (return ()) ctx
+  IMap.foldWithKey aux (return ()) ctx
+    where
+      aux x t rec = do
+        rec
+        ex <- variable_location x
+        set_flag (top_flag t) no_info { expression = EVar x, loc = ex }
 
 
 -- | Perform the union of two typing contexts. The \<+\> operator respects the order of the arguments

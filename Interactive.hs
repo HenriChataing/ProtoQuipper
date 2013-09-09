@@ -27,6 +27,7 @@ import Monad.Modules
 
 import System.IO
 
+import Control.Exception
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
@@ -163,15 +164,9 @@ run_interactive opts ctx buffer = do
             [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
-                                    (v, t) <- case a of
-                                                TBang f _ -> do
-                                                  v <- flag_value f
-                                                  t <- pprint_type_noref a
-                                                  return (v, t)
-                                                TForall _ _ _ b@(TBang f _) -> do
-                                                  v <- flag_value f
-                                                  t <- pprint_type_noref b
-                                                  return (v, t)
+                                    let (f, b) = strip_forall a
+                                    v <- flag_value f
+                                    t <- pprint_type_noref (TBang f b)
                                     nm <- variable_name x
                                     liftIO $ putStr "~ "
                                     case v of
@@ -248,9 +243,14 @@ run_interactive opts ctx buffer = do
                                           liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                                       Nothing ->
                                           throwQ $ ProgramError $ "not in scope: " ++ show x
+                                
+                                Just _ -> do
+                                    throw $ ProgramError "run_interactive: impossible case"
 
                                 Nothing ->
                                     liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
+
+                                
 
                 run_interactive opts ctx []
  
@@ -291,9 +291,7 @@ exit ctx = do
   -- List all the non-duplicable variables
   ndup <- IMap.foldWithKey (\x a rec -> do
                               ndup <- rec
-                              v <- case a of
-                                     TBang n _ -> flag_value n
-                                     TForall _ _ _ (TBang n _) -> flag_value n
+                              v <- flag_value (top_flag a)
                               case v of
                                 Zero -> do 
                                     n <- variable_name x

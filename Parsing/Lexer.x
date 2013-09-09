@@ -322,5 +322,5 @@ mylex filename contents = do
                            TkError _ -> True
                            _ -> False) tokens of
     Just (TkError (ex, s)) -> throwQ $ LexicalError s ex
-    Nothing -> return tokens 
+    _ -> return tokens 
 }

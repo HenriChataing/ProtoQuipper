@@ -36,6 +36,7 @@ import Monad.QuipperError
 import System.Directory
 import System.FilePath.Posix
 
+import Control.Exception
 import Data.List as List
 import Data.Map as Map
 import Data.IntMap as IMap
@@ -92,6 +93,8 @@ find_in_directories mod@(initial:rest) directories extension = do
         -- Several implementations found
         throwQ $ DuplicateImplementation mod m1 m2
 
+find_in_directories "" directories extension = do
+  throw $ ProgramError "find_in_directories: empty module name"
 
 -- | Specifically look for the implementation of a module.
 -- Since an implementation is expected, the function fails if no matching
@@ -278,9 +281,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Remove the used AND non duplicable variables from the context
   IMap.foldWithKey (\x a rec -> do
                       ctx <- rec
-                      v <- case a of
-                             TBang n _ -> flag_value n
-                             TForall _ _ _ (TBang n _) -> flag_value n
+                      v <- flag_value (top_flag a)
  
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
@@ -412,16 +413,16 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Remove the variables used by e and non duplicable
   ctx <- IMap.foldWithKey (\x a rec -> do
                       ctx <- rec
-                      v <- case a of
-                             TBang n _ -> flag_value n
-                             TForall _ _ _ (TBang n _) -> flag_value n
+                      v <- flag_value (top_flag a)
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
                             n <- variable_name x
                             
                             return $ ctx { labelling = (labelling ctx) { l_variables = Map.update (\v -> let y = case v of
                                                                                                                    EVar y -> y
-                                                                                                                   EGlobal y -> y in
+                                                                                                                   EGlobal y -> y 
+                                                                                                                   _ -> throw $ ProgramError "process_declaration: internal error"
+                                                                                                                   in
                                                                                                          -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
                                                                                                          if x == y then Nothing else Just v) n $ l_variables (labelling ctx) },
                                            typing = IMap.delete x $ typing ctx,

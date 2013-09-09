@@ -68,7 +68,7 @@ set_qubits q = do
 
 
 
--- | Create a specimen of a given linear type. The quantum addresses of
+-- | Create a specimen of a given linear quantum data type. The quantum addresses of
 -- the specimen range from 0 to /n/-1, /n/ being the number of qubits in the type.
 linspec :: LinType -> QpState Value
 linspec TQubit = do
@@ -85,11 +85,12 @@ linspec (TTensor tlist) = do
 linspec TUnit = do
   return VUnit
 
+linspec _ = throw $ ProgramError "linspec: not a quantum data type"
 
 -- | Like 'linspec', but return a specimen of a type.
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
-
+spec (TForall _ _ _ _) = throw $ ProgramError "spec: cannot be applied to type schemes"
 
 -- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
 -- of the circuit stack.
