@@ -518,7 +518,7 @@ print_circuit c n =
       return disp
   in
   let (_, disp) = run $ Grid { gsize = 2 * n - 1, columns = [], cut = False } in
-  "\n" ++ disp ++ "\n"
+  if disp == "" then "\n" else "\n" ++ disp ++ "\n"
 
 
 -- | Pretty printing of a circuit. The function first makes all the necessary bindings
