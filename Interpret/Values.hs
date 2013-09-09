@@ -99,3 +99,5 @@ instance Eq Value where
       False
   (==) (VDatacon dcon v) (VDatacon dcon' v') = (dcon == dcon') && (v == v')
   (==) _ _ = throw $ ProgramError "Value:==: illegal argument"
+
+

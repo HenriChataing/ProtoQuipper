@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 -- | This module provides an interface to the type inference and unification algorithms. It introduces functions to
 -- parse and process modules, and deal with module dependencies.
 module Typing.Driver where
@@ -483,9 +485,8 @@ process_module opts prog = do
   datas <- return $ Map.difference (l_datacons $ labelling ctx) datas
   typs <- return $ Map.difference (l_types $ labelling ctx) typs
 
-
   -- Push the definition of the new module to the stack
-  newmod <- return $ Mod { m_variables = Map.map (\(EVar id) -> id) vars,
+  newmod <- return $ Mod { m_variables = Map.map unvar vars,
                            m_datacons = datas,
                            m_types = Map.map (\(TBang _ (TUser id _)) -> id) typs }
   ctx <- get_context
@@ -493,6 +494,11 @@ process_module opts prog = do
 
   -- Return
   return newmod
+
+  where
+      unvar (EVar id) = id
+      unvar _ = throw $ ProgramError "process_module: unexpected non-variable expression"
+      
 
 
 -- ==================================== --

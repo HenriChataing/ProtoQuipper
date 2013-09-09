@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 -- | This module provides functions that manipulate constraint sets, for the most part to reduce them. 
 module Typing.Subtyping where
 

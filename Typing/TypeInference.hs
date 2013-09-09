@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 -- | This module implements the constraint typing algorithm and the unification algorithm.
 module Typing.TypeInference where
 
@@ -871,12 +873,16 @@ unify_with_poset exact poset (lc, fc) = do
                           return ()) (return ()) cx
 
             -- Rewrite and reduce the atomic constraints
-            atomx' <- List.foldl (\rec (Sublintype (TVar x) (TVar y) info) -> do
-                                    atom <- rec
-                                    xt <- appmap x
-                                    yt <- appmap y
-                                    atom' <- break_composite True ([Sublintype xt yt info], [])
-                                    return $ atom' <> atom) (return emptyset) atomx
+            atomx' <- List.foldl (\rec constraint -> do
+                                    case constraint of
+                                      Sublintype (TVar x) (TVar y) info -> do
+                                        atom <- rec
+                                        xt <- appmap x
+                                        yt <- appmap y
+                                        atom' <- break_composite True ([Sublintype xt yt info], [])
+                                        return $ atom' <> atom
+                                      _ -> throw $ ProgramError "unify_with_poset: bad constraint"
+                                 ) (return emptyset) atomx
 
             -- Rewrite and reduce the semi composite constraints
             cset' <- List.foldl (\rec c -> do

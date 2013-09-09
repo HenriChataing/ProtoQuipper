@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 -- | This module processes the surface syntax and translates it into the internal syntax. This includes: processing of type definitions, with inference of
 -- the type properties (subtyping, qdata type); translation of the body (with scope analysis, generation of the export list, linking with the interface); some
 -- functions to convert the syntax to raw Proto-Quipper code.
@@ -268,7 +270,10 @@ unfold_all names = do
   -- If any has been changed, go for another round, else
   -- end
   ctx <- get_context
-  (finish, ctx) <- List.foldl (\rec (n, Left spec, after) -> do
+  (finish, ctx) <- List.foldl (\rec (n, s, after) -> do
+                                 let spec = case s of
+                                       Left spec -> spec
+                                       _ -> throw $ ProgramError "unfold_all: bad spec"
                                  (b, ctx) <- rec
                                  (a, a', subt) <- return $ d_subtype spec
                                  before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
@@ -301,7 +306,10 @@ define_user_subtyping dblock = do
   -- Initialize the constraint set of each user type
   List.foldl (\rec n -> do
                 rec
-                Left spec <- type_spec n
+                s <- type_spec n
+                let spec = case s of
+                      Left spec -> spec
+                      _ -> throw $ ProgramError "define_user_subtyping: bad spec"
                 -- One version of the unfolded type
                 (a, ufold) <- return $ d_unfolded spec
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'

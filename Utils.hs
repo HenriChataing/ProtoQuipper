@@ -12,6 +12,12 @@ import qualified Data.Map as Map
 import Data.List as List
 
 
+-- | Convert a string to uppercase.
+string_toUpper :: String -> String
+string_toUpper [] = []
+string_toUpper (h:t) = Char.toUpper h : t
+
+
 -- | Convert a digit to the equivalent Unicode subscript character.
 subdigit :: Int -> Char
  -- Subscript digits are \x2080 .. \x2089
@@ -72,8 +78,8 @@ subvar x n =
 -- | Return the name of the module encoded by the file /f/.
 module_of_file :: FilePath -> String
 module_of_file f =
-  let (init:body) = (P.dropExtension . P.takeFileName) f in
-  (Char.toUpper init):body
+  let name = (P.dropExtension . P.takeFileName) f in
+  string_toUpper name
 
 
 -- | Input a list of sets, and output the set of those elements that

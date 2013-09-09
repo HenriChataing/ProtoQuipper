@@ -51,7 +51,8 @@ data QError =
   | NotFunctionError String                                                               -- ^ During execution, something not a function has been applied to an argument.
   | MatchingError String String                                                           -- ^ During execution, a pattern and a value from a binding (let, fun, match) are found to have
                                                                                           -- non-matching structures.
- 
+  | BuiltinError String String                                                            -- ^ A built-in operation is applied to a value of the wrong type. The first argument is the name of the built-in operator, and the second is what was expected, e.g. \"an integer\".
+    
 -- TYPING ERRORS
 
   | TypingError String String                                                             -- ^ Typing error, but missing detailed information. The goal is to have as few of them as possible.
@@ -152,6 +153,9 @@ instance Show QError where
   
   show (MatchingError p q) =
     "Error: can't bind the objects " ++ p ++ " and " ++ q
+
+  show (BuiltinError p q) =
+    "Error: built-in " ++ p ++ " applied to something that is not " ++ q
 
   show (TypingError ta tb) =
     "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
