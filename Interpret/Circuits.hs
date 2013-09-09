@@ -220,9 +220,9 @@ model (Binary s qa qb) =
               Nothing -> error $ "Undefined binary gate " ++ s
             in
   if qa < qb then
-    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, " | ")) [2*qa+1 .. 2*qb-1])
+    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, "|")) [2*qa+1 .. 2*qb-1])
   else
-    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, " | ")) [2*qb+1 .. 2*qa-1])
+    (2*qa, fst sym):(2*qb, snd sym):(List.map (\l -> (l, "|")) [2*qb+1 .. 2*qa-1])
 
 model (Unary s q) =
   let sym = case List.lookup s unary_gates of
@@ -232,18 +232,18 @@ model (Unary s q) =
   [(2 * q, sym)]
 
 model (Phase n q) =
-  [(2 * q, "-R-")]
+  [(2 * q, "R" ++ show n)]
 
 model (Controlled g qlist) =
   let pg = model g in
   let (qmin, _) = List.minimum pg
       (qmax, _) = List.maximum pg in
   let (_, _, m) = List.foldl (\(qmn, qmx, mod) (q,sign) ->
-                               let ctrl = if sign then "-*-" else "-o-" in
+                               let ctrl = if sign then "*" else "o" in
                                if 2*q < qmn then
-                                 (2*q, qmx, (2*q, ctrl):(List.map (\l -> (l, " | ")) [2*q+1 .. qmn-1] ++ mod))
+                                 (2*q, qmx, (2*q, ctrl):(List.map (\l -> (l, "|")) [2*q+1 .. qmn-1] ++ mod))
                                else if qmx < 2*q then
-                                 (qmn, 2*q, (2*q, ctrl):(List.map (\l -> (l, " | ")) [qmx+1 .. 2*q-1] ++ mod))
+                                 (qmn, 2*q, (2*q, ctrl):(List.map (\l -> (l, "|")) [qmx+1 .. 2*q-1] ++ mod))
                                else
                                  (qmn, qmx, List.map (\(l, s) -> if l == 2*q then (l, ctrl) else (l, s)) mod)) (qmin, qmax, pg) qlist in
   m
@@ -331,7 +331,8 @@ singleton_circuit g =
 -- associating each line to its content. The map need not be complete, and missing lines
 -- will be considered as empty spaces.
 data Column = Col {
-  chars :: Map Int String  -- ^ Line by line representation of the column.
+  chars :: Map Int String,  -- ^ Line by line representation of the column.
+  width :: Int              -- ^ The column width (at minimum 3).
 }
 
 
@@ -386,17 +387,27 @@ set_grid gr =
   GrState (\_ -> (gr, ()))
 
 
--- | Print a \"character\" (in fact, three) at the coordinates (/line/, /column/) in the grid.
+-- | Print a \"character\" at the coordinates (/line/, /column/) in the grid.
 print_at :: Int -> Int -> String -> GrState ()
 print_at l n s = do
   gr <- get_grid
-  let cols = columns gr
-  let cols' = at n cols
+  cols' <- return $ at n $ columns gr
   set_grid $ gr { columns = cols' }
   where 
     at _ [] = []
-    at 0 (c:cs) = c { chars = Map.insert l s $ chars c }:cs
+    at 0 (c:cs) = c { chars = Map.insert l s $ chars c, width = max (width c) (List.length s) }:cs
     at n (c:cs) = c:(at (n-1) cs)
+
+-- | Produce a string of n white spaces.
+nspaces :: Int -> String
+nspaces n =
+  List.replicate n ' '
+
+-- | Produce a string of n dashes.
+ndashes :: Int -> String
+ndashes n =
+  List.replicate n '-'
+
 
 
 -- | Print /n/ characters on different lines of the same column.
@@ -414,7 +425,7 @@ print_multi ls = do
         set_grid $ gr { cut = True }
       else do
         -- Ok : create the column
-        nc <- return $ Col { chars = fromList ls }
+        nc <- return $ Col { chars = fromList ls, width = List.maximum $ List.map (List.length . snd) ls }
         set_grid $ gr { columns = nc:(columns gr) }
 
     else
@@ -440,7 +451,7 @@ output_line input l = do
   gr <- get_grid
   -- First characters of the line
   init <- if input then
-            return ("---", True)
+            return ("---  w" ++ show (l `quot` 2), True)
           else
             return ("   ", False)
   
@@ -451,29 +462,35 @@ output_line input l = do
                                            -- If this column contains an init char on this line, the line is allocated
                                            -- If it is a term char, it is deallocated
                                            -- If it is a vertical wire, and if the line is allocated, fill in the gaps
-                                           Just sm -> if isSuffixOf "|-" sm then
-                                                        return (s ++ sm, True)
-                                                      else if isPrefixOf "-|" sm then
-                                                        return (s ++ sm, False)
-                                                      else if sm == " | " && alloc then
-                                                        return (s ++ "-|-", True)
-                                                      else
-                                                        return (s ++ sm, alloc)
+                                           Just sm -> do
+                                               lpad <- return $ (width c - List.length sm) `quot` 2
+                                               rpad <- return (width c - List.length sm - lpad)
+                                               if isSuffixOf "|-" sm then
+                                                 return (nspaces lpad ++ sm ++ ndashes rpad ++ s, False)
+                                               else if isPrefixOf "-|" sm then
+                                                 return (ndashes lpad ++ sm ++ nspaces rpad ++ s, True)
+                                               else if alloc then
+                                                 return (ndashes lpad ++ sm ++ ndashes rpad ++ s, alloc)
+                                               else
+                                                 return (nspaces lpad ++ sm ++ nspaces rpad ++ s, alloc)
 
-                                           Nothing -> if alloc then
-                                                        return (s ++ "---", alloc)
-                                                      else
-                                                        return (s ++ "   ", alloc)
+                                           Nothing -> do
+                                               if alloc then
+                                                 return (ndashes (width c) ++ s, alloc)
+                                               else
+                                                 return (nspaces (width c) ++ s, alloc)
       
                            -- Printing wires
                            if alloc then
-                             return (s ++ "---", alloc)
+                             return ("---" ++ s, alloc)
                            else
-                             return (s ++ "   ", alloc)) (return init) $ columns gr
+                             return ("   " ++ s, alloc)) (return init) $ columns gr
 
-  -- If the circuit was cut, add some dots..., if not just return the line
+  -- If the circuit was cut, add some dots ..., if not just return the line
   if cut gr && alloc then
-    return $ s ++ " .."
+    return $ ".. " ++ s
+  else if cut gr then
+    return $ "   " ++ s
   else
     return s
 
@@ -485,7 +502,7 @@ print_circuit :: Circuit -> Int -> String
 print_circuit c n =
   let GrState run = do
       -- Print the gates
-      List.foldl (\rec g -> do
+      List.foldr (\g rec -> do
                     rec
                     print_gate g) (return ()) $ gates c
       -- Output the grid
@@ -493,7 +510,7 @@ print_circuit c n =
       disp <- List.foldl (\rec l -> do
                             s <- rec
                             input <- if l `mod` 2 == 0 then
-                                       return $ List.elem (l `quot` 2) $ qIn c
+                                       return $ List.elem (l `quot` 2) $ qOut c
                                      else
                                        return False
                             pl <- output_line input l
