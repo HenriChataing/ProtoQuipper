@@ -24,10 +24,20 @@ import Control.Exception
 import Data.List as List
 import Data.Map (Map)
 
+-- ----------------------------------------------------------------------
+-- * General
+
 -- | The type of term and type variables. Each term or type variable is represented by a unique integer id.
 type Variable = Int
 
+-- | Like term and type variables, data constructors are attributed unique ids.
+type Datacon = Int
 
+-- ----------------------------------------------------------------------
+-- * Types
+
+-- ----------------------------------------------------------------------
+-- ** Flags
 
 -- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three values are reserved:
 --
@@ -52,6 +62,20 @@ zero :: RefFlag
 zero = 0
 
 
+
+instance PPrint RefFlag where
+  genprint _ f _ = pprint f
+
+  sprintn _ 0 = ""
+  sprintn _ 1 = "!"
+  sprintn _ (-1) = ""
+  sprintn _ (-2) = "?"
+  sprintn _ n = supervar '!' n
+
+  sprint n = sprintn defaultLvl n
+  pprint n = sprintn Inf n
+
+
 -- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except
 -- for some that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
@@ -67,7 +91,8 @@ data FlagInfo = FInfo {
   value :: FlagValue                              -- ^ The value of the flag.
 }
 
-
+-- ----------------------------------------------------------------------
+-- ** Types
 
 -- $ The definition of types distinguishes between /linear types/ and
 -- /types/.  Linear types are never duplicable, whereas types are
@@ -141,150 +166,6 @@ is_user_lintype _ = False
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
 
-
-
--- | An algebraic data type definition.
-data Typedef = Typedef {
-  d_args :: Int,                                             -- ^ The number of type arguments required.
-
-  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
-                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
-                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
-
-  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
-                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
-
-  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
-                                                             -- is automatically inferred during the translation into the core syntax.
-}
-
-
-
--- | A type synonym definition, e.g., @intlist@ = @list int@.
-data Typesyn = Typesyn {
-  s_args :: Int,                                             -- ^ The number of type arguments.
-
-  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
-
-  s_unfolded :: Type                                         -- ^ The unfolded type.
-
-  -- No subtyping relation is required, since the synonyms are automatically replaced.
-}
-
-
--- | Like term and type variables, data constructors are attributed unique ids.
-type Datacon = Int
-
-
--- | A core pattern.  The definition is largely the same as that of
--- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
--- difference lies in variables, which are now represented by ids.
--- Although the syntax of Proto-Quipper does not make use of patterns,
--- keeping them as syntactic sugar reduces the number of variables,
--- since the desugaring process produces new variables, one for each
--- pair in the pattern. Here is how these patterns could be desugared:
--- 
--- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
--- >
--- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
--- >                               Otherwise, use the code:
--- >                                    let (x, y) = e in
--- >                                    let p = x in
--- >                                    let q = y in
--- >                                    e
--- >                               (and desugar again).
---
--- Note that the expression @let x = e in f@ (where /x/ is a
--- variable), is not syntactic sugar.  It differs from the application
--- @(fun x -> f) e@ by the presence of let-polymorphism.
-data Pattern =
-    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-  | PUnit                                           -- ^ Unit pattern: @()@.
-  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
-  | PInt Int                                        -- ^ Integer pattern.
-  | PVar Variable                                   -- ^ Variable pattern: /x/.
-  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PLocated Pattern Extent                         -- ^ A located pattern.
-  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
-  deriving Show 
-
-
--- | Core patterns are located objects.
-instance Located Pattern where
-  location _ = Nothing
-  locate p _ = p
-  locate_opt p _ = p
-
-  clear_location (PLocated p _) = clear_location p
-  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
-  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
-  clear_location (PConstraint p t) = PConstraint (clear_location p) t
-  clear_location p = p
-
-instance Constraint Pattern where
-  drop_constraints (PConstraint p _) = drop_constraints p
-  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
-  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
-  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
-  drop_constraints p = p
-
-
--- | The type of variables in a labelling context; these can be either
--- local or global.
-data LVariable =
-    LVar Variable       -- ^ Variable: /x/.
-  | LGlobal Variable    -- ^ Global variable from the imported modules.
-
-
--- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
--- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
--- more variables that are duplicable anyway.
-data Expr =
--- STLC
-    EVar Variable                                 -- ^ Variable: /x/.
-  | EGlobal Variable                              -- ^ Global variable from the imported modules.
-  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
-  | EApp Expr Expr                                -- ^ Function application: @t u@.
-
--- Introduction of the tensor
-  | EUnit                                         -- ^ Unit term: @()@.
-  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
-
--- Custom union types
-  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
-  | EInt Int                                      -- ^ Integer constant.
-  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
-  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
-  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
-
--- Quantum rules
-  | EBox Type                                     -- ^ The constant @box[T]@.
-  | EUnbox                                        -- ^ The constant @unbox@.
-  | ERev                                          -- ^ The constant @rev@.
-
--- Unrelated
-  | ELocated Expr Extent                          -- ^ A located expression.
-  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
-  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
-  deriving Show
-
-
-
-instance PPrint RefFlag where
-  genprint _ f _ = pprint f
-
-  sprintn _ 0 = ""
-  sprintn _ 1 = "!"
-  sprintn _ (-1) = ""
-  sprintn _ (-2) = "?"
-  sprintn _ n = supervar '!' n
-
-  sprint n = sprintn defaultLvl n
-  pprint n = sprintn Inf n
-
-
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
 -- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
 -- The only purpose of this class is to overload the functions listed below.
@@ -357,6 +238,94 @@ instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
 
 
+-- ----------------------------------------------------------------------
+-- ** Data type definitions
+
+-- | An algebraic data type definition.
+data Typedef = Typedef {
+  d_args :: Int,                                             -- ^ The number of type arguments required.
+
+  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
+                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
+                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
+
+  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
+                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
+
+  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+                                                             -- is automatically inferred during the translation into the core syntax.
+}
+
+-- ----------------------------------------------------------------------
+-- ** Type synonyms
+
+-- | A type synonym definition, e.g., @intlist@ = @list int@.
+data Typesyn = Typesyn {
+  s_args :: Int,                                             -- ^ The number of type arguments.
+
+  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
+
+  s_unfolded :: Type                                         -- ^ The unfolded type.
+
+  -- No subtyping relation is required, since the synonyms are automatically replaced.
+}
+
+-- ----------------------------------------------------------------------
+-- * Patterns
+
+-- | A core pattern.  The definition is largely the same as that of
+-- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
+-- difference lies in variables, which are now represented by ids.
+-- Although the syntax of Proto-Quipper does not make use of patterns,
+-- keeping them as syntactic sugar reduces the number of variables,
+-- since the desugaring process produces new variables, one for each
+-- pair in the pattern. Here is how these patterns could be desugared:
+-- 
+-- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
+-- >
+-- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
+-- >                               Otherwise, use the code:
+-- >                                    let (x, y) = e in
+-- >                                    let p = x in
+-- >                                    let q = y in
+-- >                                    e
+-- >                               (and desugar again).
+--
+-- Note that the expression @let x = e in f@ (where /x/ is a
+-- variable), is not syntactic sugar.  It differs from the application
+-- @(fun x -> f) e@ by the presence of let-polymorphism.
+data Pattern =
+    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
+  | PUnit                                           -- ^ Unit pattern: @()@.
+  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Int                                        -- ^ Integer pattern.
+  | PVar Variable                                   -- ^ Variable pattern: /x/.
+  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PLocated Pattern Extent                         -- ^ A located pattern.
+  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
+  deriving Show 
+
+
+-- | Core patterns are located objects.
+instance Located Pattern where
+  location _ = Nothing
+  locate p _ = p
+  locate_opt p _ = p
+
+  clear_location (PLocated p _) = clear_location p
+  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
+  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
+  clear_location (PConstraint p t) = PConstraint (clear_location p) t
+  clear_location p = p
+
+instance Constraint Pattern where
+  drop_constraints (PConstraint p _) = drop_constraints p
+  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
+  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
+  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
+  drop_constraints p = p
+
 instance Param Pattern where
   free_var (PVar x) = [x]
   free_var (PDatacon _ Nothing) = []
@@ -367,6 +336,42 @@ instance Param Pattern where
   free_var _ = []
 
   subs_var _ _ p = p
+
+-- ----------------------------------------------------------------------
+-- * Expressions
+
+-- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
+-- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
+-- more variables that are duplicable anyway.
+data Expr =
+-- STLC
+    EVar Variable                                 -- ^ Variable: /x/.
+  | EGlobal Variable                              -- ^ Global variable from the imported modules.
+  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
+  | EApp Expr Expr                                -- ^ Function application: @t u@.
+
+-- Introduction of the tensor
+  | EUnit                                         -- ^ Unit term: @()@.
+  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
+
+-- Custom union types
+  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
+  | EInt Int                                      -- ^ Integer constant.
+  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
+  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+
+-- Quantum rules
+  | EBox Type                                     -- ^ The constant @box[T]@.
+  | EUnbox                                        -- ^ The constant @unbox@.
+  | ERev                                          -- ^ The constant @rev@.
+
+-- Unrelated
+  | ELocated Expr Extent                          -- ^ A located expression.
+  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
+  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
+  deriving Show
 
 
 instance Param Expr where
@@ -435,7 +440,8 @@ is_value EUnit = True
 
 is_value _ = False
 
-
+-- ----------------------------------------------------------------------
+-- * Subtyping constraints
 
 -- | Information about a constraint. This includes the original
 -- expression, location, and orientation (which side of the constraint
@@ -753,4 +759,14 @@ generalize_type typ (limtype, limflag) cset =
   -- to the type before generalizing, but later
   TForall fft' fvt' cset typ
 
+
+-- ----------------------------------------------------------------------
+-- * Labelling context
+
+
+-- | The type of variables in a labelling context; these can be either
+-- local or global.
+data LVariable =
+    LVar Variable       -- ^ Variable: /x/.
+  | LGlobal Variable    -- ^ Global variable from the imported modules.
 
