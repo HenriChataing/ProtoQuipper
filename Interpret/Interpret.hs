@@ -90,7 +90,6 @@ linspec _ = throw $ ProgramError "linspec: not a quantum data type"
 -- | Like 'linspec', but return a specimen of a type.
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
-spec (TForall _ _ _ _) = throw $ ProgramError "spec: cannot be applied to type schemes"
 
 -- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
 -- of the circuit stack.
@@ -433,11 +432,7 @@ interpret _ ERev = do
   return VRev
 
 interpret _ (EBox typ) = do
-  case typ of
-    TForall _ _ _ typ ->
-        return (VBox typ)
-    _ ->
-        return (VBox typ)
+  return (VBox typ)
 
 -- Variables
 interpret env (EVar x) = do

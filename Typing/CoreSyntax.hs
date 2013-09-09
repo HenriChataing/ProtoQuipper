@@ -99,33 +99,32 @@ data LinType =
 
 
 -- | The type of type expressions, which are linear types annotated
--- with a flag. This data type also includes /type schemes/, which
--- are used for polymorphism.
+-- with a flag.
 data Type =
-    TBang RefFlag LinType                                  -- ^ The type @!^n A@.
-  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A type scheme. This is a type with universally quantified type variables /a/1, ..., /a//n/ and
-                                                           -- flags /f/1, ..., /f//k/, which must satisfy a set of constraints /L/.
+    TBang RefFlag LinType      -- ^ The type @!^n A@.
+  deriving Show
+    
+           
+-- | The type of type schemes. A /type scheme/ is a type expression
+-- together with universally quantified type variables /a/1, ...,
+-- /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set of
+-- constraints /L/.
+data TypeScheme =
+  TForall [RefFlag] [Variable] ConstraintSet Type
   deriving Show
 
 
--- | Return the top-level annotation flag of a 'Type'.
-top_flag :: Type -> RefFlag  
-top_flag (TBang f _) = f
-top_flag (TForall _ _ _ t) = top_flag t
-
-
--- | String the quantifiers from a 'Type'.
-strip_forall :: Type -> (RefFlag, LinType)
-strip_forall (TBang f t) = (f, t)
-strip_forall (TForall _ _ _ t) = strip_forall t
-
+-- | Convert a type to a trivial type scheme, i.e., without adding
+-- quantifiers or constraints.
+typescheme_of_type :: Type -> TypeScheme
+typescheme_of_type t = TForall [] [] emptyset t
 
 -- | Remove the flag annotation from a type, returning a linear type.
 -- This function does not make sense on typing schemes, and can only
 -- be applied to types. It is an error to do otherwise.
 no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
-no_bang (TForall _ _ _ _) = throw $ ProgramError "no_bang: cannot be applied to a type scheme"
+
 
 -- | Check whether a linear type uses algebraic data types.
 is_user_lintype :: LinType -> Bool
@@ -141,7 +140,6 @@ is_user_lintype _ = False
 -- scheme.
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
-is_user_type (TForall _ _ _ _) = throw $ ProgramError "is_user_type: cannot be applied to a type scheme"
 
 
 
@@ -335,12 +333,9 @@ instance KType LinType where
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
-  free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
-  subs_typ_var a b (TForall _ _ _ _) = throw $ ProgramError "Type:subs_typ_var: cannot be applied to a type scheme"
 
   free_flag (TBang n t) = List.insert n (free_flag t)
-  free_flag (TForall _ _ _ _) = throw $ ProgramError "Type:free_flag: cannot be applied to a type scheme"
   
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
@@ -348,19 +343,11 @@ instance KType Type where
       TBang m t'
     else
       TBang p t'
-  subs_flag n m (TForall _ _ _ _) = throw $ ProgramError "Type:subs_flag: cannot be applied to a type scheme"
-  
-
 
 
 -- | Equality of types must take into account alpha equivalence in the polymorphic types.
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
-  -- Normally, the alpha equivalence would have to be checked. However, it may
-  -- be useless as: this function is never used, the generic instance is always the same, never
-  -- changed.
-  (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
-  (==) _ _ = False
 
 
 instance Param Pattern where
@@ -745,7 +732,7 @@ instance KType ConstraintSet where
 
 -- | Generalize a type, associated with constraints, over its free variables and flags.
 -- The free variables of the type are those that are greater or equal to a limit type\/flag.
-generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> Type
+generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> TypeScheme
 generalize_type typ (limtype, limflag) cset =
   -- Free variables and flags of the type
   let fvt = free_typ_var typ

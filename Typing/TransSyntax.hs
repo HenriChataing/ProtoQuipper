@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
-
 -- | This module processes the surface syntax and translates it into the internal syntax. This includes: processing of type definitions, with inference of
 -- the type properties (subtyping, qdata type); translation of the body (with scope analysis, generation of the export list, linking with the interface); some
 -- functions to convert the syntax to raw Proto-Quipper code.
@@ -313,7 +311,10 @@ define_user_subtyping dblock = do
                 -- One version of the unfolded type
                 (a, ufold) <- return $ d_unfolded spec
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'
-                (a', ufold') <- List.foldr (\(TBang n (TVar x)) rec -> do
+                (a', ufold') <- List.foldr (\(TBang n t) rec -> do
+                                              let x = case t of 
+                                                     TVar x -> x
+                                                     _ -> throw $ ProgramError "define_user_subtyping: non-atomic constraint"
                                               (a', ufold') <- rec
                                               b@(TBang m (TVar y)) <- new_type
                                               ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_typ_var x (TVar y) typ)) ufold'
@@ -384,8 +385,6 @@ is_qdata_lintype _ _ =
 is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
   is_qdata_lintype a names 
-is_qdata_type (TForall _ _ _ _) names = 
-  throw $ ProgramError "is_qdata_type: cannot be applied to a type scheme"
 
 
 -- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
@@ -425,8 +424,11 @@ define_user_properties dblock = do
                          Left spec <- type_spec n
                          -- Replace the arguments by qubit in the unfolded definition
                          argtyps <- return $ List.map (\(_, argtyp) ->
-                                                         List.foldl (\a (TBang _ (TVar x)) ->
-                                                                       subs_typ_var x TQubit a) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
+                                                         List.foldl (\a (TBang _ t) ->
+                                                                      case t of
+                                                                        TVar x -> subs_typ_var x TQubit a
+                                                                        _ -> throw $ ProgramError "define_user_properties"
+                                                                    ) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
                          -- Check each of the types for quantum data types
                          (b, deps) <- List.foldl (\rec a -> do
                                                     (b, deps) <- rec
@@ -895,8 +897,6 @@ unfold_tensors :: Type -> QpState Type
 unfold_tensors (TBang n a) = do
   a' <- unfold_tensors_in_lintype a
   return $ TBang n a'
-unfold_tensors (TForall _ _ _ _) = do
-  throw $ ProgramError "unfold_tensors: cannot be applied to a type scheme"
 
 
 -- | Transform a pattern \<a, b, c, d\> into \<a, \<b, \<c, d\>\>\>.

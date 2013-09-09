@@ -96,10 +96,6 @@ instance PPrint Type where
   genprint lv (TBang n a) _ = 
     throw $ ProgramError "Type:genprint: illegal argument"
 
-  genprint lv (TForall ff fv cst a) opts =
-    "forall [" ++ show (List.length ff) ++ "] [" ++ show (List.length fv) ++ "], [" ++ show (List.length $ fst cst) ++ "," ++ show (List.length $ snd cst) ++ "] => " ++
-     genprint (decr lv) a opts
-
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
   sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
@@ -110,7 +106,17 @@ instance PPrint Type where
   -- Print unto Lvl = default
   sprint a = sprintn defaultLvl a
 
+-- | Printing of type schemes. The generic function 'genprint'
+  -- parameterizes the printing over the display of flag and type
+  -- variables.
+instance PPrint TypeScheme where
+  genprint lv (TForall ff fv cst a) opts =
+    "forall [" ++ show (List.length ff) ++ "] [" ++ show (List.length fv) ++ "], [" ++ show (List.length $ fst cst) ++ "," ++ show (List.length $ snd cst) ++ "] => " ++
+     genprint (decr lv) a opts
 
+  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
+  pprint a = sprintn Inf a
+  sprint a = sprintn defaultLvl a  
 
 
 -- | Printing of patterns. The function 'genprint' parameterizes the printing over the display of data constructors and term

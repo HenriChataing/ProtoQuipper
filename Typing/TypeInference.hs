@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
-
 -- | This module implements the constraint typing algorithm and the unification algorithm.
 module Typing.TypeInference where
 
@@ -388,7 +386,7 @@ constraint_typing gamma (EFun p e) cst = do
   b <- new_type
 
   -- Type the expression e
-  csete <- constraint_typing (gamma_p <+> gamma) e [b]
+  csete <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma) e [b]
 
   -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
@@ -477,7 +475,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
   csett <- case rec of
              Recursive -> do
                  -- Add the bindings of the pattern into gamma_fvt
-                 constraint_typing (gamma_p <+> gamma_t) t [a]
+                 constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_t) t [a]
 
              Nonrecursive -> do
                  -- If not recursive, do nothing
@@ -493,7 +491,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
     -- Apply the substitution produced by the unification of csett to the context gamma_u
     gamma_u <- IMap.foldWithKey (\x a rec -> do
                                    m <- rec
-                                   a' <- map_type a
+                                   a' <- map_typescheme a
                                    return $ IMap.insert x a' m) (return IMap.empty) gamma_u
 
     -- Apply the substitution to the context gamma_p
@@ -542,7 +540,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
   -- If it is not a VALUE (for example a function application), it is given a simple type
   else do
     -- Type u - The constraints on the type of the let are transfered to the type of u
-    csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
+    csetu <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_u) u cst
     
     -- Generate the flag constraints for the intersection
     disunion <- return $ linear_union [fvt, fvu]
@@ -592,11 +590,8 @@ constraint_typing gamma (EDatacon dcon e) cst = do
 
         return $ ((u <:: cst) & info) <> csete <> csetd
 
-    (TForall _ _ _ _, _) -> 
-        throw $ ProgramError "constraint_typing: type scheme not allowed"
-        
     (TBang _ _, Just _) ->
-        throw $ ProgramError "unimplemented case"
+        throw $ ProgramError "constraint_typing: ill-typed data constructor"
 
 -- Match typing rule
 --
@@ -608,7 +603,7 @@ constraint_typing gamma (EDatacon dcon e) cst = do
 --
 
 constraint_typing gamma (EMatch e blist) cst = do
-  -- Extract the free type variables of e one the one part, and the bindings on the other part 
+  -- Extract the free type variables of e and of the bindings
   fve <- return $ free_var e
   fvlist <- List.foldl (\rec (p, f) -> do
                           r <- rec
@@ -624,7 +619,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 
                                      -- Type the associated expression, with the same constraints cst as the original expression
                                      -- Refer to the case of 'if' for more clarity.
-                                     csetf <- constraint_typing (gamma_p <+> gamma_bl) f cst
+                                     csetf <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_bl) f cst
 
                                      -- The type of the expression e must be a subtype of the type of the pattern must
                                      return $ (a:ar, csetp <> csetf <> cset)) (return ([], emptyset)) blist
@@ -736,8 +731,6 @@ duplicate_type (TBang _ t) = do
   n <- fresh_flag
   t' <- duplicate_lintype t
   return $ TBang n t'
-duplicate_type (TForall _ _ _ _) = do
-  throw $ ProgramError "duplicate_type: cannot be applied to a type scheme"
 
 -- | Create a duplicate version of a type, and map the argument type variable to it.
 -- The first type is assumed to be of the form !^/n/ /x/, where /x/ is a type variable.

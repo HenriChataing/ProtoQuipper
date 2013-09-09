@@ -1,7 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
-
 -- | This module provides an interface to the type inference and unification algorithms. It introduces functions to
--- parse and process modules, and deal with module dependencies.
+-- parse and process modules, and to deal with module dependencies.
 module Typing.Driver where
 
 import Classes
@@ -260,7 +258,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Apply the substitution produced by the unification to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
                                m <- rec
-                               a' <- map_type a
+                               a' <- map_typescheme a
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- If interpretation, interpret, and display the result
@@ -283,7 +281,8 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Remove the used AND non duplicable variables from the context
   IMap.foldWithKey (\x a rec -> do
                       ctx <- rec
-                      v <- flag_value (top_flag a)
+                      let (TForall _ _ _ (TBang f _)) = a
+                      v <- flag_value f
  
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
@@ -322,7 +321,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   csete <- case recflag of
              Recursive -> do
                  -- Add the bindings of the pattern into gamma_e
-                 constraint_typing (gamma_p <+> gamma_e) e' [a]
+                 constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_e) e' [a]
              Nonrecursive -> do
                  -- If not recursive, do nothing
                  constraint_typing gamma_e e' [a]
@@ -334,7 +333,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Apply the substitution produced by the unification of csett to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
                                m <- rec
-                               a' <- map_type a
+                               a' <- map_typescheme a
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- Map the types of the pattern
@@ -373,7 +372,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
   -- If the expression is not a value, it has a classical type
   else
-    return gamma_p
+    return (IMap.map typescheme_of_type gamma_p)
     
 
   if disp_decls mopts && toplevel mopts then
@@ -385,14 +384,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                           TForall _ _ _ a -> do
                               pa <- pprint_type_noref a
                               liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
-                          _ -> do
-                              pa <- pprint_type_noref a
-                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
                         return ()) (return ()) gamma_p
   else
     return ()
 
-  -- Evaluation (even if the module is not top-level, if the general optons want it to be evaluated, then so be it)
+  -- Evaluation (even if the module is not top-level, if the general options want it to be evaluated, then so be it)
   ctx <- if runInterpret opts then do
            -- Reduce the argument e1
            v <- interpret (environment ctx) e'
@@ -415,7 +411,8 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Remove the variables used by e and non duplicable
   ctx <- IMap.foldWithKey (\x a rec -> do
                       ctx <- rec
-                      v <- flag_value (top_flag a)
+                      let (TForall _ _ _ (TBang f _)) = a
+                      v <- flag_value f
                       case (List.elem x fve, v) of
                         (True, Zero) -> do
                             n <- variable_name x
@@ -486,9 +483,9 @@ process_module opts prog = do
   typs <- return $ Map.difference (l_types $ labelling ctx) typs
 
   -- Push the definition of the new module to the stack
-  newmod <- return $ Mod { m_variables = Map.map unvar vars,
+  newmod <- return $ Mod { m_variables = Map.map unEVar vars,
                            m_datacons = datas,
-                           m_types = Map.map (\(TBang _ (TUser id _)) -> id) typs }
+                           m_types = Map.map unTUser typs }
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
 
@@ -496,10 +493,11 @@ process_module opts prog = do
   return newmod
 
   where
-      unvar (EVar id) = id
-      unvar _ = throw $ ProgramError "process_module: unexpected non-variable expression"
+      unEVar (EVar id) = id
+      unEVar _ = throw $ ProgramError "process_module: expected variable expression"
       
-
+      unTUser (TBang _ (TUser id _)) = id
+      unTUser _ = throw $ ProgramError "process_module: expected user type expression"
 
 -- ==================================== --
 -- | A function to do everything!

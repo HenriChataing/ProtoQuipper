@@ -160,7 +160,7 @@ run_interactive opts ctx buffer = do
             [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
-                                    let (f, b) = strip_forall a
+                                    let (TForall _ _ _ (TBang f b)) = a
                                     v <- flag_value f
                                     t <- pprint_type_noref (TBang f b)
                                     nm <- variable_name x
@@ -287,7 +287,8 @@ exit ctx = do
   -- List all the non-duplicable variables
   ndup <- IMap.foldWithKey (\x a rec -> do
                               ndup <- rec
-                              v <- flag_value (top_flag a)
+                              let (TForall _ _ _ (TBang f _)) = a
+                              v <- flag_value f
                               case v of
                                 Zero -> do 
                                     n <- variable_name x

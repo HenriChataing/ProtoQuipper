@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
-
 -- | This module provides functions that manipulate constraint sets, for the most part to reduce them. 
 module Typing.Subtyping where
 
@@ -34,12 +32,18 @@ unfold_user_constraint utyp arg utyp' arg' = do
   (a, a', cset) <- return $ d_subtype spec
 
   -- Replace the arguments a by arg
-  cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
+  cset <- List.foldl (\rec (TBang n t, TBang m b) -> do
+                        let x = case t of 
+                              TVar x -> x
+                              _ -> throw $ ProgramError "unfold_user_constraint: non-atomic constraint"
                         cs <- rec
                         cset <- return $ subs_flag n m cs
                         return $ subs_typ_var x b cset) (return cset) (List.zip a arg)
   -- Replace the arguments a' by arg'
-  cset <- List.foldl (\rec (TBang n (TVar x), TBang m b) -> do
+  cset <- List.foldl (\rec (TBang n t, TBang m b) -> do
+                        let x = case t of 
+                              TVar x -> x
+                              _ -> throw $ ProgramError "unfold_user_constraint: non-atomic constraint"
                         cs <- rec
                         cset <- return $ subs_flag n m cs
                         return $ subs_typ_var x b cset) (return cset) (List.zip a' arg')
@@ -95,12 +99,6 @@ break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt) _):lc, fc) = do
 
 break_composite bu ((Subtype (TBang _ t@(TCirc _ _)) (TBang _ u@(TCirc _ _)) info):lc, fc) = do
   break_composite bu ((Sublintype t u info):lc, fc)
-
-break_composite bu ((Subtype (TForall _ _ _ _) _ _):lc, fc) = do
-  throw $ ProgramError "break_composite: cannot be applied to a type scheme"
-
-break_composite bu ((Subtype _ (TForall _ _ _ _) _):lc, fc) = do
-  throw $ ProgramError "break_composite: cannot be applied to a type scheme"
 
 -- Unit against unit : removed
 break_composite bu ((Sublintype TUnit TUnit _):lc, fc) = do
