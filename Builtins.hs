@@ -17,17 +17,17 @@ import Data.List as List
 -- | Extract an integer from a value, or throw a 'BuiltinError'
 -- otherwise. The second argument is the name of the built-in
 -- operation that should appear in the error message.
-unint :: Value -> String -> Int
-unint (VInt n) _ = n
-unint _ s = throw $ BuiltinError s "an integer"
+unVInt :: Value -> String -> Int
+unVInt (VInt n) _ = n
+unVInt _ s = throw $ BuiltinError s "an integer"
 
 
 -- | Extract a boolean from a value, or throw a 'BuiltinError'
 -- otherwise. The second argument is the name of the built-in
 -- operation that should appear in the error message.
-unbool :: Value -> String -> Bool
-unbool (VBool b) _ = b
-unbool _ s = throw $ BuiltinError s "a boolean"
+unVBool :: Value -> String -> Bool
+unVBool (VBool b) _ = b
+unVBool _ s = throw $ BuiltinError s "a boolean"
 
 
 -- | The type of all unary gates, i.e., @circ (qubit, qubit)@.
@@ -106,18 +106,18 @@ builtin_gates =
                          VCirc (VQubit 0) (singleton_circuit $ Term 1 0) VUnit))] in
 
   let phase = [("PHASE", (TArrow TInt unary_type,
-                          VBuiltin (\n -> VCirc (VQubit 0) (singleton_circuit $ Phase (unint n "PHASE") 0) (VQubit 0)))),
+                          VBuiltin (\n -> VCirc (VQubit 0) (singleton_circuit $ Phase (unVInt n "PHASE") 0) (VQubit 0)))),
                ("CONTROL_PHASE", (TArrow TInt (TArrow TBool binary_type),
                                   VBuiltin (\n -> 
                                              VBuiltin (\sign -> 
                                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                                              (singleton_circuit $ Controlled (Phase (unint n "CONTROL_PHASE") 0) [(1, unbool sign "CONTROL_PHASE")]) 
+                                                              (singleton_circuit $ Controlled (Phase (unVInt n "CONTROL_PHASE") 0) [(1, unVBool sign "CONTROL_PHASE")]) 
                                                               (VTuple [VQubit 0, VQubit 1]))))) ] in
 
   let ceitz = [("CONTROL_GATE_EITZ", (TArrow TBool binary_type,
                                   VBuiltin (\sign ->
                                              VCirc (VTuple [VQubit 0, VQubit 1])
-                                                   (singleton_circuit $ Controlled (Unary "GATE_EITZ" 0) [(1, unbool sign "CONTROL_GATE_EITZ")])
+                                                   (singleton_circuit $ Controlled (Unary "GATE_EITZ" 0) [(1, unVBool sign "CONTROL_GATE_EITZ")])
                                                    (VTuple [VQubit 0, VQubit 1])))) ] in
 
   let unary = List.map (\(g, _) -> (g, (unary_type, unary_value g))) unary_gates in
@@ -126,13 +126,13 @@ builtin_gates =
   let cnot = [("CNOT", (TArrow TBool (TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])),
                              VBuiltin (\sign ->
                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                              (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unbool sign "CNOT")])
+                                              (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unVBool sign "CNOT")])
                                               (VTuple [VQubit 0, VQubit 1])))),
               ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
                              VBuiltin (\sign1 ->
                                         VBuiltin (\sign2 ->
                                                    VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
-                                                         (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unbool sign1 "TOFFOLI"),(2, unbool sign2 "TOFFOLI")])
+                                                         (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unVBool sign1 "TOFFOLI"),(2, unVBool sign2 "TOFFOLI")])
                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ] in
 
   Map.fromList (cnot ++ init ++ term ++ unary ++ phase ++ ceitz ++ binary)
@@ -147,35 +147,35 @@ builtin_gates =
 builtin_operations :: Map String (Type, Value)
 builtin_operations =
   let ops = [ ("ADD", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "ADD" + unint n "ADD"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "ADD" + unVInt n "ADD"))))),
               ("SUB", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "SUB" - unint n "SUB"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "SUB" - unVInt n "SUB"))))),
               ("NEG", (TArrow TInt TInt,
-                       VBuiltin (\m -> VInt (-unint m "NEG")))),
+                       VBuiltin (\m -> VInt (-unVInt m "NEG")))),
               ("MUL", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "MUL" * unint n "MUL"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "MUL" * unVInt n "MUL"))))),
               ("QUOT", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "QUOT" `quot` unint n "QUOT"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "QUOT" `quot` unVInt n "QUOT"))))),
               ("REM", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "REM" `rem` unint n "REM"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "REM" `rem` unVInt n "REM"))))),
               ("DIV", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "DIV" `div` unint n "DIV"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "DIV" `div` unVInt n "DIV"))))),
               ("MOD", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "MOD" `mod` unint n "MOD"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "MOD" `mod` unVInt n "MOD"))))),
               ("POW", (TArrow TInt (TArrow TInt TInt),
-                       VBuiltin (\m -> VBuiltin (\n -> VInt (unint m "POW" ^ unint n "POW"))))),
+                       VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "POW" ^ unVInt n "POW"))))),
               ("LE", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "LE" <= unint n "LE"))))),
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "LE" <= unVInt n "LE"))))),
               ("GE", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "GE" >= unint n "GE"))))),
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "GE" >= unVInt n "GE"))))),
               ("LT", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "LT" < unint n "LT"))))),
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "LT" < unVInt n "LT"))))),
               ("GT", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "GT" > unint n "GT"))))),
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "GT" > unVInt n "GT"))))),
               ("EQ", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "EQ" == unint n "EQ"))))), 
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "EQ" == unVInt n "EQ"))))), 
               ("NE", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unint m "NE" /= unint n "NE")))))
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "NE" /= unVInt n "NE")))))
             ] in
   Map.fromList ops
 
