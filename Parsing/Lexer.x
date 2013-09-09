@@ -51,6 +51,8 @@ tokens :-
   "{"                                 { locate_token TkLCurlyBracket }
   "}"                                 { locate_token TkRCurlyBracket }
 
+  \" .* \"                            { \p s -> TkString (posn_to_extent p s, List.init $ List.tail s) }
+
   and                                 { locate_token TkAnd }
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
@@ -110,6 +112,7 @@ data Token =
   | TkQLId (Extent, String)      -- ^ A qualified lower-case identifier.
   | TkQUId (Extent, String)      -- ^ A qualified upper-case identifier.
   | TkInt (Extent, String)       -- ^ An integer literal. The value of the integer is left unparsed.
+  | TkString (Extent, String)    -- ^ A string: a list of characters delimited by double quotes.
   | TkError (Extent, String)     -- ^ An error token.
 
   -- Reserved notations : list of reserved names
@@ -139,7 +142,7 @@ data Token =
   | TkBuiltin Extent       -- ^ The reserved name \'\#builtin'.
 
   -- Punctuation marks, and other symbols
-  | TkWildcard Extent         -- ^ The symbol \'@_@'.
+  | TkWildcard Extent      -- ^ The symbol \'@_@'.
   | TkStar Extent          -- ^ The symbol \'@\*@'.
   | TkMinus Extent         -- ^ The symbol \'@\-@'.
   | TkBar Extent           -- ^ The symbol \'@|@'.
@@ -182,6 +185,7 @@ instance Show Token where
   show (TkQLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkQUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
+  show (TkString (ex,s)) = "'\"" ++ s ++ "\"' (" ++ show ex ++ ")" 
   show (TkError (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
   show (TkAnd ex) = "'and' (" ++ show ex ++ ")"
@@ -254,6 +258,7 @@ locate_token_in_file f (TkUId (ex, s)) = TkUId (ex { file = f}, s)
 locate_token_in_file f (TkQLId (ex, s)) = TkQLId (ex { file = f }, s)
 locate_token_in_file f (TkQUId (ex, s)) = TkQUId (ex { file = f }, s)
 locate_token_in_file f (TkInt (ex, s)) = TkInt (ex { file = f }, s)
+locate_token_in_file f (TkString (ex, s)) = TkString (ex { file = f }, s)
 locate_token_in_file f (TkError (ex, s)) = TkError (ex { file = f }, s)
 
 locate_token_in_file f (TkAnd ex) = TkAnd ex { file = f }
