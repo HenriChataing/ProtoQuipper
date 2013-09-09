@@ -73,6 +73,7 @@ data QError =
 
 -- MISC
 
+  | UserError String                                                                      -- ^ User errors.
   | MiscError String                                                                      -- ^ Miscellaneous errors. The argument is an error message.
   | ProgramError String                                                                   -- ^ Grave: programming errors, thrown when something that shouldn't have happened did.
   deriving (Typeable)
@@ -192,6 +193,7 @@ instance Show QError where
   show (WrongDataArguments dcon) =
     "the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
 
+  show (UserError msg) = "User error: " ++ msg
   show (MiscError msg) = "Error: " ++ msg
   show (ProgramError msg) = "IMPORTANT: PROGRAM ERROR: " ++ msg
 

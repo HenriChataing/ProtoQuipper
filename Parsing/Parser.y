@@ -54,6 +54,7 @@ import Data.List as List
   BUILTIN { TkBuiltin $$ }
   CIRC { TkCirc $$ }
   ELSE { TkElse $$ }
+  ERROR { TkError $$ }
   FALSE { TkFalse $$ }
   FUN { TkFun $$ }
   IF { TkIf $$ }
@@ -76,6 +77,7 @@ import Data.List as List
   UID { TkUId $$ }
   QLID { TkQLId $$ }
   INT { TkInt $$ }
+  STRING { TkString $$ }
 
 %right "->"
 %right ':'
@@ -233,6 +235,7 @@ Atom_XExpr :
                                                   locate (EQualified mname lid) (fst $1) }
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
+    | ERROR STRING                              { locate (EError (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }

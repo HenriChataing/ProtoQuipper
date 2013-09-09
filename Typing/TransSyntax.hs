@@ -776,6 +776,9 @@ translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
   return $ EConstraint e' (t, l_types label)
 
+translate_expression (S.EError msg) _ =
+  return $ EError msg
+
 
 
 -- | If an interface file is provided, modify the pattern by adding type constraints corresponding to the types
@@ -1110,3 +1113,6 @@ desugar (EBuiltin s) =
   
 desugar (EConstraint e t) =
   return (EConstraint e t)
+
+desugar (EError msg) =
+  return (EError msg)

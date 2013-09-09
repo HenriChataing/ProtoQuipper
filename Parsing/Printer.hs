@@ -32,6 +32,8 @@ instance PPrint Type where
   sprintn lv (TCirc a b) =
     "circ (" ++ sprintn (decr lv) a ++ ", " ++ sprintn (decr lv) b ++ ")"
 
+  sprintn lv (TTensor []) = ""
+
   sprintn lv (TTensor (a:rest)) =
     let dlv = decr lv in
     (case a of
@@ -58,6 +60,10 @@ instance PPrint Type where
               TTensor _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
+
+  sprintn lv (TApp t u) =
+    let dlv = decr lv in
+    sprintn dlv t ++ " " ++ sprintn dlv u
 
   sprintn lv (TLocated a _) = sprintn lv a
 
@@ -113,6 +119,7 @@ instance PPrint Pattern where
 print_doc :: Expr -> Doc
 
 print_doc EUnit = text "()"
+print_doc (EWildcard _) = text "_"
 print_doc (EVar x) = text x
 print_doc (EQualified m x) = text m <> text "." <> text x
 print_doc ERev = text "rev"
@@ -179,6 +186,7 @@ print_doc (EMatch e plist) =
 print_doc (EConstraint e t) = print_doc e
 print_doc (EBuiltin s) = text "#builin" <+> text s
 print_doc (ELocated e _) = print_doc e
+print_doc (EError msg) = text $ "error \"" ++ msg ++ "\""
  
 instance PPrint Expr where
   genprint lv e _ = sprintn lv e
