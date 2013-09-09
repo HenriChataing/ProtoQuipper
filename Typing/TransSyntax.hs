@@ -115,7 +115,7 @@ import qualified Data.IntMap as IMap
 -- | Labelling context: it contains the variable identifiers of all the variables, data constructors,
 -- types in scope.
 data LabellingContext = LblCtx {
-  l_variables :: Map String Expr,
+  l_variables :: Map String LVariable,
   l_datacons :: Map String Datacon,
   l_types :: Map String Type
 }
@@ -610,7 +610,7 @@ translate_unbound_type t label = do
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String Expr)
+translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String LVariable)
 translate_pattern S.PUnit label = do
   return (PUnit, l_variables label)
 
@@ -626,7 +626,7 @@ translate_pattern S.PWildcard label = do
 translate_pattern (S.PVar x) label = do
   ex <- get_location
   id <- register_var x ex
-  return (PVar id, Map.insert x (EVar id) $ l_variables label)
+  return (PVar id, Map.insert x (LVar id) $ l_variables label)
 
 translate_pattern (S.PTuple plist) label = do
   (plist', lbl) <- List.foldr (\p rec -> do
@@ -676,8 +676,11 @@ translate_expression (S.EInt n) _ = do
 
 translate_expression (S.EVar x) label = do
   case Map.lookup x $ l_variables label of
-    Just v -> do
-        return v
+    Just (LVar v) -> do
+        return (EVar v)
+
+    Just (LGlobal v) -> do
+        return (EGlobal v)
 
     Nothing -> do
         throw_UnboundVariable x

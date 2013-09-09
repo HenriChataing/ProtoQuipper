@@ -418,9 +418,8 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                             n <- variable_name x
                             
                             return $ ctx { labelling = (labelling ctx) { l_variables = Map.update (\v -> let y = case v of
-                                                                                                                   EVar y -> y
-                                                                                                                   EGlobal y -> y 
-                                                                                                                   _ -> throw $ ProgramError "process_declaration: internal error"
+                                                                                                                   LVar y -> y
+                                                                                                                   LGlobal y -> y
                                                                                                                    in
                                                                                                          -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
                                                                                                          if x == y then Nothing else Just v) n $ l_variables (labelling ctx) },
@@ -483,7 +482,7 @@ process_module opts prog = do
   typs <- return $ Map.difference (l_types $ labelling ctx) typs
 
   -- Push the definition of the new module to the stack
-  newmod <- return $ Mod { m_variables = Map.map unEVar vars,
+  newmod <- return $ Mod { m_variables = Map.map unLVar vars,
                            m_datacons = datas,
                            m_types = Map.map unTUser typs }
   ctx <- get_context
@@ -493,8 +492,8 @@ process_module opts prog = do
   return newmod
 
   where
-      unEVar (EVar id) = id
-      unEVar _ = throw $ ProgramError "process_module: expected variable expression"
+      unLVar (LVar id) = id
+      unLVar _ = throw $ ProgramError "process_module: leftover global variables"
       
       unTUser (TBang _ (TUser id _)) = id
       unTUser _ = throw $ ProgramError "process_module: expected user type expression"

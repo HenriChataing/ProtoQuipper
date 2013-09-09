@@ -230,6 +230,13 @@ instance Constraint Pattern where
   drop_constraints p = p
 
 
+-- | The type of variables in a labelling context; these can be either
+-- local or global.
+data LVariable =
+    LVar Variable       -- ^ Variable: /x/.
+  | LGlobal Variable    -- ^ Global variable from the imported modules.
+
+
 -- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
 -- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
 -- more variables that are duplicable anyway.

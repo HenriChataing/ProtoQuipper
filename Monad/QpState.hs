@@ -364,14 +364,14 @@ type_name x = do
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
 global_namespace :: [String]                                                     -- ^ A list of module dependencies.
-                 -> QpState (Map String Expr, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
+                 -> QpState (Map String LVariable, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
 global_namespace deps = do
   mods <- get_context >>= return . modules
   List.foldl (\rec m -> do
                 (lblv, lbld, lblt) <- rec
                 case List.lookup m mods of
                   Just mod -> do
-                      vars <- return $ Map.map (\id -> EGlobal id) $ m_variables mod
+                      vars <- return $ Map.map (\id -> LGlobal id) $ m_variables mod
                       typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types mod
                       return (Map.union vars lblv, Map.union (m_datacons mod) lbld, Map.union typs lblt)
 

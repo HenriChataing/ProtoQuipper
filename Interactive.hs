@@ -69,7 +69,7 @@ import_modules opts mnames ctx = do
                       process_module (opts, mopts) p
 
                 -- Insert again the names in the labelling map.
-                vars <- return $ Map.map (\id -> EGlobal id) $ m_variables m
+                vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
                 typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
                 return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
                                                     l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
@@ -225,7 +225,7 @@ run_interactive opts ctx buffer = do
                 List.foldl (\rec n -> do
                               rec
                               case Map.lookup n $ l_variables (labelling ctx) of
-                                Just (EGlobal x) -> do
+                                Just (LGlobal x) -> do
                                     vals <- get_context >>= return . values
                                     case IMap.lookup x vals of
                                       Just v ->
@@ -233,16 +233,13 @@ run_interactive opts ctx buffer = do
                                       Nothing ->
                                           throwQ $ ProgramError $ "not in scope: " ++ show x
 
-                                Just (EVar x) -> do
+                                Just (LVar x) -> do
                                     case IMap.lookup x $ environment ctx of
                                       Just v ->
                                           liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                                       Nothing ->
                                           throwQ $ ProgramError $ "not in scope: " ++ show x
                                 
-                                Just _ -> do
-                                    throw $ ProgramError "run_interactive: impossible case"
-
                                 Nothing ->
                                     liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
