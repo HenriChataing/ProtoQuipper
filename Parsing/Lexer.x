@@ -17,10 +17,10 @@ $up_alpha = [A-Z]
 $alpha = [$low_alpha $up_alpha]
 $digit = [0-9]
 $chars = [$alpha $digit '\_' '\'']
-$infix0 = ['\<' '\>' '\|' '\&' '\$' '\=']
+$infix0 = ['\<' '\>' '\|' '\&' '\$']
 $infix1 = ['\@' '\^']
 $infix2 = ['\+' '\-']
-$infix3 = ['\*' '\/' '\%']
+$infix3 = ['\*' '\/' '\%' '\=']
 $symbolchar = [$infix0 $infix1 $infix2 $infix3 '\%' '\.' '\:']
 
 tokens :-
