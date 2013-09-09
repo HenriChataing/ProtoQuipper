@@ -225,7 +225,31 @@ run_interactive opts ctx buffer = do
                     incs' = incs ++ [dir]
                     opts' = opts { includes = incs' }
                 run_interactive opts' ctx []
-                
+
+            [":value"] -> do
+                List.foldl (\rec n -> do
+                              rec
+                              case Map.lookup n $ l_variables (labelling ctx) of
+                                Just (EGlobal x) -> do
+                                    vals <- get_context >>= return . values
+                                    case IMap.lookup x vals of
+                                      Just v ->
+                                          liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
+                                      Nothing ->
+                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+
+                                Just (EVar x) -> do
+                                    case IMap.lookup x $ environment ctx of
+                                      Just v ->
+                                          liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
+                                      Nothing ->
+                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+
+                                Nothing ->
+                                    liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
+
+                run_interactive opts ctx []
+ 
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
                 run_interactive opts ctx []
@@ -251,7 +275,8 @@ commands = [
   (":path", "Add a directory to the current module path"), 
   (":type", "Show the type of an expression"), 
   (":context", "List the currently declared variables"),
-  (":display", "Display the current toplevel circuit")
+  (":display", "Display the current toplevel circuit"),
+  (":value", "Display the value of a variable (doesn't consume duplicable variables)")
   ]
 
 
