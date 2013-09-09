@@ -171,7 +171,7 @@ import_typedefs dblock label = do
                          -- Type id needed for udpates.
                          id <- case Map.lookup typename typs of
                                  Just (TBang _ (TUser id _)) -> return id
-                                 Nothing -> throwQ $ ProgramError "missing type id"
+                                 _ -> throwQ $ ProgramError "missing type id"
 
                          -- Bind the arguments of the type.
                          -- For each string argument a, a type !n a is created and bound in the map mapargs.
@@ -376,7 +376,8 @@ is_qdata_lintype _ _ =
 is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
   is_qdata_lintype a names 
-
+is_qdata_type (TForall _ _ _ _) names = 
+  throw $ ProgramError "is_qdata_type: cannot be applied to a type scheme"
 
 
 -- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
@@ -652,6 +653,8 @@ translate_pattern (S.PConstraint p t) label = do
 
 -- | Translate an expression, given a labelling map.
 translate_expression :: S.Expr -> LabellingContext -> QpState Expr
+translate_expression (S.EWildcard a) _ = S.absurd a
+
 translate_expression S.EUnit _ = do
   return EUnit
 
@@ -820,6 +823,9 @@ with_interface prog label (PTuple plist) = do
                           return (p':r)) (return []) plist
   return $ PTuple plist
 
+with_interface prog label (PConstraint p t) = do
+  p' <- with_interface prog label  p
+  return (PConstraint p' t)
 
 -- $ All the following functions serve to translate the program implementation and
 -- types into the Proto-Quipper core, meaning without all the syntactic sugar.
@@ -851,6 +857,9 @@ unfold_tensors_in_lintype (TTensor tlist) = do
         n <- fresh_flag
         return $ TTensor [a', TBang n rest']
 
+    _ -> do
+      throw $ ProgramError "unfold_tensors_in_lintype: illegal tensor"
+      
 unfold_tensors_in_lintype TBool =
   return TBool
 
@@ -878,11 +887,15 @@ unfold_tensors :: Type -> QpState Type
 unfold_tensors (TBang n a) = do
   a' <- unfold_tensors_in_lintype a
   return $ TBang n a'
-
+unfold_tensors (TForall _ _ _ _) = do
+  throw $ ProgramError "unfold_tensors: cannot be applied to a type scheme"
 
 
 -- | Transform a pattern \<a, b, c, d\> into \<a, \<b, \<c, d\>\>\>.
 unfold_tuples :: Pattern -> Pattern
+unfold_tuples PWildcard =
+  PWildcard
+
 unfold_tuples (PLocated p ex) =
   PLocated (unfold_tuples p) ex
 
@@ -917,6 +930,11 @@ unfold_tuples (PTuple plist) =
             rest' = unfold_tuples $ PTuple rest in
         PTuple [p', rest']
 
+    _ ->
+        throw $ ProgramError "unfold_tuples: illegal tuple"
+        
+unfold_tuples (PConstraint p t) = 
+  throw $ ProgramError "unfold_tuples: PConstraint not implemented"
 
 -- | Remove the syntactic sugar from an expression.
 -- This function operates on core expressions. As syntactic sugar is removed, new variables are
@@ -968,6 +986,7 @@ desugar (ETuple elist) = do
         return $ ETuple [e', rest']
 
     -- The other cases of empty and sinleton tuples shouldn't appear
+    _ -> throw $ ProgramError "desugar: illegal tuple"
 
 desugar (ELet r p e f) = do
   p' <- return $ unfold_tuples p
@@ -1055,20 +1074,23 @@ desugar (EDatacon dcon (Just e)) = do
 
 desugar (EMatch e blist) = do
   e' <- desugar e
-  blist' <- List.foldr (\(p, f) rec -> do
-                          r <- rec
-                          case p of
-                            PDatacon dcon Nothing -> do
-                                f' <- desugar f
-                                return $ (PDatacon dcon Nothing, f'):r
-
-                            PDatacon dcon (Just p) -> do
-                                x <- dummy_var
-                                f' <- desugar $ ELet Nonrecursive p (EVar x) f
-                                return $ (PDatacon dcon $ Just (PVar x), f'):r) (return []) blist
-
-                            -- The other cases are ignored for now, as syntactic equality hasn't been developed yet
+  blist' <- List.foldr aux (return []) blist
   return $ EMatch e' blist'
+    where 
+      aux (p, f) rec = do
+        r <- rec
+        case p of
+          PDatacon dcon Nothing -> do
+            f' <- desugar f
+            return $ (PDatacon dcon Nothing, f'):r
+
+          PDatacon dcon (Just p) -> do
+            x <- dummy_var
+            f' <- desugar $ ELet Nonrecursive p (EVar x) f
+            return $ (PDatacon dcon $ Just (PVar x), f'):r
+                            
+          -- The other cases are ignored for now, as syntactic equality hasn't been developed yet
+          _ -> throw $ ProgramError "desugar:EMatch: unimplemented case"
 
 desugar (EBox typ) = do
   return $ EBox typ
@@ -1083,3 +1105,8 @@ desugar (ELocated e ex) = do
   e' <- desugar e
   return $ ELocated e' ex 
 
+desugar (EBuiltin s) =
+  return (EBuiltin s)
+  
+desugar (EConstraint e t) =
+  return (EConstraint e t)

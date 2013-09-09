@@ -7,13 +7,15 @@ module Typing.CorePrinter where
 
 import Classes
 import Utils
+import Monad.QuipperError
 
 import Parsing.Syntax (RecFlag (..))
 
 import Typing.CoreSyntax hiding ((<>))
 
-import Text.PrettyPrint.HughesPJ as PP
+import Control.Exception
 import Data.List as List
+import Text.PrettyPrint.HughesPJ as PP
 
 -- | Printing of linear types. The generic function 'genprint' parameterizes the printing
 -- over the display of flags and type variables.
@@ -21,6 +23,8 @@ instance PPrint LinType where
   -- Generic printing
   -- The display of flags and type variables is specified by two option functions
   genprint _ (TVar x) [_, fvar, _] = fvar x
+  genprint _ (TVar x) _ = throw $ ProgramError "LinType:genprint: illegal argument"
+
   genprint _ TUnit _ = "()"
   genprint _ TInt _ = "int"
   genprint _ TBool _ = "bool"
@@ -35,6 +39,7 @@ instance PPrint LinType where
                                        TUser _ [] -> prt
                                        TUser _ _ -> "(" ++ prt ++ ")"
                                        _ -> prt)) "" arg
+  genprint _ (TUser n arg) _ = throw $ ProgramError "LinType:genprint: illegal argument"
 
   genprint (Nth 0) _ _ = "..."
 
@@ -49,6 +54,8 @@ instance PPrint LinType where
                      TBang _ (TArrow _ _) -> "(" ++ genprint dlv b opts ++ ")"
                      TBang _ (TTensor _) -> "(" ++ genprint dlv b opts ++ ")"
                      _ -> genprint dlv b opts)) "" rest
+  genprint lv (TTensor []) opts = 
+    throw $ ProgramError "LinType:genprint: illegal tensor"
 
   genprint lv (TArrow a b) opts =
     let dlv = decr lv in
@@ -60,7 +67,6 @@ instance PPrint LinType where
   genprint lv (TCirc a b) opts =
     let dlv = decr lv in
     "circ(" ++ genprint dlv a opts ++ ", " ++ genprint dlv b opts ++ ")"
-
 
   -- Print unto Lvl = n
   -- By default, the flags are printed using the default pprint function
@@ -87,6 +93,8 @@ instance PPrint Type where
       (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
       (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
       (f, _) -> f ++ genprint (decr lv) a opts
+  genprint lv (TBang n a) _ = 
+    throw $ ProgramError "Type:genprint: illegal argument"
 
   genprint lv (TForall ff fv cst a) opts =
     "forall [" ++ show (List.length ff) ++ "] [" ++ show (List.length fv) ++ "], [" ++ show (List.length $ fst cst) ++ "," ++ show (List.length $ snd cst) ++ "] => " ++
@@ -111,6 +119,8 @@ instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
   genprint _ (PVar x) [fvar, _] =  fvar x
+  genprint _ (PVar x) _ =
+    throw $ ProgramError "Pattern:genprint: illegal argument"
   genprint _ PUnit _ = "()"
   genprint _ (PBool b) _ = if b then "true" else "false"
   genprint _ (PInt n) _ = show n
@@ -121,11 +131,15 @@ instance PPrint Pattern where
     let dlv = decr lv in
     "(" ++ genprint dlv p opts ++
            List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ")"
+  genprint lv (PTuple []) opts =
+    throw $ ProgramError "Pattern:genprint: illegal tuple"
 
   genprint lv (PDatacon dcon p) opts@[_, fdata] =
     fdata dcon ++ case p of
                     Just p -> "(" ++ genprint (decr lv) p opts ++ ")"
                     Nothing -> ""
+  genprint lv (PDatacon dcon p) _ =
+    throw $ ProgramError "Pattern:genprint: illegal argument"
 
   genprint lv (PConstraint p _) opts =
     genprint lv p opts
@@ -253,6 +267,8 @@ instance PPrint Expr where
   genprint lv e [fvar, fdata] =
     let doc = print_doc lv e fvar fdata in
     PP.render doc
+  genprint lv e _ =
+    throw $ ProgramError "Expr:genprint: illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,

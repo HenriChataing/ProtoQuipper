@@ -699,8 +699,8 @@ rewrite_flags (TBang n t) = do
           return (TBang 0 t')
       Unknown ->
           return (TBang (-2) t')
-        
-
+rewrite_flags (TForall _ _ _ _) = 
+  throw $ ProgramError "rewrite_flags: cannot be applied to a type scheme"
 
 
 -- | Generate a fresh type variable.
@@ -901,7 +901,8 @@ is_qdata_lintype _ =
 is_qdata_type :: Type -> QpState Bool
 is_qdata_type (TBang _ a) =
   is_qdata_lintype a
-
+is_qdata_type (TForall _ _ _ _) =
+  throw $ ProgramError "is_qdata_type: cannot be applied to a type scheme"
 
 
 -- | Complementary printing function for patterns, which

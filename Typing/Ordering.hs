@@ -24,6 +24,7 @@ import Monad.QpState
 import Monad.QuipperError
 import qualified Monad.Namespace as N
 
+import Control.Exception
 import Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -168,6 +169,11 @@ register_constraint cst poset =
                       let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvt
 
+    Sublintype _ _ _ -> 
+        throw $ ProgramError "register_constraint: illegal argument"
+        
+    Subtype _ _ _ ->
+        throw $ ProgramError "register_constraint: illegal argument"
 
 -- | Register a list of constraints.
 register_constraints :: [TypeConstraint] -> Poset -> Poset
@@ -231,7 +237,7 @@ check_cyclic c explored poset = do
         (infinite, info) <- case cst of
                               Sublintype (TVar x) _ info -> return (x, info)
                               Sublintype _ (TVar x) info -> return (x, info)
-
+                              _ -> throw $ ProgramError "check_cyclic: unexpected case"
         -- Printing flags
         fflag <- return (\f -> "")
 
@@ -313,7 +319,8 @@ new_with_class :: [Variable] -> Equiv a
 new_with_class c@(a:_) =
   Eqv { clmap = IMap.fromList $ List.map (\b -> (b, a)) c,
         classes = IMap.singleton a (c, []) }
-
+new_with_class [] =
+  throw $ ProgramError "new_with_class: empty list"
 
 -- | Return the equivalence class of a variable, or create one if it
 -- does not exist.

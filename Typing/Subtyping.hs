@@ -9,6 +9,7 @@ import Typing.CorePrinter
 import Monad.QuipperError
 import Monad.QpState
 
+import Control.Exception
 import qualified Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -92,6 +93,12 @@ break_composite bu ((Subtype (TBang _ TInt) (TBang _ TInt) _):lc, fc) = do
 
 break_composite bu ((Subtype (TBang _ t@(TCirc _ _)) (TBang _ u@(TCirc _ _)) info):lc, fc) = do
   break_composite bu ((Sublintype t u info):lc, fc)
+
+break_composite bu ((Subtype (TForall _ _ _ _) _ _):lc, fc) = do
+  throw $ ProgramError "break_composite: cannot be applied to a type scheme"
+
+break_composite bu ((Subtype _ (TForall _ _ _ _) _):lc, fc) = do
+  throw $ ProgramError "break_composite: cannot be applied to a type scheme"
 
 -- Unit against unit : removed
 break_composite bu ((Sublintype TUnit TUnit _):lc, fc) = do

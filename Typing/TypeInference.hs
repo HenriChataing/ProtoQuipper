@@ -590,6 +590,11 @@ constraint_typing gamma (EDatacon dcon e) cst = do
 
         return $ ((u <:: cst) & info) <> csete <> csetd
 
+    (TForall _ _ _ _, _) -> 
+        throw $ ProgramError "constraint_typing: type scheme not allowed"
+        
+    (TBang _ _, Just _) ->
+        throw $ ProgramError "unimplemented case"
 
 -- Match typing rule
 --
@@ -729,7 +734,8 @@ duplicate_type (TBang _ t) = do
   n <- fresh_flag
   t' <- duplicate_lintype t
   return $ TBang n t'
-
+duplicate_type (TForall _ _ _ _) = do
+  throw $ ProgramError "duplicate_type: cannot be applied to a type scheme"
 
 -- | Create a duplicate version of a type, and map the argument type variable to it.
 -- The first type is assumed to be of the form !^/n/ /x/, where /x/ is a type variable.
@@ -756,11 +762,13 @@ unify_with_poset exact poset (lc, fc) = do
     -- Ask the poset for its youngest variables
     (cx, poset) <- youngest_variables poset
 
-    -- Filter the constraint which have an element of cx as right or left hand side
+    -- Filter the constraints which have an element of cx as right or left hand side
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
                                                        Sublintype (TVar x) _ _ -> List.elem x cx
-                                                       Sublintype _ (TVar y) _ -> List.elem y cx) lc
-        
+                                                       Sublintype _ (TVar y) _ -> List.elem y cx
+                                                       Sublintype _ _ _ -> throw $ ProgramError "unify_with_poset: non-atomic constraint"
+                                                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+        ) lc
     -- Log
     logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
     lognonx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" non_lcx
@@ -806,8 +814,10 @@ unify_with_poset exact poset (lc, fc) = do
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
                          Sublintype t _ _ -> return $ t
+                         Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
             rightend <- case List.last sorted of
                           Sublintype _ t _ -> return t
+                          Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
 
             -- One of the ends must be composite
             case (leftend, rightend) of
@@ -850,6 +860,9 @@ unify_with_poset exact poset (lc, fc) = do
             model <- case List.head cset of
                        Sublintype (TVar _) t _ -> return t
                        Sublintype t (TVar _) _ -> return t
+                       Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
+                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                        
 
             -- Map the youngest variables each to a new specimen of the model
             List.foldl (\rec x -> do
@@ -877,8 +890,11 @@ unify_with_poset exact poset (lc, fc) = do
                                      Sublintype t (TVar y) info -> do
                                          yt <- appmap y
                                          cs' <- break_composite True ([Sublintype t yt info], [])
-                                         return $ cs' <> cs)  (return emptyset) cset
+                                         return $ cs' <> cs
 
+                                     Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
+                                     Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                                )  (return emptyset) cset
 
             -- Register the relations defined by those new constraints
             poset <- return $ register_constraints (fst atomx' ++ fst cset') poset
