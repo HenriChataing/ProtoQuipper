@@ -63,24 +63,31 @@ reduce_constraint_set :: Type             -- ^ Generic type.
 reduce_constraint_set typ (lc, fc) (isref, isvar) =
   let (ff, fv) = (free_flag typ, free_typ_var typ) in
   let (isref', isvar') = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
-      
-  let walk = \vertices g visited keep ->
-        case vertices of
+     
+  -- Walk starting from one point, and stopping on the other import vertices 
+  let walk = \origin next g visited keep ->
+        case next of
           [] -> []
-          (ori, node):rest ->
-              if List.elem node visited then
-                -- Node already visited, stop
-                walk rest g visited keep
-              else
-                let next = case IMap.lookup node g of
-                      Nothing -> []
-                      Just s -> s in
-                let (nx, nc) = List.foldl (\(nx, nc) n ->
-                                 if keep n then
-                                   ((n,n):nx, (ori,n):nc)
-                                 else
-                                   ((ori,n):nx, nc)) ([],[]) next in
-                nc ++ walk (nx ++ rest) g (node:visited) keep
+          node:rest ->
+              let next = case IMap.lookup node g of
+                    Nothing -> []
+                    Just s -> s in
+              let (nx, nc) = List.foldl (\(nx, nc) n ->
+                               if List.elem n visited then
+                                 (nx,nc)
+                               else if keep n then
+                                 (nx, (origin,n):nc)
+                               else
+                                 (n:nx, nc)) ([],[]) next in
+              nc ++ walk origin (nx ++ rest) g (node:visited) keep
+  in
+
+  -- Apply the walk function to all the important vertices
+  let walk_all = \vertices g keep ->
+        List.foldl (\nc ori ->
+                     case IMap.lookup ori g of
+                       Nothing -> nc
+                       Just s -> (walk ori s g [ori] keep) ++ nc) [] vertices
   in do
 
    -- Flags
@@ -90,19 +97,21 @@ reduce_constraint_set typ (lc, fc) (isref, isvar) =
               Nothing -> IMap.insert x [y] g) IMap.empty fc
 
   initf <- return $ List.filter isref' $ IMap.keys g
-  cs <- return $ walk (List.map (\x -> (x,x)) initf) g [] isref'
+  cs <- return $ walk_all initf g isref'
   fc' <- return $ List.map (\(n,m) -> Le n m no_info) cs
 
   -- Types
-  g <- return $ List.foldl (\g (Sublintype (TVar x) (TVar y) _) ->
-            case IMap.lookup x g of
-              Just c -> IMap.insert x (y:c) g
-              Nothing -> IMap.insert x [y] g) IMap.empty lc
+  g <- return $ List.foldl (\g c -> 
+            case c of
+              (Sublintype (TVar x) (TVar y) _) ->
+                  case IMap.lookup x g of
+                    Just c -> IMap.insert x (y:c) g
+                    Nothing -> IMap.insert x [y] g
+              _ -> throw $ ProgramError "Unexpected unreduced constraint in function reduce_constraint_set") IMap.empty lc
  
   initv <- return $ List.filter isvar' $ IMap.keys g
-  cs' <- return $ walk (List.map (\x -> (x,x)) initv) g [] isvar'
+  cs' <- return $ walk_all initv g isvar'
   lc' <- return $ List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
-
   return (fv, ff, (lc',fc'))
 
 
