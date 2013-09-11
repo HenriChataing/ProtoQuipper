@@ -247,10 +247,35 @@ run_interactive opts ctx buffer = do
                                 Nothing ->
                                     liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
+                run_interactive opts ctx []
+
+            [":fulltype"] -> do
+                List.foldl (\rec n -> do
+                              rec
+                              case Map.lookup n $ l_variables (labelling ctx) of
+                                Just (LGlobal x) -> do
+                                    typs <- get_context >>= return . globals
+                                    case IMap.lookup x typs of
+                                      Just typ -> do
+                                          prt <- pprint_typescheme_noref typ
+                                          liftIO $ putStrLn $ "val " ++ n ++ " : " ++ prt
+                                      Nothing ->
+                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+
+                                Just (LVar x) -> do
+                                    case IMap.lookup x $ typing ctx of
+                                      Just typ -> do
+                                          prt <- pprint_typescheme_noref typ
+                                          liftIO $ putStrLn $ "val " ++ n ++ " : " ++ prt
+                                      Nothing ->
+                                          throwQ $ ProgramError $ "not in scope: " ++ show x
                                 
+                                Nothing ->
+                                    liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
                 run_interactive opts ctx []
- 
+
+
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
                 run_interactive opts ctx []
@@ -277,7 +302,7 @@ commands = [
   (":type", "Show the type of an expression"), 
   (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit"),
-  (":fulltype", "Display the typing scheme of a variable"),
+  (":fulltype", "Display the type scheme of a variable"),
   (":value", "Display the value of one or more variables, without consuming it")
   ]
 
