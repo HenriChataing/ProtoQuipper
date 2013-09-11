@@ -115,7 +115,7 @@ import qualified Data.IntMap as IMap
 -- | Labelling context: it contains the variable identifiers of all the variables, data constructors,
 -- types in scope.
 data LabellingContext = LblCtx {
-  l_variables :: Map String Expr,
+  l_variables :: Map String LVariable,
   l_datacons :: Map String Datacon,
   l_types :: Map String Type
 }
@@ -268,7 +268,10 @@ unfold_all names = do
   -- If any has been changed, go for another round, else
   -- end
   ctx <- get_context
-  (finish, ctx) <- List.foldl (\rec (n, Left spec, after) -> do
+  (finish, ctx) <- List.foldl (\rec (n, s, after) -> do
+                                 let spec = case s of
+                                       Left spec -> spec
+                                       _ -> throw $ ProgramError "unfold_all: bad spec"
                                  (b, ctx) <- rec
                                  (a, a', subt) <- return $ d_subtype spec
                                  before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
@@ -301,11 +304,17 @@ define_user_subtyping dblock = do
   -- Initialize the constraint set of each user type
   List.foldl (\rec n -> do
                 rec
-                Left spec <- type_spec n
+                s <- type_spec n
+                let spec = case s of
+                      Left spec -> spec
+                      _ -> throw $ ProgramError "define_user_subtyping: bad spec"
                 -- One version of the unfolded type
                 (a, ufold) <- return $ d_unfolded spec
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'
-                (a', ufold') <- List.foldr (\(TBang n (TVar x)) rec -> do
+                (a', ufold') <- List.foldr (\(TBang n t) rec -> do
+                                              let x = case t of 
+                                                     TVar x -> x
+                                                     _ -> throw $ ProgramError "define_user_subtyping: non-atomic constraint"
                                               (a', ufold') <- rec
                                               b@(TBang m (TVar y)) <- new_type
                                               ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_typ_var x (TVar y) typ)) ufold'
@@ -376,8 +385,6 @@ is_qdata_lintype _ _ =
 is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
   is_qdata_lintype a names 
-is_qdata_type (TForall _ _ _ _) names = 
-  throw $ ProgramError "is_qdata_type: cannot be applied to a type scheme"
 
 
 -- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
@@ -417,8 +424,11 @@ define_user_properties dblock = do
                          Left spec <- type_spec n
                          -- Replace the arguments by qubit in the unfolded definition
                          argtyps <- return $ List.map (\(_, argtyp) ->
-                                                         List.foldl (\a (TBang _ (TVar x)) ->
-                                                                       subs_typ_var x TQubit a) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
+                                                         List.foldl (\a (TBang _ t) ->
+                                                                      case t of
+                                                                        TVar x -> subs_typ_var x TQubit a
+                                                                        _ -> throw $ ProgramError "define_user_properties"
+                                                                    ) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
                          -- Check each of the types for quantum data types
                          (b, deps) <- List.foldl (\rec a -> do
                                                     (b, deps) <- rec
@@ -600,7 +610,7 @@ translate_unbound_type t label = do
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String Expr)
+translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String LVariable)
 translate_pattern S.PUnit label = do
   return (PUnit, l_variables label)
 
@@ -616,7 +626,7 @@ translate_pattern S.PWildcard label = do
 translate_pattern (S.PVar x) label = do
   ex <- get_location
   id <- register_var x ex
-  return (PVar id, Map.insert x (EVar id) $ l_variables label)
+  return (PVar id, Map.insert x (LVar id) $ l_variables label)
 
 translate_pattern (S.PTuple plist) label = do
   (plist', lbl) <- List.foldr (\p rec -> do
@@ -666,8 +676,11 @@ translate_expression (S.EInt n) _ = do
 
 translate_expression (S.EVar x) label = do
   case Map.lookup x $ l_variables label of
-    Just v -> do
-        return v
+    Just (LVar v) -> do
+        return (EVar v)
+
+    Just (LGlobal v) -> do
+        return (EGlobal v)
 
     Nothing -> do
         throw_UnboundVariable x
@@ -890,8 +903,6 @@ unfold_tensors :: Type -> QpState Type
 unfold_tensors (TBang n a) = do
   a' <- unfold_tensors_in_lintype a
   return $ TBang n a'
-unfold_tensors (TForall _ _ _ _) = do
-  throw $ ProgramError "unfold_tensors: cannot be applied to a type scheme"
 
 
 -- | Transform a pattern \<a, b, c, d\> into \<a, \<b, \<c, d\>\>\>.

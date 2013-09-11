@@ -1,4 +1,6 @@
 {
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 -- | This module is automatically generated from the file @Lexer.x@ by Alex, the Haskell lexer generator. It provides the definition of a data type 'Token' of lexical tokens, and a function for lexing a string into a list of tokens.
 module Parsing.Lexer (Token(..), mylex) where
 

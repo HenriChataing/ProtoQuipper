@@ -92,9 +92,9 @@ data Context = Ctx {
 
   builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
                                                       -- in the 'builtins' field, where they are available to both the type checker and the interpreter.
-  datacons :: IntMap Type,                            -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
+  datacons :: IntMap TypeScheme,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
-  globals :: IntMap Type,                             -- ^ Typing context corresponding to the global variables imported from other modules.
+  globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
   values :: IntMap Value,                             -- ^ The values of the global variables.
 
@@ -272,7 +272,7 @@ register_var x ex = do
 
 -- | Like 'register_var', but register a data constructor. Note that the variable and data constructor
 -- ids may overlap, as they are generated from a different source.
-register_datacon :: String -> Type -> QpState Int
+register_datacon :: String -> TypeScheme -> QpState Int
 register_datacon dcon dtype = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
@@ -364,14 +364,14 @@ type_name x = do
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
 global_namespace :: [String]                                                     -- ^ A list of module dependencies.
-                 -> QpState (Map String Expr, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
+                 -> QpState (Map String LVariable, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
 global_namespace deps = do
   mods <- get_context >>= return . modules
   List.foldl (\rec m -> do
                 (lblv, lbld, lblt) <- rec
                 case List.lookup m mods of
                   Just mod -> do
-                      vars <- return $ Map.map (\id -> EGlobal id) $ m_variables mod
+                      vars <- return $ Map.map (\id -> LGlobal id) $ m_variables mod
                       typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types mod
                       return (Map.union vars lblv, Map.union (m_datacons mod) lbld, Map.union typs lblt)
 
@@ -382,7 +382,7 @@ global_namespace deps = do
 
 
 -- | Look up the type of a global variable.
-type_of_global :: Variable -> QpState Type
+type_of_global :: Variable -> QpState TypeScheme
 type_of_global x = do
   ctx <- get_context
   case IMap.lookup x $ globals ctx of
@@ -475,7 +475,7 @@ type_spec typ = do
 
 
 -- | Retrieve the definition of a data constructor.
-datacon_def :: Int -> QpState Type
+datacon_def :: Int -> QpState TypeScheme
 datacon_def id = do
   ctx <- get_context
   case IMap.lookup id $ datacons ctx of
@@ -636,14 +636,10 @@ instantiate_scheme refs vars cset typ = do
 
   return (typ', cset')
 
--- | Instantiate the typing scheme if the type is generic. Otherwise,
--- just return the type.
-instantiate :: Type -> QpState (Type, ConstraintSet)
+-- | Instantiate the typing scheme.
+instantiate :: TypeScheme -> QpState (Type, ConstraintSet)
 instantiate (TForall refs vars cset typ) =
   instantiate_scheme refs vars cset typ
-
-instantiate typ =
-  return (typ, emptyset)
 
 
 -- | In a linear type, replace all the flag references by their actual value:
@@ -699,8 +695,6 @@ rewrite_flags (TBang n t) = do
           return (TBang 0 t')
       Unknown ->
           return (TBang (-2) t')
-rewrite_flags (TForall _ _ _ _) = 
-  throw $ ProgramError "rewrite_flags: cannot be applied to a type scheme"
 
 
 -- | Generate a fresh type variable.
@@ -845,7 +839,7 @@ map_lintype typ = do
   return typ
 
 
--- | Recursively apply the mappings recorded in the current state to a linear type.
+-- | Recursively apply the mappings recorded in the current state to a type.
 -- Qubits are intercepted to check the value of their flag.
 map_type :: Type -> QpState Type
 map_type (TBang f t) = do
@@ -857,7 +851,11 @@ map_type (TBang f t) = do
         return ()
   return $ TBang f t'
 
-map_type (TForall fv ff cset typ) = do
+-- | Recursively apply the mappings recorded in the current state to a
+-- type scheme.  Qubits are intercepted to check the value of their
+-- flag.
+map_typescheme :: TypeScheme -> QpState TypeScheme
+map_typescheme (TForall fv ff cset typ) = do
   typ' <- map_type typ
   return $ TForall fv ff cset typ'
 
@@ -901,8 +899,6 @@ is_qdata_lintype _ =
 is_qdata_type :: Type -> QpState Bool
 is_qdata_type (TBang _ a) =
   is_qdata_lintype a
-is_qdata_type (TForall _ _ _ _) =
-  throw $ ProgramError "is_qdata_type: cannot be applied to a type scheme"
 
 
 -- | Complementary printing function for patterns, which

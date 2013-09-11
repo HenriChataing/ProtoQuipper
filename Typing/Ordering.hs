@@ -379,8 +379,12 @@ clean_constraint_set a (lc, fc) =
   let (ctsv, lc') = case fv of
                      [] -> ([], [])
                      (x:_) -> let eqvl = new_with_class fv in
-                              let eqvl' = List.foldl (\eqv c@(Sublintype (TVar x) (TVar y) _) ->
-                                                        insert_constraint x y c eqv) eqvl lc in
+                              let eqvl' = List.foldl (\eqv c ->
+                                                       case c of
+                                                         Sublintype (TVar x) (TVar y) _ ->
+                                                           insert_constraint x y c eqv
+                                                         _ -> throw $ ProgramError "clean_constraint_set: non-atomic constraint"
+                                                     ) eqvl lc in
                               let (cl, _) = in_class x eqvl' in
                               class_contents cl eqvl' in
 

@@ -22,13 +22,13 @@ import qualified Data.Map as Map
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
--- | A typing context is a map from term variables to types.
-type TypingContext = IntMap Type
+-- | A typing context is a map from term variables to type scheme.
+type TypingContext = IntMap TypeScheme
 
 
 -- | Add a binding @/x/ |-> /t/@ to a typing context. This function also updates the map of global
 -- variables associated to the current context.
-bind_var :: Variable -> Type -> TypingContext -> QpState TypingContext
+bind_var :: Variable -> TypeScheme -> TypingContext -> QpState TypingContext
 bind_var x t ctx = do
   -- In any case, adds the binding (x |-> t) in the typing context
   return $ IMap.insert x t ctx
@@ -38,7 +38,7 @@ bind_var x t ctx = do
 -- This function is not supposed to fail, as the scope analysis performed during the translation to the
 -- core syntax should have located all the unbound variables. If it does fail, it is because of
 -- a programming error.
-type_of :: Variable -> TypingContext -> QpState Type
+type_of :: Variable -> TypingContext -> QpState TypeScheme
 type_of x ctx = do
   case IMap.lookup x ctx of
     Just t ->
@@ -55,7 +55,7 @@ type_of x ctx = do
 -- or constraints coming from the instantiation of some type (e.g., with data constructors).
 -- For example, consider the pattern (/x/, /y/). This function is going to generate the type !^/p/(!^/n/ /a/ * !^/m/ /b/), with the constraints {/p/ <= /n/, /p/ <= /m/}
 -- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
-bind_pattern :: Pattern -> QpState (Type, TypingContext, ConstraintSet)
+bind_pattern :: Pattern -> QpState (Type, IntMap Type, ConstraintSet)
 
 -- Wildcard: the wildcard must have a duplicable type, since
 -- the value is discarded. No binding is generated.
@@ -144,7 +144,7 @@ bind_pattern_to_type PWildcard a@(TBang n _) = do
   return (IMap.empty, emptyset)
 
 bind_pattern_to_type (PVar x) t@(TBang n _) = do
-  return (IMap.singleton x t, emptyset)
+  return (IMap.singleton x (typescheme_of_type t), emptyset)
 
 -- The unit pattern bound to the unit type
 bind_pattern_to_type PUnit t@(TBang _ TUnit) = do
@@ -241,17 +241,17 @@ context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
   return $ IMap.foldWithKey aux [] ctx 
     where
-      aux x t ann = (x, top_flag t):ann
+      aux x (TForall _ _ _ (TBang f _)) ann = (x, f):ann
 
 -- | Return a set of flag constraints forcing the context to be duplicable.
 duplicable_context :: TypingContext -> QpState ()
 duplicable_context ctx = do
   IMap.foldWithKey aux (return ()) ctx
     where
-      aux x t rec = do
+      aux x (TForall _ _ _ (TBang f _)) rec = do
         rec
         ex <- variable_location x
-        set_flag (top_flag t) no_info { expression = EVar x, loc = ex }
+        set_flag f no_info { expression = EVar x, loc = ex }
 
 
 -- | Perform the union of two typing contexts. The \<+\> operator respects the order of the arguments

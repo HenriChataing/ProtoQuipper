@@ -24,10 +24,20 @@ import Control.Exception
 import Data.List as List
 import Data.Map (Map)
 
+-- ----------------------------------------------------------------------
+-- * General
+
 -- | The type of term and type variables. Each term or type variable is represented by a unique integer id.
 type Variable = Int
 
+-- | Like term and type variables, data constructors are attributed unique ids.
+type Datacon = Int
 
+-- ----------------------------------------------------------------------
+-- * Types
+
+-- ----------------------------------------------------------------------
+-- ** Flags
 
 -- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three values are reserved:
 --
@@ -52,6 +62,20 @@ zero :: RefFlag
 zero = 0
 
 
+
+instance PPrint RefFlag where
+  genprint _ f _ = pprint f
+
+  sprintn _ 0 = ""
+  sprintn _ 1 = "!"
+  sprintn _ (-1) = ""
+  sprintn _ (-2) = "?"
+  sprintn _ n = supervar '!' n
+
+  sprint n = sprintn defaultLvl n
+  pprint n = sprintn Inf n
+
+
 -- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except
 -- for some that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
@@ -67,7 +91,8 @@ data FlagInfo = FInfo {
   value :: FlagValue                              -- ^ The value of the flag.
 }
 
-
+-- ----------------------------------------------------------------------
+-- ** Types
 
 -- $ The definition of types distinguishes between /linear types/ and
 -- /types/.  Linear types are never duplicable, whereas types are
@@ -99,33 +124,32 @@ data LinType =
 
 
 -- | The type of type expressions, which are linear types annotated
--- with a flag. This data type also includes /type schemes/, which
--- are used for polymorphism.
+-- with a flag.
 data Type =
-    TBang RefFlag LinType                                  -- ^ The type @!^n A@.
-  | TForall [RefFlag] [Variable] ConstraintSet Type        -- ^ A type scheme. This is a type with universally quantified type variables /a/1, ..., /a//n/ and
-                                                           -- flags /f/1, ..., /f//k/, which must satisfy a set of constraints /L/.
+    TBang RefFlag LinType      -- ^ The type @!^n A@.
+  deriving Show
+    
+           
+-- | The type of type schemes. A /type scheme/ is a type expression
+-- together with universally quantified type variables /a/1, ...,
+-- /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set of
+-- constraints /L/.
+data TypeScheme =
+  TForall [RefFlag] [Variable] ConstraintSet Type
   deriving Show
 
 
--- | Return the top-level annotation flag of a 'Type'.
-top_flag :: Type -> RefFlag  
-top_flag (TBang f _) = f
-top_flag (TForall _ _ _ t) = top_flag t
-
-
--- | String the quantifiers from a 'Type'.
-strip_forall :: Type -> (RefFlag, LinType)
-strip_forall (TBang f t) = (f, t)
-strip_forall (TForall _ _ _ t) = strip_forall t
-
+-- | Convert a type to a trivial type scheme, i.e., without adding
+-- quantifiers or constraints.
+typescheme_of_type :: Type -> TypeScheme
+typescheme_of_type t = TForall [] [] emptyset t
 
 -- | Remove the flag annotation from a type, returning a linear type.
 -- This function does not make sense on typing schemes, and can only
 -- be applied to types. It is an error to do otherwise.
 no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
-no_bang (TForall _ _ _ _) = throw $ ProgramError "no_bang: cannot be applied to a type scheme"
+
 
 -- | Check whether a linear type uses algebraic data types.
 is_user_lintype :: LinType -> Bool
@@ -141,145 +165,6 @@ is_user_lintype _ = False
 -- scheme.
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
-is_user_type (TForall _ _ _ _) = throw $ ProgramError "is_user_type: cannot be applied to a type scheme"
-
-
-
--- | An algebraic data type definition.
-data Typedef = Typedef {
-  d_args :: Int,                                             -- ^ The number of type arguments required.
-
-  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
-                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
-                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
-
-  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
-                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
-
-  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
-                                                             -- is automatically inferred during the translation into the core syntax.
-}
-
-
-
--- | A type synonym definition, e.g., @intlist@ = @list int@.
-data Typesyn = Typesyn {
-  s_args :: Int,                                             -- ^ The number of type arguments.
-
-  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
-
-  s_unfolded :: Type                                         -- ^ The unfolded type.
-
-  -- No subtyping relation is required, since the synonyms are automatically replaced.
-}
-
-
--- | Like term and type variables, data constructors are attributed unique ids.
-type Datacon = Int
-
-
--- | A core pattern.  The definition is largely the same as that of
--- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
--- difference lies in variables, which are now represented by ids.
--- Although the syntax of Proto-Quipper does not make use of patterns,
--- keeping them as syntactic sugar reduces the number of variables,
--- since the desugaring process produces new variables, one for each
--- pair in the pattern. Here is how these patterns could be desugared:
--- 
--- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
--- >
--- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
--- >                               Otherwise, use the code:
--- >                                    let (x, y) = e in
--- >                                    let p = x in
--- >                                    let q = y in
--- >                                    e
--- >                               (and desugar again).
---
--- Note that the expression @let x = e in f@ (where /x/ is a
--- variable), is not syntactic sugar.  It differs from the application
--- @(fun x -> f) e@ by the presence of let-polymorphism.
-data Pattern =
-    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-  | PUnit                                           -- ^ Unit pattern: @()@.
-  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
-  | PInt Int                                        -- ^ Integer pattern.
-  | PVar Variable                                   -- ^ Variable pattern: /x/.
-  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PLocated Pattern Extent                         -- ^ A located pattern.
-  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
-  deriving Show 
-
-
--- | Core patterns are located objects.
-instance Located Pattern where
-  location _ = Nothing
-  locate p _ = p
-  locate_opt p _ = p
-
-  clear_location (PLocated p _) = clear_location p
-  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
-  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
-  clear_location (PConstraint p t) = PConstraint (clear_location p) t
-  clear_location p = p
-
-instance Constraint Pattern where
-  drop_constraints (PConstraint p _) = drop_constraints p
-  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
-  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
-  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
-  drop_constraints p = p
-
-
--- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
--- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
--- more variables that are duplicable anyway.
-data Expr =
--- STLC
-    EVar Variable                                 -- ^ Variable: /x/.
-  | EGlobal Variable                              -- ^ Global variable from the imported modules.
-  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
-  | EApp Expr Expr                                -- ^ Function application: @t u@.
-
--- Introduction of the tensor
-  | EUnit                                         -- ^ Unit term: @()@.
-  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
-
--- Custom union types
-  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
-  | EInt Int                                      -- ^ Integer constant.
-  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
-  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
-  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
-
--- Quantum rules
-  | EBox Type                                     -- ^ The constant @box[T]@.
-  | EUnbox                                        -- ^ The constant @unbox@.
-  | ERev                                          -- ^ The constant @rev@.
-
--- Unrelated
-  | ELocated Expr Extent                          -- ^ A located expression.
-  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
-  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
-  | EError String                                 -- ^ User error.
-  deriving Show
-
-
-
-instance PPrint RefFlag where
-  genprint _ f _ = pprint f
-
-  sprintn _ 0 = ""
-  sprintn _ 1 = "!"
-  sprintn _ (-1) = ""
-  sprintn _ (-2) = "?"
-  sprintn _ n = supervar '!' n
-
-  sprint n = sprintn defaultLvl n
-  pprint n = sprintn Inf n
-
 
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
 -- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
@@ -336,12 +221,9 @@ instance KType LinType where
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
-  free_typ_var (TForall _ _ _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
-  subs_typ_var a b (TForall _ _ _ _) = throw $ ProgramError "Type:subs_typ_var: cannot be applied to a type scheme"
 
   free_flag (TBang n t) = List.insert n (free_flag t)
-  free_flag (TForall _ _ _ _) = throw $ ProgramError "Type:free_flag: cannot be applied to a type scheme"
   
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
@@ -349,20 +231,100 @@ instance KType Type where
       TBang m t'
     else
       TBang p t'
-  subs_flag n m (TForall _ _ _ _) = throw $ ProgramError "Type:subs_flag: cannot be applied to a type scheme"
-  
-
 
 
 -- | Equality of types must take into account alpha equivalence in the polymorphic types.
 instance Eq Type where
   (==) (TBang m t) (TBang n t') = m == n && t == t'
-  -- Normally, the alpha equivalence would have to be checked. However, it may
-  -- be useless as: this function is never used, the generic instance is always the same, never
-  -- changed.
-  (==) (TForall _ _ _ typ) (TForall _ _ _ typ') = typ == typ'
-  (==) _ _ = False
 
+
+-- ----------------------------------------------------------------------
+-- ** Data type definitions
+
+-- | An algebraic data type definition.
+data Typedef = Typedef {
+  d_args :: Int,                                             -- ^ The number of type arguments required.
+
+  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
+                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
+                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
+
+  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
+                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
+
+  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+                                                             -- is automatically inferred during the translation into the core syntax.
+}
+
+-- ----------------------------------------------------------------------
+-- ** Type synonyms
+
+-- | A type synonym definition, e.g., @intlist@ = @list int@.
+data Typesyn = Typesyn {
+  s_args :: Int,                                             -- ^ The number of type arguments.
+
+  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
+
+  s_unfolded :: Type                                         -- ^ The unfolded type.
+
+  -- No subtyping relation is required, since the synonyms are automatically replaced.
+}
+
+-- ----------------------------------------------------------------------
+-- * Patterns
+
+-- | A core pattern.  The definition is largely the same as that of
+-- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
+-- difference lies in variables, which are now represented by ids.
+-- Although the syntax of Proto-Quipper does not make use of patterns,
+-- keeping them as syntactic sugar reduces the number of variables,
+-- since the desugaring process produces new variables, one for each
+-- pair in the pattern. Here is how these patterns could be desugared:
+-- 
+-- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
+-- >
+-- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
+-- >                               Otherwise, use the code:
+-- >                                    let (x, y) = e in
+-- >                                    let p = x in
+-- >                                    let q = y in
+-- >                                    e
+-- >                               (and desugar again).
+--
+-- Note that the expression @let x = e in f@ (where /x/ is a
+-- variable), is not syntactic sugar.  It differs from the application
+-- @(fun x -> f) e@ by the presence of let-polymorphism.
+data Pattern =
+    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
+  | PUnit                                           -- ^ Unit pattern: @()@.
+  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Int                                        -- ^ Integer pattern.
+  | PVar Variable                                   -- ^ Variable pattern: /x/.
+  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PLocated Pattern Extent                         -- ^ A located pattern.
+  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
+  deriving Show 
+
+
+-- | Core patterns are located objects.
+instance Located Pattern where
+  location _ = Nothing
+  locate p _ = p
+  locate_opt p _ = p
+
+  clear_location (PLocated p _) = clear_location p
+  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
+  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
+  clear_location (PConstraint p t) = PConstraint (clear_location p) t
+  clear_location p = p
+
+instance Constraint Pattern where
+  drop_constraints (PConstraint p _) = drop_constraints p
+  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
+  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
+  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
+  drop_constraints p = p
 
 instance Param Pattern where
   free_var (PVar x) = [x]
@@ -374,6 +336,43 @@ instance Param Pattern where
   free_var _ = []
 
   subs_var _ _ p = p
+
+-- ----------------------------------------------------------------------
+-- * Expressions
+
+-- | A core expression. The core syntax introduces global variables, which are imported from imported modules.
+-- Since the global variables are supposed to be duplicable, it is not necessary to overload the typing context with
+-- more variables that are duplicable anyway.
+data Expr =
+-- STLC
+    EVar Variable                                 -- ^ Variable: /x/.
+  | EGlobal Variable                              -- ^ Global variable from the imported modules.
+  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
+  | EApp Expr Expr                                -- ^ Function application: @t u@.
+
+-- Introduction of the tensor
+  | EUnit                                         -- ^ Unit term: @()@.
+  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
+
+-- Custom union types
+  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
+  | EInt Int                                      -- ^ Integer constant.
+  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
+  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+
+-- Quantum rules
+  | EBox Type                                     -- ^ The constant @box[T]@.
+  | EUnbox                                        -- ^ The constant @unbox@.
+  | ERev                                          -- ^ The constant @rev@.
+
+-- Unrelated
+  | ELocated Expr Extent                          -- ^ A located expression.
+  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
+  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
+  | EError String                                 -- ^ User error.
+  deriving Show
 
 
 instance Param Expr where
@@ -442,7 +441,8 @@ is_value EUnit = True
 
 is_value _ = False
 
-
+-- ----------------------------------------------------------------------
+-- * Subtyping constraints
 
 -- | Information about a constraint. This includes the original
 -- expression, location, and orientation (which side of the constraint
@@ -746,7 +746,7 @@ instance KType ConstraintSet where
 
 -- | Generalize a type, associated with constraints, over its free variables and flags.
 -- The free variables of the type are those that are greater or equal to a limit type\/flag.
-generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> Type
+generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> TypeScheme
 generalize_type typ (limtype, limflag) cset =
   -- Free variables and flags of the type
   let fvt = free_typ_var typ
@@ -760,4 +760,14 @@ generalize_type typ (limtype, limflag) cset =
   -- to the type before generalizing, but later
   TForall fft' fvt' cset typ
 
+
+-- ----------------------------------------------------------------------
+-- * Labelling context
+
+
+-- | The type of variables in a labelling context; these can be either
+-- local or global.
+data LVariable =
+    LVar Variable       -- ^ Variable: /x/.
+  | LGlobal Variable    -- ^ Global variable from the imported modules.
 

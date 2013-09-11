@@ -16,6 +16,8 @@ import Parsing.Syntax
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
+import Control.Exception
+import Monad.QuipperError
 
 instance PPrint Type where
   genprint lv t _ =
@@ -32,8 +34,6 @@ instance PPrint Type where
   sprintn lv (TCirc a b) =
     "circ (" ++ sprintn (decr lv) a ++ ", " ++ sprintn (decr lv) b ++ ")"
 
-  sprintn lv (TTensor []) = ""
-
   sprintn lv (TTensor (a:rest)) =
     let dlv = decr lv in
     (case a of
@@ -45,6 +45,8 @@ instance PPrint Type where
                      TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
                      TTensor _ -> "(" ++ sprintn dlv b ++ ")"
                      _ -> sprintn dlv a)) "" rest
+  sprintn ln (TTensor []) =
+    throw $ ProgramError "Type:sprintn: bad tensor"
 
   sprintn lv (TArrow a b) =
     let dlv = decr lv in
@@ -61,11 +63,11 @@ instance PPrint Type where
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
 
-  sprintn lv (TApp t u) =
-    let dlv = decr lv in
-    sprintn dlv t ++ " " ++ sprintn dlv u
-
   sprintn lv (TLocated a _) = sprintn lv a
+
+  sprintn lv (TApp a b) =
+    let dlv = decr lv in
+    sprintn dlv a ++ " " ++ sprintn dlv b
 
   -- Print unto Lvl = +oo
   pprint a = sprintn Inf a
@@ -118,8 +120,8 @@ instance PPrint Pattern where
 -- documents.
 print_doc :: Expr -> Doc
 
+print_doc (EWildcard a) = absurd a
 print_doc EUnit = text "()"
-print_doc (EWildcard _) = text "_"
 print_doc (EVar x) = text x
 print_doc (EQualified m x) = text m <> text "." <> text x
 print_doc ERev = text "rev"

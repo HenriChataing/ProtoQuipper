@@ -71,7 +71,7 @@ import_modules opts mnames ctx = do
                   -- Insert again the names in the labelling map.
                   -- The module is imported only if asked
                   if List.elem (S.module_name p) mnames then do
-                    vars <- return $ Map.map (\id -> EGlobal id) $ m_variables m
+                    vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
                     typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
                     return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
                                                         l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
@@ -164,7 +164,7 @@ run_interactive opts ctx buffer = do
             [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
                                     rec
-                                    let (f, b) = strip_forall a
+                                    let (TForall _ _ _ (TBang f b)) = a
                                     v <- flag_value f
                                     t <- pprint_type_noref (TBang f b)
                                     nm <- variable_name x
@@ -229,7 +229,7 @@ run_interactive opts ctx buffer = do
                 List.foldl (\rec n -> do
                               rec
                               case Map.lookup n $ l_variables (labelling ctx) of
-                                Just (EGlobal x) -> do
+                                Just (LGlobal x) -> do
                                     vals <- get_context >>= return . values
                                     case IMap.lookup x vals of
                                       Just v ->
@@ -237,16 +237,13 @@ run_interactive opts ctx buffer = do
                                       Nothing ->
                                           throwQ $ ProgramError $ "not in scope: " ++ show x
 
-                                Just (EVar x) -> do
+                                Just (LVar x) -> do
                                     case IMap.lookup x $ environment ctx of
                                       Just v ->
                                           liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                                       Nothing ->
                                           throwQ $ ProgramError $ "not in scope: " ++ show x
                                 
-                                Just _ -> do
-                                    throw $ ProgramError "run_interactive: impossible case"
-
                                 Nothing ->
                                     liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
@@ -280,8 +277,8 @@ commands = [
   (":type", "Show the type of an expression"), 
   (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit"),
-  (":value", "Display the value of a variable (doesn't consume duplicable variables)"),
-  (":fulltype", "Display the typing scheme of a variable")
+  (":fulltype", "Display the typing scheme of a variable"),
+  (":value", "Display the value of one or more variables, without consuming it")
   ]
 
 
@@ -292,7 +289,8 @@ exit ctx = do
   -- List all the non-duplicable variables
   ndup <- IMap.foldWithKey (\x a rec -> do
                               ndup <- rec
-                              v <- flag_value (top_flag a)
+                              let (TForall _ _ _ (TBang f _)) = a
+                              v <- flag_value f
                               case v of
                                 Zero -> do 
                                     n <- variable_name x
