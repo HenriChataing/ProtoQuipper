@@ -280,7 +280,8 @@ commands = [
   (":type", "Show the type of an expression"), 
   (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit"),
-  (":value", "Display the value of a variable (doesn't consume duplicable variables)")
+  (":value", "Display the value of a variable (doesn't consume duplicable variables)"),
+  (":fulltype", "Display the typing scheme of a variable")
   ]
 
 
