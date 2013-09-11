@@ -106,13 +106,21 @@ instance PPrint Type where
   -- Print unto Lvl = default
   sprint a = sprintn defaultLvl a
 
+
 -- | Printing of type schemes. The generic function 'genprint'
   -- parameterizes the printing over the display of flag and type
   -- variables.
 instance PPrint TypeScheme where
-  genprint lv (TForall ff fv cst a) opts =
-    "forall [" ++ show (List.length ff) ++ "] [" ++ show (List.length fv) ++ "], [" ++ show (List.length $ fst cst) ++ "," ++ show (List.length $ snd cst) ++ "] => " ++
-     genprint (decr lv) a opts
+  genprint lv (TForall _ [] _ a) opts =
+    genprint lv a opts
+
+  genprint lv (TForall ff fv cset a) opts@[_,fvar,_] =
+    "forall" ++ List.foldr (\x s -> " " ++ fvar x ++ s) "" fv ++ ",\n" ++
+     genprint Inf ((fst cset, []) :: ConstraintSet) opts ++ "\n => " ++
+     genprint lv a opts
+
+  genprint _ _ _ =
+    throw $ ProgramError "TypeScheme:genprint: illegal argument"
 
   sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
   pprint a = sprintn Inf a
@@ -349,7 +357,11 @@ instance PPrint ConstraintSet where
                           (s ++ pc ++ padding, nth-1)) ("", nline+1) pfcs
     in
 
-    slcons ++ "\n" ++ sfcons
+    case (lcs, fcs) of
+      ([], []) -> ""
+      ([], _) -> sfcons
+      (_, []) -> slcons
+      _ -> slcons ++ "\n" ++ sfcons
 
   sprintn _ cs = pprint cs
   sprint cs = pprint cs
