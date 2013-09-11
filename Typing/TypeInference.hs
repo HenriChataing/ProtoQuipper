@@ -55,6 +55,56 @@ filter fc = do
                   _ -> return $ c:r) (return []) fc
 
 
+-- | Reduce a constraint set to an equivalent one that contains less constraints.
+reduce_constraint_set :: Type             -- ^ Generic type.
+                      -> ConstraintSet    -- ^ Unreduced constraint set.
+                      -> (RefFlag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
+                      -> QpState ([Variable], [RefFlag], ConstraintSet)
+reduce_constraint_set typ (lc, fc) (isref, isvar) =
+  let (ff, fv) = (free_flag typ, free_typ_var typ) in
+  let (isref', isvar') = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
+      
+  let walk = \vertices g visited keep ->
+        case vertices of
+          [] -> []
+          (ori, node):rest ->
+              if List.elem node visited then
+                -- Node already visited, stop
+                walk rest g visited keep
+              else
+                let next = case IMap.lookup node g of
+                      Nothing -> []
+                      Just s -> s in
+                let (nx, nc) = List.foldl (\(nx, nc) n ->
+                                 if keep n then
+                                   ((n,n):nx, (ori,n):nc)
+                                 else
+                                   ((ori,n):nx, nc)) ([],[]) next in
+                nc ++ walk (nx ++ rest) g (node:visited) keep
+  in do
+
+   -- Flags
+  g <- return $ List.foldl (\g (Le x y _) ->
+            case IMap.lookup x g of
+              Just c -> IMap.insert x (y:c) g
+              Nothing -> IMap.insert x [y] g) IMap.empty fc
+
+  initf <- return $ List.filter isref' $ IMap.keys g
+  cs <- return $ walk (List.map (\x -> (x,x)) initf) g [] isref'
+  fc' <- return $ List.map (\(n,m) -> Le n m no_info) cs
+
+  -- Types
+  g <- return $ List.foldl (\g (Sublintype (TVar x) (TVar y) _) ->
+            case IMap.lookup x g of
+              Just c -> IMap.insert x (y:c) g
+              Nothing -> IMap.insert x [y] g) IMap.empty lc
+ 
+  initv <- return $ List.filter isvar' $ IMap.keys g
+  cs' <- return $ walk (List.map (\x -> (x,x)) initv) g [] isvar'
+  lc' <- return $ List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
+
+  return (fv, ff, (lc',fc'))
+
 
 -- | Build the constraint typing derivation. The algorithm inputs an incomplete constraint typing judgment
 -- /G/ |- /t/ : /T/_1 .. /T/_/n/, and produces the constraint set /L/ such that the relation /G/ |- /t/ : /T/_1 .. /T/_/n/ [/L/] holds.
@@ -529,7 +579,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                     a' <- map_type a
 
                                     -- Clean the constraint set
-                                    (fv, ff, cset') <- return $ clean_constraint_set a' csett
+                                    (fv, ff, cset') <- reduce_constraint_set a' csett (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
                                     
                                     genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                                     genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff

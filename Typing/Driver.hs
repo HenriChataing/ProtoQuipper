@@ -360,7 +360,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         --a' <- map_type a
                         a' <- return a
                         -- Clean the constraint set 
-                        (fv, ff, cset') <- return $ clean_constraint_set a' csete
+                        (fv, ff, cset') <- reduce_constraint_set a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
 
                         genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
                         genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
