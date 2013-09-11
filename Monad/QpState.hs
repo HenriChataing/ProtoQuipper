@@ -991,6 +991,34 @@ pprint_lintype_noref a = do
   return $ genprint Inf a [fflag, fvar, fuser]
 
 
+-- | Like 'pprint_type_noref', but for typing schemes.
+pprint_typescheme_noref :: TypeScheme -> QpState String
+pprint_typescheme_noref (TForall ff fv cset typ) = do
+  -- Printing of type variables
+  attr <- return $ List.zip fv available_names
+  fvar <- return (\x -> case List.lookup x attr of
+                          Just n -> n
+                          Nothing -> subvar 'X' x)
+
+  -- Printing of flags
+  refs <- get_context >>= return . flags
+  fflag <- return (\f -> case f of
+                           1 -> "!"
+                           n | n >= 2 -> case IMap.lookup n refs of
+                                           Just fi -> case value fi of
+                                                        One -> "!"
+                                                        _ -> ""
+                                           Nothing -> ""
+                             | otherwise -> "")
+
+  -- Printing type names
+  nspace <- get_context >>= return . namespace
+  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
+                           Just n -> n
+                           Nothing -> subvar 'T' n)
+  return $ genprint Inf (TForall ff fv cset typ) [fflag, fvar, fuser]
+
+
 
 -- | Like 'pprint_expr_noref', but for values.
 pprint_value_noref :: Value -> QpState String
