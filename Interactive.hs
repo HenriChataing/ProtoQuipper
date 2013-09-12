@@ -115,12 +115,8 @@ run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
   l <- case buffer of
-         [] -> (prompt "# ") `catch_interrupt` (do
-                                            liftIO $ putStrLn ""
-                                            run_interactive opts ctx [])
-         _ -> (prompt "  ") `catch_interrupt` (do
-                                            liftIO $ putStrLn ""
-                                            run_interactive opts ctx [])
+         [] -> prompt "# "
+         _ -> prompt "  "
 
   -- Check the command
   case l of
