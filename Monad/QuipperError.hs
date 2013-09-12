@@ -115,7 +115,7 @@ instance Show QError where
                   rec ++ "\n  which imports " ++ m) "" includes
 
   show (LexicalError msg ex) =
-    show ex ++": " ++ "unknown token " ++ msg
+    "Lexing error: " ++ show ex ++": " ++ "unknown token " ++ msg
 
   show (ParsingError tk) =
     "Parsing error: on token " ++ tk
@@ -125,38 +125,39 @@ instance Show QError where
     "Parsing error: unexpected end of file"
 
   show (WrongTypeArguments typ exp act) =
+    "Parsing error: " ++
     if exp == 0 then     "the type '" ++ typ ++ "' expects no arguments, but has been given " ++ show act
     else                 "the type '" ++ typ ++ "' expects " ++ show exp ++ " arguments, but has been given " ++ show act
 
   show (BoxTypeError typ) =
-    "in the box constructor: the type '" ++ typ ++ "' is not quantum"
+    "Parsing error: in the box constructor: the type '" ++ typ ++ "' is not quantum"
 
   show (UnboundVariable x) =
-    "unbound variable " ++ x
+    "Parsing error: unbound variable " ++ x
 
   show (UnboundDatacon dcon) =
-    "unbound data constructor " ++ dcon
+    "Parsing error: unbound data constructor " ++ dcon
 
   show (UndefinedType typ) =
-    "undefined type " ++ typ
+    "Parsing error: undefined type " ++ typ
 
   show (UndefinedBuiltin s) =
-    "undefined builtin value " ++ s
+    "Parsing error: undefined builtin value " ++ s
 
   show (NotBoolError v) =
-    v ++ " is not of type bool"
+    "Run-time error: " ++ v ++ " is not of type bool"
 
   show (NoMatchError v) =
-    "this pattern matching is not exhaustive: the value " ++ v ++ " is not matched"
+    "Run-time error: this pattern matching is not exhaustive: the value " ++ v ++ " is not matched"
 
   show (NotFunctionError v) =
-    v ++ " is not a function"
+    "Run-time error: " ++ v ++ " is not a function"
   
   show (MatchingError p q) =
-    "Error: can't bind the objects " ++ p ++ " and " ++ q
+    "Run-ime error: can't bind the objects " ++ p ++ " and " ++ q
 
   show (BuiltinError p q) =
-    "Error: built-in " ++ p ++ " applied to something that is not " ++ q
+    "Run-time error: built-in " ++ p ++ " applied to something that is not " ++ q
 
   show (TypingError ta tb) =
     "Typing error: cannot unify the type \"" ++ ta ++ "\" with the type \"" ++ tb ++ "\""
@@ -164,7 +165,7 @@ instance Show QError where
   show (DetailedTypingError ta tb mt e) 
     | ta == tb = "type error"
     | otherwise =
-    "\n" ++
+    "Typing error:\n" ++
     "    Couldn't match actual type\n" ++
     ta ++ "\n" ++
     "    with expected type\n" ++
@@ -179,10 +180,10 @@ instance Show QError where
     e
 
   show (NonDuplicableError e _) =
-    "the term " ++ e ++ " is not duplicable"
+    "Typing error: the term " ++ e ++ " is not duplicable"
 
   show (InfiniteTypeError t clist mt e) =
-    "\n" ++
+    "Typing error:\n" ++
     "    Couldn't build the infinite type\n" ++
     t ++ "\n" ++ List.concat (List.map (\c -> c ++ "\n") clist) ++
     (case mt of
@@ -195,7 +196,7 @@ instance Show QError where
     e
 
   show (WrongDataArguments dcon) =
-    "the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
+    "Run-time error: the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
 
   show (UserError msg) = "User error: " ++ msg
   show (MiscError msg) = "Error: " ++ msg
