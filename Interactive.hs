@@ -115,8 +115,12 @@ run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
   l <- case buffer of
-         [] -> prompt "# "
-         _ -> prompt "  "
+         [] -> (prompt "# ") `catch_interrupt` (do
+                                            liftIO $ putStrLn ""
+                                            run_interactive opts ctx [])
+         _ -> (prompt "  ") `catch_interrupt` (do
+                                            liftIO $ putStrLn ""
+                                            run_interactive opts ctx [])
 
   -- Check the command
   case l of
@@ -139,11 +143,14 @@ run_interactive opts ctx buffer = do
             run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
                                                                                                       liftIO $ hPutStrLn stderr $ show e
                                                                                                       return ctx)
+                                                                                          `catch_interrupt` (do
+                                                                                                      liftIO $ putStrLn ""
+                                                                                                      run_interactive opts ctx [])
 
           -- Resume the command input
           run_interactive opts ctx []
 
-        else if buffer == [] && List.isPrefixOf ":" l then do
+        else if buffer == [] && List.isPrefixOf ":" l then (do
           add_history l
           (cmd:args) <- return $ words l
           case prefix_of cmd (List.map fst commands) of
@@ -278,7 +285,9 @@ run_interactive opts ctx buffer = do
 
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
-                run_interactive opts ctx []
+                run_interactive opts ctx []) `catch_interrupt` (do
+                                                           liftIO $ putStrLn ""
+                                                           run_interactive opts ctx [])
 
         else
           run_interactive opts ctx (l:buffer) 
