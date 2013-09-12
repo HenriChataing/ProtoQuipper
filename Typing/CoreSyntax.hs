@@ -744,23 +744,6 @@ instance KType ConstraintSet where
     (lc', fc')
 
 
--- | Generalize a type, associated with constraints, over its free variables and flags.
--- The free variables of the type are those that are greater or equal to a limit type\/flag.
-generalize_type :: Type -> (Variable, RefFlag) -> ConstraintSet -> TypeScheme
-generalize_type typ (limtype, limflag) cset =
-  -- Free variables and flags of the type
-  let fvt = free_typ_var typ
-      fft = free_flag typ in
-
-  -- Filter the bound variables
-  let fvt' = List.filter (\x -> x >= limtype) fvt
-      fft' = List.filter (\f -> f >= limflag) fft in
-
-  -- An optimisation would separate the constraints relevant
-  -- to the type before generalizing, but later
-  TForall fft' fvt' cset typ
-
-
 -- ----------------------------------------------------------------------
 -- * Labelling context
 

@@ -361,12 +361,8 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                         --a' <- map_type a
                         a' <- return a
                         -- Clean the constraint set 
-                        (fv, ff, cset') <- reduce_constraint_set a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+                        gena <- make_polymorphic_type a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
 
-                        genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
-                        genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
-
-                        gena <- return $ TForall genff genfv cset' a'
                         -- Update the typing context of u
                         return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 

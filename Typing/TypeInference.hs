@@ -55,14 +55,17 @@ filter fc = do
                   _ -> return $ c:r) (return []) fc
 
 
--- | Reduce a constraint set to an equivalent one that contains less constraints.
-reduce_constraint_set :: Type             -- ^ Generic type.
-                      -> ConstraintSet    -- ^ Unreduced constraint set.
+
+-- | Generalize a type, associated with constraints, over its free variables and flags.
+-- The free variables of the type are those that are greater or equal to a limit type\/flag.
+make_polymorphic_type :: Type                                  -- ^ Generic type.
+                      -> ConstraintSet                         -- ^ Unreduced constraint set.
                       -> (RefFlag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
-                      -> QpState ([Variable], [RefFlag], ConstraintSet)
-reduce_constraint_set typ (lc, fc) (isref, isvar) =
+                      -> QpState TypeScheme
+make_polymorphic_type typ (lc, fc) (isref, isvar) =
   let (ff, fv) = (free_flag typ, free_typ_var typ) in
-  let (isref', isvar') = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
+  -- A variable / flag is to be kept (in the constraints) if it is from the context, or if it is in the final type.
+  let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
      
   -- Walk starting from one point, and stopping on the other import vertices 
   let walk = \origin next g visited keep ->
@@ -96,8 +99,8 @@ reduce_constraint_set typ (lc, fc) (isref, isvar) =
               Just c -> IMap.insert x (y:c) g
               Nothing -> IMap.insert x [y] g) IMap.empty fc
 
-  initf <- return $ List.filter isref' $ IMap.keys g
-  cs <- return $ walk_all initf g isref'
+  initf <- return $ List.filter keepref $ IMap.keys g
+  cs <- return $ walk_all initf g keepref
   fc' <- return $ List.map (\(n,m) -> Le n m no_info) cs
 
   -- Types
@@ -107,12 +110,18 @@ reduce_constraint_set typ (lc, fc) (isref, isvar) =
                   case IMap.lookup x g of
                     Just c -> IMap.insert x (y:c) g
                     Nothing -> IMap.insert x [y] g
-              _ -> throw $ ProgramError "Unexpected unreduced constraint in function reduce_constraint_set") IMap.empty lc
+              _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
  
-  initv <- return $ List.filter isvar' $ IMap.keys g
-  cs' <- return $ walk_all initv g isvar'
+  initv <- return $ List.filter keepvar $ IMap.keys g
+  cs' <- return $ walk_all initv g keepvar
   lc' <- return $ List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
-  return (fv, ff, (lc',fc'))
+
+  -- Build the polymorphic type
+  genfv <- return $ List.filter isvar fv
+  genff <- return $ List.filter isref ff
+
+  return $ TForall genff genfv (lc',fc') typ
+
 
 
 -- | Build the constraint typing derivation. The algorithm inputs an incomplete constraint typing judgment
@@ -587,14 +596,9 @@ constraint_typing gamma (ELet rec p t u) cst = do
                                     -- First apply the substitution
                                     a' <- map_type a
 
-                                    -- Clean the constraint set
-                                    (fv, ff, cset') <- reduce_constraint_set a' csett (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+                                    -- Build the polymorphic type
+                                    gena <- make_polymorphic_type a' csett (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
                                     
-                                    genfv <- return $ List.filter (\x -> limtype <= x && x < endtype) fv
-                                    genff <- return $ List.filter (\f -> limflag <= f && f < endflag) ff
-
-                                    gena <- return $ TForall genff genfv cset' a'
-
                                     -- Update the typing context of u
                                     return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
