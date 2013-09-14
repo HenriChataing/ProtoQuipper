@@ -63,6 +63,9 @@ instance PPrint Type where
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
 
+  sprintn lv (TForall a typ) =
+    "forall " ++ a ++ "  " ++ sprintn (decr lv) typ
+
   sprintn lv (TLocated a _) = sprintn lv a
 
   sprintn lv (TApp a b) =

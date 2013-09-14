@@ -140,6 +140,9 @@ data Type =
   | TBool                     -- ^ The basic type /bool/.
   | TInt                      -- ^ The basic type /int/.
 
+-- Generic types
+  | TForall String Type       -- ^ A type generalized over a single variable. This constructor is not readily accessible to the user.
+
 -- Unrelated
   | TLocated Type Extent      -- ^ A located type.
   deriving Show
