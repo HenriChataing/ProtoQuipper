@@ -54,7 +54,6 @@ import Data.List as List
   BUILTIN { TkBuiltin $$ }
   CIRC { TkCirc $$ }
   ELSE { TkElse $$ }
-  ERROR { TkError $$ }
   FALSE { TkFalse $$ }
   FUN { TkFun $$ }
   IF { TkIf $$ }
@@ -78,6 +77,7 @@ import Data.List as List
   QLID { TkQLId $$ }
   INT { TkInt $$ }
   STRING { TkString $$ }
+  CHAR { TkChar $$ }
 
 %right "->"
 %right ':'
@@ -233,9 +233,13 @@ Atom_XExpr :
     | UID                                       { locate (EDatacon (snd $1) Nothing) (fst $1) }
     | QLID                                      { let (mname, dot:lid) = List.span (\c -> c /= '.') (snd $1) in
                                                   locate (EQualified mname lid) (fst $1) }
+    | CHAR                                      { locate (EDatacon "Char" (Just $ EInt $ ord $ snd $1)) (fst $1) }
+    | STRING                                    { locate (List.foldr (\c l ->
+                                                                        EDatacon "Cons"
+                                                                                 (Just $ ETuple [EDatacon "Char" (Just $ EInt $ ord c), l])) (EDatacon "Nil" Nothing) (snd $1)) (fst $1) }
+
     | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
-    | ERROR STRING                              { locate (EError (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
