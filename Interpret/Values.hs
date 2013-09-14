@@ -23,7 +23,7 @@ import Control.Exception
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-
+import Data.Char
 
 -- | The type of values.
 data Value =
@@ -100,4 +100,12 @@ instance Eq Value where
   (==) (VDatacon dcon v) (VDatacon dcon' v') = (dcon == dcon') && (v == v')
   (==) _ _ = throw $ ProgramError "Value:==: illegal argument"
 
+
+-- | Return the string corresponding to a value (supposedly a string).
+string_of_value :: Value -> String
+string_of_value (VDatacon _ Nothing) = ""
+string_of_value (VDatacon _ (Just (VTuple [VDatacon _ (Just (VInt c)), rest]))) =
+  (chr c):(string_of_value rest)
+string_of_value v =
+  throw $ RunTimeError $ "value is not a string: " ++ pprint v 
 
