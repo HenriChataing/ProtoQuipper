@@ -26,3 +26,6 @@ let (>) = #builtin GT ;;
 let (&&) = fun b0 b1 -> if b0 then b1 else false ;;
 let (||) = fun b0 b1 -> if b0 then true else b1 ;;
 let not = fun b0 -> if b0 then false else true ;;
+
+-- UNICODE CHARACTERS
+type char = Char of int
