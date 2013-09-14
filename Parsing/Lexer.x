@@ -10,6 +10,9 @@ import Monad.QuipperError
 import Monad.QpState
 
 import qualified Data.List as List
+import Data.Char
+
+import Control.Exception
 }
 
 %wrapper "posn"
@@ -24,6 +27,8 @@ $infix1 = ['\@' '\^']
 $infix2 = ['\+' '\-']
 $infix3 = ['\*' '\/' '\%' '\=']
 $symbolchar = [$infix0 $infix1 $infix2 $infix3 '\%' '\.' '\:']
+$printable_char = [^ \" \\] 
+$escape_char = [0 a b f n r t v \" \' \\]
 
 tokens :-
 
@@ -53,14 +58,15 @@ tokens :-
   "{"                                 { locate_token TkLCurlyBracket }
   "}"                                 { locate_token TkRCurlyBracket }
 
-  \" .* \"                            { \p s -> TkString (posn_to_extent p s, List.init $ List.tail s) }
+  \" ($printable_char | \\ $escape_char)* \"   { \p s -> TkString (posn_to_extent p s, read_string $ List.init $ List.tail s) }
+  \' ($printable_char | \\ $escape_char) \'    { \p s -> TkChar (posn_to_extent p s, read_char $ List.init $ List.tail s) }
+
 
   and                                 { locate_token TkAnd }
   bool                                { locate_token TkBool }
   box                                 { locate_token TkBox }
   circ                                { locate_token TkCirc }
   else                                { locate_token TkElse }
-  error                               { locate_token TkError }
   false                               { locate_token TkFalse }
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
@@ -103,6 +109,24 @@ posn_to_extent (AlexPn p l c) s =
         lend = Loc { line = l, column = c+length s-1 },
         file = file_unknown }
 
+
+-- | Return the string value of a string token. In particular, escape characters are read and replaced by their char counterpart.
+read_string :: String -> String
+read_string "" = ""
+read_string s =
+  case readLitChar s of
+    [(c, s')] -> c:(read_string s')
+    _ -> throw $ ProgramError "Lexer:unexpected branching"
+
+
+-- | Return the integer value of a character (that can be an escape character).
+read_char :: String -> Char
+read_char s =
+  case readLitChar s of
+    [(c, "")] -> c
+    _ -> throw $ ProgramError $ "Undefined escape character " ++ s
+
+
 -- | The type of lexical tokens. 
 -- Each token is annotated with an 'Extent', which records the location of the token
 -- in the original file. These extents are later also used to record the location of parsed expressions.
@@ -116,6 +140,7 @@ data Token =
   | TkQUId (Extent, String)      -- ^ A qualified upper-case identifier.
   | TkInt (Extent, String)       -- ^ An integer literal. The value of the integer is left unparsed.
   | TkString (Extent, String)    -- ^ A string: a list of characters delimited by double quotes.
+  | TkChar (Extent, Char)        -- ^ A single character delimited by qoutes.
   | TkUnknownToken (Extent, String)     -- ^ An error token.
 
   -- Reserved notations : list of reserved names
@@ -124,7 +149,6 @@ data Token =
   | TkBox Extent           -- ^ The reserved name \'box'.
   | TkCirc Extent          -- ^ The reserved name \'circ'.
   | TkElse Extent          -- ^ The reserved name \'else'.
-  | TkError Extent         -- ^ The reserved name \'error\'.
   | TkFalse Extent         -- ^ The reserved name \'false'.
   | TkFun Extent           -- ^ The reserved name \'fun'.
   | TkIf Extent            -- ^ The reserved name \'if'.
@@ -190,6 +214,7 @@ instance Show Token where
   show (TkQUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkString (ex,s)) = "'\"" ++ s ++ "\"' (" ++ show ex ++ ")" 
+  show (TkChar (ex, s)) = "'" ++ showLitChar s "" ++ "' (" ++ show ex ++ ")" 
   show (TkUnknownToken (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
   show (TkAnd ex) = "'and' (" ++ show ex ++ ")"
@@ -197,7 +222,6 @@ instance Show Token where
   show (TkBox ex) = "'box' (" ++ show ex ++ ")"
   show (TkCirc ex) = "'circ' (" ++ show ex ++ ")"
   show (TkElse ex) = "'else' (" ++ show ex ++ ")"
-  show (TkError ex) = "'error' (" ++ show ex ++ ")"
   show (TkFalse ex) = "'false' (" ++ show ex ++ ")"
   show (TkFun ex) = "'fun' (" ++ show ex ++ ")"
   show (TkIf ex) = "'if' (" ++ show ex ++ ")"
@@ -264,6 +288,7 @@ locate_token_in_file f (TkQLId (ex, s)) = TkQLId (ex { file = f }, s)
 locate_token_in_file f (TkQUId (ex, s)) = TkQUId (ex { file = f }, s)
 locate_token_in_file f (TkInt (ex, s)) = TkInt (ex { file = f }, s)
 locate_token_in_file f (TkString (ex, s)) = TkString (ex { file = f }, s)
+locate_token_in_file f (TkChar (ex, s)) = TkChar (ex { file = f }, s)
 locate_token_in_file f (TkUnknownToken (ex, s)) = TkUnknownToken (ex { file = f }, s)
 
 locate_token_in_file f (TkAnd ex) = TkAnd ex { file = f }
@@ -271,7 +296,6 @@ locate_token_in_file f (TkBool ex) = TkBool ex { file = f }
 locate_token_in_file f (TkBox ex) = TkBox ex { file = f }
 locate_token_in_file f (TkCirc ex) = TkCirc ex { file = f }
 locate_token_in_file f (TkElse ex) = TkElse ex { file = f }
-locate_token_in_file f (TkError ex) = TkError ex { file = f }
 locate_token_in_file f (TkFalse ex) = TkFalse ex { file = f }
 locate_token_in_file f (TkFun ex) = TkFun ex { file = f }
 locate_token_in_file f (TkIf ex) = TkIf ex { file = f }
