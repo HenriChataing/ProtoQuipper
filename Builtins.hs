@@ -179,6 +179,19 @@ builtin_operations =
             ] in
   Map.fromList ops
 
+
+-- | Built-in user error mechanism.
+builtin_error :: Map String (Type, Value)
+builtin_error =
+  Map.singleton "ERROR" (TForall "_a_" $ TArrow (TApp (TVar "list") (TVar "char")) (TVar "_a_"),
+                         VBuiltin (\msg -> 
+                                     let string_msg = string_of_value msg in 
+                                     throw $ UserError string_msg))
+
+
 -- | The collection of all built-in operations.
 builtin_all :: Map String (Type, Value)
-builtin_all = Map.union builtin_gates builtin_operations
+builtin_all = Map.union builtin_gates $ Map.union builtin_operations builtin_error
+
+
+
