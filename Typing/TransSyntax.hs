@@ -77,7 +77,6 @@ module Typing.TransSyntax (
   translate_pattern,
   with_interface,
   desugar,
-  import_builtins,
   import_typedefs,
   LabellingContext (..),
   empty_label) where
@@ -132,22 +131,12 @@ empty_label = LblCtx {
 
 
 
--- | Import the built-in values, defined in the "Builtins" module.
-import_builtins :: QpState ()
-import_builtins = do
-  mb <- Map.foldWithKey (\b (t, v) rec -> do
-                      m <- rec
-                      t' <- translate_bound_type t empty_label 
-                      return $ Map.insert b (t', v) m) (return Map.empty) builtin_all
-  ctx <- get_context
-  set_context $ ctx { builtins = mb }
-
 
 -- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.Typedef]            -- ^ A block of co-inductive type definitions.
-                -> LabellingContext       -- ^ The current labelling context.
-                -> QpState LabellingContext -- ^ The updated labelling context.
+import_typedefs :: [S.Typedef]                -- ^ A block of co-inductive type definitions.
+                -> LabellingContext           -- ^ The current labelling context.
+                -> QpState LabellingContext   -- ^ The updated labelling context.
 import_typedefs dblock label = do
   -- Import the type definitions.
   -- At first, the definition is empty, it will be elaborated later.
@@ -530,8 +519,6 @@ translate_type (S.TVar x) arg (label, bound) = do
           t <- new_type
           return (t, Map.insert x t label)
 
-
-
 translate_type (S.TQualified m x) arg lbl = do
   id <- lookup_qualified_type (m, x)
   spec <- type_spec id
@@ -581,6 +568,11 @@ translate_type (S.TApp t u) args (label, bound) = do
 translate_type (S.TLocated t ex) args label = do
   set_location ex
   translate_type t args label
+
+translate_type (S.TForall a typ) [] (label, bound) = do
+  a' <- new_type
+  label' <- return $ Map.insert a a' label
+  translate_type typ [] (label', bound)
 
 -- Remaining cases: of types applied to an argument when they are not generic
 translate_type t args label = do
@@ -774,16 +766,20 @@ translate_expression (S.ELocated e ex) label = do
   e' <- translate_expression e label
   return $ ELocated e' ex
 
-translate_expression (S.EBuiltin s) _ = do
+translate_expression (S.EBuiltin s) label = do
   -- Check the existence of the built-in value before translating it
   ctx <- get_context
-  if Map.member s $ builtins ctx then
-    -- Ok, the built-in s exists
-    return $ EBuiltin s
-  else do
-    -- Wrong, no built-in of name s has been defined
-    ex <- get_location
-    throwQ $ LocatedError (UndefinedBuiltin s) ex
+  case Map.lookup s builtin_all of
+    Just (typ, val) -> do
+        -- Translate the type
+        typ' <- translate_bound_type typ label
+        set_context $ ctx { builtins = Map.insert s (typ',val) (builtins ctx) }
+        return $ EBuiltin s
+
+    Nothing -> do
+        -- Wrong, no built-in of name s has been defined
+        ex <- get_location
+        throwQ $ LocatedError (UndefinedBuiltin s) ex
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label

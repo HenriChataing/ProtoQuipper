@@ -41,7 +41,6 @@ main = do
     [] -> do
         putStrLn "### Proto-Quipper -- Interactive Mode ###"
         _ <- Q.runS (do
-            import_builtins
             run_interactive opts (Context { labelling = LblCtx { l_variables = Map.empty, l_datacons = Map.empty, l_types = Map.empty },
                                             typing = IMap.empty,
                                             environment = IMap.empty, constraints = emptyset }) []

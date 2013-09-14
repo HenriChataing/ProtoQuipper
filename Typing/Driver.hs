@@ -502,9 +502,6 @@ do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.
               -> QpState ()
 do_everything opts files = do
-  -- Define the builtins
-  import_builtins
-
   -- Get the modules' names
   progs <- return $ List.map module_of_file files
 

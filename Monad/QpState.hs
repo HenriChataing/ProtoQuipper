@@ -359,11 +359,10 @@ type_name x = do
         return $ subvar 'A' x
 
 
-
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
-global_namespace :: [String]                                                     -- ^ A list of module dependencies.
+global_namespace :: [String]                                                          -- ^ A list of module dependencies.
                  -> QpState (Map String LVariable, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
 global_namespace deps = do
   mods <- get_context >>= return . modules
@@ -438,15 +437,28 @@ lookup_qualified_type (mod, n) = do
     throw_UndefinedType (mod ++ "." ++ n)
 
 
+
 -- | Look up the type of a built-in object.
 builtin_type :: String -> QpState Type
 builtin_type s = do
   ctx <- get_context
   case Map.lookup s $ builtins ctx of
-    Just (t, _) ->
+    Just (t, _) -> do
+        (ff, fv) <- return (free_flag t, free_typ_var t)
+        -- Replace the flags
+        t <- List.foldl (\rec f -> do
+                           typ <- rec
+                           f' <- fresh_flag
+                           return $ subs_flag f f' typ) (return t) ff
+        -- Replace the type variables
+        t <- List.foldl (\rec v -> do
+                           typ <- rec
+                           v' <- fresh_type
+                           return $ subs_typ_var v (TVar v') typ) (return t) fv
         return t
     Nothing ->
         throwQ $ ProgramError $ "Missing builtin: " ++ s
+
 
 
 -- | Look up the value of a built-in object.
