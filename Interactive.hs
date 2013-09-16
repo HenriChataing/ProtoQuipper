@@ -307,10 +307,10 @@ commands = [
   (":help", "Show the list of commands"),
   (":exit", "Quit the interactive mode"),
   (":path", "Add a directory to the current module path"), 
-  (":type", "Show the type of an expression"), 
+  (":type", "Show the simplified type of an expression"), 
+  (":fulltype", "Show the detailed type of an expression"),
   (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit"),
-  (":fulltype", "Display the type scheme of a variable"),
   (":value", "Display the value of one or more variables, without consuming it")
   ]
 

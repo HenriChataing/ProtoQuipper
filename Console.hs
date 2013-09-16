@@ -83,13 +83,15 @@ putStrLnC _ s =
 catch_interrupt code action =
   QpState { runS = (\ctx -> do
                       oldhandler <- installHandler (Catch $ \event -> do
-                                                              if event == ControlC then
+                                                              if event == ControlC then do
                                                                 runS action ctx
-                                                              else
+								return ()
+                                  				else
                                                                 return ())
                       res <- runS code ctx
                       installHandler oldhandler
                       return res
+ ) }
 #else
 
 prompt p =
