@@ -105,7 +105,7 @@ tokens :-
 -- | Convert Alex's positions to extents.
 posn_to_extent :: AlexPosn -> String -> Extent
 posn_to_extent (AlexPn p l c) s =
-  Ext { lbegin = Loc { line = l, column = c },
+  Ext { lbegin = Loc { line = l, column = c-1 },
         lend = Loc { line = l, column = c+length s-1 },
         file = file_unknown }
 
