@@ -142,14 +142,11 @@ run_interactive opts ctx buffer = do
             run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
                                                                                                       liftIO $ hPutStrLn stderr $ show e
                                                                                                       return ctx)
-                                                                                          `catch_interrupt` (do
-                                                                                                      liftIO $ putStrLn ""
-                                                                                                      run_interactive opts ctx [])
 
           -- Resume the command input
           run_interactive opts ctx []
 
-        else if buffer == [] && List.isPrefixOf ":" l then (do
+        else if buffer == [] && List.isPrefixOf ":" l then do
           add_history l
           (cmd:args) <- return $ words l
           case prefix_of cmd (List.map fst commands) of
@@ -304,9 +301,7 @@ run_interactive opts ctx buffer = do
 
             _ -> do
                 liftIO $ putStrLn $ "Ambiguous command: '" ++ l ++ "' -- Try :help for more information"
-                run_interactive opts ctx []) `catch_interrupt` (do
-                                                           liftIO $ putStrLn ""
-                                                           run_interactive opts ctx [])
+                run_interactive opts ctx []
 
         else
           run_interactive opts ctx (l:buffer) 

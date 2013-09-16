@@ -19,7 +19,6 @@ import System.IO
 import GHC.ConsoleHandler
 #else
 import System.Console.Readline
-import System.Posix.Signals
 #endif
 
 
@@ -37,11 +36,6 @@ data Color = Red | Yellow | Blue
 prompt :: String                  -- ^ A prompt string, like \"# \" or \"$ \".
        -> QpState (Maybe String)  -- ^ A command line.
 
-
--- | Catch the interrupt (C-c) signal.
-catch_interrupt :: QpState a   -- ^ The code to be executed.
-                -> QpState ()  -- ^ The action to follow if the interrupt signal is caught.
-                -> QpState a
 
 
 -- | Adds a command to the history.
@@ -80,18 +74,6 @@ putStrC _ s =
 putStrLnC _ s =
   liftIO $ putStrLn s
 
-catch_interrupt code action =
-  QpState { runS = (\ctx -> do
-                      oldhandler <- installHandler (Catch $ \event -> do
-                                                              if event == ControlC then do
-                                                                runS action ctx
-								return ()
-                                  				else
-                                                                return ())
-                      res <- runS code ctx
-                      installHandler oldhandler
-                      return res
- ) }
 #else
 
 prompt p =
@@ -111,13 +93,6 @@ putStrLnC c s =
     Yellow -> liftIO $ putStrLn $ "\x1b[33;1m" ++ s ++ "\x1b[0m" 
     Red -> liftIO $ putStrLn $ "\x1b[31;1m" ++ s ++ "\x1b[0m" 
     Blue -> liftIO $ putStrLn $ "\x1b[34;1m" ++ s ++ "\x1b[0m" 
-
-catch_interrupt code action =
-  QpState { runS = (\ctx -> do
-                      oldhandler <- installHandler keyboardSignal (Catch $ runS action ctx >>= return . snd) Nothing
-                      res <- runS code ctx
-                      installHandler keyboardSignal oldhandler Nothing
-                      return res) }
 
 #endif
 
