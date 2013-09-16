@@ -449,8 +449,9 @@ process_module opts prog = do
   -- Import the global variables from the dependencies
   (vars, datas, typs) <- global_namespace (S.imports prog)
 
-  -- Reset the circuit stack
+  -- Save and reset the circuit stack
   ctx <- get_context
+  old_stack <- return $ circuits ctx
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
  
   -- Interpret all the declarations
@@ -483,6 +484,10 @@ process_module opts prog = do
                            m_types = Map.map unTUser typs }
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
+
+  -- Return the circuit stack to its original form
+  ctx <- get_context
+  set_context $ ctx { circuits = old_stack }
 
   -- Return
   return newmod
