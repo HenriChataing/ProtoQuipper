@@ -945,89 +945,78 @@ available_names :: [String]
 available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
 
 
+-- List of pre-defined printing functions
+
+-- | Pre-defined type variable printing function. The variables that may appear in the final type must be given as argument.
+-- Each one of these variables is then associated with a name (of the list 'Monad.QpState.available_names').
+-- If too few names are given, the remaining variables are displayed as: subvar \'X\' x.
+display_var :: [Variable] -> QpState (Variable -> String)
+display_var fv = do
+  attr <- return $ List.zip fv available_names
+  return (\x -> case List.lookup x attr of
+                  Just n -> n
+                  Nothing -> subvar 'X' x)
+
+
+-- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
+-- if the value is one, and \"\" else.
+display_flag :: QpState (RefFlag -> String)
+display_flag = do
+  refs <- get_context >>= return . flags
+  return (\f -> case f of
+                  1 -> "!"
+                  n | n >= 2 -> case IMap.lookup n refs of
+                                  Just fi -> case value fi of
+                                               One -> "!"
+                                               _ -> ""
+                                  Nothing -> ""
+                    | otherwise -> "")
+
+
+-- | Re-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
+-- subvar \'T\' t if not found.
+display_algebraic :: QpState (Variable -> String)
+display_algebraic = do
+  nspace <- get_context >>= return . namespace
+  return (\t -> case IMap.lookup t $ N.typecons nspace of
+                  Just n -> n
+                  Nothing -> subvar 'T' t)
+
+
+
 -- | Type variables are attributed random names before being printed, and the flags are
 -- printed with their actual value: only if the flag is set will it be displayed as '!', else it will appear as ''.
 pprint_type_noref :: Type -> QpState String
 pprint_type_noref t = do
-  -- Printing of type variables
-  fvt <- return $ free_typ_var t
-  attr <- return $ List.zip fvt available_names
-  fvar <- return (\x -> case List.lookup x attr of
-                          Just n -> n
-                          Nothing -> subvar 'X' x)
+  -- Printing of type variables, flags and types
+  fvar <- display_var (free_typ_var t)
+  fflag <- display_flag
+  fuser <- display_algebraic
 
-  -- Printing of flags
-  refs <- get_context >>= return . flags
-  fflag <- return (\f -> case f of
-                           1 -> "!"
-                           n | n >= 2 -> case IMap.lookup n refs of
-                                           Just fi -> case value fi of
-                                                        One -> "!"
-                                                        _ -> ""
-                                           Nothing -> ""
-                             | otherwise -> "")
-  -- Printing type names
-  nspace <- get_context >>= return . namespace
-  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'T' n)
   return $ genprint Inf t [fflag, fvar, fuser]
+
 
 
 -- | Like 'pprint_type_noref', but for linear types.
 pprint_lintype_noref :: LinType -> QpState String
 pprint_lintype_noref a = do
-  -- Printing of type variables
-  fva <- return $ free_typ_var a
-  attr <- return $ List.zip fva available_names
-  fvar <- return (\x -> case List.lookup x attr of
-                          Just n -> n
-                          Nothing -> subvar 'X' x)
+  -- Printing of type variables, flags and types
+  fvar <- display_var (free_typ_var a)
+  fflag <- display_flag
+  fuser <- display_algebraic
 
-  -- Printing of flags
-  refs <- get_context >>= return . flags
-  fflag <- return (\f -> case f of
-                           1 -> "!"
-                           n | n >= 2 -> case IMap.lookup n refs of
-                                           Just fi -> case value fi of
-                                                        One -> "!"
-                                                        _ -> ""
-                                           Nothing -> ""
-                             | otherwise -> "")
-
-  -- Printing type names
-  nspace <- get_context >>= return . namespace
-  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'T' n)
   return $ genprint Inf a [fflag, fvar, fuser]
+
 
 
 -- | Like 'pprint_type_noref', but for typing schemes.
 pprint_typescheme_noref :: TypeScheme -> QpState String
 pprint_typescheme_noref (TForall ff fv cset typ) = do
-  -- Printing of type variables
-  attr <- return $ List.zip fv available_names
-  fvar <- return (\x -> case List.lookup x attr of
-                          Just n -> n
-                          Nothing -> subvar 'X' x)
+  -- Printing of type variables, flags and types
+  fvar <- display_var fv
+  fflag <- display_flag
+  fuser <- display_algebraic
 
-  -- Printing of flags
-  refs <- get_context >>= return . flags
-  fflag <- return (\f -> case f of
-                           1 -> "!"
-                           n | n >= 2 -> case IMap.lookup n refs of
-                                           Just fi -> case value fi of
-                                                        One -> "!"
-                                                        _ -> ""
-                                           Nothing -> ""
-                             | otherwise -> "")
-
-  -- Printing type names
-  nspace <- get_context >>= return . namespace
-  fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'T' n)
   return $ genprint Inf (TForall ff fv cset typ) [fflag, fvar, fuser]
 
 
