@@ -256,28 +256,48 @@ run_interactive opts ctx buffer = do
                 run_interactive opts ctx []
 
             [":fulltype"] -> do
-                List.foldl (\rec n -> do
-                              rec
-                              case Map.lookup n $ l_variables (labelling ctx) of
-                                Just (LGlobal x) -> do
-                                    typs <- get_context >>= return . globals
-                                    case IMap.lookup x typs of
-                                      Just typ -> do
-                                          prt <- pprint_typescheme_noref typ
-                                          liftIO $ putStrLn $ "val " ++ n ++ " : " ++ prt
-                                      Nothing ->
-                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+                if args == [] then
+                  liftIO $ putStrLn "Error: the command ':type' expects one argument"
+                else do
+                  term <- return $ unwords args
+                  (do
+                      tokens <- mylex file_unknown (term ++ ";;")
+                      p <- return $ parse tokens
+                      case S.body p of
+                        [] ->
+                            liftIO $ putStrLn "-: ()"
+                       
+                        _ -> do
+                            S.DExpr e <- return $ List.head (S.body p)
 
-                                Just (LVar x) -> do
-                                    case IMap.lookup x $ typing ctx of
-                                      Just typ -> do
-                                          prt <- pprint_typescheme_noref typ
-                                          liftIO $ putStrLn $ "val " ++ n ++ " : " ++ prt
-                                      Nothing ->
-                                          throwQ $ ProgramError $ "not in scope: " ++ show x
-                                
-                                Nothing ->
-                                    liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
+                            -- Translation of the expression into internal syntax.
+                            e' <- translate_expression e $ labelling ctx
+
+                            -- Free variables of the new expression
+                            fve <- return $ free_var e'
+                            a@(TBang n _) <- new_type
+
+                            -- Type e. The constraints from the context are added for the unification.
+                            gamma <- return $ typing ctx
+                            (gamma_e, _) <- sub_context fve gamma
+                            cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                            cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                            inferred <- map_type a
+
+                            -- TODO : Clean the constraints
+
+                            -- Display the type
+                            fv <- return $ List.union (free_typ_var inferred) (free_typ_var cset')
+                            fvar <- display_var fv
+                            fflag <- display_flag
+                            fuser <- display_algebraic
+
+                            pinf <- return $ genprint Inf inferred [fflag, fvar, fuser]
+                            pcset <- return $ genprint Inf cset' [fflag, fvar, fuser]
+
+                            liftIO $ putStrLn $ "-: " ++ pinf ++ " with\n" ++ pcset) `catchQ` (\e -> do
+                                                                               liftIO $ hPutStrLn stderr $ show e
+                                                                               return ())
 
                 run_interactive opts ctx []
 
