@@ -50,33 +50,36 @@ import_modules :: Options                     -- ^ The command line options. Thi
 import_modules opts mnames ctx = do 
   -- Build the dependencies (with a dummy module that is removed immediately)
   deps <- build_dependencies (includes opts) S.dummy_program { S.imports = mnames }
-  deps <- return $ List.init deps
+  deps <- return $ List.init $ deps
 
-  -- Process everything, finishing by the main file
+  -- Process the modules.
+  -- If a module was explicitly imported, then it is ret-processed.
   ctx <- List.foldl (\rec p -> do
                   ctx <- rec
                   mopts <- return $ MOptions { toplevel = False, disp_decls = False }
-                  -- Check whether the module has already been imported or not
-                  imported <- get_context >>= return . modules
-                  -- If needed, process the module, in any case return the module contents
-                  m <- case List.lookup (S.module_name p) imported of
-                    Just m -> do
-                        -- Return the module contents
-                        return m
-                 
-                    Nothing -> do
-                        -- Process the module
-                        process_module (opts, mopts) p
 
-                  -- Insert again the names in the labelling map.
-                  -- The module is imported only if asked
+                  -- If the module has been explicitly included, re-process it
                   if List.elem (S.module_name p) mnames then do
+                    -- Re-process
+                    m <- process_module (opts, mopts) p
+                    -- Import
                     vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
                     typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
                     return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
                                                         l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
-                                                        l_types = Map.union typs $ l_types $ labelling ctx } }
-                  else
+                                                        l_types = Map.union typs $ l_types $ labelling ctx } }                   
+                  else do
+                    -- Check whether the module has already been imported or not
+                    imported <- get_context >>= return . modules
+                    -- If needed, process the module, in any case return the module contents
+                    case List.lookup (S.module_name p) imported of
+                      Just m -> do
+                          -- The module already exists
+                          return ()
+                      Nothing -> do
+                          -- Process the module
+                          _ <- process_module (opts, mopts) p
+                          return ()
                     return ctx) (return ctx) deps
   set_file file_unknown
   return ctx
