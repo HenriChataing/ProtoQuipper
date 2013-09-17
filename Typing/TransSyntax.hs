@@ -175,7 +175,8 @@ import_typedefs dblock label = do
                                                       (dtype, argtyp, cset) <- case dtype of
                                                                                 -- If the constructor takes no argument
                                                                                 Nothing -> do
-                                                                                    return (TBang one (TUser id args'), TBang one TUnit, emptyset)
+                                                                                    m <- fresh_flag
+                                                                                    return (TBang m (TUser id args'), TBang one TUnit, emptyset)
       
                                                                                 -- If the constructor takes an argument
                                                                                 Just dt -> do

@@ -357,7 +357,7 @@ constraint_typing gamma (EBox a) cst = do
   -- Build the type of box
   b <- new_type
   arw <- return $ TBang 1 (TArrow a b)
-  cir <- return $ TBang 0 (TCirc a b)
+  cir <- return $ TBang 1 (TCirc a b)
 
   return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
   
@@ -471,7 +471,7 @@ constraint_typing gamma (EFun p e) cst = do
   -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
 
-  return $ csetp <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
+  return $ (csetp & info) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
 -- Tensor intro typing rule
@@ -656,14 +656,14 @@ constraint_typing gamma (EDatacon dcon e) cst = do
         -- The context must be duplicable
         duplicable_context gamma
 
-        return $ ((dtype' <:: cst) & info) <> csetd
+        return $ ((dtype' <:: cst) & info) <> (csetd & info)
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
 
-        return $ ((u <:: cst) & info) <> csete <> csetd
+        return $ ((u <:: cst) & info) <> csete <> (csetd & info)
 
     (TBang _ _, Just _) ->
         throw $ ProgramError "constraint_typing: ill-typed data constructor"
@@ -696,7 +696,7 @@ constraint_typing gamma (EMatch e blist) cst = do
                                      -- Refer to the case of 'if' for more clarity.
                                      csetf <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_bl) f cst
 
-                                     -- The type of the expression e must be a subtype of the type of the pattern must
+                                     -- The type of the expression e must be a subtype of the type of the pattern
                                      return $ (a:ar, csetp <> csetf <> cset)) (return ([], emptyset)) blist
 
   -- Type e as a subtype of all the pattern types
