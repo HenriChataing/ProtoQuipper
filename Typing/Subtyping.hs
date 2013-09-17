@@ -198,12 +198,12 @@ break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   return (c:lc', fc')
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
-  if non_trivial n m then do
+  if non_trivial m n then do
     intype <- case in_type info of
                 Nothing -> return $ Just $ if actual info then TBang n a else TBang m b
                 Just a -> return $ Just a
     break_composite bu ((Sublintype a b info):lc, (Le m n info):fc)
-  else
+  else do
     break_composite bu ((Sublintype a b info):lc, fc)
 
 

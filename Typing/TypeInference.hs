@@ -357,7 +357,7 @@ constraint_typing gamma (EBox a) cst = do
   -- Build the type of box
   b <- new_type
   arw <- return $ TBang 1 (TArrow a b)
-  cir <- return $ TBang 1 (TCirc a b)
+  cir <- return $ TBang 0 (TCirc a b)
 
   return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
   
