@@ -945,6 +945,11 @@ available_names :: [String]
 available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
 
 
+-- | A list of names to be used to represent flag variables.
+available_flags :: [String]
+available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
+
+
 -- List of pre-defined printing functions
 
 -- | Pre-defined type variable printing function. The variables that may appear in the final type must be given as argument.
@@ -966,10 +971,28 @@ display_flag = do
   return (\f -> case f of
                   1 -> "!"
                   n | n >= 2 -> case IMap.lookup n refs of
-                                  Just fi -> case value fi of
-                                               One -> "!"
-                                               _ -> ""
+                                  Just FInfo { value = One } -> "!"
+                                  Just _ -> ""
                                   Nothing -> ""
+                    | otherwise -> "")
+
+
+-- | Display a reference flag. This function is similar to 'Monad.QpState.display_flag', but
+-- displays the reference flag when the value is unknown. The argument gives the reference flags that may appear in the final
+-- type. Each reference is then associated with a name.
+display_ref :: [RefFlag] -> QpState (RefFlag -> String)
+display_ref ff = do
+  attr <- return $ List.zip ff available_flags
+  refs <- get_context >>= return . flags
+  return (\f -> case f of
+                  1 -> "!"
+                  n | n >= 2 -> case IMap.lookup n refs of
+                                  Just FInfo { value = One } -> "!"
+                                  Just FInfo { value = Zero } -> ""
+                                  _ -> 
+                                      case List.lookup n attr of
+                                        Just nm -> "(" ++ nm ++ ")"
+                                        Nothing -> "(" ++ show n ++ ")"
                     | otherwise -> "")
 
 

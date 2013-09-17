@@ -311,19 +311,15 @@ instance PPrint TypeConstraint where
 
 -- | Printing of flag constraints. The function 'genprint' cannot be parameterized.
 instance PPrint FlagConstraint where
-  pprint (Le m n _) =
-    (if m < 2 then
-       show m
-     else
-       subvar 'f' m) ++ " <= " ++
-    (if n < 2 then
-       show n
-     else
-       subvar 'f' n)
+  genprint lv (Le m n _) [fflag, _, _] =
+    fflag m ++ " <= " ++ fflag n
+
+  genprint lv _ _ =
+    throw $ ProgramError "PPrint:FlagConstraint: missing arguments"
 
   sprintn _ c = pprint c
   sprint c = pprint c
-  genprint _ c _ = pprint c
+  pprint c = genprint Inf c [pprint, subvar 'X', subvar 'T']
 
 
 -- | Printing of constraint sets. The function 'genprint' behaves like the one from the 'PPrint' instance
@@ -344,7 +340,7 @@ instance PPrint ConstraintSet where
                           (s ++ pc ++ padding, nth-1)) ("", nline+1) plcs
     in
 
-    let pfcs = List.map pprint fcs in
+    let pfcs = List.map (\c -> genprint Inf c opts) fcs in
     let maxw = List.maximum $ List.map List.length pfcs in
     let nline = screenw `quot` (maxw + 5) in
 

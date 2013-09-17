@@ -275,22 +275,28 @@ run_interactive opts ctx buffer = do
                             a@(TBang n _) <- new_type
 
                             -- Type e. The constraints from the context are added for the unification.
+                            limtype <- get_context >>= return . type_id
+                            limflag <- get_context >>= return . flag_id
+
                             gamma <- return $ typing ctx
                             (gamma_e, _) <- sub_context fve gamma
                             cset <- constraint_typing gamma_e e' [a] >>= break_composite True
                             cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
                             inferred <- map_type a
+ 
+                            endtype <- get_context >>= return . type_id
+                            endflag <- get_context >>= return . flag_id
 
-                            -- TODO : Clean the constraints
+                            -- Simplify the constraint set
+                            (TForall ff fv cset a@(TBang n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
 
                             -- Display the type
-                            fv <- return $ List.union (free_typ_var inferred) (free_typ_var cset')
                             fvar <- display_var fv
-                            fflag <- display_flag
+                            fflag <- display_ref (n:ff)
                             fuser <- display_algebraic
 
-                            pinf <- return $ genprint Inf inferred [fflag, fvar, fuser]
-                            pcset <- return $ genprint Inf cset' [fflag, fvar, fuser]
+                            pinf <- return $ genprint Inf a [fflag, fvar, fuser]
+                            pcset <- return $ genprint Inf cset [fflag, fvar, fuser]
 
                             liftIO $ putStrLn $ "-: " ++ pinf ++ " with\n" ++ pcset) `catchQ` (\e -> do
                                                                                liftIO $ hPutStrLn stderr $ show e
