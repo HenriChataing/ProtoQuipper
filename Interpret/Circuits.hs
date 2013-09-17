@@ -131,7 +131,7 @@ input_wires (Phase _ q) = [q]
 input_wires (Controlled g controls) = List.nub (input_wires g ++ fst (List.unzip controls))
 
 
--- | Return the list of ouput wires of a gate.
+-- | Return the list of output wires of a gate.
 output_wires :: Gate -> [Qubit]
 output_wires (Init _ q) = [q]
 output_wires (Term _ _) = []
