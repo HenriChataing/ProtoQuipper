@@ -155,6 +155,7 @@ Decl :
       Typeblock                                            { DTypes $1 }
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
+    | Typesyn ";;"                                         { DSyn $1 }
     | LET GenPattern '=' Expr ";;"                         { case $2 of
                                                                 SimplePattern p ->
                                                                   DLet Nonrecursive p $4
