@@ -38,7 +38,7 @@ instance PPrint LinType where
                                        TCirc _ _ -> "(" ++ prt ++ ")"
                                        TUser _ [] -> prt
                                        TUser _ _ -> "(" ++ prt ++ ")"
-                                       _ -> prt)) "" arg
+                                       _ -> prt) ++ rec) "" arg
   genprint _ (TUser n arg) _ = throw $ ProgramError "LinType:genprint: illegal argument"
 
   genprint (Nth 0) _ _ = "..."
