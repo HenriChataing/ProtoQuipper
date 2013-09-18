@@ -78,6 +78,7 @@ module Typing.TransSyntax (
   with_interface,
   desugar,
   import_typedefs,
+  import_typesyn,
   LabellingContext (..),
   empty_label) where
 
@@ -323,6 +324,41 @@ define_user_subtyping dblock = do
   -- Unfold until the constraint set is stable
   unfold_all dblock
   newlog 0 "<<\n"
+
+
+
+-- | Translate and import a type synonym.
+import_typesyn :: S.Typesyn                   -- ^ A type synonym.
+               -> LabellingContext            -- ^ The current labelling context.
+               -> QpState LabellingContext    -- ^ The updated labelling context.
+import_typesyn typesyn label = do
+  -- Count the arguments
+  nargs <- return $ List.length $ S.s_args typesyn
+
+  -- map the arguments to core types
+  margs <- List.foldl (\rec a -> do
+                         map <- rec
+                         a' <- new_type
+                         return $ Map.insert a a' map) (return Map.empty) (S.s_args typesyn)
+
+  -- Translate the synonym type
+  syn <- translate_bound_type (S.s_synonym typesyn) (label { l_types = Map.union margs $ l_types label }) 
+
+  -- Is it a quantum data type ?
+  qdata <- Q.is_qdata_type syn
+
+  -- Build the type specification
+  spec <- return $ Typesyn {
+                     s_args = nargs,
+                     s_qdatatype = qdata,
+                     s_unfolded = (snd $ List.unzip $ Map.assocs margs, syn) }
+
+  -- Register the type synonym
+  id <- register_typesyn (S.s_typename typesyn) spec
+
+  -- Add the type to the labelling context and return
+  return label { l_types = Map.insert (S.s_typename typesyn) (TBang 0 $ TUser id []) $ l_types label }
+
 
 
 

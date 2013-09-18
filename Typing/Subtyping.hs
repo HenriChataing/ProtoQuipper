@@ -154,6 +154,7 @@ break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) =
 -- The result of breaking this kind of constraints has been placed in the specification of the user type
 -- It need only be instantiated with the current type arguments
 break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc) = do
+  -- If the two types are the same (either two type synonyms or two algebraic types)
   if utyp == utyp' then do
     
     if bu then do
@@ -170,8 +171,36 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
       cset <- break_composite bu (lc, fc)
       return $ [Sublintype (TUser utyp arg) (TUser utyp' arg') info] <> cset
       
-  else
-    throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 $ TUser utyp' arg') info
+  -- Only if one of the types is a synonym can this be possible
+  else do
+    spec <- type_spec utyp
+    spec' <- type_spec utyp'
+    
+    case (spec, spec') of
+      (Right Typesyn { s_unfolded = (args, typ) }, _) -> do
+          typ <- List.foldl (\rec (a, a') -> do
+                               case (a, a') of
+                                 (TBang n (TVar a), TBang n' a') -> do
+                                     t <- rec
+                                     t <- return $ subs_typ_var a a' t
+                                     return $ subs_flag n n' t
+                                 _ ->
+                                    throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+          break_composite bu ((Sublintype (no_bang typ) (TUser utyp' arg') info):lc, fc)
+
+      (_, Right Typesyn { s_unfolded = (args, typ) }) -> do
+          typ <- List.foldl (\rec (a, a') -> do
+                               case (a, a') of
+                                 (TBang n (TVar a), TBang n' a') -> do
+                                     t <- rec
+                                     t <- return $ subs_typ_var a a' t
+                                     return $ subs_flag n n' t
+                                 _ ->
+                                     throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg')
+          break_composite bu ((Sublintype (TUser utyp arg) (no_bang typ) info):lc, fc)
+
+      (Left _, Left _) -> 
+          throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 $ TUser utyp' arg') info
 
 
 -- Circ against Circ
@@ -196,6 +225,46 @@ break_composite bu (c@(Sublintype (TVar _) _ _):lc, fc) = do
 break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   (lc', fc') <- break_composite bu (lc, fc)
   return (c:lc', fc')
+
+-- Type synonyms
+break_composite bu ((Sublintype (TUser utyp arg) u info):lc, fc) = do
+  spec <- type_spec utyp
+  case spec of
+    -- Type synonym -> ok
+    Right Typesyn { s_unfolded = (args, typ) } -> do
+        typ <- List.foldl (\rec (a,a') -> do
+                             case (a,a') of
+                               (TBang n (TVar a), TBang n' a') -> do
+                                   t <- rec
+                                   t <- return $ subs_typ_var a a' t
+                                   return $ subs_flag n n' t
+                               _ -> 
+                                   throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+        break_composite bu ((Sublintype (no_bang typ) u info):lc, fc)
+
+    -- Algebraic type -> error
+    Left _ ->
+        throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 u) info
+
+break_composite bu ((Sublintype t (TUser utyp arg) info):lc, fc) = do
+  spec <- type_spec utyp
+  case spec of
+    -- Type synonym -> ok
+    Right Typesyn { s_unfolded = (args, typ) } -> do
+        typ <- List.foldl (\rec (a,a') -> do
+                             case (a,a') of
+                               (TBang n (TVar a), TBang n' a') -> do
+                                   t <- rec
+                                   t <- return $ subs_typ_var a a' t
+                                   return $ subs_flag n n' t
+                               _ -> 
+                                   throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+        break_composite bu ((Sublintype t (no_bang typ) info):lc, fc)
+
+    -- Algebraic type -> error
+    Left _ ->
+        throw_TypingError (TBang 0 t) (TBang 0 $ TUser utyp arg) info
+
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
   if non_trivial m n then do

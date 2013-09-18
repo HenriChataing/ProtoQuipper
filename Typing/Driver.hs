@@ -220,7 +220,9 @@ process_declaration :: (Options, MOptions)       -- ^ The command line and modul
 
 -- TYPE SYNONYMS
 process_declaration (opts, mopts) prog ctx (S.DSyn typesyn) = do
-  return ctx
+  label <- import_typesyn typesyn $ labelling ctx
+  return $ ctx { labelling = label }
+
 
 -- DATA TYPE BLOCKS
 process_declaration (opts, mopts) prog ctx (S.DTypes typedefs) = do

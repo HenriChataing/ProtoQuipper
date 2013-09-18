@@ -265,7 +265,7 @@ data Typesyn = Typesyn {
 
   s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
 
-  s_unfolded :: Type                                         -- ^ The unfolded type.
+  s_unfolded :: ([Type], Type)                               -- ^ The unfolded type (given some argument types).
 
   -- No subtyping relation is required, since the synonyms are automatically replaced.
 }
