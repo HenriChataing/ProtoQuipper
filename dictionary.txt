@@ -9,6 +9,7 @@ bk
 bool
 BoxTypeError
 builtin
+BuiltinError
 builtins
 catchQ
 circ
@@ -17,6 +18,7 @@ clmap
 cmap
 cmodule
 CNOT
+co
 ConstraintInfo
 ConstraintSet
 CorePrinter
@@ -50,6 +52,7 @@ EBox
 EBuiltin
 EConstraint
 EDatacon
+EError
 EFun
 EGlobal
 EIf
@@ -119,6 +122,7 @@ LblCtx
 lexer
 LexicalError
 lexing
+LGlobal
 liftIO
 linspec
 LinType
@@ -126,6 +130,8 @@ lintype
 loc
 LocatedError
 logfile
+LVar
+LVariable
 Lvl
 mapsto
 MatchingError
@@ -137,6 +143,7 @@ MOptions
 MUL
 mylex
 na
+ndashes
 newlog
 newtype
 NoMatchError
@@ -147,6 +154,7 @@ noref
 NotBoolError
 NotFunctionError
 NSpace
+nspaces
 Num
 OptDescr
 optFail
@@ -200,6 +208,7 @@ REM
 resp
 runInterpret
 runS
+RunTimeError
 SimplePattern
 sprintn
 stderr
@@ -226,6 +235,7 @@ TkBar
 TkBool
 TkBox
 TkBuiltin
+TkChar
 TkCirc
 TkColon
 TkComma
@@ -263,12 +273,14 @@ TkRev
 TkRParen
 TkSemiColon
 TkStar
+TkString
 TkSubType
 TkThen
 TkTrue
 TkType
 TkUId
 TkUnbox
+TkUnknownToken
 TkVal
 TkWildcard
 TkWith
@@ -276,6 +288,7 @@ TLocated
 tn
 TOFFOLI
 toplevel
+toUpper
 TQualified
 TQubit
 TransSyntax
@@ -290,6 +303,8 @@ TypeConstraint
 typegen
 TypeInference
 typename
+TypeScheme
+typescheme
 Typespec
 typespecs
 typesyn
@@ -309,7 +324,11 @@ unencapsulated
 Unencapsulates
 unencapsulating
 unencapsulation
+Unreduced
 Unstack
+unVBool
+unVInt
+UserError
 Utils
 val
 var

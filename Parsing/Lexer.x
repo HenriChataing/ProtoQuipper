@@ -140,7 +140,7 @@ data Token =
   | TkQUId (Extent, String)      -- ^ A qualified upper-case identifier.
   | TkInt (Extent, String)       -- ^ An integer literal. The value of the integer is left unparsed.
   | TkString (Extent, String)    -- ^ A string: a list of characters delimited by double quotes.
-  | TkChar (Extent, Char)        -- ^ A single character delimited by qoutes.
+  | TkChar (Extent, Char)        -- ^ A single character delimited by quotes.
   | TkUnknownToken (Extent, String)     -- ^ An error token.
 
   -- Reserved notations : list of reserved names
