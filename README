@@ -55,13 +55,14 @@ Interactive Mode
 
 The interactive mode accepts the commands:
 
-:help        -- Show the list of commands
-:exit        -- Quit the interactive mode
-:path <dir>  -- Add a directory to the current module path
-:type <exp>  -- Show the type of an expression
-:context     -- List the variables of the current context
-:display     -- Display the toplevel circuit
-
+:help              -- Show the list of commands
+:exit              -- Quit the interactive mode
+:path <dir>        -- Add a directory to the current module path
+:type <exp>        -- Show the type of an expression
+:fulltype <expr>   -- Show the type of an expression, along with the associated constraints
+:context           -- List the variables of the current context
+:display           -- Display the toplevel circuit
+:value             -- Display the value of one or more variables
 
 User guide
 ==========
