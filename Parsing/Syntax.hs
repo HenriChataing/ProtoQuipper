@@ -299,7 +299,6 @@ data XExpr a =
 -- Unrelated
   | EConstraint Expr Type          -- ^ Expression with type constraint: @(e <: A)@.
   | EBuiltin String                -- ^ Built-in primitive: @#builtin s@.
-  | EError String                  -- ^ User error.
   | ELocated (XExpr a) Extent      -- ^ A located expression.
   deriving Show
 
@@ -482,5 +481,4 @@ expr_of_xexpr_loc ex (EConstraint e t) = EConstraint e t
 expr_of_xexpr_loc ex (EBuiltin s) = EBuiltin s
 expr_of_xexpr_loc ex (ELocated e ex') = ELocated e' ex' where
   e' = expr_of_xexpr_loc (Just ex') e
-expr_of_xexpr_loc ex (EError msg) = EError msg
 

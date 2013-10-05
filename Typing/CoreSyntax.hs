@@ -371,7 +371,6 @@ data Expr =
   | ELocated Expr Extent                          -- ^ A located expression.
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
-  | EError String                                 -- ^ User error.
   deriving Show
 
 

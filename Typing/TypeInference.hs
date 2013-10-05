@@ -216,18 +216,6 @@ constraint_typing gamma (ELocated e ex) cst = do
   constraint_typing gamma e cst
 
 
--- For user errors, any type is admissible.
-constraint_typing gamma (EError msg) cst = do
-  -- The context must be duplicable
-  duplicable_context gamma
-
-  ex <- get_location
-  info <- return $ no_info { expression = EError msg,
-                             loc = ex }
-  a <- new_type
-  return $ ((a <:: cst) & info, [])
-
-
 -- For builtins, get the type registered in the builtins map.
 constraint_typing gamma (EBuiltin s) cst = do
   -- The context must be duplicable
