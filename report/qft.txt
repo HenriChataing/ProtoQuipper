@@ -1,0 +1,11 @@
+H R(2pi/4) 
+H 
+R(2pi/8) 
+R(2pi/4) 
+H 
+H R(2pi/4) 
+H 
+R(2pi/8) 
+R(2pi/4) 
+H 
+
