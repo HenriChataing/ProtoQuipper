@@ -254,7 +254,7 @@ run_interactive opts ctx buffer = do
 
             [":fulltype"] -> do
                 if args == [] then
-                  liftIO $ putStrLn "Error: the command ':type' expects one argument"
+                  liftIO $ putStrLn "Error: the command ':fulltype' expects one argument"
                 else do
                   term <- return $ unwords args
                   (do
