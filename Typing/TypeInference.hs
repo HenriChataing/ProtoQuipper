@@ -680,6 +680,10 @@ constraint_typing gamma (EMatch e blist) cst = do
                                      -- Bind the pattern p
                                      (a, gamma_p, csetp) <- bind_pattern p
 
+                                     -- p must have a non functional type
+                                     ext <- get_location
+                                     Monad.QpState.assert IsNotfun a (no_info { expression = e, loc = ext })
+
                                      -- Type the associated expression, with the same constraints cst as the original expression
                                      -- Refer to the case of 'if' for more clarity.
                                      csetf <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_bl) f cst

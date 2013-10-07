@@ -257,6 +257,9 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   fc'' <- unify_flags $ snd cset'
   cset' <- return (fst cset', fc'')
 
+  -- Check the assertions made
+  check_assertions
+
   -- Apply the substitution produced by the unification to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
                                m <- rec
@@ -347,6 +350,9 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Unify the set again
   fls <- unify_flags $ snd csete
   csete <- return (fst csete, fls)
+
+  -- Check the assertions made
+  check_assertions
 
   -- Last of the free variables of e - to be place after the unification, since
   -- the algorithm produces new variables that also have to be generic.
@@ -483,7 +489,8 @@ process_module opts prog = do
   -- Push the definition of the new module to the stack
   newmod <- return $ Mod { m_variables = Map.map unLVar vars,
                            m_datacons = datas,
-                           m_types = Map.map unTUser typs }
+                           m_types = Map.map unTUser typs,
+                           m_body = Nothing }
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
 

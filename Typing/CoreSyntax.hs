@@ -166,6 +166,18 @@ is_user_lintype _ = False
 is_user_type :: Type -> Bool
 is_user_type (TBang _ a) = is_user_lintype a
 
+
+-- | Check whether a linear type is a function type or not.
+is_fun_lintype :: LinType -> Bool
+is_fun_lintype (TArrow _ _) = True
+is_fun_lintype _ = False
+
+
+-- | Check whether a type is a function type or not.
+is_fun_type :: Type -> Bool
+is_fun_type (TBang _ a) = is_fun_lintype a
+
+
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
 -- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
 -- The only purpose of this class is to overload the functions listed below.
