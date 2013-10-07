@@ -554,37 +554,6 @@ remove_patterns_in_expr (C.EConstraint e t) =
 
 
 
--- | Merge the declarations of a code file.
--- Variable declarations are handled as in :
---
--- @
---   let p = e;
---   f
--- @
---
--- which gives
---
--- @
---  let x1 = e1 in
---  let x2 = e2 in
---  ..
---  f
--- @
---
--- where x1, x2.. are the variables declared in the pattern @p@.
--- Top level expressions cannot be readily removed, because of possible side effects on the circuit stack ; they
--- are instead replaced by :
--- 
--- @
---   let _ = e in
---   ..
--- @
---
--- where @_@ is the wildcard, and @e@ the top level expression.
-merge_declarations :: [S.Declaration] -> QpState Expr
-merge_declarations _ = return EUnit
-
-
 
 -- * Printing functions.
 
