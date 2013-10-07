@@ -386,6 +386,37 @@ data Expr =
   deriving Show
 
 
+instance Located Expr where
+  locate e _ = e
+  locate_opt e _ = e
+
+  clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
+  clear_location (EApp e f) = EApp (clear_location e) (clear_location f)
+  clear_location (ETuple elist) = ETuple (List.map clear_location elist)
+  clear_location (ELet r p e f) = ELet r (clear_location p) (clear_location e) (clear_location f)
+  clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
+  clear_location (EDatacon dcon (Just e)) = EDatacon dcon $ Just (clear_location e)
+  clear_location (EMatch e blist) = EMatch (clear_location e) (List.map (\(p, f) -> (clear_location p, clear_location f)) blist)
+  clear_location (ELocated e _) = clear_location e
+  clear_location (EConstraint e t) = EConstraint (clear_location e) t
+  clear_location e = e
+
+  location _ = Nothing
+
+instance Constraint Expr where
+  drop_constraints (EFun p e) = EFun (drop_constraints p) (drop_constraints e)
+  drop_constraints (EApp e f) = EApp (drop_constraints e) (drop_constraints f)
+  drop_constraints (ETuple elist) = ETuple (List.map drop_constraints elist)
+  drop_constraints (ELet r p e f) = ELet r (drop_constraints p) (drop_constraints e) (drop_constraints f)
+  drop_constraints (EIf e f g) = EIf (drop_constraints e) (drop_constraints f) (drop_constraints g)
+  drop_constraints (EDatacon dcon (Just e)) = EDatacon dcon $ Just (drop_constraints e)
+  drop_constraints (EMatch e blist) = EMatch (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
+  drop_constraints (ELocated e ex) = ELocated (drop_constraints e) ex
+  drop_constraints (EConstraint e _) = drop_constraints e
+  drop_constraints e = e
+
+
+
 instance Param Expr where
   free_var (EVar x) = [x]
   

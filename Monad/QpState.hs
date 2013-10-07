@@ -7,6 +7,7 @@ import Classes
 import Builtins
 
 import Parsing.Location (Extent, extent_unknown, file_unknown)
+import Parsing.Syntax (RecFlag (..))
 
 import Monad.Modules
 import Monad.QuipperError
@@ -94,6 +95,7 @@ data Context = Ctx {
 -- Module related fields
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
+  body :: Maybe (Expr -> Expr),                       -- ^ The (incomplete) body of the current module.
 
 -- Helpers of the typing / interpretation 
   types :: IntMap (Either Typedef Typesyn),           -- ^ The definitions of both the imported types and the types defined in the current module.
@@ -178,6 +180,7 @@ empty_context =  Ctx {
 -- No modules
   modules = [],
   dependencies = [],
+  body = Nothing,
  
 -- No global variables
   globals = IMap.empty,
@@ -271,6 +274,38 @@ get_file :: QpState String
 get_file =
   get_context >>= return . filename
 
+
+-- | Reinitialize the body.
+new_module :: QpState ()
+new_module = do
+  ctx <- get_context
+  set_context ctx { body = Nothing }
+
+-- | Append a declaration at the end of the body.
+with_declaration :: (RecFlag, Pattern, Expr) -> QpState ()
+with_declaration (r, p, e) = do
+  ctx <- get_context
+  case body ctx of
+    Nothing -> set_context ctx { body = Just (\f -> ELet r p e f) }
+    Just cont -> set_context ctx { body = Just (\f -> cont $ ELet r p e f) }
+
+-- | Append an expression at the end of the body.
+with_expression :: Expr -> QpState ()
+with_expression e =
+  with_declaration (Nonrecursive, PWildcard, e)
+
+-- | Return the body of the module, and reinitialize it just after.
+module_body :: QpState (Maybe Expr)
+module_body = do
+  ctx <- get_context
+  bdy <- return $ body ctx
+  case bdy of
+    Nothing -> do
+        return Nothing
+    Just cont -> do
+        bdy <- return $ cont EUnit
+        set_context $ ctx { body = Nothing }
+        return $ Just bdy
 
 
 

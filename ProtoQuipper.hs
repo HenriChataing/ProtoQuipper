@@ -18,6 +18,8 @@ import Options
 
 import Interactive
 
+import Compiler.PatternRemoval
+
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
 import Data.List as List

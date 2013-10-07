@@ -191,12 +191,12 @@ import_typedefs dblock label = do
 
                                                       -- Register the datacon
                                                       id <- register_datacon dcon dtype
-                                                      return $ (argtyp:dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
+                                                      return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
 
                          -- Update the specification of the type
                          Left spec <- type_spec id
                          ctx <- get_context
-                         set_context $ ctx { types = IMap.insert id (Left $ spec { d_unfolded = (args', List.map (\t -> (0, t)) dtypes') }) $ types ctx }
+                         set_context $ ctx { types = IMap.insert id (Left $ spec { d_unfolded = (args', List.map (\(id, t) -> (id, t)) dtypes') }) $ types ctx }
                          return m) (return $ l_datacons label) dblock
 
 

@@ -29,6 +29,8 @@ import Typing.TypeInference
 import Typing.TypingContext
 import Typing.TransSyntax
 
+import Compiler.PatternRemoval
+
 import Monad.QpState
 import Monad.Modules
 import Monad.QuipperError
@@ -235,6 +237,12 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Translation of the expression into internal syntax.
   e' <- translate_expression e $ labelling ctx
 
+  -- Remember the body of the module
+  if runCompiler opts then
+    with_expression e'
+  else
+    return ()
+
   -- Free variables of the new expression
   fve <- return $ free_var e'
   a@(TBang n _) <- new_type
@@ -309,6 +317,12 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           Recursive -> translate_expression e $ (labelling ctx) { l_variables = label' }
           Nonrecursive -> translate_expression e $ labelling ctx
   fve <- return $ free_var e'
+
+  -- Remember the body of the module
+  if runCompiler opts then
+    with_declaration (recflag, p', e')
+  else
+    return ()
 
   -- Export the variables of the pattern
   p' <- with_interface prog (labelling ctx) p'
@@ -487,10 +501,11 @@ process_module opts prog = do
   typs <- return $ Map.difference (l_types $ labelling ctx) typs
 
   -- Push the definition of the new module to the stack
+  body <- module_body
   newmod <- return $ Mod { m_variables = Map.map unLVar vars,
                            m_datacons = datas,
                            m_types = Map.map unTUser typs,
-                           m_body = Nothing }
+                           m_body = body }
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
 
@@ -527,7 +542,16 @@ do_everything opts files = do
   List.foldl (\rec p -> do
                 _ <- rec
                 mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
-                process_module (opts, mopts) p
+                nm <- process_module (opts, mopts) p
+
+-- TO REMOVE --
+                case m_body nm of
+                  Nothing -> return ()
+                  Just e -> do
+                      e' <- remove_patterns_in_expr (clear_location $ drop_constraints e)
+                      newlog (-2) (pprint e')
+---------------
+
                 return ()) (return ()) deps
 -- ===================================== --
 

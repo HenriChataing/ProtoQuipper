@@ -143,7 +143,7 @@ relevant_tests p =
                             tset' <- ptests ((InTuple n):ns) p
                             return $ tset' ++ tset) (return []) (List.zip [0..(List.length plist) -1] plist)
         in
-  ptests [] p
+      ptests [] p
 
 
 -- | Build an optimized decision tree.
@@ -222,15 +222,30 @@ build_decision_tree plist = do
                                                              -- List of the patterns matching this condition
                                                              patterns_ok <- return $ List.filter (\p -> case List.lookup p (snd next) of
                                                                                                     Just r -> r == res
-                                                                                                    -- This case corresponds to the patterns var and wildcard, that matches everything
+                                                                                                    -- This case corresponds to the patterns var and wildcard, that match everything
                                                                                                     -- and yet are not relevant
                                                                                                     Nothing -> True) patterns
-                                                             -- List of the tests relevant on these patterns
+                                                             -- List of the tests relevant for these patterns
                                                              relevant_tests <- return $ List.filter (\(_, results) -> List.intersect (fst $ List.unzip results) patterns_ok /= []) rtests
-                                                             -- Build the subtree
-                                                             nsub <- build_tree relevant_tests patterns_ok
-                                                             -- Return the rest
-                                                             return $ (res, nsub):subtrees) (return []) results
+
+                                                             -- If no test is relevant to the FIRST pattern, then it passes all the tests
+                                                             case patterns_ok of
+                                                               [] -> do
+                                                                   -- Return the rest
+                                                                   return $ (res, Result (-1)):subtrees
+
+                                                               n:_ -> do
+                                                                   -- Count the tests relevant to this particular pattern
+                                                                   rtests <- return $ List.filter (\(_, results) -> List.elem n $ fst $ List.unzip results) relevant_tests
+                                                                   if List.length rtests == 0 then
+                                                                     -- No need to take other tests
+                                                                     return $ (res, Result n):subtrees
+                                                                   else do
+                                                                     -- Else, do the normal stuff
+                                                                     -- Build the subtree
+                                                                     nsub <- build_tree relevant_tests patterns_ok
+                                                                     -- Return the rest
+                                                                     return $ (res, nsub):subtrees) (return []) results
                   
                                   -- Assemble the final tree
                                   return $ Test (fst $ next) subtrees in
@@ -272,7 +287,7 @@ simplify_pattern_matching e blist = do
                                                 case List.stripPrefix t' test of
                                                   Nothing -> (t, var, suf)
                                                   Just suf' ->
-                                                    if List.length suf' < List.length suf then
+                                                    if List.length suf' <= List.length suf then
                                                       (t', var', suf')
                                                     else
                                                       (t, var, suf)) ([], -1, test) extracted
@@ -370,8 +385,8 @@ simplify_pattern_matching e blist = do
 
                                              RDatacon _ -> do
                                                  cases <- List.foldl (\rec (rdcon, subtree) -> do
-                                                                         dcon <- return $ case rdcon of {RDatacon dcon -> dcon; _ -> 0}
                                                                          cases <- rec
+                                                                         dcon <- return $ case rdcon of {RDatacon dcon -> dcon; _ -> -1}
                                                                          e <- unbuild subtree extracted
                                                                          return $ (dcon, e):cases) (return []) results
                                                  return $ EMatch (EVar var') cases
@@ -664,7 +679,7 @@ print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (genprint dlv p [fvar, fdata]) <+> text "->" <+> print_doc dlv f fvar fdata in
+                        let pmatch = char '|' <+> text (fdata p) <+> text "->" <+> print_doc dlv f fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
@@ -688,7 +703,4 @@ instance PPrint Expr where
   sprintn lv e = genprint lv e [subvar 'x', subvar 'D']
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
-
-
-
 

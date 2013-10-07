@@ -20,6 +20,8 @@ data Options = Options {
  
   runInterpret :: Bool,            -- ^ Interpret the code? (default: yes).
 
+  runCompiler :: Bool,             -- ^ Compile the code? (default: no).
+
   circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
 } deriving Show
 
@@ -38,6 +40,7 @@ default_options = Options {
 
   -- Actions
   runInterpret = True,
+  runCompiler = False,
 
   -- Others
   circuitFormat = "ir"
@@ -63,7 +66,9 @@ options =
     Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
       "permit approximations in type inference",
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
-      "set the output format for circuits. Valid formats are 'ir' (default), 'visual'."
+      "set the output format for circuits. Valid formats are 'ir' (default), 'visual'.",
+    Option ['c'] ["compile"] (NoArg (\opts -> return opts { runCompiler = True }))
+      "run the compiler"
   ]
 
 
