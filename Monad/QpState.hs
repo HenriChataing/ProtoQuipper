@@ -54,6 +54,14 @@ write_log logfile lvl s = do
     hFlush (channel logfile)
 
 
+-- | The different kind of assertions.
+data Assertion =
+    IsDuplicable
+  | IsNonduplicable
+  | IsNotfun
+  deriving (Show, Eq)
+
+
 
 -- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
 -- from parsing to interpretation and type inference. We prefer using a single context to using
@@ -97,6 +105,9 @@ data Context = Ctx {
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
   values :: IntMap Value,                             -- ^ The values of the global variables.
+
+  assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
+                                                      -- function values are prohibited (even type constructors).
 
 -- Information relevant to flags
   flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
@@ -182,6 +193,9 @@ empty_context =  Ctx {
 -- No predefined types, datacons or flags
   types = IMap.empty,
   datacons = IMap.empty,
+
+-- No assertions
+  assertions = [],
 
 -- No flag
   flags = IMap.empty,
@@ -487,7 +501,7 @@ type_spec typ = do
 
 
 -- | Retrieve the definition of a data constructor.
-datacon_def :: Int -> QpState TypeScheme
+datacon_def :: Datacon -> QpState TypeScheme
 datacon_def id = do
   ctx <- get_context
   case IMap.lookup id $ datacons ctx of
@@ -500,7 +514,48 @@ datacon_def id = do
         throwQ $ ProgramError $ "Missing the definition of data constructor: " ++ subvar 'D' id
 
 
+-- | Retrieve the reference of the agebraic type of a data constructor.
+datacon_type :: Datacon -> QpState Variable
+datacon_type dcon = do
+  (TForall _ _ _ (TBang _ typ)) <- datacon_def dcon
+  case typ of
+    TUser n _ -> return n
+    TArrow _ (TBang _ (TUser n _)) -> return n
+    _ -> throwQ $ ProgramError $ "The type of the data constructor " ++ subvar 'D' dcon ++ " is not conventional"
 
+
+-- | Retrieve the list of the data constructors from a type definition.
+all_data_constructors :: Variable -> QpState [Datacon]
+all_data_constructors typ = do
+  Left def <- type_spec typ
+  return $ fst $ List.unzip $ snd $ d_unfolded def
+
+
+-- | Add an assertion on a type.
+assert :: Assertion -> Type -> ConstraintInfo -> QpState ()
+assert ast typ info = do
+  ctx <- get_context
+  set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) } 
+
+
+-- | Check the assertions, then remove them. If one assertion is not verified, an eror is thrown.
+check_assertions :: QpState ()
+check_assertions = do
+  ctx <- get_context
+  -- Successively check all the assertions
+  List.foldl (\rec (ast, typ, info) -> do
+                rec
+                typ' <- map_type typ
+                case ast of
+                  IsDuplicable -> return ()
+                  IsNonduplicable -> return ()
+                  IsNotfun ->
+                      if not $ is_fun_type typ' then
+                        return ()
+                      else
+                        throwQ $ ProgramError "Function type in pattern matching") (return ()) (assertions ctx)
+
+  set_context $ ctx { assertions = [] }
 
 
 -- | Access the information held by a flag.
