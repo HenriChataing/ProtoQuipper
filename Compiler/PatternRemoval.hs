@@ -72,10 +72,16 @@ data Expr =
 
 
 
--- | Return the name of the builtin function returning the nth element of a tuple.
+-- | Return the builtin function returning the nth element of a tuple.
 nth_accessor :: Int -> Expr
 nth_accessor n =
-  EBuiltin ("#" ++ show n)
+  EBuiltin ("ACCESS_" ++ show n)
+
+
+-- | Return the builtin function destructing a data constructor.
+destructor :: Datacon -> Expr
+destructor dcon =
+  EBuiltin ("DESTRUCT_" ++ show dcon)
 
 
 -- | Representation of a decision tree, that decides which test to do first in order to minimize the number of comparisons.
@@ -99,7 +105,7 @@ data TestResult =
   | RDatacon Datacon        -- ^ The result is a data constructor.
   deriving (Show, Eq)
 
--- | Return the kind of a list of results. It is typically an example from the list.
+-- | Return the kind of a list of results. It is typically a result of the list.
 rkind :: [TestResult] -> TestResult
 rkind [] =
   error "rkind: empty list"
@@ -231,7 +237,7 @@ build_decision_tree plist = do
                                                              -- If no test is relevant to the FIRST pattern, then it passes all the tests
                                                              case patterns_ok of
                                                                [] -> do
-                                                                   -- Return the rest
+                                                                   -- A pattern error
                                                                    return $ (res, Result (-1)):subtrees
 
                                                                n:_ -> do
@@ -303,7 +309,7 @@ simplify_pattern_matching e blist = do
                                          var' <- dummy_var
                                          exp <- return $ EApp (case l of
                                                                  InTuple n -> nth_accessor n
-                                                                 InDatacon _ -> EBuiltin "EXTRACT") (EVar var)
+                                                                 InDatacon dcon -> destructor dcon) (EVar var)
                                          nprefix <- return $ prefix ++ [l]
                                          (exps, updates, endvar) <- extract (nprefix, var', ls)
                                          return ((var', exp):exps, (nprefix, var'):updates, endvar)
@@ -315,12 +321,12 @@ simplify_pattern_matching e blist = do
                                      case loc of
                                        [] -> return ([(endvar, EVar var)], [])
                                        [InTuple n] -> return ([(endvar, EApp (nth_accessor n) (EVar var))], [])
-                                       [InDatacon _] -> return ([(endvar, EApp (EBuiltin "EXTRACT") (EVar var))], [])
+                                       [InDatacon dcon] -> return ([(endvar, EApp (destructor dcon) (EVar var))], [])
                                        l:ls -> do
                                            var' <- dummy_var
                                            exp <- return $ EApp (case l of
                                                                    InTuple n -> nth_accessor n
-                                                                   InDatacon _ -> EBuiltin "EXTRACT") (EVar var)
+                                                                   InDatacon dcon -> destructor dcon) (EVar var)
                                            nprefix <- return $ prefix ++ [l]
                                            (exps, updates) <- extract_var (nprefix, var', ls) endvar
                                            return ((var',exp):exps, (nprefix, var'):updates)
@@ -363,6 +369,12 @@ simplify_pattern_matching e blist = do
                                                                                                   RRemainInt -> True
                                                                                                   _ -> False) results
                                                  lastcase <- unbuild remains extracted
+                                                 -- Eliminate the cases with the same results as the infinite case (= Result -1)
+                                                 others <- return $ List.filter (\(res, subtree) ->
+                                                                                   case subtree of
+                                                                                     Result (-1) -> False
+                                                                                     _ -> True) others
+
                                                  -- Build the if conditions
                                                  List.foldl (\rec (rint, subtree) -> do
                                                                n <- return $ case rint of {RInt n -> n; _ -> 0}
@@ -591,7 +603,7 @@ print_doc _ (EDatacon datacon Nothing) _ fdata =
   text $ fdata datacon
 
 print_doc _ (EBuiltin s) _ _=
-  text "#builtin" <+> text s
+  text s
 
 print_doc (Nth 0) _ _ _ =
   text "..."
