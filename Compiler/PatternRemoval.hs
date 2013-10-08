@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 {- | This module implements the first step of the compilation, where all the patterns are removed.
 Among the methods used to remove the patterns, there is :
 
