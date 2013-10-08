@@ -62,7 +62,7 @@ data Expr =
   | EMatch Expr [(Datacon, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
-  | EBox Int                                      -- ^ The constant @box[T]@. The type annotation is replaced by a integer indicating the number of input qubits.
+  | EBox C.Type                                   -- ^ The constant @box[T]@.
   | EUnbox                                        -- ^ The constant @unbox@.
   | ERev                                          -- ^ The constant @rev@.
 
@@ -86,15 +86,20 @@ destructor dcon =
 
 -- | Representation of a decision tree, that decides which test to do first in order to minimize the number of comparisons.
 data DecisionTree =
-    Test [TestLocation] [(TestResult, DecisionTree)]         -- ^ Test the nth element of a tuple (a boolean). Depending on the result, different tests are taken.
+    Test TestLocation [(TestResult, DecisionTree)]           -- ^ Test the nth element of a tuple (a boolean). Depending on the result, different tests are taken.
   | Result Int                                               -- ^ The number of the matched pattern.
   deriving Show
 
--- | Position of the information relevant to a test.
-data TestLocation =
+-- | Ways of locating it self in a pattern.
+-- The constructors indicate the action to take next.
+data NextStep =
     InTuple Int        -- ^ The information is the Nth element of a tuple.
   | InDatacon Datacon  -- ^ The information is the argument of a data constructor.
   deriving (Show, Eq, Ord)
+
+
+-- | Position of the information relevant to a test in a pattern.
+type TestLocation = [NextStep]
 
 
 -- | The result of a test.
@@ -116,7 +121,7 @@ rkind (RDatacon _:_) = RDatacon 0
 
 
 -- | Build the list of the tests relevant to a pattern. The result of the test is returned each time.
-relevant_tests :: C.Pattern -> QpState [([TestLocation], TestResult)]
+relevant_tests :: C.Pattern -> QpState [(TestLocation, TestResult)]
 relevant_tests p =
   -- The location in the pattern is passed as argument here (reversed though).
   let ptests = \ns p ->
@@ -261,7 +266,7 @@ build_decision_tree plist = do
 
 
 -- | Extract the variables of a pattern, and return the sequence of functions applications necessary to retrieve them.
-pattern_variables :: C.Pattern -> [([TestLocation], Variable)]
+pattern_variables :: C.Pattern -> [(TestLocation, Variable)]
 pattern_variables p =
   let read_vars = \loc p ->
         case p of
@@ -279,60 +284,65 @@ pattern_variables p =
   read_vars [] p
 
 
+-- | Find variable closest to the infrmation one want to extract.
+longest_prefix :: [(TestLocation, Variable)] -> TestLocation -> (TestLocation, Variable, TestLocation)
+longest_prefix extracted test =
+  List.foldl (\(t, var, suf) (t', var') ->
+                case List.stripPrefix t' test of
+                  Nothing -> (t, var, suf)
+                  Just suf' ->
+                    if List.length suf' <= List.length suf then
+                      (t', var', suf')
+                    else
+                      (t, var, suf)) ([], -1, test) extracted
+
+
+-- | Complete the extraction of a piece of information. The argument should be the variable closest to the information we want to access.
+-- The function then applies the operations necessary to go from this variable, to the information. 
+extract :: (TestLocation, Variable, TestLocation) -> QpState (Expr -> Expr, [(TestLocation, Variable)], Variable)
+extract (prefix, var, loc) =
+  case loc of
+    -- The variable 'var' already cnotains what we want
+    [] -> return ((\e -> e), [], var)
+    -- Else 
+    l:ls -> do
+      -- Build some intermediary variables
+      var' <- dummy_var
+      exp <- return $ EApp (case l of
+                        InTuple n -> nth_accessor n
+                        InDatacon dcon -> destructor dcon) (EVar var)
+      nprefix <- return $ prefix ++ [l]
+      (cont, updates, endvar) <- extract (nprefix, var', ls)
+      return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
+
+
+-- | Same as extract, except that the variable holding the information is specified beforehand.
+extract_var :: (TestLocation, Variable, TestLocation) -> Variable -> QpState (Expr -> Expr, [(TestLocation, Variable)])
+extract_var (prefix, var, loc) endvar =
+  case loc of
+    -- The variable 'var' already contains what we want
+    [] -> return ((\e -> ELet Nonrecursive endvar (EVar var) e), [])
+    -- The LAST action is a tuple accessor
+    [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EApp (nth_accessor n) (EVar var)) e), [])
+    -- The LAST action is a destructor
+    [InDatacon dcon] -> return ((\e -> ELet Nonrecursive endvar(EApp (destructor dcon) (EVar var)) e), [])
+    -- Else us an intermediary variable
+    l:ls -> do
+        var' <- dummy_var
+        exp <- return $ EApp (case l of
+                                InTuple n -> nth_accessor n
+                                InDatacon dcon -> destructor dcon) (EVar var)
+        nprefix <- return $ prefix ++ [l]
+        (cont, updates) <- extract_var (nprefix, var', ls) endvar
+        return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
+
 
 -- | Using a decision tree, explain the tests that have to be done to compute a pattern matching.
 simplify_pattern_matching :: C.Expr -> [(C.Pattern, C.Expr)] -> QpState Expr
 simplify_pattern_matching e blist = do
   patterns <- return $ fst $ List.unzip blist
   e' <- remove_patterns_in_expr e
-  dtree <- build_decision_tree patterns
-  
-  -- Return the longest prefix of a test location.
-  longest_prefix <- return $ \(extracted :: [([TestLocation], Variable)]) (test :: [TestLocation]) ->
-                                  List.foldl (\(t, var, suf) (t', var') ->
-                                                case List.stripPrefix t' test of
-                                                  Nothing -> (t, var, suf)
-                                                  Just suf' ->
-                                                    if List.length suf' <= List.length suf then
-                                                      (t', var', suf')
-                                                    else
-                                                      (t, var, suf)) ([], -1, test) extracted
-
-  -- Complete the extraction of a piece of information
-  -- In the arguments : var is the starting point, loc the series of instructions.
-  -- In the return value : the first argument is a series of variable allocation, the second contains the updates of the extracted variables,
-  -- the third is the variable holding the information.
-  extract <- return (let extract = \(prefix, var, loc) ->
-                                   case loc of
-                                     [] -> return ([], [], var)
-                                     l:ls -> do
-                                         var' <- dummy_var
-                                         exp <- return $ EApp (case l of
-                                                                 InTuple n -> nth_accessor n
-                                                                 InDatacon dcon -> destructor dcon) (EVar var)
-                                         nprefix <- return $ prefix ++ [l]
-                                         (exps, updates, endvar) <- extract (nprefix, var', ls)
-                                         return ((var', exp):exps, (nprefix, var'):updates, endvar)
-                                    in
-                     extract)
-
-  -- Same as extract, except that the variable holding the information is specified beforehand.
-  extract_var <- return (let extract_var = \(prefix, var, loc) endvar -> do
-                                     case loc of
-                                       [] -> return ([(endvar, EVar var)], [])
-                                       [InTuple n] -> return ([(endvar, EApp (nth_accessor n) (EVar var))], [])
-                                       [InDatacon dcon] -> return ([(endvar, EApp (destructor dcon) (EVar var))], [])
-                                       l:ls -> do
-                                           var' <- dummy_var
-                                           exp <- return $ EApp (case l of
-                                                                   InTuple n -> nth_accessor n
-                                                                   InDatacon dcon -> destructor dcon) (EVar var)
-                                           nprefix <- return $ prefix ++ [l]
-                                           (exps, updates) <- extract_var (nprefix, var', ls) endvar
-                                           return ((var',exp):exps, (nprefix, var'):updates)
-                                     in
-                     extract_var)
-                         
+  dtree <- build_decision_tree patterns                         
 
   -- The 'extracted' argument associates locations in a pattern to variables.
   unbuild <- return (let unbuild = \dtree extracted ->
@@ -347,19 +357,17 @@ simplify_pattern_matching e blist = do
                                   -- Remove the patterns from the expression en
                                   en' <- remove_patterns_in_expr en
                                   -- Extract the variables from the pattern
-                                  (exps, _) <- List.foldl (\rec (loc, var) -> do
-                                                        (exps, extracted) <- rec
+                                  (initseq, _) <- List.foldl (\rec (loc, var) -> do
+                                                        (cont, extracted) <- rec
                                                         (prefix, var', loc') <- return $ longest_prefix extracted loc
-                                                        (exps', updates) <- extract_var (prefix, var', loc') var
-                                                        return (exps ++ exps', updates ++ extracted)) (return ([], extracted)) vars
+                                                        (cont', updates) <- extract_var (prefix, var', loc') var
+                                                        return ((\e -> cont $ cont' e), updates ++ extracted)) (return ((\e -> e), extracted)) vars
                                   -- Allocate the variables, and build the final expression
-                                  List.foldr (\(var, exp) rec -> do
-                                                e <- rec
-                                                return $ ELet Nonrecursive var exp e) (return en') exps
+                                  return $ initseq en'
 
                               Test t results -> do
                                   (prefix, var, loc) <- return $ longest_prefix extracted t
-                                  (exps, updates, var') <- extract (prefix, var, loc)
+                                  (initseq, updates, var') <- extract (prefix, var, loc)
                                   extracted <- return $ updates ++ extracted
                                   -- Build the sequence of tests
                                   teste <- case rkind (fst $ List.unzip results) of
@@ -407,9 +415,7 @@ simplify_pattern_matching e blist = do
                                                  throwQ $ ProgramError "Unexpected result 'RRemainInt'"
 
                                   -- Complete the sequence with the variable extraction
-                                  List.foldr (\(var, exp) rec -> do
-                                                e <- rec
-                                                return $ ELet Nonrecursive var exp e) (return teste) exps
+                                  return $ initseq teste
                               in
                             unbuild)
 
@@ -547,7 +553,7 @@ remove_patterns_in_expr (C.EMatch e blist) = do
   simplify_pattern_matching e blist
 
 remove_patterns_in_expr (C.EBox typ) = do
-  return $ EBox 0
+  return $ EBox typ
 
 remove_patterns_in_expr C.EUnbox = do
   return EUnbox
