@@ -1,20 +1,16 @@
-{- | This module implements the first step of the compilation, where all the patterns are removed.
+{- | This module implements a method used to simplify the original expression. In particular, the implmentation of the data constructors is explicitated, and
+the are patterns are destructed, through the means of:
 
-Among the methods used to remove the patterns, there is :
+* the nth element of a tuple is accessed through the functions Access_1, Access_2, ..
 
-* In the pattern matchings, the nth element of a tuple is accessed through the builtin functions #1, #2, ..
+* the label or tag of a record or data constructor is accessed using Label.
 
-* In the pattern matchings, the element of a data constructor is accessed through automatically generated destructors (or projections). For example,
-the value @a@ contained in @Right a@ is accessed via @proj_Right (Right a)@.
+* the information contained in a record in accessed via Body_datacon.
 
-* The case expressions are reduced to the simplest form (only one case at a time).
+The test of the case expressions are explicitated. Using a decision tree and chosen heuristics, a tree close to the optimal is produced.
+This tree can then be used to generate the series of instructions needed to discriminate the patterns.
 
-In the process, new builtin operations are defined :
-
-* PATTERN_ERROR : that generates an error when a pattern matching fails.
-
-* #1, #2 ...    : tuple accessors.
-
+The patterns are also removed from the let expressions and the function arguments.
 Note that the type constraints and location information are also removed.
 -}
 
@@ -70,8 +66,6 @@ data Expr =
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
   | ELabel Variable                               -- ^ Return the label of an expression (supposedly a record).
   | EBody Datacon Variable                        -- ^ Return the body of a record that has a known label.
-
-
   deriving Show
 
 
