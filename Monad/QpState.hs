@@ -102,7 +102,7 @@ data Context = Ctx {
 
   builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
                                                       -- in the 'builtins' field, where they are available to both the type checker and the interpreter.
-  datacons :: IntMap TypeScheme,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
+  datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
@@ -321,12 +321,12 @@ register_var x ex = do
 
 -- | Like 'register_var', but register a data constructor. Note that the variable and data constructor
 -- ids may overlap, as they are generated from a different source.
-register_datacon :: String -> TypeScheme -> QpState Int
-register_datacon dcon dtype = do
+register_datacon :: String -> Datacondef -> QpState Datacon
+register_datacon dcon ddef = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
   set_context $ ctx { namespace = nspace,
-                      datacons = IMap.insert id dtype $ datacons ctx }
+                      datacons = IMap.insert id ddef $ datacons ctx }
   return id
 
 
@@ -536,7 +536,7 @@ type_spec typ = do
 
 
 -- | Retrieve the definition of a data constructor.
-datacon_def :: Datacon -> QpState TypeScheme
+datacon_def :: Datacon -> QpState Datacondef
 datacon_def id = do
   ctx <- get_context
   case IMap.lookup id $ datacons ctx of
@@ -550,13 +550,21 @@ datacon_def id = do
 
 
 -- | Retrieve the reference of the agebraic type of a data constructor.
-datacon_type :: Datacon -> QpState Variable
-datacon_type dcon = do
-  (TForall _ _ _ (TBang _ typ)) <- datacon_def dcon
-  case typ of
-    TUser n _ -> return n
-    TArrow _ (TBang _ (TUser n _)) -> return n
-    _ -> throwQ $ ProgramError $ "The type of the data constructor " ++ subvar 'D' dcon ++ " is not conventional"
+datacon_datatype :: Datacon -> QpState Variable
+datacon_datatype dcon =
+  datacon_def dcon >>= return . d_datatype
+
+
+-- | Retrieve the reference of the agebraic type of a data constructor.
+datacon_type :: Datacon -> QpState TypeScheme
+datacon_type dcon =
+  datacon_def dcon >>= return . d_type
+
+
+-- | Return the local identifier of a data constrcuctor.
+datacon_label :: Datacon -> QpState Int
+datacon_label dcon =
+  datacon_def dcon >>= return . d_label
 
 
 -- | Retrieve the list of the data constructors from a type definition.
@@ -564,6 +572,13 @@ all_data_constructors :: Variable -> QpState [Datacon]
 all_data_constructors typ = do
   Left def <- type_spec typ
   return $ fst $ List.unzip $ snd $ d_unfolded def
+
+
+-- | Return the list of the constrcutors' labels of a type definition.
+constructors_labels :: Variable -> QpState [Int]
+constructors_labels typ = do
+  Left def <- type_spec typ
+  return $ [0 .. (List.length $ snd $ d_unfolded def) -1]
 
 
 -- | Add an assertion on a type.

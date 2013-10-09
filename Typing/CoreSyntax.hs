@@ -282,6 +282,19 @@ data Typesyn = Typesyn {
   -- No subtyping relation is required, since the synonyms are automatically replaced.
 }
 
+
+-- ----------------------------------------------------------------------
+-- ** Data constructors
+
+-- | A data constructor definition.
+data Datacondef = Datacondef {
+  d_datatype :: Variable,                                    -- ^ The original data type.
+
+  d_type :: TypeScheme,                                      -- ^ The type of the constructor.
+
+  d_label :: Int                                             -- ^ A label (local to the type definition) uniquely identifying each constructor.
+}
+
 -- ----------------------------------------------------------------------
 -- * Patterns
 

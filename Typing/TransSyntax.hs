@@ -158,7 +158,7 @@ import_typedefs dblock label = do
   datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
                          lbl <- rec
                          -- Type id needed for udpates.
-                         id <- case Map.lookup typename typs of
+                         typeid <- case Map.lookup typename typs of
                                  Just (TBang _ (TUser id _)) -> return id
                                  _ -> throwQ $ ProgramError "missing type id"
 
@@ -170,19 +170,19 @@ import_typedefs dblock label = do
                                                            return (ta:args, Map.insert a ta m)) (return ([], typs)) args
 
                          -- Define the type of the data constructors
-                         (dtypes', m) <- List.foldr (\(dcon, dtype) rec -> do
+                         (dtypes', m) <- List.foldl (\rec (no, (dcon, dtype)) -> do
                                                       (dt, lbl) <- rec
                                                       (dtype, argtyp, cset) <- case dtype of
                                                                                 -- If the constructor takes no argument
                                                                                 Nothing -> do
                                                                                     m <- fresh_flag
-                                                                                    return (TBang m (TUser id args'), TBang one TUnit, emptyset)
+                                                                                    return (TBang m (TUser typeid args'), TBang one TUnit, emptyset)
       
                                                                                 -- If the constructor takes an argument
                                                                                 Just dt -> do
                                                                                     dt'@(TBang n _) <- translate_bound_type dt $ empty_label { l_types = mapargs }
                                                                                     m <- fresh_flag
-                                                                                    return (TBang one (TArrow dt' (TBang m $ TUser id args')), dt', ([], [Le m n no_info]))
+                                                                                    return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), dt', ([], [Le m n no_info]))
  
                                                       -- Generalize the type of the constructor over the free variables and flags
                                                       -- Those variables must also respect the constraints from the construction of the type
@@ -190,13 +190,15 @@ import_typedefs dblock label = do
                                                       dtype <- return $ TForall ff fv cset dtype
 
                                                       -- Register the datacon
-                                                      id <- register_datacon dcon dtype
-                                                      return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) dlist
+                                                      id <- register_datacon dcon $ Datacondef { d_type = dtype,
+                                                                                                 d_datatype = typeid,
+                                                                                                 d_label = no }
+                                                      return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
                          -- Update the specification of the type
-                         Left spec <- type_spec id
+                         Left spec <- type_spec typeid
                          ctx <- get_context
-                         set_context $ ctx { types = IMap.insert id (Left $ spec { d_unfolded = (args', List.map (\(id, t) -> (id, t)) dtypes') }) $ types ctx }
+                         set_context $ ctx { types = IMap.insert typeid (Left $ spec { d_unfolded = (args', List.map (\(id, t) -> (id, t)) dtypes') }) $ types ctx }
                          return m) (return $ l_datacons label) dblock
 
 

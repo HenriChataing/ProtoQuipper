@@ -1,4 +1,5 @@
 {- | This module implements the first step of the compilation, where all the patterns are removed.
+
 Among the methods used to remove the patterns, there is :
 
 * In the pattern matchings, the nth element of a tuple is accessed through the builtin functions #1, #2, ..
@@ -56,7 +57,6 @@ data Expr =
   | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
   | EInt Int                                      -- ^ Integer constant.
   | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
-  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
   | EMatch Expr [(Datacon, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
@@ -66,6 +66,12 @@ data Expr =
 
 -- Unrelated
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
+
+-- possiblities
+--  | EAccess Int Expr               -- ^ Access the nth element of a tuple.
+-- About the above, data constructors should be translated into tupples (D, e) or D with the constructor's name as
+-- first element, the (eventual) argument as second. Then the test would be done on 'EAccess 0 e' and the destructor 'EAccess 1 e'
+
   deriving Show
 
 
@@ -130,14 +136,14 @@ relevant_tests p =
           C.PWildcard -> return []
           C.PVar _ -> return []
           C.PDatacon dcon Nothing -> do
-              typ <- datacon_type dcon
+              typ <- datacon_datatype dcon
               all <- all_data_constructors typ
               if List.length all == 1 then
                 return []
               else
                 return [(List.reverse ns, RDatacon dcon)]
           C.PDatacon dcon (Just p) -> do
-              typ <- datacon_type dcon
+              typ <- datacon_datatype dcon
               all <- all_data_constructors typ
               if List.length all == 1 then
                 ptests ((InDatacon dcon):ns) p
@@ -210,7 +216,7 @@ build_decision_tree plist = do
                                   results <- case List.head results of
                                                -- If the result is a data constructor, all the possible results are the constructors from the same type.
                                                RDatacon dcon -> do
-                                                  typ <- datacon_type dcon
+                                                  typ <- datacon_datatype dcon
                                                   all <- all_data_constructors typ
                                                   return $ List.map (\dcon -> RDatacon dcon) all
                                                -- If the result is an integer, all the possible results are the ones listed here, plus the remaining integers in RRemainInt.

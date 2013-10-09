@@ -95,7 +95,7 @@ bind_pattern (PTuple plist) = do
 -- Data constructors
 bind_pattern (PDatacon dcon p) = do
   -- Retrieves the type of data constructor 
-  dtype <- datacon_def dcon
+  dtype <- datacon_type dcon
   
   -- Instantiate the type
   (typ, cset) <- instantiate dtype
@@ -192,7 +192,7 @@ bind_pattern_to_type (PTuple plist) (TBang n (TTensor tlist)) =
 -- then bind the (maybe) argument to the type of the data constructor.
 bind_pattern_to_type (PDatacon dcon p) typ = do
   -- Retrieves and instantiates the type of the data constructor
-  dtype <- datacon_def dcon
+  dtype <- datacon_type dcon
   (dtype', cset) <- instantiate dtype
   
   -- Check the argument

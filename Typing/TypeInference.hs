@@ -635,7 +635,7 @@ constraint_typing gamma (EDatacon dcon e) cst = do
                              loc = ex }
 
   -- Retrieve the definition of the data constructor, and instantiate its typing scheme
-  dtype <- datacon_def dcon
+  dtype <- datacon_type dcon
   (dtype', csetd) <- instantiate dtype
 
   case (dtype', e) of
