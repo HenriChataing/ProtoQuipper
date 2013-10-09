@@ -57,6 +57,7 @@ data Expr =
   | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
   | EInt Int                                      -- ^ Integer constant.
   | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
   | EMatch Expr [(Datacon, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
@@ -66,26 +67,14 @@ data Expr =
 
 -- Unrelated
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
+  | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
+  | ELabel Variable                               -- ^ Return the label of an expression (supposedly a record).
+  | EBody Datacon Variable                        -- ^ Return the body of a record that has a known label.
 
--- possiblities
---  | EAccess Int Expr               -- ^ Access the nth element of a tuple.
--- About the above, data constructors should be translated into tupples (D, e) or D with the constructor's name as
--- first element, the (eventual) argument as second. Then the test would be done on 'EAccess 0 e' and the destructor 'EAccess 1 e'
 
   deriving Show
 
 
-
--- | Return the builtin function returning the nth element of a tuple.
-nth_accessor :: Int -> Expr
-nth_accessor n =
-  EBuiltin ("ACCESS_" ++ show n)
-
-
--- | Return the builtin function destructing a data constructor.
-destructor :: Datacon -> Expr
-destructor dcon =
-  EBuiltin ("DESTRUCT_" ++ show dcon)
 
 
 -- | Representation of a decision tree, that decides which test to do first in order to minimize the number of comparisons.
@@ -98,7 +87,8 @@ data DecisionTree =
 -- The constructors indicate the action to take next.
 data NextStep =
     InTuple Int        -- ^ The information is the Nth element of a tuple.
-  | InDatacon Datacon  -- ^ The information is the argument of a data constructor.
+  | InDatacon Datacon  -- ^ The information is the argument of a record.
+  | InLabel            -- ^ The information is the label of a record. Since at the moment of the test the label is unknown, this extractor is not annotated.
   deriving (Show, Eq, Ord)
 
 
@@ -141,7 +131,7 @@ relevant_tests p =
               if List.length all == 1 then
                 return []
               else
-                return [(List.reverse ns, RDatacon dcon)]
+                return [(List.reverse $ InLabel:ns, RDatacon dcon)]
           C.PDatacon dcon (Just p) -> do
               typ <- datacon_datatype dcon
               all <- all_data_constructors typ
@@ -149,7 +139,7 @@ relevant_tests p =
                 ptests ((InDatacon dcon):ns) p
               else do
                 tset <- ptests ((InDatacon dcon):ns) p
-                return $ (List.reverse ns, RDatacon dcon):tset
+                return $ (List.reverse $ InLabel:ns, RDatacon dcon):tset
           C.PLocated p _ -> ptests ns p
           C.PConstraint p _ -> ptests ns p
           C.PTuple plist ->
@@ -312,9 +302,10 @@ extract (prefix, var, loc) =
     l:ls -> do
       -- Build some intermediary variables
       var' <- dummy_var
-      exp <- return $ EApp (case l of
-                        InTuple n -> nth_accessor n
-                        InDatacon dcon -> destructor dcon) (EVar var)
+      exp <- return $ case l of
+                        InTuple n -> EAccess n var
+                        InDatacon dcon -> EBody dcon var
+                        InLabel -> ELabel var
       nprefix <- return $ prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
       return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
@@ -327,15 +318,16 @@ extract_var (prefix, var, loc) endvar =
     -- The variable 'var' already contains what we want
     [] -> return ((\e -> ELet Nonrecursive endvar (EVar var) e), [])
     -- The LAST action is a tuple accessor
-    [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EApp (nth_accessor n) (EVar var)) e), [])
+    [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EAccess n var) e), [])
     -- The LAST action is a destructor
-    [InDatacon dcon] -> return ((\e -> ELet Nonrecursive endvar(EApp (destructor dcon) (EVar var)) e), [])
+    [InDatacon dcon] -> return ((\e -> ELet Nonrecursive endvar (EBody dcon var) e), [])
     -- Else us an intermediary variable
     l:ls -> do
         var' <- dummy_var
-        exp <- return $ EApp (case l of
-                                InTuple n -> nth_accessor n
-                                InDatacon dcon -> destructor dcon) (EVar var)
+        exp <- return $ case l of
+                          InTuple n -> EAccess n var
+                          InDatacon dcon -> EBody dcon var
+                          InLabel -> ELabel var
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
         return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
@@ -587,6 +579,15 @@ print_doc :: Lvl                   -- ^ Maximum depth.
           -> (Variable -> String)  -- ^ Rendering of term variables.
           -> (Variable -> String)  -- ^ Rendering of data constructors.
           -> Doc                   -- ^ Resulting PP document.
+print_doc _ (EAccess n v) fvar _ =
+  text ("#" ++ show n) <+> text (fvar v)
+
+print_doc _ (ELabel v) fvar _ =
+  text "LABEL" <+> text (fvar v)
+
+print_doc _ (EBody dcon v) fvar _ =
+  text ("EXTRACT_" ++ show dcon) <+> text (fvar v)
+
 print_doc _ EUnit _ _ =
   text "()"
 
@@ -670,7 +671,7 @@ print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (fdata p) <+> text "->" <+> print_doc dlv f fvar fdata in
+                        let pmatch = char '|' <+> text (show p) <+> text "->" <+> print_doc dlv f fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
