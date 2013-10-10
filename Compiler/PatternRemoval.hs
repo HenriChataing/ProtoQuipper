@@ -290,17 +290,17 @@ longest_prefix extracted test =
 extract :: (TestLocation, Variable, TestLocation) -> QpState (Expr -> Expr, [(TestLocation, Variable)], Variable)
 extract (prefix, var, loc) =
   case loc of
-    -- The variable 'var' already cnotains what we want
+    -- The variable 'var' already contains what we want
     [] -> return ((\e -> e), [], var)
     -- Else 
     l:ls -> do
       -- Build some intermediary variables
       var' <- dummy_var
-      exp <- return $ case l of
-                        InTuple n -> EAccess n var
-                        InDatacon dcon -> EBody dcon var
-                        InLabel -> ELabel var
-      nprefix <- return $ prefix ++ [l]
+      let exp = case l of
+                  InTuple n -> EAccess n var
+                  InDatacon dcon -> EBody dcon var
+                  InLabel -> ELabel var
+      let nprefix = prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
       return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
 
@@ -315,13 +315,13 @@ extract_var (prefix, var, loc) endvar =
     [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EAccess n var) e), [])
     -- The LAST action is a destructor
     [InDatacon dcon] -> return ((\e -> ELet Nonrecursive endvar (EBody dcon var) e), [])
-    -- Else us an intermediary variable
+    -- Else use an intermediary variable
     l:ls -> do
         var' <- dummy_var
-        exp <- return $ case l of
-                          InTuple n -> EAccess n var
-                          InDatacon dcon -> EBody dcon var
-                          InLabel -> ELabel var
+        let exp = case l of
+                    InTuple n -> EAccess n var
+                    InDatacon dcon -> EBody dcon var
+                    InLabel -> ELabel var
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
         return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
@@ -455,7 +455,7 @@ remove_patterns_in_expr (C.ETuple elist) = do
                           es <- rec
                           e' <- remove_patterns_in_expr e
                           return $ e':es) (return []) elist
-  return $ ETuple elist'
+  return $ ETuple $ List.reverse elist'
 
 remove_patterns_in_expr (C.ELet r p e f) = do
   e' <- remove_patterns_in_expr e
@@ -519,6 +519,7 @@ remove_patterns_in_expr (C.ELet r p e f) = do
         throwQ $ ProgramError "Located patterns remaining"
     C.PConstraint _ _ ->
         throwQ $ ProgramError "Constraint remaining in pattern"
+
 
 remove_patterns_in_expr (C.EBool b) = do
   return $ EBool b
@@ -686,7 +687,7 @@ instance PPrint Expr where
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
   -- where n is the id of the variable / constructor
-  sprintn lv e = genprint lv e [subvar 'x', subvar 'D']
+  sprintn lv e = genprint lv e [subvar '%', subvar 'D']
   sprint e = sprintn defaultLvl e
   pprint e = sprintn Inf e
 
