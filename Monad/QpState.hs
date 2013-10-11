@@ -549,19 +549,19 @@ datacon_def id = do
         throwQ $ ProgramError $ "Missing the definition of data constructor: " ++ subvar 'D' id
 
 
--- | Retrieve the reference of the agebraic type of a data constructor.
+-- | Retrieve the reference of the algebraic type of a data constructor.
 datacon_datatype :: Datacon -> QpState Variable
 datacon_datatype dcon =
   datacon_def dcon >>= return . d_datatype
 
 
--- | Retrieve the reference of the agebraic type of a data constructor.
+-- | Retrieve the reference of the algebraic type of a data constructor.
 datacon_type :: Datacon -> QpState TypeScheme
 datacon_type dcon =
   datacon_def dcon >>= return . d_type
 
 
--- | Return the local identifier of a data constrcuctor.
+-- | Return the local identifier of a data constructor.
 datacon_label :: Datacon -> QpState Int
 datacon_label dcon =
   datacon_def dcon >>= return . d_label
@@ -574,7 +574,7 @@ all_data_constructors typ = do
   return $ fst $ List.unzip $ snd $ d_unfolded def
 
 
--- | Return the list of the constrcutors' labels of a type definition.
+-- | Return the list of the constructors' labels of a type definition.
 constructors_labels :: Variable -> QpState [Int]
 constructors_labels typ = do
   Left def <- type_spec typ
@@ -588,7 +588,7 @@ assert ast typ info = do
   set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) } 
 
 
--- | Check the assertions, then remove them. If one assertion is not verified, an eror is thrown.
+-- | Check the assertions, then remove them. If one assertion is not verified, an error is thrown.
 check_assertions :: QpState ()
 check_assertions = do
   ctx <- get_context

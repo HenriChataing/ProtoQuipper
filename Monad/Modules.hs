@@ -22,7 +22,7 @@ data Module = Mod {
 
   m_types :: Map String Int,                 -- ^ The module's types and type synonyms.
 
-  m_body :: Maybe Expr                       -- ^ The body of the module. This attribut is filled only when the compilation has been requested.
+  m_body :: Maybe Expr                       -- ^ The body of the module. This attribute is filled only when the compilation has been requested.
 }
 
 
