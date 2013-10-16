@@ -642,48 +642,61 @@ translate_unbound_type t label = do
 -- The map is updated as variables are bound in the pattern.
 translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String LVariable)
 translate_pattern S.PUnit label = do
-  return (PUnit, l_variables label)
+  ref <- create_ref
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PUnit ref })
+  return (PUnit ref, l_variables label)
 
 translate_pattern (S.PBool b) label = do
-  return (PBool b, l_variables label)
+  ref <- create_ref
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PBool ref b })
+  return (PBool ref b, l_variables label)
 
 translate_pattern (S.PInt n) label = do
-  return (PInt n, l_variables label)
+  ref <- create_ref
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PInt ref n })
+  return (PInt ref n, l_variables label)
 
 translate_pattern S.PWildcard label = do
-  return (PWildcard, l_variables label)
+  ref <- create_ref
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PWildcard ref })
+  return (PWildcard ref, l_variables label)
 
 translate_pattern (S.PVar x) label = do
   ex <- get_location
   id <- register_var x ex
-  return (PVar id, Map.insert x (LVar id) $ l_variables label)
+  ref <- create_ref
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
+  return (PVar ref id, Map.insert x (LVar id) $ l_variables label)
 
 translate_pattern (S.PTuple plist) label = do
+  ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
                                   (r, lbl) <- rec
                                   (p', lbl') <- translate_pattern p $ label { l_variables = lbl }
                                   return ((p':r), lbl')) (return ([], l_variables label)) plist
-  return (PTuple plist', lbl)
+  update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
+  return (PTuple ref plist', lbl)
 
 translate_pattern (S.PDatacon datacon p) label = do
+  ref <- create_ref
   case Map.lookup datacon $ l_datacons label of
     Just id -> do
         case p of
           Just p -> do
               (p', lbl) <- translate_pattern p label
-              return (PDatacon id (Just p'), lbl)
+              update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id (Just p') })
+              return (PDatacon ref id (Just p'), lbl)
 
-          Nothing ->
-              return (PDatacon id Nothing, l_variables label)
+          Nothing -> do
+              update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id Nothing })
+              return (PDatacon ref id Nothing, l_variables label)
 
     Nothing ->
         throw_UnboundDatacon datacon
 
 translate_pattern (S.PLocated p ex) label = do
   set_location ex
-  (p', lbl) <- translate_pattern p label
-  return (PLocated p' ex, lbl)
-
+  translate_pattern p label
 
 translate_pattern (S.PConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
@@ -828,50 +841,33 @@ translate_expression (S.EConstraint e t) label = do
 -- | If an interface file is provided, modify the pattern by adding type constraints corresponding to the types
 -- written in the interface.
 with_interface :: S.Program -> LabellingContext -> Pattern -> QpState Pattern
-with_interface _ _ PWildcard =
-  return PWildcard
-
-with_interface _ _ PUnit =
-  return PUnit
-
-with_interface _ _ (PBool b) =
-  return (PBool b)
-
-with_interface _ _ (PInt n) =
-  return (PInt n)
-
-with_interface prog label (PLocated p _) =
-  with_interface prog label p
-
-with_interface prog label (PVar x) = do
+with_interface prog label (PVar ref x) = do
   case S.interface prog of
     Just inter -> do
         -- If an interface file is present, check the presence of the variable x
         n <- variable_name x
         case List.lookup n inter of
           Just typ -> do
-              return $ PConstraint (PVar x) (typ, l_types label)
+              return $ PConstraint (PVar ref x) (typ, l_types label)
           Nothing -> do
-              return $ PVar x
+              return $ PVar ref x
     Nothing -> do
-        return $ PVar x
+        return $ PVar ref x
 
-with_interface prog _ (PDatacon dcon Nothing) =
-  return $ PDatacon dcon Nothing
-
-with_interface prog label (PDatacon dcon (Just p)) = do
+with_interface prog label (PDatacon ref dcon (Just p)) = do
   p' <- with_interface prog label  p
-  return $ PDatacon dcon $ Just p'
+  return $ PDatacon ref dcon $ Just p'
 
-with_interface prog label (PTuple plist) = do
+with_interface prog label (PTuple ref plist) = do
   plist' <- List.foldr (\p rec -> do
                           r <- rec
                           p' <- with_interface prog label p
                           return (p':r)) (return []) plist
-  return $ PTuple plist
+  return $ PTuple ref plist
 
 with_interface prog label (PConstraint p t) = do
   p' <- with_interface prog label  p
   return (PConstraint p' t)
 
-
+with_interface _ _ p =
+  return p

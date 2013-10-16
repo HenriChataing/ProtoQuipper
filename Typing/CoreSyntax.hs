@@ -33,6 +33,9 @@ type Variable = Int
 -- | Like term and type variables, data constructors are attributed unique ids.
 type Datacon = Int
 
+-- | The type of algebraic types.
+type Algebraic = Int
+
 -- ----------------------------------------------------------------------
 -- * Types
 
@@ -44,10 +47,6 @@ type Datacon = Int
 -- *    0: the flag equal to zero (meaning not duplicable);
 --
 -- *    1: the flag equal to one (meaning duplicable);
---
--- *    -1: can be either zero or one, for example with types like /bool/ or /unit/,
---          which are implicitly equal to !/bool/ and !/unit/. Typically, flag 
---          constraints are dropped if their left-hand side or right-hand side is -1.
 --
 -- *    Any other value refers to a flag variable. For example, 2 means \"the second flag variable\".
 type RefFlag = Int
@@ -68,8 +67,6 @@ instance PPrint RefFlag where
 
   sprintn _ 0 = ""
   sprintn _ 1 = "!"
-  sprintn _ (-1) = ""
-  sprintn _ (-2) = "?"
   sprintn _ n = supervar '!' n
 
   sprint n = sprintn defaultLvl n
@@ -84,11 +81,12 @@ data FlagValue =
   | Zero      -- ^ The value 0.
   deriving Show
 
+
 -- | Information relevant to a flag. This contains the flag value, and potentially some debug
 -- information used to raise detailed exceptions. Eventually, it will also contain
 -- various things such as reversibility, control, etc.
 data FlagInfo = FInfo { 
-  value :: FlagValue                              -- ^ The value of the flag.
+  f_value :: FlagValue                              -- ^ The value of the flag.
 }
 
 -- ----------------------------------------------------------------------
@@ -126,7 +124,7 @@ data LinType =
 -- | The type of type expressions, which are linear types annotated
 -- with a flag.
 data Type =
-    TBang RefFlag LinType      -- ^ The type @!^n A@.
+  TBang RefFlag LinType      -- ^ The type @!^n A@.
   deriving Show
     
            
@@ -230,7 +228,6 @@ instance KType LinType where
   subs_flag _ _ t = t
 
 
-
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
@@ -295,8 +292,22 @@ data Datacondef = Datacondef {
   d_label :: Int                                             -- ^ A label (local to the type definition) uniquely identifying each constructor.
 }
 
+
 -- ----------------------------------------------------------------------
--- * Patterns
+-- ** Global references
+
+-- | The type of global references. Each expression / pattern is given one of those.
+type Ref = Int
+
+-- | The information contained by the above references.
+data RefInfo = RInfo {
+  r_location :: Extent,                -- ^ The extent of the expression in a file.
+  r_expression :: Either Expr Pattern, -- ^ The referenced expression.
+  r_type :: Type                      -- ^ The type of the expression.
+}
+
+-- ----------------------------------------------------------------------
+-- ** Patterns
 
 -- | A core pattern.  The definition is largely the same as that of
 -- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
@@ -320,14 +331,13 @@ data Datacondef = Datacondef {
 -- variable), is not syntactic sugar.  It differs from the application
 -- @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
-    PWildcard                                          -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-  | PUnit                                           -- ^ Unit pattern: @()@.
-  | PBool Bool                                      -- ^ Boolean pattern: @true@ or @false@.
-  | PInt Int                                        -- ^ Integer pattern.
-  | PVar Variable                                   -- ^ Variable pattern: /x/.
-  | PTuple [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PLocated Pattern Extent                         -- ^ A located pattern.
+    PWildcard Ref                                       -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
+  | PUnit Ref                                          -- ^ Unit pattern: @()@.
+  | PBool Ref Bool                                      -- ^ Boolean pattern: @true@ or @false@.
+  | PInt Ref Int                                        -- ^ Integer pattern.
+  | PVar Ref Variable                                   -- ^ Variable pattern: /x/.
+  | PTuple Ref [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PDatacon Ref Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
   | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
   deriving Show 
 
@@ -338,26 +348,23 @@ instance Located Pattern where
   locate p _ = p
   locate_opt p _ = p
 
-  clear_location (PLocated p _) = clear_location p
-  clear_location (PTuple plist) = PTuple $ List.map clear_location plist
-  clear_location (PDatacon dcon (Just p)) = PDatacon dcon $ Just (clear_location p)
+  clear_location (PTuple ref plist) = PTuple ref $ List.map clear_location plist
+  clear_location (PDatacon ref dcon (Just p)) = PDatacon ref dcon $ Just (clear_location p)
   clear_location (PConstraint p t) = PConstraint (clear_location p) t
   clear_location p = p
 
 instance Constraint Pattern where
   drop_constraints (PConstraint p _) = drop_constraints p
-  drop_constraints (PTuple plist) = PTuple $ List.map drop_constraints plist
-  drop_constraints (PDatacon dcon (Just p)) = PDatacon dcon $ Just (drop_constraints p)
-  drop_constraints (PLocated p ex) = PLocated (drop_constraints p) ex
+  drop_constraints (PTuple ref plist) = PTuple ref $ List.map drop_constraints plist
+  drop_constraints (PDatacon ref dcon (Just p)) = PDatacon ref dcon $ Just (drop_constraints p)
   drop_constraints p = p
 
 instance Param Pattern where
-  free_var (PVar x) = [x]
-  free_var (PDatacon _ Nothing) = []
-  free_var (PDatacon _ (Just p)) = free_var p
-  free_var (PTuple plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
+  free_var (PVar _ x) = [x]
+  free_var (PDatacon _ _ Nothing) = []
+  free_var (PDatacon _ _ (Just p)) = free_var p
+  free_var (PTuple _ plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
   free_var (PConstraint p _) = free_var p
-  free_var (PLocated p _) = free_var p
   free_var _ = []
 
   subs_var _ _ p = p
@@ -503,7 +510,7 @@ is_value _ = False
 -- expression, location, and orientation (which side of the constraint
 -- is the actual type). It is used in type constraints and flag
 -- constraints.
-data ConstraintInfo = Info {
+data ConstraintInfo = CInfo {
   expression :: Expr,      -- ^ The original expression.
   loc :: Extent,           -- ^ The location of the original expression.
   actual :: Bool,          -- ^ The orientation of the constraint: true means actual type is on the left.
@@ -513,7 +520,7 @@ data ConstraintInfo = Info {
 
 -- | An empty 'ConstraintInfo' structure.
 no_info :: ConstraintInfo
-no_info = Info {
+no_info = CInfo {
   expression = EUnit,
   loc = extent_unknown,
   actual = True,

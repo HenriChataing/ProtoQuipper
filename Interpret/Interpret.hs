@@ -137,44 +137,36 @@ unencap c b = do
 -- different contexts: from a beta reduction (the argument of the function is a pattern), from a let binding,
 -- of from a pattern matching.
 bind_pattern :: Pattern -> Value -> Environment -> QpState Environment
-bind_pattern (PLocated p ex) v env = do
-  set_location ex
-  bind_pattern p v env
-
 bind_pattern (PConstraint p _) v env = do
   bind_pattern p v env
 
-bind_pattern (PVar x) v env = do
+bind_pattern (PVar _ x) v env = do
   return $ IMap.insert x v env
 
-bind_pattern (PTuple plist) (VTuple vlist) env = do
-  case (plist, vlist) of
-    ([], []) ->
-        return env
+bind_pattern (PTuple _ plist) (VTuple vlist) env = do
+  if List.length plist /= List.length vlist then
+    throw $ MatchingError (sprint $ PTuple 0 plist) (sprint $ VTuple vlist)
+  else
+    List.foldl (\rec (p, v) -> do
+          env <- rec
+          bind_pattern p v env) (return env) (List.zip plist vlist)
 
-    (p:prest, v:vrest) -> do
-        ev <- bind_pattern p v env
-        bind_pattern (PTuple prest) (VTuple vrest) ev
-
-    _ ->
-        throw $ MatchingError (sprint $ PTuple plist) (sprint $ VTuple vlist)
-
-bind_pattern PUnit VUnit env = do
+bind_pattern (PUnit _) VUnit env = do
   return env
 
-bind_pattern (PBool b) (VBool b') env = do
+bind_pattern (PBool _ b) (VBool b') env = do
   if b == b' then 
     return env 
     else
-    throw $ MatchingError (sprint $ PBool b) (sprint $ VBool b')
+    throw $ MatchingError (sprint $ PBool 0 b) (sprint $ VBool b')
 
-bind_pattern (PInt n) (VInt n') env = do
+bind_pattern (PInt _ n) (VInt n') env = do
   if n == n' then 
     return env 
     else
-    throw $ MatchingError (sprint $ PInt n) (sprint $ VInt n')
+    throw $ MatchingError (sprint $ PInt 0 n) (sprint $ VInt n')
 
-bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
+bind_pattern (PDatacon _ dcon p) (VDatacon dcon' v) env = do
   if dcon == dcon' then
     case (p, v) of
       (Just p, Just v) ->
@@ -182,12 +174,12 @@ bind_pattern (PDatacon dcon p) (VDatacon dcon' v) env = do
       (Nothing, Nothing) ->
           return env
       _ ->
-          throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
+          throw $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
 
   else
-    throw $ MatchingError (sprint $ PDatacon dcon p) (sprint $ VDatacon dcon' v)
+    throw $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
 
-bind_pattern PWildcard _ env = do
+bind_pattern (PWildcard _) _ env = do
   return env
 
 bind_pattern p v _ = do
@@ -196,19 +188,16 @@ bind_pattern p v _ = do
 
 -- | Try matching a pattern and a value. Return 'True' if the value matches, else 'False'.
 match_value :: Pattern -> Value -> Bool
-match_value (PLocated p _) v =
-  match_value p v
-
 match_value (PConstraint p _) v =
   match_value p v
 
-match_value PWildcard _ =
+match_value (PWildcard _) _ =
   True
 
-match_value (PVar _) _  =
+match_value (PVar _ _) _  =
   True
 
-match_value (PTuple plist) (VTuple vlist) = 
+match_value (PTuple _ plist) (VTuple vlist) = 
   let match_list = (\plist vlist ->
                       case (plist, vlist) of
                         ([], []) ->
@@ -222,16 +211,16 @@ match_value (PTuple plist) (VTuple vlist) =
                             False) in
   match_list plist vlist
 
-match_value PUnit VUnit =
+match_value (PUnit _) VUnit =
   True
 
-match_value (PBool b) (VBool b') =
+match_value (PBool _ b) (VBool b') =
   b == b'
 
-match_value (PInt n) (VInt n') =
+match_value (PInt _ n) (VInt n') =
   n == n'
 
-match_value (PDatacon dcon p) (VDatacon dcon' v) =
+match_value (PDatacon _ dcon p) (VDatacon dcon' v) =
   if dcon == dcon' then
     case (p, v) of
       (Just p, Just v) ->
@@ -466,8 +455,8 @@ interpret env (ELet r p e1 e2) = do
   v1 <- interpret env e1
   
   -- Recursive function ?
-  case (r, v1, drop_constraints $ clear_location p) of
-    (Recursive, VFun ev arg body, PVar x) ->
+  case (r, v1, drop_constraints p) of
+    (Recursive, VFun ev arg body, PVar _ x) ->
         let ev' = IMap.insert x (VFun ev' arg body) ev in do
           env <- bind_pattern p (VFun ev' arg body) env
           interpret env e2

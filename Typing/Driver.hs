@@ -413,7 +413,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
         
            -- Recursive function ?
            env <- case (recflag, v, drop_constraints $ clear_location p') of
-                    (Recursive, VFun ev arg body, PVar x) ->
+                    (Recursive, VFun ev arg body, PVar _ x) ->
                         let ev' = IMap.insert x (VFun ev' arg body) ev in do
                         Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
 

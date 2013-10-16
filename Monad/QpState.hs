@@ -116,6 +116,9 @@ data Context = Ctx {
                                                       -- also about the type itself, for example the expression it is the type of. Such information is useful to send
                                                       -- unambiguous error messages when the type inference fails.
 
+-- References
+  references :: IntMap RefInfo,                       -- ^ Information about each expression.
+
 -- Circuit stack
   circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
 
@@ -123,6 +126,7 @@ data Context = Ctx {
   type_id :: Int,                                     -- ^ Used to generate fresh type variables.
   flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
   qubit_id :: Int,                                    -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
+  ref_id :: Int,                                      -- ^ Used to generate new references.
      
 -- Substitution from type variable to types
   mappings :: IntMap LinType                          -- ^ The result of the unification: a mapping from type variables to linear types.
@@ -203,12 +207,16 @@ empty_context =  Ctx {
 -- No flag
   flags = IMap.empty,
 
+-- No references
+  references = IMap.empty,
+
 -- Circuit stack initialized with a void circuit.
   circuits = [ Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] } ],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
   Monad.QpState.qubit_id = 0,
+  ref_id = 0,
       
   mappings = IMap.empty
 }
@@ -292,7 +300,7 @@ with_declaration (r, p, e) = do
 -- | Append an expression at the end of the body.
 with_expression :: Expr -> QpState ()
 with_expression e =
-  with_declaration (Nonrecursive, PWildcard, e)
+  with_declaration (Nonrecursive, (PWildcard 0), e)
 
 -- | Return the body of the module, and reinitialize it just after.
 module_body :: QpState (Maybe Expr)
@@ -619,7 +627,7 @@ flag_value ref =
         ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just info ->
-              return $ value info
+              return $ f_value info
 
           Nothing ->
               throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
@@ -638,7 +646,7 @@ set_flag ref info = do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
           Just i -> do
-              case value i of
+              case f_value i of
                 Zero -> do
                     case in_type info of
                       Just a -> do
@@ -648,7 +656,7 @@ set_flag ref info = do
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { value = One }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { f_value = One }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and one
 
@@ -668,7 +676,7 @@ unset_flag ref info = do
         ctx <- get_context 
         case IMap.lookup ref $ flags ctx of
           Just i -> do
-              case value i of
+              case f_value i of
                 One ->
                     case in_type info of
                       Just a -> do
@@ -678,7 +686,7 @@ unset_flag ref info = do
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { value = Zero }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { f_value = Zero }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and zero
 
@@ -693,7 +701,7 @@ fresh_flag = do
   ctx <- get_context
   id <- return $ flag_id ctx
   set_context $ ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { value = Unknown }) $ flags ctx }
+                      flags = IMap.insert id (FInfo { f_value = Unknown }) $ flags ctx }
   return id 
 
 
@@ -704,7 +712,7 @@ fresh_flag_with_value v = do
   ctx <- get_context
   id <- return $ flag_id ctx
   set_context $ ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { value = v }) $ flags ctx }
+                      flags = IMap.insert id (FInfo { f_value = v }) $ flags ctx }
   return id 
 
 
@@ -729,6 +737,24 @@ duplicate_flag ref = do
 
 
 
+
+-- | Create a new reference, with the current location.
+create_ref :: QpState Ref
+create_ref = do
+  ctx <- get_context
+  ex <- get_location
+  let id = ref_id ctx
+  set_context ctx { ref_id = id + 1, references = IMap.insert id RInfo { r_location = ex,
+                                                                         r_expression = Left EUnit,
+                                                                         r_type = TBang 0 TUnit } $ references ctx }
+  return id
+
+
+-- | Update the value referenced by the argument.
+update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
+update_ref ref f = do
+  ctx <- get_context
+  set_context ctx { references = IMap.update f ref $ references ctx }
 
 
 -- | Generic type instantiation.
@@ -1076,7 +1102,7 @@ display_flag = do
   return (\f -> case f of
                   1 -> "!"
                   n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FInfo { value = One } -> "!"
+                                  Just FInfo { f_value = One } -> "!"
                                   Just _ -> ""
                                   Nothing -> ""
                     | otherwise -> "")
@@ -1092,8 +1118,8 @@ display_ref ff = do
   return (\f -> case f of
                   1 -> "!"
                   n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FInfo { value = One } -> "!"
-                                  Just FInfo { value = Zero } -> ""
+                                  Just FInfo { f_value = One } -> "!"
+                                  Just FInfo { f_value = Zero } -> ""
                                   _ -> 
                                       case List.lookup n attr of
                                         Just nm -> "(" ++ nm ++ ")"

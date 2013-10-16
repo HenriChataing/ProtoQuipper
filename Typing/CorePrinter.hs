@@ -132,33 +132,30 @@ instance PPrint TypeScheme where
 instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
-  genprint _ (PVar x) [fvar, _] =  fvar x
-  genprint _ (PVar x) _ =
+  genprint _ (PVar _ x) [fvar, _] =  fvar x
+  genprint _ (PVar _ x) _ =
     throw $ ProgramError "Pattern:genprint: illegal argument"
-  genprint _ PUnit _ = "()"
-  genprint _ (PBool b) _ = if b then "true" else "false"
-  genprint _ (PInt n) _ = show n
-  genprint _ PWildcard _ = "_"
+  genprint _ (PUnit _) _ = "()"
+  genprint _ (PBool _ b) _ = if b then "true" else "false"
+  genprint _ (PInt _ n) _ = show n
+  genprint _ (PWildcard _) _ = "_"
   genprint (Nth 0) _ _= "..."
 
-  genprint lv (PTuple (p:rest)) opts =
+  genprint lv (PTuple _ (p:rest)) opts =
     let dlv = decr lv in
     "(" ++ genprint dlv p opts ++
            List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ")"
-  genprint lv (PTuple []) opts =
+  genprint lv (PTuple _ []) opts =
     throw $ ProgramError "Pattern:genprint: illegal tuple"
 
-  genprint lv (PDatacon dcon p) opts@[_, fdata] =
+  genprint lv (PDatacon _ dcon p) opts@[_, fdata] =
     fdata dcon ++ case p of
                     Just p -> "(" ++ genprint (decr lv) p opts ++ ")"
                     Nothing -> ""
-  genprint lv (PDatacon dcon p) _ =
+  genprint lv (PDatacon _ dcon p) _ =
     throw $ ProgramError "Pattern:genprint: illegal argument"
 
   genprint lv (PConstraint p _) opts =
-    genprint lv p opts
-
-  genprint lv (PLocated p _) opts =
     genprint lv p opts
 
    -- Print unto Lvl = n

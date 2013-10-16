@@ -114,19 +114,19 @@ relevant_tests p =
   -- The location in the pattern is passed as argument here (reversed though).
   let ptests = \ns p ->
         case p of
-          C.PInt n -> return [(List.reverse ns, RInt n)]
-          C.PBool b -> return [(List.reverse ns, RBool b)]
-          C.PUnit -> return []
-          C.PWildcard -> return []
-          C.PVar _ -> return []
-          C.PDatacon dcon Nothing -> do
+          C.PInt _ n -> return [(List.reverse ns, RInt n)]
+          C.PBool _ b -> return [(List.reverse ns, RBool b)]
+          C.PUnit _ -> return []
+          C.PWildcard _ -> return []
+          C.PVar _ _ -> return []
+          C.PDatacon _ dcon Nothing -> do
               typ <- datacon_datatype dcon
               all <- all_data_constructors typ
               if List.length all == 1 then
                 return []
               else
                 return [(List.reverse $ InLabel:ns, RDatacon dcon)]
-          C.PDatacon dcon (Just p) -> do
+          C.PDatacon _ dcon (Just p) -> do
               typ <- datacon_datatype dcon
               all <- all_data_constructors typ
               if List.length all == 1 then
@@ -134,9 +134,8 @@ relevant_tests p =
               else do
                 tset <- ptests ((InDatacon dcon):ns) p
                 return $ (List.reverse $ InLabel:ns, RDatacon dcon):tset
-          C.PLocated p _ -> ptests ns p
           C.PConstraint p _ -> ptests ns p
-          C.PTuple plist ->
+          C.PTuple _ plist ->
               List.foldl (\rec (n, p) -> do
                             tset <- rec
                             tset' <- ptests ((InTuple n):ns) p
@@ -258,12 +257,11 @@ pattern_variables :: C.Pattern -> [(TestLocation, Variable)]
 pattern_variables p =
   let read_vars = \loc p ->
         case p of
-          C.PVar x -> [(List.reverse loc, x)]
-          C.PDatacon dcon (Just p) ->
+          C.PVar _ x -> [(List.reverse loc, x)]
+          C.PDatacon _ dcon (Just p) ->
               read_vars ((InDatacon dcon):loc) p
-          C.PLocated p _ -> read_vars loc p
           C.PConstraint p _ -> read_vars loc p
-          C.PTuple plist ->
+          C.PTuple _ plist ->
               List.foldl (\vars (n, p) ->
                             let vars' = read_vars ((InTuple n):loc) p in
                             vars' ++ vars) [] (List.zip [0..(List.length plist) -1] plist)
@@ -432,7 +430,7 @@ remove_patterns_in_expr (C.EFun p e) = do
    -- Check whether the expression is already  or not
   case p of
     -- The pattern is only one variable: do nothing
-    C.PVar x -> do
+    C.PVar _ x -> do
       e' <- remove_patterns_in_expr e
       return $ EFun x e'
 
@@ -461,12 +459,12 @@ remove_patterns_in_expr (C.ELet r p e f) = do
   e' <- remove_patterns_in_expr e
   case p of
     -- If the pattern is unit
-    C.PUnit -> do
+    (C.PUnit _) -> do
         f' <- remove_patterns_in_expr f
         return $ ESeq e' f'
 
     -- If the pattern is boolean
-    (C.PBool b) -> do
+    (C.PBool _ b) -> do
         f' <- remove_patterns_in_expr f
         return $ if b then
                    EIf e' f' (EBuiltin "PATTERN_ERROR")
@@ -474,7 +472,7 @@ remove_patterns_in_expr (C.ELet r p e f) = do
                    EIf e' (EBuiltin "PATTERN_ERROR") f'
 
     -- If the pattern is an integer: do nothing
-    (C.PInt n) -> do
+    (C.PInt _ n) -> do
         f' <- remove_patterns_in_expr f
         x <- dummy_var
         return $ ELet r x f' (
@@ -482,12 +480,12 @@ remove_patterns_in_expr (C.ELet r p e f) = do
 
     -- If the pattern is one variable, do nothing
     -- The let binding can't be removed because of let-polymorphism
-    C.PVar x -> do
+    C.PVar _ x -> do
         f' <- remove_patterns_in_expr f
         return $ ELet r x e' f'
 
     -- If the pattern is a pair of variables, this is the case of tensor elimination
-    C.PTuple plist -> do
+    C.PTuple _ plist -> do
         -- The tuple will be saved in that variable
         xp <- dummy_var
         -- For each element of the tuple, the variable is extracted using #1 #2 ..
@@ -499,24 +497,22 @@ remove_patterns_in_expr (C.ELet r p e f) = do
         return $ ELet r xp e' f'
 
     -- If the pattern is a datacon, remove_patterns_in_expr by adding a pattern matching
-    C.PDatacon dcon Nothing -> do
+    C.PDatacon _ dcon Nothing -> do
         f' <- remove_patterns_in_expr f
         return $ EMatch e' [(dcon, f')]
 
-    C.PDatacon dcon (Just p) -> do
+    C.PDatacon _ dcon (Just p) -> do
         x <- dummy_var
         ep <- remove_patterns_in_expr (C.ELet Nonrecursive p (C.EApp (C.EBuiltin "EXTRACT") (C.EVar x)) f)
         return $ ELet Nonrecursive x e' (
                    EMatch (EVar x) [(dcon, ep)]
                  )
     -- The wildcard
-    C.PWildcard -> do
+    C.PWildcard _ -> do
         f' <- remove_patterns_in_expr f
         return $ ESeq e' f'
 
     -- Others
-    C.PLocated _ _ ->
-        throwQ $ ProgramError "Located patterns remaining"
     C.PConstraint _ _ ->
         throwQ $ ProgramError "Constraint remaining in pattern"
 
