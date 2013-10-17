@@ -440,14 +440,14 @@ data Expr =
   | EMatch Expr [(Datacon, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
-  | EBox C.Type                                   -- ^ The constant @box[T]@.
-  | EUnbox                                        -- ^ The constant @unbox@.
+  | EBox QType                                    -- ^ The constant @box[T]@.
+  | EUnbox QType QType                            -- ^ The constant @unbox@.
   | ERev                                          -- ^ The constant @rev@.
 
 -- Unrelated
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
-  | ELabel Variable                               -- ^ Return the label of an expression (supposedly a record).
+  | ETag Variable                               -- ^ Return the label of an expression (supposedly a record).
   | EBody Datacon Variable                        -- ^ Return the body of a record that has a known label.
   deriving Show
 
@@ -680,7 +680,7 @@ extract (prefix, var, loc) =
       let exp = case l of
                   InTuple n -> EAccess n var
                   InDatacon dcon -> EBody dcon var
-                  InLabel -> ELabel var
+                  InLabel -> ETag var
       let nprefix = prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
       return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
@@ -702,7 +702,7 @@ extract_var (prefix, var, loc) endvar =
         let exp = case l of
                     InTuple n -> EAccess n var
                     InDatacon dcon -> EBody dcon var
-                    InLabel -> ELabel var
+                    InLabel -> ETag var
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
         return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
@@ -923,10 +923,14 @@ remove_patterns_in_expr (C.EMatch _ e blist) = do
   simplify_pattern_matching e blist
 
 remove_patterns_in_expr (C.EBox _ typ) = do
+  typ <- convert_type typ
   return $ EBox typ
 
-remove_patterns_in_expr (C.EUnbox _) = do
-  return EUnbox
+remove_patterns_in_expr (C.EUnbox ref) = do
+  ri <- ref_info_err ref
+  let typ = C.r_type ri
+  (t, u) <- circuit_type typ
+  return $ EUnbox t u
 
 remove_patterns_in_expr (C.ERev _) = do
   return ERev
@@ -953,7 +957,7 @@ print_doc :: Lvl                   -- ^ Maximum depth.
 print_doc _ (EAccess n v) fvar _ =
   text ("#" ++ show n) <+> text (fvar v)
 
-print_doc _ (ELabel v) fvar _ =
+print_doc _ (ETag v) fvar _ =
   text "LABEL" <+> text (fvar v)
 
 print_doc _ (EBody dcon v) fvar _ =
@@ -975,8 +979,8 @@ print_doc _ (EGlobal x) fvar _ = text $ fvar x
 print_doc _ (EBox n) _ _=
   text "box" <> brackets (text $ show n)
 
-print_doc _ EUnbox _ _ =
-  text "unbox"
+print_doc _ (EUnbox t u) _ _ =
+  text $ "unbox(" ++ show t ++ "," ++ show u ++ ")"
 
 print_doc _ ERev _ _ =
   text "rev"
