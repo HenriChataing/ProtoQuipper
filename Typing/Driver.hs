@@ -544,6 +544,9 @@ do_everything opts files = do
                 case m_body nm of
                   Nothing -> return ()
                   Just e -> do
+                      typs <- unbox_types e
+                      let ptyps = List.foldl (\rec typ -> rec ++ "\n" ++ pprint typ) "--Unbox:" typs
+                      newlog (-2) $ ptyps ++ "\n-----"
                       e' <- remove_patterns_in_expr (drop_constraints e)
                       newlog (-2) (pprint e')
 ---------------

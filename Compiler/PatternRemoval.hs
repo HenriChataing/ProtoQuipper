@@ -35,6 +35,62 @@ import Text.PrettyPrint.HughesPJ as PP
 import qualified Data.List as List
 import qualified Data.Map as Map
 
+
+-- | Return the types of all the occurences of \'unbox\' in the given expression.
+unbox_types :: C.Expr -> QpState [C.Type]
+unbox_types (C.EFun _ _ e) =
+  unbox_types e
+
+unbox_types (C.EApp _ e f) = do
+  ue <- unbox_types e
+  uf <- unbox_types f
+  return $ ue ++ uf
+
+unbox_types (C.ETuple _ elist) =
+  List.foldl (\rec e -> do
+        us <- rec
+        ue <- unbox_types e
+        return $ ue ++ us) (return []) elist
+
+unbox_types (C.ELet _ _ _ e f) = do
+  ue <- unbox_types e
+  uf <- unbox_types f
+  return $ ue ++ uf
+
+unbox_types (C.EIf _ e f g) = do
+  ue <- unbox_types e
+  uf <- unbox_types f
+  ug <- unbox_types g
+  return $ ue ++ uf ++ ug
+
+unbox_types (C.EDatacon _ _ (Just e)) =
+  unbox_types e
+
+unbox_types (C.EMatch _ e blist) = do
+  ue <- unbox_types e
+  ulist <- List.foldl (\rec (_, e) -> do
+        us <- rec
+        ue <- unbox_types e
+        return $ ue ++ us) (return []) blist
+  return $ ue ++ ulist
+
+unbox_types (C.EUnbox ref) = do
+  ri <- ref_info ref
+  case ri of
+    Nothing ->
+        throwQ $ ProgramError "Missing reference information"
+    Just ri -> do
+        a <- map_type $ C.r_type ri
+        return [a]
+
+unbox_types (C.EConstraint e _) =
+  unbox_types e
+
+unbox_types _ =
+  return []
+
+
+
 -- | Definition of a set of expressions, where patterns have been removed.
 data Expr =
 -- STLC
