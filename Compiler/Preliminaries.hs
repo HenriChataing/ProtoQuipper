@@ -36,32 +36,75 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 
 
+-- | Definition of a quantum data type.
+data QType =
+    QQubit
+  | QUnit
+  | QVar Variable
+  | QTensor [QType]
+  deriving (Eq, Show)
+
+-- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'. 
+convert_type :: C.Type -> QpState QType
+convert_type (C.TBang _ C.TUnit) =
+  return QUnit
+
+convert_type (C.TBang _ (C.TVar a)) =
+  return (QVar a)
+
+convert_type (C.TBang _ C.TQubit) =
+  return QQubit
+
+convert_type (C.TBang _ (C.TTensor alist)) = do
+  alist' <- List.foldr (\a rec -> do
+        as <- rec
+        a' <- convert_type a
+        return $ a':as) (return []) alist
+  return $ QTensor alist'
+
+convert_type typ =
+  throwQ $ ProgramError $ "The type " ++ pprint typ ++ " is not a quantum data type"
+  
+
+
+-- | Convert the type of an unbox operator (only) to 'Compiler.Preliminaries.QType'.
+-- An exception is raised if the given type is not of the form: @Circ (QType, QType) -> _@.
+circuit_type :: C.Type -> QpState (QType, QType)
+circuit_type (C.TBang _ (C.TArrow (C.TBang _ (C.TCirc t u)) _)) = do
+  t' <- convert_type t
+  u' <- convert_type u
+  return (t', u')
+
+circuit_type typ =
+  throwQ $ ProgramError $ "The type " ++ pprint typ ++ " can't correspond to the type of unbox"
+
+
 -- | Return the types of all the occurences of \'unbox\' in the given expression.
-unbox_types :: C.Expr -> QpState [C.Type]
+unbox_types :: C.Expr -> QpState [(QType, QType)]
 unbox_types (C.EFun _ _ e) =
   unbox_types e
 
 unbox_types (C.EApp _ e f) = do
   ue <- unbox_types e
   uf <- unbox_types f
-  return $ ue ++ uf
+  return $ List.union ue uf
 
 unbox_types (C.ETuple _ elist) =
   List.foldl (\rec e -> do
         us <- rec
         ue <- unbox_types e
-        return $ ue ++ us) (return []) elist
+        return $ List.union ue us) (return []) elist
 
 unbox_types (C.ELet _ _ _ e f) = do
   ue <- unbox_types e
   uf <- unbox_types f
-  return $ ue ++ uf
+  return $ List.union ue uf
 
 unbox_types (C.EIf _ e f g) = do
   ue <- unbox_types e
   uf <- unbox_types f
   ug <- unbox_types g
-  return $ ue ++ uf ++ ug
+  return $ List.union ue $ List.union uf ug
 
 unbox_types (C.EDatacon _ _ (Just e)) =
   unbox_types e
@@ -71,8 +114,8 @@ unbox_types (C.EMatch _ e blist) = do
   ulist <- List.foldl (\rec (_, e) -> do
         us <- rec
         ue <- unbox_types e
-        return $ ue ++ us) (return []) blist
-  return $ ue ++ ulist
+        return $ List.union ue us) (return []) blist
+  return $ List.union ue ulist
 
 unbox_types (C.EUnbox ref) = do
   ri <- ref_info ref
@@ -81,7 +124,8 @@ unbox_types (C.EUnbox ref) = do
         throwQ $ ProgramError "Missing reference information"
     Just ri -> do
         a <- map_type $ C.r_type ri
-        return [a]
+        a' <- circuit_type a
+        return [a']
 
 unbox_types (C.EConstraint e _) =
   unbox_types e

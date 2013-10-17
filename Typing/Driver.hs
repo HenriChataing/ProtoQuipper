@@ -29,7 +29,7 @@ import Typing.TypeInference
 import Typing.TypingContext
 import Typing.TransSyntax
 
-import Compiler.PatternRemoval
+import Compiler.Preliminaries
 
 import Monad.QpState
 import Monad.Modules
@@ -545,7 +545,7 @@ do_everything opts files = do
                   Nothing -> return ()
                   Just e -> do
                       typs <- unbox_types e
-                      let ptyps = List.foldl (\rec typ -> rec ++ "\n" ++ pprint typ) "--Unbox:" typs
+                      let ptyps = List.foldl (\rec typ -> rec ++ "\n" ++ show typ) "--Unbox:" typs
                       newlog (-2) $ ptyps ++ "\n-----"
                       e' <- remove_patterns_in_expr (drop_constraints e)
                       newlog (-2) (pprint e')
