@@ -209,21 +209,12 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) =
 -- @
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
--- Located things:
--- Change the location and resume.
-constraint_typing gamma (ELocated e ex) cst = do
-  set_location ex
-  constraint_typing gamma e cst
-
-
 -- For builtins, get the type registered in the builtins map.
-constraint_typing gamma (EBuiltin s) cst = do
+constraint_typing gamma (EBuiltin ref s) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
-  ex <- get_location
-  info <- return $ no_info { expression = EBuiltin s,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
   acts <- builtin_type s
 
   return $ ((acts <:: cst) & info, [])
@@ -235,14 +226,12 @@ constraint_typing gamma (EBuiltin s) cst = do
 --  !I G  |- * : !n T  [{1 <= I}]
 --
 
-constraint_typing gamma EUnit cst = do
+constraint_typing gamma (EUnit ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
   
   -- Generates a referenced flag of the actual type of EUnit
-  ex <- get_location
-  info <- return $ no_info { expression = EUnit,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   return $ ((TBang 1 TUnit <:: cst) & info, [])
 
@@ -253,14 +242,12 @@ constraint_typing gamma EUnit cst = do
 --  !I G |- True / False : !n bool  [{1 <= I}]
 -- 
 
-constraint_typing gamma (EBool b) cst = do
+constraint_typing gamma (EBool ref b) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  ex <- get_location
-  info <- return $ no_info { expression = EBool b,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   return $ ((TBang 1 TBool <:: cst) & info, [])
 
@@ -271,15 +258,13 @@ constraint_typing gamma (EBool b) cst = do
 --  !I G |- Int : !n int  [{1 <= I}]
 -- 
 
-constraint_typing gamma (EInt p) cst = do
+constraint_typing gamma (EInt ref p) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  ex <- get_location
-  info <- return $ no_info { expression = EInt p,
-                             loc = ex }
-
+  info <- return $ no_info { c_ref = ref }
+  
   return $ ((TBang 1 TInt <:: cst) & info, [])
 
 
@@ -289,41 +274,33 @@ constraint_typing gamma (EInt p) cst = do
 --  !IG, t : T |- t : U  [{T <: U, 1 <= I}]
 --
 
-constraint_typing gamma (EVar x) cst = do
+constraint_typing gamma (EVar ref x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of x gamma
   (a, csetx) <- instantiate sa
-
-  -- Get the location
-  ex <- get_location
 
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma
   duplicable_context gamma_nx
 
   -- Information
-  info <- return $ no_info { expression = EVar x,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
+  return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
 
-constraint_typing gamma (EGlobal x) cst = do
+constraint_typing gamma (EGlobal ref x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of_global x
   (a, csetx) <- instantiate sa -- In case a is a typing scheme
-
-  -- Get the location
-  ex <- get_location
 
   -- Have the rest of the context be duplicable
   duplicable_context gamma
 
   -- Information
-  info <- return $ no_info { expression = EGlobal x,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
+  return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
 
 
@@ -333,14 +310,12 @@ constraint_typing gamma (EGlobal x) cst = do
 --  !I G |- box[T] :  !n (!1 (T -> U) -> !n Circ (T, U))  [L u {1 <= I}]
 --
 
-constraint_typing gamma (EBox a) cst = do
+constraint_typing gamma (EBox ref a) cst = do
   -- The context must be duplicable 
   duplicable_context gamma
 
   -- Information
-  ex <- get_location
-  info <- return $ no_info { expression = EBox a,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of box
   b <- new_type
@@ -356,14 +331,12 @@ constraint_typing gamma (EBox a) cst = do
 --  G |- rev : !n (!n Circ (T, U) -> !n Circ (U, T))  [L]
 --
 
-constraint_typing gamma ERev cst = do
+constraint_typing gamma (ERev ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Information
-  ex <- get_location
-  info <- return $ no_info { expression = ERev,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of rev
   a <- new_type
@@ -380,14 +353,12 @@ constraint_typing gamma ERev cst = do
 --  G |- unbox : !1 (!n circ(T, U) -> !1 (T -> U))  [L]
 --
 
-constraint_typing gamma EUnbox cst = do
+constraint_typing gamma (EUnbox ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Flag reference
-  ex <- get_location
-  info <- return $ no_info { expression = EUnbox,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of unbox
   a <- new_type
@@ -406,7 +377,7 @@ constraint_typing gamma EUnbox cst = do
 --  G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
 --
 
-constraint_typing gamma (EApp t u) cst = do
+constraint_typing gamma (EApp _ t u) cst = do
   -- Create the type of the argument
   a <- new_type
 
@@ -439,12 +410,10 @@ constraint_typing gamma (EApp t u) cst = do
 --  !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
 --
 
-constraint_typing gamma (EFun p e) cst = do
+constraint_typing gamma (EFun ref p e) cst = do
   -- Detailed information on the type of the function 
-  ex <- get_location
   n <- fresh_flag
-  info <- return $ no_info { expression = EFun p e,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
@@ -470,12 +439,10 @@ constraint_typing gamma (EFun p e) cst = do
 --  G1, G2, !ID |- <t, u> : T  [L u L' u {1 <= I} u {!n (a * b) <: T}]
 --
 
-constraint_typing gamma (ETuple elist) cst = do
+constraint_typing gamma (ETuple ref elist) cst = do
   -- Detailed information of the type of the tuple
-  ex <- get_location
   p <- fresh_flag
-  info <- return $ no_info { expression = ETuple elist,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Create n new types
   tlist <- List.foldr (\_ rec -> do
@@ -523,7 +490,7 @@ constraint_typing gamma (ETuple elist) cst = do
 --  where A = free variables of T \\ free_variables of G1, !ID
 --
 
-constraint_typing gamma (ELet rec p t u) cst = do
+constraint_typing gamma (ELet _ rec p t u) cst = do
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
@@ -628,11 +595,9 @@ constraint_typing gamma (ELet rec p t u) cst = do
 --  G |- datacon t : !p UserT  [L u {p <= n}]
 --
 
-constraint_typing gamma (EDatacon dcon e) cst = do
+constraint_typing gamma (EDatacon ref dcon e) cst = do
   -- Extent of the expression
-  ex <- get_location
-  info <- return $ no_info { expression = EDatacon dcon e,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Retrieve the definition of the data constructor, and instantiate its typing scheme
   dtype <- datacon_type dcon
@@ -665,7 +630,7 @@ constraint_typing gamma (EDatacon dcon e) cst = do
 --  G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I, p <= n, p <= m}]
 --
 
-constraint_typing gamma (EMatch e blist) cst = do
+constraint_typing gamma (EMatch ref e blist) cst = do
   -- Extract the free type variables of e and of the bindings
   fve <- return $ free_var e
   fvlist <- List.foldl (\rec (p, f) -> do
@@ -682,7 +647,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 
                                      -- p must have a non functional type
                                      ext <- get_location
-                                     Monad.QpState.assert IsNotfun a (no_info { expression = e, loc = ext })
+                                     Monad.QpState.assert IsNotfun a no_info { c_ref = reference e }
 
                                      -- Type the associated expression, with the same constraints cst as the original expression
                                      -- Refer to the case of 'if' for more clarity.
@@ -713,7 +678,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 --
 -- Same as pattern matchings (since it is only a special case with the type bool = True | False
 
-constraint_typing gamma (EIf e f g) cst = do
+constraint_typing gamma (EIf _ e f g) cst = do
   -- Extract the free variables of e, f and g
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
@@ -1028,11 +993,11 @@ apply_flag_constraints (c:cc) = do
         vn <- flag_value n
         case (vm, vn) of
           (One, Zero) -> do
-              case in_type info of
+              case c_type info of
                 Just a -> do
                     a0 <- return $ subs_flag m 0 a
                     a1 <- return $ subs_flag n 1 a
-                    throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
+                    throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
 
                 Nothing ->
                     throw_NonDuplicableError info

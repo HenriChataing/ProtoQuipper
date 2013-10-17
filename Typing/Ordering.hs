@@ -255,16 +255,16 @@ check_cyclic c explored poset = do
 
         -- See what information we have
         -- Print the expression
-        pre <- pprint_expr_noref $ expression info
+        (ex, expr) <- ref_expression $ c_ref info
         -- Print the original type
-        mprt <- case in_type info of
+        mprt <- case c_type info of
                   Just a -> do
                       p <- pprint_type_noref a
                       return $ Just p
                   Nothing ->
                       return Nothing
 
-        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (loc info)
+        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt expr) ex
 
 
 

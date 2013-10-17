@@ -124,13 +124,13 @@ break_composite bu ((Sublintype TQubit TQubit _):lc, fc) = do
 -- Into
   -- T' <: T && U <: U'
 break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
-  intype <- case in_type info of
+  intype <- case c_type info of
               Just a -> return $ Just a
-              Nothing -> return $ Just $ if actual info then TBang 0 $ TArrow t u else TBang 0 $ TArrow t' u'
+              Nothing -> return $ Just $ if c_actual info then TBang 0 $ TArrow t u else TBang 0 $ TArrow t' u'
 
-  break_composite bu ((Subtype t' t info { actual = not $ actual info,
-                                           in_type = intype }):
-                      (Subtype u u' info { in_type = intype }):lc, fc)
+  break_composite bu ((Subtype t' t info { c_actual = not $ c_actual info,
+                                           c_type = intype }):
+                      (Subtype u u' info { c_type = intype }):lc, fc)
  
 
 -- Tensor against tensor
@@ -139,11 +139,11 @@ break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
   -- T <: T' && U <: U'
 break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) = do
   if List.length tlist == List.length tlist' then do
-    intype <- case in_type info of
+    intype <- case c_type info of
                 Just a -> return $ Just a
-                Nothing -> return $ Just $ if actual info then TBang 0 $ TTensor tlist else TBang 0 $ TTensor tlist'
+                Nothing -> return $ Just $ if c_actual info then TBang 0 $ TTensor tlist else TBang 0 $ TTensor tlist'
 
-    comp <- return $ List.map (\(t, u) -> Subtype t u info { in_type = intype }) $ List.zip tlist tlist'
+    comp <- return $ List.map (\(t, u) -> Subtype t u info { c_type = intype }) $ List.zip tlist tlist'
     break_composite bu (comp ++ lc, fc)
 
   else do
@@ -158,14 +158,14 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
   if utyp == utyp' then do
     
     if bu then do
-      intype <- case in_type info of
+      intype <- case c_type info of
                   Just a -> return $ Just a
-                  Nothing -> return $ Just $ if actual info then TBang 0 $ TUser utyp arg else TBang 0 $ TUser utyp' arg'
+                  Nothing -> return $ Just $ if c_actual info then TBang 0 $ TUser utyp arg else TBang 0 $ TUser utyp' arg'
 
       cset <- unfold_user_constraint utyp arg utyp' arg'
 
       -- This one may be reversed : will have to check
-      break_composite bu $ (cset & info { in_type = intype }) <> (lc, fc)
+      break_composite bu $ (cset & info { c_type = intype }) <> (lc, fc)
 
     else do
       cset <- break_composite bu (lc, fc)
@@ -209,12 +209,12 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
   -- T' <: T && U <: U'
 -- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
 break_composite bu ((Sublintype (TCirc t u) (TCirc t' u') info):lc, fc) = do
-  intype <- case in_type info of
+  intype <- case c_type info of
               Just a -> return $ Just a
-              Nothing -> return $ Just $ if actual info then TBang 0 $ TCirc t u else TBang 0 $ TCirc t' u'
+              Nothing -> return $ Just $ if c_actual info then TBang 0 $ TCirc t u else TBang 0 $ TCirc t' u'
 
-  break_composite bu ((Subtype t' t info { actual = not $ actual info,
-                                           in_type = intype }):(Subtype u u' info):lc, fc)
+  break_composite bu ((Subtype t' t info { c_actual = not $ c_actual info,
+                                           c_type = intype }):(Subtype u u' info):lc, fc)
 
 
 -- Semi composite (unbreakable) constraints
@@ -268,8 +268,8 @@ break_composite bu ((Sublintype t (TUser utyp arg) info):lc, fc) = do
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do
   if non_trivial m n then do
-    intype <- case in_type info of
-                Nothing -> return $ Just $ if actual info then TBang n a else TBang m b
+    intype <- case c_type info of
+                Nothing -> return $ Just $ if c_actual info then TBang n a else TBang m b
                 Just a -> return $ Just a
     break_composite bu ((Sublintype a b info):lc, (Le m n info):fc)
   else do

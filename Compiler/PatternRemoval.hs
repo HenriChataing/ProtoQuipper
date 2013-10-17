@@ -420,13 +420,13 @@ simplify_pattern_matching e blist = do
 
 -- | Remove the patterns. Some are left in the match expressions, but should only be of the form @A _@ or @_@, where @_@ is the wildcard.
 remove_patterns_in_expr :: C.Expr -> QpState Expr
-remove_patterns_in_expr (C.EVar x) =
+remove_patterns_in_expr (C.EVar _ x) =
   return $ EVar x
 
-remove_patterns_in_expr (C.EGlobal x) =
+remove_patterns_in_expr (C.EGlobal _ x) =
   return $ EGlobal x
 
-remove_patterns_in_expr (C.EFun p e) = do
+remove_patterns_in_expr (C.EFun _ p e) = do
    -- Check whether the expression is already  or not
   case p of
     -- The pattern is only one variable: do nothing
@@ -437,25 +437,25 @@ remove_patterns_in_expr (C.EFun p e) = do
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
       x <- dummy_var
-      e' <- remove_patterns_in_expr $ C.ELet Nonrecursive p (C.EVar x) e
+      e' <- remove_patterns_in_expr $ C.ELet 0 Nonrecursive p (C.EVar 0 x) e
       return $ EFun x e'
 
-remove_patterns_in_expr (C.EApp e f) = do
+remove_patterns_in_expr (C.EApp _ e f) = do
   e' <- remove_patterns_in_expr e
   f' <- remove_patterns_in_expr f
   return $ EApp e' f'
 
-remove_patterns_in_expr C.EUnit = do
+remove_patterns_in_expr (C.EUnit _) = do
   return EUnit
 
-remove_patterns_in_expr (C.ETuple elist) = do
+remove_patterns_in_expr (C.ETuple _ elist) = do
   elist' <- List.foldl (\rec e -> do
                           es <- rec
                           e' <- remove_patterns_in_expr e
                           return $ e':es) (return []) elist
   return $ ETuple $ List.reverse elist'
 
-remove_patterns_in_expr (C.ELet r p e f) = do
+remove_patterns_in_expr (C.ELet _ r p e f) = do
   e' <- remove_patterns_in_expr e
   case p of
     -- If the pattern is unit
@@ -491,7 +491,7 @@ remove_patterns_in_expr (C.ELet r p e f) = do
         -- For each element of the tuple, the variable is extracted using #1 #2 ..
         (_,f) <- List.foldl (\rec p -> do
                                (n, e) <- rec
-                               return (n+1, C.ELet r p (C.EApp (C.EBuiltin $ "#" ++ show n) (C.EVar xp)) e)) (return (0, f)) plist
+                               return (n+1, C.ELet 0 r p (C.EApp 0 (C.EBuiltin 0 $ "#" ++ show n) (C.EVar 0 xp)) e)) (return (0, f)) plist
         e' <- remove_patterns_in_expr e
         f' <- remove_patterns_in_expr f
         return $ ELet r xp e' f'
@@ -503,7 +503,7 @@ remove_patterns_in_expr (C.ELet r p e f) = do
 
     C.PDatacon _ dcon (Just p) -> do
         x <- dummy_var
-        ep <- remove_patterns_in_expr (C.ELet Nonrecursive p (C.EApp (C.EBuiltin "EXTRACT") (C.EVar x)) f)
+        ep <- remove_patterns_in_expr (C.ELet 0 Nonrecursive p (C.EApp 0 (C.EBuiltin 0 "EXTRACT") (C.EVar 0 x)) f)
         return $ ELet Nonrecursive x e' (
                    EMatch (EVar x) [(dcon, ep)]
                  )
@@ -517,41 +517,38 @@ remove_patterns_in_expr (C.ELet r p e f) = do
         throwQ $ ProgramError "Constraint remaining in pattern"
 
 
-remove_patterns_in_expr (C.EBool b) = do
+remove_patterns_in_expr (C.EBool _ b) = do
   return $ EBool b
 
-remove_patterns_in_expr (C.EInt n) = do
+remove_patterns_in_expr (C.EInt _ n) = do
   return $ EInt n
 
-remove_patterns_in_expr (C.EIf e f g) = do
+remove_patterns_in_expr (C.EIf _ e f g) = do
   e' <- remove_patterns_in_expr e
   f' <- remove_patterns_in_expr f
   g' <- remove_patterns_in_expr g
   return $ EIf e' f' g'
 
-remove_patterns_in_expr (C.EDatacon dcon Nothing) = do
+remove_patterns_in_expr (C.EDatacon _ dcon Nothing) = do
   return $ EDatacon dcon Nothing
 
-remove_patterns_in_expr (C.EDatacon dcon (Just e)) = do
+remove_patterns_in_expr (C.EDatacon _ dcon (Just e)) = do
   e' <- remove_patterns_in_expr e
   return $ EDatacon dcon $ Just e'
 
-remove_patterns_in_expr (C.EMatch e blist) = do
+remove_patterns_in_expr (C.EMatch _ e blist) = do
   simplify_pattern_matching e blist
 
-remove_patterns_in_expr (C.EBox typ) = do
+remove_patterns_in_expr (C.EBox _ typ) = do
   return $ EBox typ
 
-remove_patterns_in_expr C.EUnbox = do
+remove_patterns_in_expr (C.EUnbox _) = do
   return EUnbox
 
-remove_patterns_in_expr C.ERev = do
+remove_patterns_in_expr (C.ERev _) = do
   return ERev
 
-remove_patterns_in_expr (C.ELocated e ex) = do
-  remove_patterns_in_expr e
-
-remove_patterns_in_expr (C.EBuiltin s) =
+remove_patterns_in_expr (C.EBuiltin _ s) =
   return (EBuiltin s)
   
 remove_patterns_in_expr (C.EConstraint e t) =

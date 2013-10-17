@@ -216,7 +216,7 @@ empty_context =  Ctx {
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
   Monad.QpState.qubit_id = 0,
-  ref_id = 0,
+  ref_id = 1,
       
   mappings = IMap.empty
 }
@@ -294,8 +294,8 @@ with_declaration :: (RecFlag, Pattern, Expr) -> QpState ()
 with_declaration (r, p, e) = do
   ctx <- get_context
   case body ctx of
-    Nothing -> set_context ctx { body = Just (\f -> ELet r p e f) }
-    Just cont -> set_context ctx { body = Just (\f -> cont $ ELet r p e f) }
+    Nothing -> set_context ctx { body = Just (\f -> ELet 0 r p e f) }
+    Just cont -> set_context ctx { body = Just (\f -> cont $ ELet 0 r p e f) }
 
 -- | Append an expression at the end of the body.
 with_expression :: Expr -> QpState ()
@@ -311,7 +311,7 @@ module_body = do
     Nothing -> do
         return Nothing
     Just cont -> do
-        bdy <- return $ cont EUnit
+        bdy <- return $ cont (EUnit 0)
         set_context $ ctx { body = Nothing }
         return $ Just bdy
 
@@ -319,10 +319,10 @@ module_body = do
 
 -- | Register a variable in the namespace. A new id is generated, bound to
 -- the given variable, and returned.
-register_var :: String -> Extent -> QpState Int
-register_var x ex = do
+register_var :: String -> Ref -> QpState Int
+register_var x ref = do
   ctx <- get_context
-  (id, nspace) <- return $ N.register_var x ex (namespace ctx)
+  (id, nspace) <- return $ N.register_var x ref (namespace ctx)
   set_context $ ctx { namespace = nspace }
   return id
 
@@ -380,14 +380,13 @@ variable_name x = do
         return $ subvar 'x' x
 
 
--- | Retrieve the location of the variable declaration. If no match is found, return the default
--- extent 'extent_unknown'.
-variable_location :: Variable -> QpState Extent
-variable_location x = do
+-- | Retrieve the reference the vairable was given at ots declaration. 
+variable_reference :: Variable -> QpState Ref
+variable_reference x = do
   ctx <- get_context
-  case IMap.lookup x $ N.varloc (namespace ctx) of
-    Just ex -> return ex
-    Nothing -> return extent_unknown
+  case IMap.lookup x $ N.varref (namespace ctx) of
+    Just ref -> return ref
+    Nothing -> return 0
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
@@ -648,11 +647,11 @@ set_flag ref info = do
           Just i -> do
               case f_value i of
                 Zero -> do
-                    case in_type info of
+                    case c_type info of
                       Just a -> do
                           a0 <- return $ subs_flag ref 0 a
                           a1 <- return $ subs_flag ref 1 a
-                          throw_TypingError a0 a1 info { actual = True }
+                          throw_TypingError a0 a1 info { c_actual = True }
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
@@ -678,11 +677,11 @@ unset_flag ref info = do
           Just i -> do
               case f_value i of
                 One ->
-                    case in_type info of
+                    case c_type info of
                       Just a -> do
                           a0 <- return $ subs_flag ref 0 a
                           a1 <- return $ subs_flag ref 1 a
-                          throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
+                          throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
@@ -745,7 +744,7 @@ create_ref = do
   ex <- get_location
   let id = ref_id ctx
   set_context ctx { ref_id = id + 1, references = IMap.insert id RInfo { r_location = ex,
-                                                                         r_expression = Left EUnit,
+                                                                         r_expression = Left (EUnit 0),
                                                                          r_type = TBang 0 TUnit } $ references ctx }
   return id
 
@@ -755,6 +754,13 @@ update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
 update_ref ref f = do
   ctx <- get_context
   set_context ctx { references = IMap.update f ref $ references ctx }
+
+
+-- | Return the information referenced by the argument.
+ref_info :: Ref -> QpState (Maybe RefInfo)
+ref_info ref = do
+  ctx <- get_context
+  return $ IMap.lookup ref $ references ctx
 
 
 -- | Generic type instantiation.
@@ -859,6 +865,24 @@ new_type = do
 
 
 
+-- | Return the location and expression of a reference.
+ref_expression :: Ref -> QpState (Extent, String)
+ref_expression ref = do
+  rinfo <- ref_info ref
+  case rinfo of
+    Just i ->
+        case r_expression i of
+          Left e -> do
+              pe <- pprint_expr_noref e
+              return (r_location i, pe)
+          Right p -> do
+              pp <- pprint_pattern_noref p
+              return (r_location i, pp)
+    Nothing ->
+        return (extent_unknown, "?")
+
+
+
 -- | Throw a typing error, based on the reference flags of the faulty types.
 -- The return type can be anything, since an exception will be thrown in any case.
 throw_TypingError :: Type -> Type -> ConstraintInfo -> QpState a
@@ -868,11 +892,11 @@ throw_TypingError t u info = do
   pru <- pprint_type_noref u
 
   -- Get the location / expression
-  ex <- return $ loc info
-  expr <- pprint_expr_noref $ expression info
-  
+  let ref = c_ref info
+  (ex, expr) <- ref_expression ref 
+ 
   -- Get the original type
-  ori <- case in_type info of
+  ori <- case c_type info of
            Just a -> do
                p <- pprint_type_noref a
                return $ Just p
@@ -880,7 +904,7 @@ throw_TypingError t u info = do
                return $ Nothing
 
   -- Check which of the type is the actual one
-  if actual info then
+  if c_actual info then
     throwQ $ LocatedError (DetailedTypingError prt pru ori expr) ex
   else
     throwQ $ LocatedError (DetailedTypingError pru prt ori expr) ex
@@ -921,8 +945,8 @@ throw_UndefinedBuiltin n =
 -- | Throw a non-duplicability error, based on the faulty reference flag.
 throw_NonDuplicableError :: ConstraintInfo -> QpState a
 throw_NonDuplicableError info = do
-  p <- pprint_expr_noref $ expression info
-  throwQ $ LocatedError (NonDuplicableError p Nothing) (loc info)
+  (ex, expr) <- ref_expression (c_ref info)
+  throwQ $ LocatedError (NonDuplicableError expr Nothing) ex
 
 
 

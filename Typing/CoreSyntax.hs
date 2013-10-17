@@ -342,17 +342,6 @@ data Pattern =
   deriving Show 
 
 
--- | Core patterns are located objects.
-instance Located Pattern where
-  location _ = Nothing
-  locate p _ = p
-  locate_opt p _ = p
-
-  clear_location (PTuple ref plist) = PTuple ref $ List.map clear_location plist
-  clear_location (PDatacon ref dcon (Just p)) = PDatacon ref dcon $ Just (clear_location p)
-  clear_location (PConstraint p t) = PConstraint (clear_location p) t
-  clear_location p = p
-
 instance Constraint Pattern where
   drop_constraints (PConstraint p _) = drop_constraints p
   drop_constraints (PTuple ref plist) = PTuple ref $ List.map drop_constraints plist
@@ -377,103 +366,101 @@ instance Param Pattern where
 -- more variables that are duplicable anyway.
 data Expr =
 -- STLC
-    EVar Variable                                 -- ^ Variable: /x/.
-  | EGlobal Variable                              -- ^ Global variable from the imported modules.
-  | EFun Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
-  | EApp Expr Expr                                -- ^ Function application: @t u@.
+    EVar Ref Variable                                 -- ^ Variable: /x/.
+  | EGlobal Ref Variable                              -- ^ Global variable from the imported modules.
+  | EFun Ref Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
+  | EApp Ref Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
-  | EUnit                                         -- ^ Unit term: @()@.
-  | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | ELet RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
+  | EUnit Ref                                         -- ^ Unit term: @()@.
+  | ETuple Ref [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+  | ELet Ref RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
 
 -- Custom union types
-  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
-  | EInt Int                                      -- ^ Integer constant.
-  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
-  | EDatacon Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
-  | EMatch Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+  | EBool Ref Bool                                    -- ^ Boolean constant: @true@ or @false@.
+  | EInt Ref Int                                      -- ^ Integer constant.
+  | EIf Ref Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EDatacon Ref Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
+  | EMatch Ref Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
-  | EBox Type                                     -- ^ The constant @box[T]@.
-  | EUnbox                                        -- ^ The constant @unbox@.
-  | ERev                                          -- ^ The constant @rev@.
+  | EBox Ref Type                                     -- ^ The constant @box[T]@.
+  | EUnbox Ref                                        -- ^ The constant @unbox@.
+  | ERev Ref                                          -- ^ The constant @rev@.
 
 -- Unrelated
-  | ELocated Expr Extent                          -- ^ A located expression.
-  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
-  | EConstraint Expr (S.Type, Map String Type)    -- ^ Expression with type constraint: @(e <: T)@.
+  | EBuiltin Ref String                               -- ^ Built-in primitive: @#builtin s@.
+  | EConstraint Expr (S.Type, Map String Type)        -- ^ Expression with type constraint: @(e <: T)@.
   deriving Show
 
 
-instance Located Expr where
-  locate e _ = e
-  locate_opt e _ = e
-
-  clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
-  clear_location (EApp e f) = EApp (clear_location e) (clear_location f)
-  clear_location (ETuple elist) = ETuple (List.map clear_location elist)
-  clear_location (ELet r p e f) = ELet r (clear_location p) (clear_location e) (clear_location f)
-  clear_location (EIf e f g) = EIf (clear_location e) (clear_location f) (clear_location g)
-  clear_location (EDatacon dcon (Just e)) = EDatacon dcon $ Just (clear_location e)
-  clear_location (EMatch e blist) = EMatch (clear_location e) (List.map (\(p, f) -> (clear_location p, clear_location f)) blist)
-  clear_location (ELocated e _) = clear_location e
-  clear_location (EConstraint e t) = EConstraint (clear_location e) t
-  clear_location e = e
-
-  location _ = Nothing
-
 instance Constraint Expr where
-  drop_constraints (EFun p e) = EFun (drop_constraints p) (drop_constraints e)
-  drop_constraints (EApp e f) = EApp (drop_constraints e) (drop_constraints f)
-  drop_constraints (ETuple elist) = ETuple (List.map drop_constraints elist)
-  drop_constraints (ELet r p e f) = ELet r (drop_constraints p) (drop_constraints e) (drop_constraints f)
-  drop_constraints (EIf e f g) = EIf (drop_constraints e) (drop_constraints f) (drop_constraints g)
-  drop_constraints (EDatacon dcon (Just e)) = EDatacon dcon $ Just (drop_constraints e)
-  drop_constraints (EMatch e blist) = EMatch (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
-  drop_constraints (ELocated e ex) = ELocated (drop_constraints e) ex
+  drop_constraints (EFun ref p e) = EFun ref (drop_constraints p) (drop_constraints e)
+  drop_constraints (EApp ref e f) = EApp ref (drop_constraints e) (drop_constraints f)
+  drop_constraints (ETuple ref elist) = ETuple ref (List.map drop_constraints elist)
+  drop_constraints (ELet ref r p e f) = ELet ref r (drop_constraints p) (drop_constraints e) (drop_constraints f)
+  drop_constraints (EIf ref e f g) = EIf ref (drop_constraints e) (drop_constraints f) (drop_constraints g)
+  drop_constraints (EDatacon ref dcon (Just e)) = EDatacon ref dcon $ Just (drop_constraints e)
+  drop_constraints (EMatch ref e blist) = EMatch ref (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
   drop_constraints (EConstraint e _) = drop_constraints e
   drop_constraints e = e
 
 
+-- | Return the reference of an expression.
+reference :: Expr -> Ref
+reference (EVar ref _) = ref
+reference (EGlobal ref _) = ref
+reference (EFun ref _ _) = ref
+reference (EApp ref _ _) = ref
+reference (EUnit ref) = ref
+reference (ETuple ref _) = ref
+reference (ELet ref _ _ _ _) = ref
+reference (EBool ref _) = ref
+reference (EInt ref _) = ref
+reference (EIf ref _ _ _) = ref
+reference (EDatacon ref _ _) = ref
+reference (EMatch ref _ _) = ref
+reference (EBox ref _) = ref
+reference (EUnbox ref) = ref
+reference (ERev ref) = ref
+reference (EBuiltin ref _) = ref
+reference (EConstraint e _) = reference e
+
 
 instance Param Expr where
-  free_var (EVar x) = [x]
+  free_var (EVar _ x) = [x]
   
-  free_var (EGlobal x) = [x]
+  free_var (EGlobal _ x) = [x]
 
-  free_var (EFun p e) = 
+  free_var (EFun _ p e) = 
     let fve = free_var e
         fvp = free_var p in
     fve \\ fvp
 
-  free_var (ELet r p e f) =
+  free_var (ELet _ r p e f) =
     let fve = free_var e
         fvf = free_var f
         fvp = free_var p in
     (List.union fve fvf) \\ fvp
 
-  free_var (EApp e f) =
+  free_var (EApp _ e f) =
     List.union (free_var e) (free_var f)
 
-  free_var (ETuple elist) =
+  free_var (ETuple _ elist) =
     List.foldl (\fv e -> List.union (free_var e) fv) [] elist
 
-  free_var (EIf e f g) =
+  free_var (EIf _ e f g) =
     List.union (List.union (free_var e) (free_var f)) (free_var g)
 
-  free_var (EDatacon _ Nothing) = []
-  free_var (EDatacon _ (Just e)) = free_var e
+  free_var (EDatacon _ _ Nothing) = []
+  free_var (EDatacon _ _ (Just e)) = free_var e
 
-  free_var (EMatch e blist) =
+  free_var (EMatch _ e blist) =
     let fvlist = List.foldl (\fv (p, f) ->
                                List.union (free_var f \\ free_var p) fv) [] blist
         fve = free_var e in
     List.union fve fvlist
   
-  free_var (ELocated e _) =
-    free_var e
-
   free_var (EConstraint e _) =
     free_var e
 
@@ -486,20 +473,19 @@ instance Param Expr where
 
 -- | Determine whether an expression is a value or not.
 is_value :: Expr -> Bool
-is_value (ELocated e _) = is_value e
-is_value (EFun _ _) = True
-is_value (ETuple elist) = List.and $ List.map is_value elist
-is_value (EBool _) = True
-is_value (EInt _) = True
-is_value (EDatacon _ e) = case e of
+is_value (EFun _ _ _) = True
+is_value (ETuple _ elist) = List.and $ List.map is_value elist
+is_value (EBool _ _) = True
+is_value (EInt _ _) = True
+is_value (EDatacon _ _ e) = case e of
                             Nothing -> True
                             Just e -> is_value e
-is_value (EBuiltin _) = True
+is_value (EBuiltin _ _) = True
 is_value (EConstraint e _) = is_value e
-is_value EUnbox = True
-is_value (EBox _) = True
-is_value ERev = True
-is_value EUnit = True
+is_value (EUnbox _) = True
+is_value (EBox _ _) = True
+is_value (ERev _) = True
+is_value (EUnit _) = True
 
 is_value _ = False
 
@@ -511,20 +497,18 @@ is_value _ = False
 -- is the actual type). It is used in type constraints and flag
 -- constraints.
 data ConstraintInfo = CInfo {
-  expression :: Expr,      -- ^ The original expression.
-  loc :: Extent,           -- ^ The location of the original expression.
-  actual :: Bool,          -- ^ The orientation of the constraint: true means actual type is on the left.
-  in_type :: Maybe Type    -- ^ The original type (actual type before reducing).
+  c_ref :: Ref,            -- ^ The reference of the expression / pattern from which originated the constraint.
+  c_actual :: Bool,        -- ^ The orientation of the constraint: true means actual type is on the left.
+  c_type :: Maybe Type     -- ^ The original type (actual type before reducing).
 } deriving Show
 
 
 -- | An empty 'ConstraintInfo' structure.
 no_info :: ConstraintInfo
 no_info = CInfo {
-  expression = EUnit,
-  loc = extent_unknown,
-  actual = True,
-  in_type = Nothing
+  c_ref = 0,
+  c_actual = True,
+  c_type = Nothing
 }
 
 

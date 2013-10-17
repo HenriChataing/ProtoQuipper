@@ -144,8 +144,8 @@ duplicable_context ctx = do
     where
       aux x (TForall _ _ _ (TBang f _)) rec = do
         rec
-        ex <- variable_location x
-        set_flag f no_info { expression = EVar x, loc = ex }
+        ref <- variable_reference x
+        set_flag f no_info { c_ref = ref }
 
 
 -- | Perform the union of two typing contexts. The \<+\> operator respects the order of the arguments

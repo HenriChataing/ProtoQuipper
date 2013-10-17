@@ -15,7 +15,7 @@ import qualified Data.IntMap as IMap
 -- term variables, one for data constructors.
 data Namespace = NSpace {
   varcons :: IntMap String,      -- ^ Stores the variable names.
-  varloc :: IntMap Extent,       -- ^ Stores the extent of the variable declaration.
+  varref :: IntMap Int,          -- ^ Stores the variable references.
 
   datacons :: IntMap String,     -- ^ Stores the data constructor names.
   typecons :: IntMap String,     -- ^ Stores the type names.
@@ -32,7 +32,7 @@ new_namespace = NSpace {
   varcons = IMap.empty,
   datacons = IMap.empty,
   typecons = IMap.empty,
-  varloc = IMap.empty,
+  varref = IMap.empty,
 
   vargen = 0,
   datagen = 0,
@@ -41,11 +41,11 @@ new_namespace = NSpace {
 
 
 -- | Register a new variable, and return a newly assigned variable id.
-register_var :: String -> Extent -> Namespace -> (Int, Namespace)
-register_var s ex namespace =
+register_var :: String -> Int -> Namespace -> (Int, Namespace)
+register_var s ref namespace =
   let id = vargen namespace in
   (id, namespace { varcons = IMap.insert id s $ varcons namespace,
-                   varloc = IMap.insert id ex $ varloc namespace,
+                   varref = IMap.insert id ref $ varref namespace,
                    vargen = id+1 })
 
 

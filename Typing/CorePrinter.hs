@@ -178,82 +178,82 @@ print_doc :: Lvl                   -- ^ Maximum depth.
           -> (Variable -> String)  -- ^ Rendering of term variables.
           -> (Variable -> String)  -- ^ Rendering of data constructors.
           -> Doc                   -- ^ Resulting PP document.
-print_doc _ EUnit _ _ =
+print_doc _ (EUnit _) _ _ =
   text "()"
 
-print_doc _ (EBool b) _ _ = 
+print_doc _ (EBool _ b) _ _ = 
   if b then text "true" else text "false"
 
-print_doc _ (EInt n) _ _ =
+print_doc _ (EInt _ n) _ _ =
   text $ show n
 
-print_doc _ (EVar x) fvar _ = text $ fvar x
+print_doc _ (EVar _ x) fvar _ = text $ fvar x
 
-print_doc _ (EGlobal x) fvar _ = text $ fvar x
+print_doc _ (EGlobal _ x) fvar _ = text $ fvar x
 
-print_doc _ (EBox t) _ _=
+print_doc _ (EBox _ t) _ _=
   text "box" <> brackets (text $ pprint t)
 
-print_doc _ EUnbox _ _ =
+print_doc _ (EUnbox _) _ _ =
   text "unbox"
 
-print_doc _ ERev _ _ =
+print_doc _ (ERev _) _ _ =
   text "rev"
 
-print_doc _ (EDatacon datacon Nothing) _ fdata =
+print_doc _ (EDatacon _ datacon Nothing) _ fdata =
   text $ fdata datacon
 
-print_doc _ (EBuiltin s) _ _=
+print_doc _ (EBuiltin _ s) _ _=
   text "#builtin" <+> text s
 
 print_doc (Nth 0) _ _ _ =
   text "..."
 
-print_doc lv (ELet r p e f) fvar fdata =
+print_doc lv (ELet _ r p e f) fvar fdata =
   let dlv = decr lv in
   let recflag = if r == Recursive then text "rec" else empty in
   text "let" <+> recflag <+> text (genprint dlv p [fvar, fdata]) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
   print_doc dlv f fvar fdata
 
-print_doc lv (ETuple elist) fvar fdata =
+print_doc lv (ETuple _ elist) fvar fdata =
   let dlv = decr lv in
   let plist = List.map (\e -> print_doc dlv e fvar fdata) elist in
   let slist = punctuate comma plist in
   char '(' <> hsep slist <> char ')'
 
-print_doc lv (EApp e f) fvar fdata =
+print_doc lv (EApp _ e f) fvar fdata =
   let dlv = decr lv in
   let pe = print_doc dlv e fvar fdata
       pf = print_doc dlv f fvar fdata in
   (case e of
-     EFun _ _ -> parens pe
+     EFun _ _ _ -> parens pe
      _ -> pe) <+> 
   (case f of
-     EFun _ _ -> parens pf
-     EApp _ _ -> parens pf
+     EFun _ _ _ -> parens pf
+     EApp _ _ _ -> parens pf
      _ -> pf)
 
-print_doc lv (EFun p e) fvar fdata =
+print_doc lv (EFun _ p e) fvar fdata =
   let dlv = decr lv in
   text "fun" <+> text (genprint dlv p [fvar, fdata]) <+> text "->" $$
   nest 2 (print_doc dlv e fvar fdata)
 
-print_doc lv (EIf e f g) fvar fdata =
+print_doc lv (EIf _ e f g) fvar fdata =
   let dlv = decr lv in
   text "if" <+> print_doc dlv e fvar fdata <+> text "then" $$
   nest 2 (print_doc dlv f fvar fdata) $$
   text "else" $$
   nest 2 (print_doc dlv g fvar fdata)
 
-print_doc lv (EDatacon datacon (Just e)) fvar fdata =
+print_doc lv (EDatacon _ datacon (Just e)) fvar fdata =
   let pe = print_doc (decr lv) e fvar fdata in
   text (fdata datacon) <+> (case e of
-                              EBool _ -> pe
-                              EUnit -> pe
-                              EVar _ -> pe
+                              EBool _ _ -> pe
+                              EUnit _ -> pe
+                              EVar _ _ -> pe
                               _ -> parens pe)
 
-print_doc lv (EMatch e blist) fvar fdata =
+print_doc lv (EMatch _ e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
@@ -262,9 +262,6 @@ print_doc lv (EMatch e blist) fvar fdata =
                           pmatch
                         else
                           doc $$ pmatch) PP.empty blist)
-
-print_doc lv (ELocated e _) fvar fdata =
-  print_doc lv e fvar fdata
 
 print_doc lv (EConstraint e _) fvar fdata =
   print_doc lv e fvar fdata

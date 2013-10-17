@@ -248,11 +248,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   a@(TBang n _) <- new_type
 
   -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE :
-  ex <- case e' of
-          ELocated _ ex -> return ex
-          _ -> return $ extent_unknown
-  set_flag n no_info { expression = e',
-                       loc = ex }
+  set_flag n no_info { c_ref = reference e' }
 
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
@@ -412,7 +408,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
            v <- interpret (environment ctx) e'
         
            -- Recursive function ?
-           env <- case (recflag, v, drop_constraints $ clear_location p') of
+           env <- case (recflag, v, drop_constraints p') of
                     (Recursive, VFun ev arg body, PVar _ x) ->
                         let ev' = IMap.insert x (VFun ev' arg body) ev in do
                         Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
@@ -548,7 +544,7 @@ do_everything opts files = do
                 case m_body nm of
                   Nothing -> return ()
                   Just e -> do
-                      e' <- remove_patterns_in_expr (clear_location $ drop_constraints e)
+                      e' <- remove_patterns_in_expr (drop_constraints e)
                       newlog (-2) (pprint e')
 ---------------
 

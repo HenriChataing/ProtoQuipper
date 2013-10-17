@@ -396,61 +396,56 @@ do_application env f x =
 -- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
 -- An auxiliary function, 'Interpret.Interpret.do_application', reduces the application of a function value to an argument value.
 interpret :: Environment -> Expr -> QpState Value
--- Location handling
-interpret env (ELocated e ex) = do
-  set_location ex
-  interpret env e
-
 -- Empty
-interpret _ EUnit = do
+interpret _ (EUnit _) = do
   return VUnit
 
 -- Booleans
-interpret _ (EBool b) = do
+interpret _ (EBool _ b) = do
   return (VBool b)
 
 -- Integers
-interpret _ (EInt n) = do
+interpret _ (EInt _ n) = do
   return (VInt n)
 
 -- Constructors
-interpret _ EUnbox = do
+interpret _ (EUnbox _) = do
   return VUnbox
 
-interpret _ ERev = do
+interpret _ (ERev _) = do
   return VRev
 
-interpret _ (EBox typ) = do
+interpret _ (EBox _ typ) = do
   return (VBox typ)
 
 -- Variables
-interpret env (EVar x) = do
+interpret env (EVar ref x) = do
   case IMap.lookup x env of
     Just v ->
         return v
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
-        ex <- get_location
-        throw $ LocatedError (UnboundVariable (show x)) ex
+        (ex, expr) <- ref_expression ref
+        throw $ LocatedError (UnboundVariable expr) ex
 
 -- Global variables
-interpret env (EGlobal x) = do
+interpret env (EGlobal ref x) = do
   vals <- get_context >>= return . values
   case IMap.lookup x vals of
     Just v ->
         return v
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
-        ex <- get_location
-        throw $ LocatedError (UnboundVariable (show x)) ex
+        (ex, expr) <- ref_expression ref
+        throw $ LocatedError (UnboundVariable expr) ex
 
 
 -- Functions : The current context is enclosed in the function value
-interpret env (EFun p e) = do
+interpret env (EFun _ p e) = do
   return (VFun env p e)
 
 -- Let .. in ..
-interpret env (ELet r p e1 e2) = do
+interpret env (ELet _ r p e1 e2) = do
   -- Reduce the argument e1
   v1 <- interpret env e1
   
@@ -469,14 +464,14 @@ interpret env (ELet r p e1 e2) = do
         interpret ev e2
 
 -- Function application
-interpret env (EApp ef arg) = do
+interpret env (EApp _ ef arg) = do
   f <- interpret env ef
   x <- interpret env arg
 
   do_application env f x
 
 -- Patterns and pattern matching
-interpret env (EDatacon datacon e) = do
+interpret env (EDatacon _ datacon e) = do
   case e of
     Just e -> do
         v <- interpret env e
@@ -485,7 +480,7 @@ interpret env (EDatacon datacon e) = do
     Nothing ->
         return (VDatacon datacon Nothing)
 
-interpret env (EMatch e blist) = do
+interpret env (EMatch _ e blist) = do
   let match = (\ex v blist ->
                  case blist of
                    [] ->
@@ -501,7 +496,7 @@ interpret env (EMatch e blist) = do
     match ex v blist
 
 -- Pairs
-interpret env (ETuple elist) = do
+interpret env (ETuple _ elist) = do
   vlist <- List.foldr (\e rec -> do
                          r <- rec
                          v <- interpret env e
@@ -509,7 +504,7 @@ interpret env (ETuple elist) = do
   return (VTuple vlist)
 
 -- If .. then .. else ..
-interpret env (EIf e1 e2 e3) = do
+interpret env (EIf _ e1 e2 e3) = do
   v1 <- interpret env e1
   case v1 of
     VBool True -> do
@@ -525,7 +520,7 @@ interpret env (EIf e1 e2 e3) = do
 interpret env (EConstraint e _) = do
   interpret env e
 
-interpret _ (EBuiltin s) =
+interpret _ (EBuiltin _ s) =
   builtin_value s
 
 
