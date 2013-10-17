@@ -546,7 +546,7 @@ do_everything opts files = do
                   Just e -> do
                       typs <- unbox_types e
                       e' <- disambiguate_unbox_calls Map.empty IMap.empty e
-                      e' <- remove_patterns_in_expr e'
+                      e' <- remove_patterns e'
                       newlog (-2) (pprint e')
 ---------------
 
