@@ -216,6 +216,7 @@ constraint_typing gamma (EBuiltin ref s) cst = do
 
   info <- return $ no_info { c_ref = ref }
   acts <- builtin_type s
+  update_ref ref (\ri -> Just ri { r_type = acts })
 
   return $ ((acts <:: cst) & info, [])
 
@@ -232,6 +233,7 @@ constraint_typing gamma (EUnit ref) cst = do
   
   -- Generates a referenced flag of the actual type of EUnit
   info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TUnit })
 
   return $ ((TBang 1 TUnit <:: cst) & info, [])
 
@@ -248,6 +250,7 @@ constraint_typing gamma (EBool ref b) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TBool })
 
   return $ ((TBang 1 TBool <:: cst) & info, [])
 
@@ -264,7 +267,8 @@ constraint_typing gamma (EInt ref p) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ no_info { c_ref = ref }
-  
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TInt })  
+
   return $ ((TBang 1 TInt <:: cst) & info, [])
 
 
@@ -285,6 +289,7 @@ constraint_typing gamma (EVar ref x) cst = do
 
   -- Information
   info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = a })
 
   return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
@@ -299,6 +304,7 @@ constraint_typing gamma (EGlobal ref x) cst = do
 
   -- Information
   info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = a })
 
   return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
@@ -322,6 +328,8 @@ constraint_typing gamma (EBox ref a) cst = do
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 1 (TCirc a b)
 
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow arw cir) })
+
   return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
   
 
@@ -344,6 +352,8 @@ constraint_typing gamma (ERev ref) cst = do
   cirab <- return $ TBang 0 (TCirc a b)
   cirba <- return $ TBang 1 (TCirc b a)
 
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow cirab cirba) })
+
   return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info, [])
 
 
@@ -365,6 +375,8 @@ constraint_typing gamma (EUnbox ref) cst = do
   b <- new_type
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 0 (TCirc a b)
+
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow cir arw) })
 
   return $ ((TBang 1 (TArrow cir arw) <:: cst) & info, [])
 
@@ -399,7 +411,7 @@ constraint_typing gamma (EApp _ t u) cst = do
   disunion <- return $ linear_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
-  
+ 
   return $ csett <> csetu
 
 
@@ -427,6 +439,8 @@ constraint_typing gamma (EFun ref p e) cst = do
 
   -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
+
+  update_ref ref (\ri -> Just ri { r_type = TBang n (TArrow a b) })
 
   return $ (csetp & info) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
@@ -470,6 +484,8 @@ constraint_typing gamma (ETuple ref elist) cst = do
   disunion <- return $ linear_union fvlist
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
+
+  update_ref ref (\ri -> Just ri { r_type = TBang p (TTensor tlist) })
   
   return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
@@ -608,14 +624,14 @@ constraint_typing gamma (EDatacon ref dcon e) cst = do
     (TBang n _, Nothing) -> do
         -- The context must be duplicable
         duplicable_context gamma
-
+        update_ref ref (\ri -> Just ri { r_type = dtype' })
         return $ ((dtype' <:: cst) & info) <> (csetd & info)
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
-
+        update_ref ref (\ri -> Just ri { r_type = u })
         return $ ((u <:: cst) & info) <> csete <> (csetd & info)
 
     (TBang _ _, Just _) ->
@@ -630,7 +646,7 @@ constraint_typing gamma (EDatacon ref dcon e) cst = do
 --  G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I, p <= n, p <= m}]
 --
 
-constraint_typing gamma (EMatch ref e blist) cst = do
+constraint_typing gamma (EMatch _ e blist) cst = do
   -- Extract the free type variables of e and of the bindings
   fve <- return $ free_var e
   fvlist <- List.foldl (\rec (p, f) -> do
