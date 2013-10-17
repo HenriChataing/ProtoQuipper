@@ -76,9 +76,10 @@ bind_pattern (PInt _ n) = do
   return (TBang 0 TInt, IMap.empty, emptyset)
   
 -- While binding variables, a new type is generated, and bound to x
-bind_pattern (PVar _ x) = do
+bind_pattern (PVar ref x) = do
   -- Create a new type, add some information to the flag
   a <- new_type
+  update_ref ref (\ri -> Just ri { r_type = a })
   -- The binding is returned in a singleton map, and no constraints are generated
   return (a, IMap.singleton x a, emptyset)
 

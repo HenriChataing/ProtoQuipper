@@ -756,11 +756,21 @@ update_ref ref f = do
   set_context ctx { references = IMap.update f ref $ references ctx }
 
 
--- | Return the information referenced by the argument.
+-- | Return the information referenced by the argument, if any is found (else Nothing).
 ref_info :: Ref -> QpState (Maybe RefInfo)
 ref_info ref = do
   ctx <- get_context
   return $ IMap.lookup ref $ references ctx
+
+
+-- | Return the information referenced by the argument, and fails if nothing is found.
+ref_info_err :: Ref -> QpState RefInfo
+ref_info_err ref = do
+  ctx <- get_context
+  case IMap.lookup ref $ references ctx of
+    Nothing -> throwQ $ ProgramError "Missing reference information"
+    Just ri -> return ri
+
 
 
 -- | Generic type instantiation.

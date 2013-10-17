@@ -582,7 +582,7 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
 
                                     -- Build the polymorphic type
                                     gena <- make_polymorphic_type a' csett (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
-                                    
+
                                     -- Update the typing context of u
                                     return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 

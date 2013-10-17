@@ -547,6 +547,8 @@ do_everything opts files = do
                       typs <- unbox_types e
                       let ptyps = List.foldl (\rec typ -> rec ++ "\n" ++ show typ) "--Unbox:" typs
                       newlog (-2) $ ptyps ++ "\n-----"
+                      e' <- disambiguate_unbox_calls Map.empty IMap.empty e
+                      newlog (-2) $ pprint e'
                       e' <- remove_patterns_in_expr (drop_constraints e)
                       newlog (-2) (pprint e')
 ---------------
