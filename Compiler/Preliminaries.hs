@@ -14,7 +14,7 @@ The patterns are also removed from the let expressions and the function argument
 Note that the type constraints and location information are also removed.
 -}
 
-module Compiler.PatternRemoval where
+module Compiler.Preliminaries where
 
 import Classes
 import Utils
