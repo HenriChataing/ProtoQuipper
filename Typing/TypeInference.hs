@@ -62,64 +62,77 @@ make_polymorphic_type :: Type                                  -- ^ Generic type
                       -> ConstraintSet                         -- ^ Unreduced constraint set.
                       -> (RefFlag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
                       -> QpState TypeScheme
-make_polymorphic_type typ (lc, fc) (isref, isvar) =
-  let (ff, fv) = (free_flag typ, free_typ_var typ) in
+make_polymorphic_type typ (lc, fc) (isref, isvar) = do
+  let (ff, fv) = (free_flag typ, free_typ_var typ)
   -- A variable / flag is to be kept (in the constraints) if it is from the context, or if it is in the final type.
-  let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
+  let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv)
      
-  -- Walk starting from one point, and stopping on the other import vertices 
-  let walk = \origin next g visited keep ->
+  -- Walk starting from one point, stopping on the other important vertices
+  -- origin : origin of the walk
+  -- next : the set of vertices to visit next
+  -- g : the graph
+  -- visited : the set of vertices that have already been visited
+  -- keep : function that says whether a vertice is important or not
+  -- map : action to do when a non important vertex is being visited
+  let walk = \origin next g visited keep map -> do
         case next of
-          [] -> []
-          node:rest ->
+          [] -> return []
+          node:rest -> do
               let next = case IMap.lookup node g of
                     Nothing -> []
-                    Just s -> s in
-              let (nx, nc) = List.foldl (\(nx, nc) n ->
-                               if List.elem n visited then
-                                 (nx,nc)
-                               else if keep n then
-                                 (nx, (origin,n):nc)
-                               else
-                                 (n:nx, nc)) ([],[]) next in
-              nc ++ walk origin (nx ++ rest) g (node:visited) keep
-  in
+                    Just s -> s
+              (nx, nc) <- List.foldl (\rec n -> do
+                    (nx, nc) <- rec
+                    -- Already treated, omit
+                    if List.elem n visited then
+                      return (nx,nc)
+                    -- The vertex is important, write down the new constraint (origin, n)
+                    else if keep n then
+                      return (nx, (origin,n):nc)
+                    -- The vertex is not important, map it to the origin
+                    else do
+                      map n origin
+                      return (n:nx, nc)) (return ([],[])) next
+              wnc <- walk origin (nx ++ rest) g (node:visited) keep map
+              return $ nc ++ wnc
 
   -- Apply the walk function to all the important vertices
-  let walk_all = \vertices g keep ->
-        List.foldl (\nc ori ->
-                     case IMap.lookup ori g of
-                       Nothing -> nc
-                       Just s -> (walk ori s g [ori] keep) ++ nc) [] vertices
-  in do
+  let walk_all = \vertices g keep map ->
+        List.foldl (\rec ori -> do
+              nc <- rec
+              case IMap.lookup ori g of
+                Nothing -> return nc
+                Just s -> do
+                    wnc <- walk ori s g [ori] keep map
+                    return $ wnc ++ nc) (return []) vertices
 
    -- Flags
-  g <- return $ List.foldl (\g (Le x y _) ->
-            case IMap.lookup x g of
-              Just c -> IMap.insert x (y:c) g
-              Nothing -> IMap.insert x [y] g) IMap.empty fc
+  let g = List.foldl (\g (Le x y _) ->
+        case IMap.lookup x g of
+          Just c -> IMap.insert x (y:c) g
+          Nothing -> IMap.insert x [y] g) IMap.empty fc
 
-  initf <- return $ List.filter keepref $ IMap.keys g
-  cs <- return $ walk_all initf g keepref
-  fc' <- return $ List.map (\(n,m) -> Le n m no_info) cs
+  let initf = List.filter keepref $ IMap.keys g
+  cs <- walk_all initf g keepref (\_ _ -> return ())
+  let fc' = List.map (\(n,m) -> Le n m no_info) cs
 
   -- Types
-  g <- return $ List.foldl (\g c -> 
-            case c of
-              (Sublintype (TVar x) (TVar y) _) ->
-                  case IMap.lookup x g of
-                    Just c -> IMap.insert x (y:c) g
-                    Nothing -> IMap.insert x [y] g
-              _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
+  let g = List.foldl (\g c -> 
+        case c of
+          Sublintype (TVar x) (TVar y) _ ->
+              case IMap.lookup x g of
+                Just c -> IMap.insert x (y:c) g
+                Nothing -> IMap.insert x [y] g
+          _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
  
-  initv <- return $ List.filter keepvar $ IMap.keys g
-  cs' <- return $ walk_all initv g keepvar
-  lc' <- return $ List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
+  let initv = List.filter keepvar $ IMap.keys g
+  cs' <- walk_all initv g keepvar (\a b -> mapsto a (TVar $ List.head fv)) 
+  let lc' = List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
 
   -- Build the polymorphic type
   genfv <- return $ List.filter isvar fv
   genff <- return $ List.filter isref ff
-
+  
   return $ TForall genff genfv (lc',fc') typ
 
 
