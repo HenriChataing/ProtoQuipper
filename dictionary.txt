@@ -26,8 +26,11 @@ CoreSyntax
 ctx
 CyclicDependencies
 datacon
+Datacondef
 datacons
 datagen
+datatype
+DecisionTree
 decls
 decr
 def
@@ -46,7 +49,9 @@ DSyn
 DTypes
 duplicability
 DuplicateImplementation
+EAccess
 EApp
+EBody
 EBool
 EBox
 EBuiltin
@@ -57,6 +62,7 @@ EFun
 EGlobal
 EIf
 EInt
+ELabel
 ELet
 ELocated
 EMatch
@@ -68,6 +74,7 @@ Equiv
 Eqv
 ERev
 ErrorEndOfFile
+ESeq
 ETuple
 EUnbox
 EUnit
@@ -100,18 +107,24 @@ HughesPJ
 iff
 IMap
 incr
+InDatacon
 Inf
 Infered
 InfiniteTypeError
 init
+InLabel
 int
 interlines
 IntMap
+InTuple
 INV
 IParser
 ir
 IRDoc
 IRExport
+IsDuplicable
+IsNonduplicable
+IsNotfun
 isPDatacon
 isPVar
 Jones's
@@ -146,6 +159,7 @@ na
 ndashes
 newlog
 newtype
+NextStep
 NoMatchError
 NonDuplicableError
 NonExistingModule
@@ -164,6 +178,7 @@ parseError
 parseOpts
 ParsingError
 ParsingOtherError
+PatternRemoval
 PBool
 PConstraint
 PDatacon
@@ -199,6 +214,8 @@ qubits
 Quipper
 QuipperError
 QUOT
+RBool
+RDatacon
 readdress
 ReadLine
 rec
@@ -206,6 +223,10 @@ RecFlag
 RefFlag
 REM
 resp
+RInt
+rkind
+RRemainInt
+runCompiler
 runInterpret
 runS
 RunTimeError
@@ -225,6 +246,8 @@ TBang
 TBool
 TCirc
 td
+TestLocation
+TestResult
 TForall
 throwQ
 TInt

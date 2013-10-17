@@ -1,13 +1,13 @@
-{- | This module implements a method used to simplify the original expression. In particular, the implmentation of the data constructors is explicitated, and
-the are patterns are destructed, through the means of:
+{- | This module implements a method used to simplify the original expression. In particular, the implementation of the data constructors is made explicit, and
+the patterns are destructed, through the means of:
 
-* the nth element of a tuple is accessed through the functions Access_1, Access_2, ..
+* the /n/th element of a tuple is accessed through the functions Access_1, Access_2, ..
 
 * the label or tag of a record or data constructor is accessed using Label.
 
 * the information contained in a record in accessed via Body_datacon.
 
-The test of the case expressions are explicitated. Using a decision tree and chosen heuristics, a tree close to the optimal is produced.
+The tests of the case expressions are make explicit. Using a decision tree and chosen heuristics, a tree close to the optimal is produced.
 This tree can then be used to generate the series of instructions needed to discriminate the patterns.
 
 The patterns are also removed from the let expressions and the function arguments.
@@ -653,7 +653,7 @@ pattern_variables p =
   read_vars [] p
 
 
--- | Find variable closest to the infrmation one want to extract.
+-- | Find variable closest to the information one wants to extract.
 longest_prefix :: [(TestLocation, Variable)] -> TestLocation -> (TestLocation, Variable, TestLocation)
 longest_prefix extracted test =
   List.foldl (\(t, var, suf) (t', var') ->
