@@ -78,6 +78,12 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
         case next of
           [] -> return []
           node:rest -> do
+              -- If the node is not important, map to the origin
+              if not $ keep node then
+                map node origin
+              else
+                return ()
+
               let next = case IMap.lookup node g of
                     Nothing -> []
                     Just s -> s
@@ -91,7 +97,6 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
                       return (nx, (origin,n):nc)
                     -- The vertex is not important, map it to the origin
                     else do
-                      map n origin
                       return (n:nx, nc)) (return ([],[])) next
               wnc <- walk origin (nx ++ rest) g (node:visited) keep map
               return $ nc ++ wnc
@@ -126,7 +131,8 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
           _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
  
   let initv = List.filter keepvar $ IMap.keys g
-  cs' <- walk_all initv g keepvar (\a b -> mapsto a (TVar $ List.head fv)) 
+  cs' <- walk_all initv g keepvar (\a b ->
+        mapsto a (TVar $ List.head fv)) 
   let lc' = List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
 
   -- Build the polymorphic type
@@ -548,6 +554,7 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
   -- -- POLYMORPHISM -- --
   -- If the expression is a VALUE, then the type can be generic.
   if is_value t then do
+
     -- Unify the constraints produced by the typing of t (exact unification)
     cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
     csett <- unify True cs                       -- Unify

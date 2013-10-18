@@ -216,7 +216,8 @@ which_unbox a arg = do
   else
     case Map.lookup a arg of
       Just x -> return (Right x)
-      Nothing -> throwQ $ ProgramError $ "Undefined unbox operator: " ++ show a
+      Nothing -> return (Left a)
+--throwQ $ ProgramError $ "Undefined unbox operator: " ++ show a
  
 
 
@@ -256,7 +257,6 @@ disambiguate_unbox_calls arg mod (C.EVar ref v) = do
               case wua of
                 Left _ -> do
                     -- The type is concrete, create a reference to store it
-                    ref <- create_ref
                     update_ref ref (\ri -> Just ri { C.r_type = make_unbox_type a })
                     return $ (C.EUnbox ref):as
 
@@ -300,11 +300,14 @@ disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
               return $ C.EApp 0 e a) (return $ C.EGlobal ref v) args'
 
 
-disambiguate_unbox_calls arg mod (C.ELet ref r (C.PVar ref' x) e f) = do
-  -- Compute the list of non concrete unbox types used in the expression e
-  need <- unbox_types e
-  need <- return $ List.filter (\(a,a') -> not (is_concrete a && is_concrete a')) need
+disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
+  -- First disambiguate the calls from e
+  e' <- disambiguate_unbox_calls arg mod e
   
+  -- Then pick up the remaining unbox calls
+  need <- unbox_types e'
+  need <- return $ List.filter (\(a,a') -> not (is_concrete a && is_concrete a')) need
+
   -- Remove the types that can already be built using the existing arguments
   need <- return $ List.filter (\a -> not $ Map.member a arg) need
 
@@ -312,50 +315,56 @@ disambiguate_unbox_calls arg mod (C.ELet ref r (C.PVar ref' x) e f) = do
   case need of
     -- Nothing more to do
     [] -> do
-        e' <- disambiguate_unbox_calls arg mod e
-        f' <- disambiguate_unbox_calls arg mod f
-        return (C.ELet ref r (C.PVar ref' x) e' f')
-
-    -- Add new arguments to the variable x
-    _ -> do    
-        -- Retrieve the (polymorphic) type of the variable
-        ref <- variable_reference x
-        ri <- ref_info_err ref
-        typ <- map_type $ C.r_type ri
-
-        -- Add the variable and its (new) arguments to the mod context
-        let mod' = IMap.insert x (typ, need) mod
-        -- Add new argument variables to the arg context
-        nargs <- List.foldr (\a rec -> do
-              as <- rec
-              v <- dummy_var
-              return $ (a, v):as) (return []) need
-        let arg' = Map.union (Map.fromList nargs) arg
-
-        -- Convert the expression e using these new arguments
-        e' <- disambiguate_unbox_calls arg' mod' e
-        -- Convert the expression f (without the new arguments)
-        f' <- disambiguate_unbox_calls arg mod' f
-
-        -- Assemble the final expression
-        let e'' = List.foldl (\e (_, v) ->
-              C.EFun 0 (C.PVar 0 v) e) e' nargs
-        return (C.ELet ref r (C.PVar ref' x) e'' f')
-
-disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
-  need <- unbox_types e
-  case need of
-    -- In this case, no need to do anything
-    [] -> do
-        e' <- disambiguate_unbox_calls arg mod e
         f' <- disambiguate_unbox_calls arg mod f
         return (C.ELet ref r p e' f')
 
-    -- In this case, since e must be a value, p and e must be of matching forms.
-    -- Furthermore, only the expressions EDatacon and ETuple can contain a call to unbox.
+    -- Add new arguments to the variable x
     _ -> do
-        case (p, e) of
-          -- Tuple case : unfold the let-binding
+        case (p, e') of
+          (C.PWildcard ref', _) -> do
+              -- Add new argument variables to the arg context
+              nargs <- List.foldr (\a rec -> do
+                    as <- rec
+                    v <- dummy_var
+                    return $ (a, v):as) (return []) need
+              let arg' = Map.union (Map.fromList nargs) arg
+
+              -- Convert the expression e using these new arguments
+              e' <- disambiguate_unbox_calls arg' mod e'
+              -- Convert the expression f (without the new arguments)
+              f' <- disambiguate_unbox_calls arg mod f
+
+              -- Assemble the final expression
+              let e'' = List.foldl (\e (_, v) ->
+                    C.EFun 0 (C.PVar 0 v) e) e' nargs
+              return (C.ELet ref r (C.PWildcard ref') e'' f')
+
+
+          (C.PVar ref' x, _) -> do
+              -- Retrieve the (polymorphic) type of the variable
+              ri <- ref_info_err ref'
+              typ <- map_type $ C.r_type ri
+
+              -- Add the variable and its (new) arguments to the mod context
+              let mod' = IMap.insert x (typ, need) mod
+              -- Add new argument variables to the arg context
+              nargs <- List.foldr (\a rec -> do
+                    as <- rec
+                    v <- dummy_var
+                    return $ (a, v):as) (return []) need
+              let arg' = Map.union (Map.fromList nargs) arg
+
+              -- Convert the expression e using these new arguments
+              e' <- disambiguate_unbox_calls arg' mod' e'
+              -- Convert the expression f (without the new arguments)
+              f' <- disambiguate_unbox_calls arg mod' f
+
+              -- Assemble the final expression
+              let e'' = List.foldl (\e (_, v) ->
+                    C.EFun 0 (C.PVar 0 v) e) e' nargs
+              return (C.ELet ref r (C.PVar ref' x) e'' f')
+
+
           (C.PTuple _ plist, C.ETuple _ elist) -> do
               let elet = List.foldl (\f (p, e) ->
                     C.ELet ref r p e f) f (List.zip plist elist)
@@ -363,7 +372,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
 
           -- Datacon case, again, unfold the let-binding
           (C.PDatacon _ dcon (Just p), C.EDatacon _ dcon' (Just e)) | dcon == dcon' -> do
-              let elet = C.ELet ref r p e f
+              let elet = C.ELet ref r p e' f
               disambiguate_unbox_calls arg mod elet
                                                                     | otherwise ->
               -- This case always leads to a matching error, so just replace it
@@ -843,6 +852,11 @@ remove_patterns (C.ELet _ r (C.PVar _ v) e f) = do
   f' <- remove_patterns f
   return $ ELet r v e' f'
 
+remove_patterns (C.ELet _ r (C.PWildcard _) e f) = do
+  e' <- remove_patterns e
+  f' <- remove_patterns f
+  return $ ESeq e' f'
+
 remove_patterns (C.ELet _ Nonrecursive p e f) = do
   remove_patterns (C.EMatch 0 e [(p, f)])
 
@@ -879,7 +893,11 @@ remove_patterns (C.EUnbox ref) = do
   ri <- ref_info_err ref
   let typ = C.r_type ri
   (t, u) <- circuit_type typ
-  return $ EUnbox t u
+  -- Check the type of the unbox operator
+  if not (is_concrete t && is_concrete u) then
+    throwQ $ ProgramError $ "Preliminaries.remove_patterns: ambiguous call to unbox: " ++ show t ++ " | " ++ show u
+  else
+    return $ EUnbox t u
 
 remove_patterns (C.ERev _) = do
   return ERev
