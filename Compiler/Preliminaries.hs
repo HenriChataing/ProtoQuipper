@@ -115,20 +115,20 @@ make_unbox_type (t,u) =
 
 
 -- | Return the types of all the occurences of \'unbox\' in the given expression.
-unbox_types :: C.Expr -> QpState [CircType]
+unbox_types :: C.Expr -> QpState [C.Type]
 unbox_types (C.EFun _ _ e) =
   unbox_types e
 
 unbox_types (C.EApp _ e f) = do
   ue <- unbox_types e
   uf <- unbox_types f
-  return $ List.union ue uf
+  return $ List.unionBy C.eq_skel ue uf
 
 unbox_types (C.ETuple _ elist) =
   List.foldl (\rec e -> do
         us <- rec
         ue <- unbox_types e
-        return $ List.union ue us) (return []) elist
+        return $ List.unionBy C.eq_skel ue us) (return []) elist
 
 unbox_types (C.ELet _ _ _ e f) = do
   ue <- unbox_types e
@@ -139,7 +139,7 @@ unbox_types (C.EIf _ e f g) = do
   ue <- unbox_types e
   uf <- unbox_types f
   ug <- unbox_types g
-  return $ List.union ue $ List.union uf ug
+  return $ List.unionBy C.eq_skel ue $ List.union uf ug
 
 unbox_types (C.EDatacon _ _ (Just e)) =
   unbox_types e
@@ -149,7 +149,7 @@ unbox_types (C.EMatch _ e blist) = do
   ulist <- List.foldl (\rec (_, e) -> do
         us <- rec
         ue <- unbox_types e
-        return $ List.union ue us) (return []) blist
+        return $ List.unionBy C.eq_skel ue us) (return []) blist
   return $ List.union ue ulist
 
 unbox_types (C.EUnbox ref) = do
@@ -159,8 +159,7 @@ unbox_types (C.EUnbox ref) = do
         throwQ $ ProgramError "Missing reference information"
     Just ri -> do
         a <- map_type $ C.r_type ri
-        a' <- circuit_type a
-        return [a']
+        return [a]
 
 unbox_types (C.EConstraint e _) =
   unbox_types e
@@ -170,9 +169,8 @@ unbox_types _ =
 
 
 -- | Bind two types, producing a mapping from type variables to types.
-bind_types :: C.Type -> C.Type -> QpState (IntMap QType)
+bind_types :: C.Type -> C.Type -> QpState (IntMap C.Type)
 bind_types (C.TBang _ (C.TVar v)) typ = do
-  typ <- convert_type typ
   return $ IMap.singleton v typ
 bind_types (C.TBang _ (C.TArrow t u)) (C.TBang _ (C.TArrow t' u')) = do
   bt <- bind_types t t'
@@ -197,40 +195,38 @@ bind_types _ _ =
 
 
 -- | Apply the binding produced by the function 'Compiler.Preliminaries.bind_types'.
-app_bind :: IntMap QType -> QType -> QType
-app_bind b (QVar v) =
+app_bind :: IntMap C.Type -> C.Type -> C.Type
+app_bind b (C.TBang n (C.TVar v)) =
   case IMap.lookup v b of
     Just t -> t
-    Nothing -> QVar v
-app_bind b (QTensor alist) =
-  QTensor (List.map (app_bind b) alist)
+    Nothing -> C.TBang n $ C.TVar v
+app_bind b (C.TBang n (C.TTensor alist)) =
+  C.TBang n $ C.TTensor (List.map (app_bind b) alist)
+app_bind b (C.TBang n (C.TArrow t u)) =
+  C.TBang n $ C.TArrow (app_bind b t) (app_bind b u)
+app_bind b (C.TBang n (C.TCirc t u)) =
+  C.TBang n $ C.TCirc (app_bind b t) (app_bind b u)
 app_bind _ t = t
 
 
 -- | Return either the original unbox operator, if the type is concrete, or one of the argument
 -- given in the list that has the appropriate type.
-which_unbox :: CircType -> Map CircType Variable -> QpState (Either CircType Variable)
-which_unbox a arg = do
-  if is_concrete (fst a) && is_concrete (snd a) then
-    return (Left a)
-  else
-    case Map.lookup a arg of
-      Just x -> return (Right x)
-      Nothing -> return (Left a)
---throwQ $ ProgramError $ "Undefined unbox operator: " ++ show a
- 
+which_unbox :: C.Type -> [(C.Type, Variable)] -> QpState (Either C.Type Variable)
+which_unbox a arg =
+  case List.find (\(t, x) -> C.eq_skel a t) arg of
+    Just (_, x) -> return (Right x)
+    Nothing -> return (Left a)
 
 
 -- | Modify an expression to disambiguate the use of the unbox operator: when the type can be inferred automically (in a non polymorphic context), then the operator is untouched,
 -- else, the function using the unbox is modified to take the unbox operator as argument.
-disambiguate_unbox_calls :: Map CircType Variable                     -- ^ The unbox operators available in the current context.
-                         -> IntMap (C.Type, [CircType])               -- ^ Each modified function, along with its polymorphic type and the arguments it expects.
+disambiguate_unbox_calls :: [(C.Type, Variable)]                      -- ^ The unbox operators available in the current context.
+                         -> IntMap (C.Type, [C.Type])                 -- ^ Each modified function, along with its polymorphic type and the arguments it expects.
                          -> C.Expr                                    -- ^ The expresson to disambiguate.
                          -> QpState C.Expr                            -- ^ The disambiguated expression. 
 disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
   ri <- ref_info_err ref
   a <- map_type $ C.r_type ri
-  a <- circuit_type a
   wu <- which_unbox a arg
   case wu of
     Left _ ->
@@ -249,7 +245,7 @@ disambiguate_unbox_calls arg mod (C.EVar ref v) = do
         ri <- ref_info_err ref
         typ' <- map_type $ C.r_type ri
         b <- bind_types typ typ'
-        let args' = List.map (\(a, a') -> (app_bind b a, app_bind b a')) args
+        let args' = List.map (app_bind b) args
         -- Use the function which_unbox to decide the arguments
         args' <- List.foldr (\a rec -> do
               as <- rec
@@ -257,7 +253,7 @@ disambiguate_unbox_calls arg mod (C.EVar ref v) = do
               case wua of
                 Left _ -> do
                     -- The type is concrete, create a reference to store it
-                    update_ref ref (\ri -> Just ri { C.r_type = make_unbox_type a })
+                    update_ref ref (\ri -> Just ri { C.r_type = a })
                     return $ (C.EUnbox ref):as
 
                 Right v ->
@@ -279,7 +275,7 @@ disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
         ri <- ref_info_err ref
         typ' <- map_type $ C.r_type ri
         b <- bind_types typ typ'
-        let args' = List.map (\(a, a') -> (app_bind b a, app_bind b a')) args
+        let args' = List.map (app_bind b) args
         -- Use the function which_unbox to decide the arguments
         args' <- List.foldr (\a rec -> do
               as <- rec
@@ -288,7 +284,7 @@ disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
                 Left _ -> do
                     -- The type is concrete, create a reference to store it
                     ref <- create_ref
-                    update_ref ref (\ri -> Just ri { C.r_type = make_unbox_type a })
+                    update_ref ref (\ri -> Just ri { C.r_type = a })
                     return $ (C.EUnbox ref):as
 
                 Right v ->
@@ -306,10 +302,10 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
   
   -- Then pick up the remaining unbox calls
   need <- unbox_types e'
-  need <- return $ List.filter (\(a,a') -> not (is_concrete a && is_concrete a')) need
+  need <- return $ List.filter (\a -> not $ C.is_concrete a) need
 
   -- Remove the types that can already be built using the existing arguments
-  need <- return $ List.filter (\a -> not $ Map.member a arg) need
+  need <- return $ List.filter (\a -> List.find (\(b, _) -> C.eq_skel a b) arg == Nothing) need
 
   -- Test whether the list is empty or not.
   case need of
@@ -327,7 +323,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
                     as <- rec
                     v <- dummy_var
                     return $ (a, v):as) (return []) need
-              let arg' = Map.union (Map.fromList nargs) arg
+              let arg' = nargs ++ arg
 
               -- Convert the expression e using these new arguments
               e' <- disambiguate_unbox_calls arg' mod e'
@@ -352,7 +348,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
                     as <- rec
                     v <- dummy_var
                     return $ (a, v):as) (return []) need
-              let arg' = Map.union (Map.fromList nargs) arg
+              let arg' = nargs ++ arg
 
               -- Convert the expression e using these new arguments
               e' <- disambiguate_unbox_calls arg' mod' e'
@@ -426,7 +422,6 @@ disambiguate_unbox_calls _ _ e =
 
 
 
-
 -- | Definition of a set of expressions, where patterns have been removed.
 data Expr =
 -- STLC
@@ -456,7 +451,7 @@ data Expr =
 -- Unrelated
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
-  | ETag Variable                               -- ^ Return the label of an expression (supposedly a record).
+  | ETag Variable                                 -- ^ Return the label of an expression (supposedly a record).
   | EBody Datacon Variable                        -- ^ Return the body of a record that has a known label.
   deriving Show
 
@@ -908,6 +903,27 @@ remove_patterns (C.EBuiltin _ s) =
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
 
+
+{-
+-- | Give the implementation of the unbox operator.
+implement_unbox :: (QType, Qtype)        -- ^ The type of the input circuit.
+                -> QpState Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
+
+
+
+-- | Give the implementation of the box[T] operator.
+implement_box :: QType                   -- ^ The type of the input value.
+              -> QpState Expr            -- ^ The code (function) implementation of the box[T] operator.
+
+
+-- | Produce the implementation of the rev operator. The implementation doesn't need the type of rev.
+implement_rev :: QpState Expr
+
+
+
+-- | Implementation of the function applying a binding to a quantum address.
+implement_appbind :: QpState Expr
+-}
 
 
 

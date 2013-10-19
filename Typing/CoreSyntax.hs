@@ -125,8 +125,32 @@ data LinType =
 -- with a flag.
 data Type =
   TBang RefFlag LinType      -- ^ The type @!^n A@.
-  deriving Show
+  deriving (Show, Eq)
     
+
+-- | An alternate definition of the equality between types. This function, contrarily to the default equality,
+-- compares only the skeleton of the types, ignoring the flag variables.
+eq_skel :: Type -> Type -> Bool
+eq_skel (TBang _ (TArrow t u)) (TBang _ (TArrow t' u')) = eq_skel t t' && eq_skel u u'
+eq_skel (TBang _ (TCirc t u)) (TBang _ (TCirc t' u')) = eq_skel t t' && eq_skel u u'
+eq_skel (TBang _ (TTensor tlist)) (TBang _ (TTensor ulist)) =
+  if List.length tlist == List.length ulist then
+    List.and $ List.map (\(t, u) -> eq_skel t u) (List.zip tlist ulist)
+  else
+    False
+eq_skel (TBang _ (TUser alg arg)) (TBang _ (TUser alg' arg')) =
+  if alg == alg' && List.length arg == List.length arg' then
+    List.and $ List.map (\(a, a') -> eq_skel a a') (List.zip arg arg')
+  else
+    False
+eq_skel (TBang _ t) (TBang _ u) = t == u
+
+
+-- | A type is concrete if it doesn't contain any type variables.
+is_concrete :: Type -> Bool
+is_concrete typ =
+  free_typ_var typ == []
+
            
 -- | The type of type schemes. A /type scheme/ is a type expression
 -- together with universally quantified type variables /a/1, ...,
@@ -240,11 +264,6 @@ instance KType Type where
       TBang m t'
     else
       TBang p t'
-
-
--- | Equality of types must take into account alpha equivalence in the polymorphic types.
-instance Eq Type where
-  (==) (TBang m t) (TBang n t') = m == n && t == t'
 
 
 -- ----------------------------------------------------------------------
