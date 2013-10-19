@@ -116,6 +116,10 @@ data Context = Ctx {
                                                       -- also about the type itself, for example the expression it is the type of. Such information is useful to send
                                                       -- unambiguous error messages when the type inference fails.
 
+-- Compiler things
+  call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
+                                                      -- (see the function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more information).
+
 -- References
   references :: IntMap RefInfo,                       -- ^ Information about each expression.
 
@@ -207,6 +211,9 @@ empty_context =  Ctx {
 -- No flag
   flags = IMap.empty,
 
+-- no conventions
+  call_conventions = IMap.empty,
+
 -- No references
   references = IMap.empty,
 
@@ -233,6 +240,9 @@ set_context :: Context -> QpState ()
 set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
+------------------------------------------------
+-- ** Log and verbose settings.
+
 
 -- | Change the level of verbosity.
 set_verbose :: Int -> QpState ()
@@ -255,6 +265,8 @@ flush_logs = do
   liftIO $ hFlush (channel $ logfile ctx)
 
 
+------------------------------------------------
+-- ** Location settings.
 
 
 -- | Set the location marker.
@@ -281,6 +293,11 @@ set_file fname = do
 get_file :: QpState String
 get_file =
   get_context >>= return . filename
+
+
+
+------------------------------------------------
+-- ** Module settings.
 
 
 -- | Reinitialize the body.
@@ -448,6 +465,11 @@ type_of_global x = do
         throwQ $ ProgramError $ "undefined global variable " ++ n
 
 
+-- | Check whether a given variable is global or not.
+is_global :: Variable -> QpState Bool
+is_global v = do
+  ctx <- get_context
+  return $ IMap.member v (globals ctx)
 
 
 -- | Look up a variable in a specific module (typically used with a qualified variable).
@@ -891,6 +913,19 @@ ref_expression ref = do
     Nothing ->
         return (extent_unknown, "?")
 
+
+-- | Specify the call convention of a global variable.
+set_call_convention :: Variable -> [Type] -> QpState ()
+set_call_convention v args = do
+  ctx <- get_context
+  set_context ctx { call_conventions = IMap.insert v args $ call_conventions ctx }
+
+
+-- | Return the call convention of the given variable (function), if one is specified, and Nothing else.
+call_convention :: Variable -> QpState (Maybe [Type])
+call_convention v = do
+  ctx <- get_context
+  return $ IMap.lookup v $ call_conventions ctx
 
 
 -- | Throw a typing error, based on the reference flags of the faulty types.

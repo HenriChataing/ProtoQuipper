@@ -271,7 +271,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
                                return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- If interpretation, interpret, and display the result
-  if runInterpret opts && toplevel mopts then do
+  if run_interpret opts && toplevel mopts then do
     v <- interpret (environment ctx) e'
     pv <- pprint_value_noref v
     case (v, circuitFormat opts) of
@@ -282,7 +282,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
           liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
           liftIO $ putStrLn (pv ++ " : " ++ inferred) 
-  else if toplevel mopts then
+  else if toplevel mopts && not (runCompiler opts) then
     liftIO $ putStrLn ("-: "  ++ inferred)
   else
     return ()
@@ -403,7 +403,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     return ()
 
   -- Evaluation (even if the module is not top-level, if the general options want it to be evaluated, then so be it)
-  ctx <- if runInterpret opts then do
+  ctx <- if run_interpret opts then do
            -- Reduce the argument e1
            v <- interpret (environment ctx) e'
         
@@ -536,7 +536,7 @@ do_everything opts files = do
 
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
-                _ <- rec
+                rec
                 mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
                 nm <- process_module (opts, mopts) p
 
@@ -544,10 +544,10 @@ do_everything opts files = do
                 case m_body nm of
                   Nothing -> return ()
                   Just e -> do
-                      typs <- unbox_types e
                       e' <- disambiguate_unbox_calls [] IMap.empty e
                       e' <- remove_patterns e'
-                      newlog (-2) (pprint e')
+                      newlog (-2) $ "#########  MODULE: " ++ S.module_name p ++ " #########"
+                      newlog (-2) $ pprint e' ++ "\n"
 ---------------
 
                 return ()) (return ()) deps

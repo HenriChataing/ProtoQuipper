@@ -221,7 +221,7 @@ which_unbox a arg =
 -- | Modify an expression to disambiguate the use of the unbox operator: when the type can be inferred automically (in a non polymorphic context), then the operator is untouched,
 -- else, the function using the unbox is modified to take the unbox operator as argument.
 disambiguate_unbox_calls :: [(C.Type, Variable)]                      -- ^ The unbox operators available in the current context.
-                         -> IntMap (C.Type, [C.Type])                 -- ^ Each modified function, along with its polymorphic type and the arguments it expects.
+                         -> IntMap (C.Type, [C.Type])                 -- ^ Each modified (local) function, along with its polymorphic type and the arguments it expects.
                          -> C.Expr                                    -- ^ The expresson to disambiguate.
                          -> QpState C.Expr                            -- ^ The disambiguated expression. 
 disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
@@ -265,11 +265,14 @@ disambiguate_unbox_calls arg mod (C.EVar ref v) = do
               return $ C.EApp 0 e a) (return $ C.EVar ref v) args'
 
 disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
-  case IMap.lookup v mod of
+  cc <- call_convention v
+  case cc of
     Nothing -> do
         return (C.EGlobal ref v)
 
-    Just (typ, args) -> do
+    Just args -> do
+        t <- type_of_global v
+        let typ = C.type_of_typescheme t
         -- If the type of the variable is concrete (no leftover type variables), then
         -- the unbox operators to apply can easily be derived.
         ri <- ref_info_err ref
@@ -341,8 +344,18 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
               ri <- ref_info_err ref'
               typ <- map_type $ C.r_type ri
 
+              -- Check whether the variable is global or not
+              g <- is_global x
+              if g then do
+                -- Specify the calling convention for x
+                set_call_convention x need
+              else
+                -- Do nothing
+                return ()
+
               -- Add the variable and its (new) arguments to the mod context
               let mod' = IMap.insert x (typ, need) mod
+                        
               -- Add new argument variables to the arg context
               nargs <- List.foldr (\a rec -> do
                     as <- rec

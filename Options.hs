@@ -72,6 +72,12 @@ options =
   ]
 
 
+-- | Return True if and only if the @runInterpret@ flag is set, and @runCompiler@ is not.
+run_interpret :: Options -> Bool
+run_interpret opts =
+  runInterpret opts && not (runCompiler opts)
+
+
 -- | Display the help screen, and exit.
 show_help :: Options -> IO a
 show_help _ = do
@@ -158,4 +164,5 @@ parseOpts argv =
                               flip id opts o) (return default_options) o
         return (opts, n)
     (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
+
 

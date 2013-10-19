@@ -166,6 +166,12 @@ data TypeScheme =
 typescheme_of_type :: Type -> TypeScheme
 typescheme_of_type t = TForall [] [] emptyset t
 
+
+-- | Extract the main type of a typescheme (without instantiating it).
+type_of_typescheme :: TypeScheme -> Type
+type_of_typescheme (TForall _ _ _ t) = t
+
+
 -- | Remove the flag annotation from a type, returning a linear type.
 -- This function does not make sense on typing schemes, and can only
 -- be applied to types. It is an error to do otherwise.
