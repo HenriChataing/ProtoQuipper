@@ -28,8 +28,6 @@ import qualified Parsing.Syntax as S
 import Typing.CoreSyntax (Variable, Datacon)
 import qualified Typing.CoreSyntax as C
 
-import Control.Exception
-
 import Text.PrettyPrint.HughesPJ as PP
 
 import qualified Data.List as List
@@ -70,7 +68,7 @@ convert_type (C.TBang _ (C.TTensor alist)) = do
   return $ QTensor alist'
 
 convert_type typ =
-  throwQ $ ProgramError $ "The type " ++ pprint typ ++ " is not a quantum data type"
+  fail $ "Preliminaries:convert_type: illegal argument: " ++ pprint typ
   
 
 -- | Convert a quantum data type to a type.
@@ -103,7 +101,7 @@ circuit_type (C.TBang _ (C.TArrow (C.TBang _ (C.TCirc t u)) _)) = do
   return (t', u')
 
 circuit_type typ =
-  throwQ $ ProgramError $ "The type " ++ pprint typ ++ " can't correspond to the type of unbox"
+  fail $ "Preliminaries:circuit_type: illegal argument: " ++ show typ
 
 
 -- | Convert back a circuit type to the type of an unbox operator.
@@ -156,7 +154,7 @@ unbox_types (C.EUnbox ref) = do
   ri <- ref_info ref
   case ri of
     Nothing ->
-        throwQ $ ProgramError "Missing reference information"
+        fail $ "Preliminaries:unbox_types: undefined reference: " ++ show ref
     Just ri -> do
         a <- map_type $ C.r_type ri
         return [a]
@@ -389,8 +387,8 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
               return $ C.EBuiltin 0 "PATTERN_ERROR"
 
           -- All other cases should be unreachable
-          _ ->
-              throwQ $ ProgramError "disambiguate_unbox_calls: unexpected branching"
+          (p, _) ->
+              fail $ "Preliminaries:disambiguate_unbox_calls: unexpected pattern: " ++ pprint p
 
 
 disambiguate_unbox_calls arg mod (C.EFun ref p e) = do
@@ -783,10 +781,10 @@ simplify_pattern_matching e blist = do
                                              RBool _ -> do
                                                  rtrue <- case List.lookup (RBool True) results of
                                                             Just t -> return t
-                                                            Nothing -> throwQ $ ProgramError "Missing boolean cases in pattern matching"
+                                                            Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case True"
                                                  rfalse <- case List.lookup (RBool False) results of
                                                             Just t -> return t
-                                                            Nothing -> throwQ $ ProgramError "Missing boolean cases in pattern matching"
+                                                            Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case False"
                                                  casetrue <- unbuild rtrue extracted
                                                  casefalse <- unbuild rfalse extracted
                                                  return $ EIf (EVar var') casetrue casefalse
@@ -800,7 +798,7 @@ simplify_pattern_matching e blist = do
                                                  return $ EMatch (EVar var') cases
 
                                              RRemainInt ->
-                                                 throwQ $ ProgramError "Unexpected result 'RRemainInt'"
+                                                 fail "Preliminaries:simplify_pattern_matching: unexpected result 'RRemainInt'"
 
                                   -- Complete the sequence with the variable extraction
                                   return $ initseq teste
@@ -869,7 +867,7 @@ remove_patterns (C.ELet _ Nonrecursive p e f) = do
   remove_patterns (C.EMatch 0 e [(p, f)])
 
 remove_patterns (C.ELet _ Recursive _ _ _) =
-  throwQ $ ProgramError "Preiminaries.remove_patterns: unexpected recursive binding"
+  fail "Preliminaries:remove_patterns: unexpected recursive binding"
 
 remove_patterns (C.EBool _ b) = do
   return $ EBool b
@@ -903,7 +901,7 @@ remove_patterns (C.EUnbox ref) = do
   (t, u) <- circuit_type typ
   -- Check the type of the unbox operator
   if not (is_concrete t && is_concrete u) then
-    throwQ $ ProgramError $ "Preliminaries.remove_patterns: ambiguous call to unbox: " ++ show t ++ " | " ++ show u
+    fail $ "Preliminaries:remove_patterns: ambiguous call to unbox: " ++ show t ++ " | " ++ show u
   else
     return $ EUnbox t u
 
@@ -1058,7 +1056,7 @@ instance PPrint Expr where
     let doc = print_doc lv e fvar fdata in
     PP.render doc
   genprint lv e _ =
-    throw $ ProgramError "Expr:genprint: illegal argument"
+    throwNE $ ProgramError "Preliminaries:genprint(Expr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,

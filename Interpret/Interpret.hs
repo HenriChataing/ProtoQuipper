@@ -22,8 +22,6 @@ import Interpret.Circuits (Circuit, Binding, create_circuit)
 import qualified Interpret.Circuits as C
 import Interpret.Values
 
-import Control.Exception
-
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
@@ -85,7 +83,7 @@ linspec (TTensor tlist) = do
 linspec TUnit = do
   return VUnit
 
-linspec _ = throw $ ProgramError "linspec: not a quantum data type"
+linspec _ = fail "Interpret:linspec: illegal argument"
 
 -- | Like 'linspec', but return a specimen of a type.
 spec :: Type -> QpState Value
@@ -107,7 +105,7 @@ close_box = do
   ctx <- get_context
   case circuits ctx of
     [] ->
-        throw $ ProgramError "Unsound close box operation"
+        fail "Interpret:close_box: empty circuit stack"
 
     (top:rest) -> do
         set_context $ ctx { circuits = rest }
@@ -124,7 +122,7 @@ unencap c b = do
   case circuits ctx of
     [] -> do
         ex <- get_location
-        throw $ ProgramError "empty circuit stack"
+        fail "Interpret:unencap: empty circuit stack"
 
     (top:rest) -> do
         (c', b') <- return $ C.unencap top c b
@@ -145,7 +143,7 @@ bind_pattern (PVar _ x) v env = do
 
 bind_pattern (PTuple _ plist) (VTuple vlist) env = do
   if List.length plist /= List.length vlist then
-    throw $ MatchingError (sprint $ PTuple 0 plist) (sprint $ VTuple vlist)
+    throwNE $ MatchingError (sprint $ PTuple 0 plist) (sprint $ VTuple vlist)
   else
     List.foldl (\rec (p, v) -> do
           env <- rec
@@ -158,13 +156,13 @@ bind_pattern (PBool _ b) (VBool b') env = do
   if b == b' then 
     return env 
     else
-    throw $ MatchingError (sprint $ PBool 0 b) (sprint $ VBool b')
+    throwNE $ MatchingError (sprint $ PBool 0 b) (sprint $ VBool b')
 
 bind_pattern (PInt _ n) (VInt n') env = do
   if n == n' then 
     return env 
     else
-    throw $ MatchingError (sprint $ PInt 0 n) (sprint $ VInt n')
+    throwNE $ MatchingError (sprint $ PInt 0 n) (sprint $ VInt n')
 
 bind_pattern (PDatacon _ dcon p) (VDatacon dcon' v) env = do
   if dcon == dcon' then
@@ -174,16 +172,16 @@ bind_pattern (PDatacon _ dcon p) (VDatacon dcon' v) env = do
       (Nothing, Nothing) ->
           return env
       _ ->
-          throw $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
+          throwNE $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
 
   else
-    throw $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
+    throwNE $ MatchingError (sprint $ PDatacon 0 dcon p) (sprint $ VDatacon dcon' v)
 
 bind_pattern (PWildcard _) _ env = do
   return env
 
 bind_pattern p v _ = do
-  throw $ MatchingError (show p) (sprint v)
+  throwNE $ MatchingError (show p) (sprint v)
 
 
 -- | Try matching a pattern and a value. Return 'True' if the value matches, else 'False'.
@@ -252,13 +250,13 @@ bind (VTuple vlist) (VTuple vlist') = do
         return (b ++ brest)
 
     _ ->
-        throw $ MatchingError (sprint $ VTuple vlist) (sprint $ VTuple vlist')
+        throwNE $ MatchingError (sprint $ VTuple vlist) (sprint $ VTuple vlist')
 
 bind VUnit VUnit = do
   return []
 
 bind v1 v2 = do
-  throw $ MatchingError (sprint v1) (sprint v2)
+  throwNE $ MatchingError (sprint v1) (sprint v2)
 
 
 -- | Re-address a quantum value using a binding function.
@@ -282,7 +280,7 @@ readdress VUnit _ = do
   return VUnit
 
 readdress v _ = do
-  throw $ ProgramError $ "unsound readdress function application:" ++ pprint v ++ " is not a quantum data value"
+  fail $ "Interpret:readdress: illegal argument: " ++ pprint v
 
 
 -- | Extract the quantum addresses of a value.
@@ -300,7 +298,7 @@ extract VUnit = do
   return []
 
 extract v = do
-   throw $ ProgramError $ "unsound extract function application:" ++ pprint v ++ " is not a quantum data value"
+   fail $ "Interpret:extract: illegal argument: " ++ pprint v
 
 
 
@@ -386,7 +384,7 @@ do_application env f x =
 
     _ -> do
         ex <- get_location
-        throw $ LocatedError (NotFunctionError (sprint f)) ex
+        throwWE (NotFunctionError (sprint f)) ex
 
 
 
@@ -426,7 +424,7 @@ interpret env (EVar ref x) = do
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
         (ex, expr) <- ref_expression ref
-        throw $ LocatedError (UnboundVariable expr) ex
+        throwWE (UnboundVariable expr) ex
 
 -- Global variables
 interpret env (EGlobal ref x) = do
@@ -437,7 +435,7 @@ interpret env (EGlobal ref x) = do
     Nothing -> do
         -- This kind of errors should have been eliminated during the translation to the internal syntax
         (ex, expr) <- ref_expression ref
-        throw $ LocatedError (UnboundVariable expr) ex
+        throwWE (UnboundVariable expr) ex
 
 
 -- Functions : The current context is enclosed in the function value
@@ -484,7 +482,7 @@ interpret env (EMatch _ e blist) = do
   let match = (\ex v blist ->
                  case blist of
                    [] ->
-                       throw $ LocatedError (NoMatchError (sprint v)) ex
+                       throwWE (NoMatchError (sprint v)) ex
                    ((p, f):rest) -> do
                        if match_value p v then do
                          ev <- bind_pattern p v env
@@ -515,7 +513,7 @@ interpret env (EIf _ e1 e2 e3) = do
 
     _ -> do
         ex <- get_location
-        throw $ LocatedError (NotBoolError (sprint v1)) ex
+        throwWE (NotBoolError (sprint v1)) ex
 
 interpret env (EConstraint e _) = do
   interpret env e

@@ -9,8 +9,10 @@ import Builtins
 import Parsing.Location (Extent, extent_unknown, file_unknown)
 import Parsing.Syntax (RecFlag (..))
 
-import Monad.Modules
-import Monad.QuipperError
+import Monad.Modules (Module)
+import qualified Monad.Modules as M
+import Monad.QuipperError hiding (throw)
+import qualified Monad.QuipperError as Q (throwNE, throwWE)
 import Monad.Namespace (Namespace)
 import qualified Monad.Namespace as N
 
@@ -145,7 +147,7 @@ newtype QpState a = QpState { runS :: (Context -> IO (Context, a)) }
 
 instance Monad QpState where
   return a = QpState { runS = (\ctx -> return (ctx, a)) }
-  fail s = QpState { runS = (\ctx -> fail s) }
+  fail s = QpState { runS = (\ctx -> Q.throwNE $ ProgramError s) }
   st >>= action = QpState { runS = (\ctx -> do
                                     (ctx', a) <- runS st ctx 
                                     st' <- return $ action a
@@ -153,14 +155,14 @@ instance Monad QpState where
 
 
 -- | Throw an exception of type 'QError' (exceptions specific to Quipper).
-throwQ :: QError -> QpState a
-throwQ e =
-  QpState { runS = (\ctx -> E.throw e) }
+throwQ :: QError a => a -> Extent -> QpState b
+throwQ e ex =
+  QpState { runS = (\ctx -> Q.throwWE e ex) }
 
 
 -- | Catch any error thrown in a certain computation, and run a continuation in case
 -- an error is caught.
-catchQ :: QpState a -> (QError -> QpState a) -> QpState a
+catchQ :: QpState a -> (QuipperError -> QpState a) -> QpState a
 catchQ st c =
   QpState { runS = (\ctx ->
                       (runS st ctx) `E.catch` (\e -> do
@@ -443,12 +445,12 @@ global_namespace deps = do
                 (lblv, lbld, lblt) <- rec
                 case List.lookup m mods of
                   Just mod -> do
-                      vars <- return $ Map.map (\id -> LGlobal id) $ m_variables mod
-                      typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types mod
-                      return (Map.union vars lblv, Map.union (m_datacons mod) lbld, Map.union typs lblt)
+                      vars <- return $ Map.map (\id -> LGlobal id) $ M.variables mod
+                      typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ M.types mod
+                      return (Map.union vars lblv, Map.union (M.datacons mod) lbld, Map.union typs lblt)
 
                   Nothing ->
-                      throwQ $ ProgramError $ "missing implementation of module " ++ m) (return (Map.empty, Map.empty, Map.empty)) deps
+                      fail $ "QpState:global_namespace: missing implementation of module " ++ m) (return (Map.empty, Map.empty, Map.empty)) deps
 
 
 
@@ -462,7 +464,7 @@ type_of_global x = do
         return t
     Nothing -> do
         n <- variable_name x
-        throwQ $ ProgramError $ "undefined global variable " ++ n
+        fail $ "QpState:type_of_global: undefined global variable " ++ n
 
 
 -- | Check whether a given variable is global or not.
@@ -481,7 +483,7 @@ lookup_qualified_var (mod, n) = do
   if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ m_variables modi of
+          case Map.lookup n $ M.variables modi of
             Just x -> return x
             Nothing -> do
                 throw_UnboundVariable (mod ++ "." ++ n)
@@ -503,7 +505,7 @@ lookup_qualified_type (mod, n) = do
   if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ m_types modi of
+          case Map.lookup n $ M.types modi of
             Just x -> return x
             Nothing -> do
                 throw_UndefinedType (mod ++ "." ++ n)
@@ -535,7 +537,7 @@ builtin_type s = do
                            return $ subs_typ_var v (TVar v') typ) (return t) fv
         return t
     Nothing ->
-        throwQ $ ProgramError $ "Missing builtin: " ++ s
+        fail $ "QpState:builtin_type: undefined builtin operation: " ++ s
 
 
 
@@ -547,7 +549,7 @@ builtin_value s = do
     Just (_, v) ->
         return v
     Nothing ->
-        throwQ $ ProgramError $ "Missing builtin: " ++ s
+        fail $ "QpState:builtin_value: undefined builtin operation: " ++ s
 
 
 
@@ -561,7 +563,7 @@ type_spec typ = do
 
     Nothing -> do
         n <- type_name typ
-        throwQ $ ProgramError $ "Missing the definition of the type: " ++ n
+        fail $ "QpState:type_spec: undefined type: " ++ n
 
 
 -- | Retrieve the definition of a data constructor.
@@ -575,7 +577,7 @@ datacon_def id = do
     Nothing ->
         -- The sound definition of the data constructors has already been checked
         -- during the translation into the core syntax
-        throwQ $ ProgramError $ "Missing the definition of data constructor: " ++ subvar 'D' id
+        fail $ "QpState:datacon_def: undefined data constructor: " ++ subvar 'D' id
 
 
 -- | Retrieve the reference of the algebraic type of a data constructor.
@@ -632,7 +634,7 @@ check_assertions = do
                       if not $ is_fun_type typ' then
                         return ()
                       else
-                        throwQ $ ProgramError "Function type in pattern matching") (return ()) (assertions ctx)
+                        fail "QpState:check_assertions: matched value has a function type") (return ()) (assertions ctx)
 
   set_context $ ctx { assertions = [] }
 
@@ -651,7 +653,7 @@ flag_value ref =
               return $ f_value info
 
           Nothing ->
-              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:flag_value: undefined flag reference: " ++ subvar 'f' ref
 
 
 
@@ -682,7 +684,7 @@ set_flag ref info = do
                     return ()  -- Includes anyflag and one
 
           Nothing ->
-              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:set_flag: undefined flag reference: " ++ subvar 'f' ref
 
 
 -- | Set the value of a flag to zero.
@@ -712,7 +714,7 @@ unset_flag ref info = do
                     return ()  -- Includes anyflag and zero
 
           Nothing ->
-              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:unset_flag: undefined flag reference: " ++ subvar 'f' ref
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
@@ -754,7 +756,7 @@ duplicate_flag ref = do
               return id
 
           Nothing ->
-              throwQ $ ProgramError $ "Undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:duplicate_flag: undefined flag reference: " ++ subvar 'f' ref
 
 
 
@@ -790,7 +792,7 @@ ref_info_err :: Ref -> QpState RefInfo
 ref_info_err ref = do
   ctx <- get_context
   case IMap.lookup ref $ references ctx of
-    Nothing -> throwQ $ ProgramError "Missing reference information"
+    Nothing -> fail "QpState:ref_info_err: undefined reference"
     Just ri -> return ri
 
 
@@ -950,17 +952,17 @@ throw_TypingError t u info = do
 
   -- Check which of the type is the actual one
   if c_actual info then
-    throwQ $ LocatedError (DetailedTypingError prt pru ori expr) ex
+    throwQ (DetailedTypingError prt pru ori expr) ex
   else
-    throwQ $ LocatedError (DetailedTypingError pru prt ori expr) ex
+    throwQ (DetailedTypingError pru prt ori expr) ex
 
 
 
 -- | Generic error for unbound values (variables, data constructors, types, builtins).
-throw_UnboundValue :: String -> (String -> QError) -> QpState a
+throw_UnboundValue :: QError a => String -> (String -> a) -> QpState b
 throw_UnboundValue v err = do
   ex <- get_location
-  throwQ $ LocatedError (err v) ex
+  throwQ (err v) ex
 
 
 -- | Throw an unbound variable error.
@@ -991,7 +993,7 @@ throw_UndefinedBuiltin n =
 throw_NonDuplicableError :: ConstraintInfo -> QpState a
 throw_NonDuplicableError info = do
   (ex, expr) <- ref_expression (c_ref info)
-  throwQ $ LocatedError (NonDuplicableError expr Nothing) ex
+  throwQ (NonDuplicableError expr Nothing) ex
 
 
 

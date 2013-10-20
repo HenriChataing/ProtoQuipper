@@ -11,8 +11,6 @@ import Monad.QpState
 
 import qualified Data.List as List
 import Data.Char
-
-import Control.Exception
 }
 
 %wrapper "posn"
@@ -116,7 +114,7 @@ read_string "" = ""
 read_string s =
   case readLitChar s of
     [(c, s')] -> c:(read_string s')
-    _ -> throw $ ProgramError "Lexer:unexpected branching"
+    _ -> throwNE $ ProgramError $ "Lexer:read_string: illegal argument: " ++ s
 
 
 -- | Return the integer value of a character (that can be an escape character).
@@ -124,7 +122,7 @@ read_char :: String -> Char
 read_char s =
   case readLitChar s of
     [(c, "")] -> c
-    _ -> throw $ ProgramError $ "Undefined escape character " ++ s
+    _ -> throwNE $ ProgramError $ "Lexer:read_char: illegal argument: " ++ s
 
 
 -- | The type of lexical tokens. 
@@ -356,6 +354,6 @@ mylex filename contents = do
   case List.find (\tk -> case tk of
                            TkUnknownToken _ -> True
                            _ -> False) tokens of
-    Just (TkUnknownToken (ex, s)) -> throwQ $ LexicalError s ex
+    Just (TkUnknownToken (ex, s)) -> throwQ (LexicalError s) ex
     _ -> return tokens 
 }

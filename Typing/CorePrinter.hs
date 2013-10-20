@@ -7,13 +7,13 @@ module Typing.CorePrinter where
 
 import Classes
 import Utils
+
 import Monad.QuipperError
 
 import Parsing.Syntax (RecFlag (..))
 
 import Typing.CoreSyntax hiding ((<>))
 
-import Control.Exception
 import Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
 
@@ -23,7 +23,7 @@ instance PPrint LinType where
   -- Generic printing
   -- The display of flags and type variables is specified by two option functions
   genprint _ (TVar x) [_, fvar, _] = fvar x
-  genprint _ (TVar x) _ = throw $ ProgramError "LinType:genprint: illegal argument"
+  genprint _ (TVar x) _ = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
   genprint _ TUnit _ = "()"
   genprint _ TInt _ = "int"
@@ -39,7 +39,7 @@ instance PPrint LinType where
                                        TUser _ [] -> prt
                                        TUser _ _ -> "(" ++ prt ++ ")"
                                        _ -> prt) ++ rec) "" arg
-  genprint _ (TUser n arg) _ = throw $ ProgramError "LinType:genprint: illegal argument"
+  genprint _ (TUser n arg) _ = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
   genprint (Nth 0) _ _ = "..."
 
@@ -55,7 +55,7 @@ instance PPrint LinType where
                      TBang _ (TTensor _) -> "(" ++ genprint dlv b opts ++ ")"
                      _ -> genprint dlv b opts)) "" rest
   genprint lv (TTensor []) opts = 
-    throw $ ProgramError "LinType:genprint: illegal tensor"
+    throwNE $ ProgramError "CorePrinter:genprint(LinType): empty tensor"
 
   genprint lv (TArrow a b) opts =
     let dlv = decr lv in
@@ -94,7 +94,7 @@ instance PPrint Type where
       (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
       (f, _) -> f ++ genprint (decr lv) a opts
   genprint lv (TBang n a) _ = 
-    throw $ ProgramError "Type:genprint: illegal argument"
+    throwNE $ ProgramError "CorePrinter:genprint(Type): illegal argument"
 
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
@@ -120,7 +120,7 @@ instance PPrint TypeScheme where
      genprint lv a opts
 
   genprint _ _ _ =
-    throw $ ProgramError "TypeScheme:genprint: illegal argument"
+    throwNE $ ProgramError "CorePrinter:genprint(TypeScheme): illegal argument"
 
   sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
   pprint a = sprintn Inf a
@@ -134,7 +134,7 @@ instance PPrint Pattern where
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
   genprint _ (PVar _ x) [fvar, _] =  fvar x
   genprint _ (PVar _ x) _ =
-    throw $ ProgramError "Pattern:genprint: illegal argument"
+    throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
   genprint _ (PUnit _) _ = "()"
   genprint _ (PBool _ b) _ = if b then "true" else "false"
   genprint _ (PInt _ n) _ = show n
@@ -146,14 +146,14 @@ instance PPrint Pattern where
     "(" ++ genprint dlv p opts ++
            List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ")"
   genprint lv (PTuple _ []) opts =
-    throw $ ProgramError "Pattern:genprint: illegal tuple"
+    throwNE $ ProgramError "CorePrinter:genprint(Pattern): empty tuple"
 
   genprint lv (PDatacon _ dcon p) opts@[_, fdata] =
     fdata dcon ++ case p of
                     Just p -> "(" ++ genprint (decr lv) p opts ++ ")"
                     Nothing -> ""
   genprint lv (PDatacon _ dcon p) _ =
-    throw $ ProgramError "Pattern:genprint: illegal argument"
+    throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
 
   genprint lv (PConstraint p _) opts =
     genprint lv p opts
@@ -276,7 +276,7 @@ instance PPrint Expr where
     let doc = print_doc lv e fvar fdata in
     PP.render doc
   genprint lv e _ =
-    throw $ ProgramError "Expr:genprint: illegal argument"
+    throwNE $ ProgramError "CorePrinter:genprint(Expr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
@@ -306,7 +306,7 @@ instance PPrint FlagConstraint where
     fflag m ++ " <= " ++ fflag n
 
   genprint lv _ _ =
-    throw $ ProgramError "PPrint:FlagConstraint: missing arguments"
+    throwNE $ ProgramError "CorePrinter:genprint(FlagConstraint): illegal argument"
 
   sprintn _ c = pprint c
   sprint c = pprint c

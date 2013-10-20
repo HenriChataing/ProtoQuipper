@@ -32,13 +32,13 @@ import Typing.TransSyntax
 import Compiler.Preliminaries
 
 import Monad.QpState
-import Monad.Modules
+import Monad.Modules (Module (Mod))
+import qualified Monad.Modules as M
 import Monad.QuipperError
 
 import System.Directory
 import System.FilePath.Posix
 
-import Control.Exception
 import Data.List as List
 import Data.Map as Map
 import Data.IntMap as IMap
@@ -93,10 +93,10 @@ find_in_directories mod@(initial:rest) directories extension = do
 
     (m1:m2:_) ->
         -- Several implementations found
-        throwQ $ DuplicateImplementation mod m1 m2
+        throwNE $ DuplicateImplementation mod m1 m2
 
 find_in_directories "" directories extension = do
-  throw $ ProgramError "find_in_directories: empty module name"
+  fail "Driver:find_in_directories: null module name"
 
 -- | Specifically look for the implementation of a module.
 -- Since an implementation is expected, the function fails if no matching
@@ -110,7 +110,7 @@ find_implementation_in_directories mod directories = do
 
     Nothing ->
         -- The module doesn't exist
-        throwQ $ NonExistingModule mod
+        throwNE $ NonExistingModule mod
 
 
 -- | Specifically look for the interface of a module.
@@ -153,7 +153,7 @@ explore_dependencies dirs prog explored sorted = do
                                  inloop <- return $ explored List.\\ (List.map S.module_name sorted)
                                  (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
 
-                                 throwQ $ CyclicDependencies m (List.reverse (m:loop))
+                                 throwNE $ CircularDependency m (List.reverse (m:loop))
 
                              -- Explore
                              _ -> do
@@ -498,10 +498,10 @@ process_module opts prog = do
 
   -- Push the definition of the new module to the stack
   body <- module_body
-  newmod <- return $ Mod { m_variables = Map.map unLVar vars,
-                           m_datacons = datas,
-                           m_types = Map.map unTUser typs,
-                           m_body = body }
+  newmod <- return $ Mod { M.variables = Map.map unLVar vars,
+                           M.datacons = datas,
+                           M.types = Map.map unTUser typs,
+                           M.body = body }
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
 
@@ -514,10 +514,10 @@ process_module opts prog = do
 
   where
       unLVar (LVar id) = id
-      unLVar _ = throw $ ProgramError "process_module: leftover global variables"
+      unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
       
       unTUser (TBang _ (TUser id _)) = id
-      unTUser _ = throw $ ProgramError "process_module: expected user type expression"
+      unTUser _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
 
 -- ==================================== --
 -- | A function to do everything!
@@ -541,7 +541,7 @@ do_everything opts files = do
                 nm <- process_module (opts, mopts) p
 
 -- TO REMOVE --
-                case m_body nm of
+                case M.body nm of
                   Nothing -> return ()
                   Just e -> do
                       e' <- disambiguate_unbox_calls [] IMap.empty e

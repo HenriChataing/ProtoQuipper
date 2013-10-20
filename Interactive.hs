@@ -23,7 +23,7 @@ import Interpret.Circuits
 
 import Monad.QuipperError
 import Monad.QpState
-import Monad.Modules
+import qualified Monad.Modules as M
 
 import System.IO
 
@@ -63,10 +63,10 @@ import_modules opts mnames ctx = do
                     -- Re-process
                     m <- process_module (opts, mopts) p
                     -- Import
-                    vars <- return $ Map.map (\id -> LGlobal id) $ m_variables m
-                    typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ m_types m
+                    vars <- return $ Map.map (\id -> LGlobal id) $ M.variables m
+                    typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ M.types m
                     return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
-                                                        l_datacons  = Map.union (m_datacons m) $ l_datacons $ labelling ctx,
+                                                        l_datacons  = Map.union (M.datacons m) $ l_datacons $ labelling ctx,
                                                         l_types = Map.union typs $ l_types $ labelling ctx } }                   
                   else do
                     -- Check whether the module has already been imported or not
@@ -238,14 +238,14 @@ run_interactive opts ctx buffer = do
                                       Just v ->
                                           liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                                       Nothing ->
-                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+                                          fail $ "INteractive:run_interactive: undefined global variable: " ++ show x
 
                                 Just (LVar x) -> do
                                     case IMap.lookup x $ environment ctx of
                                       Just v ->
                                           liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                                       Nothing ->
-                                          throwQ $ ProgramError $ "not in scope: " ++ show x
+                                          fail $ "Interactive:run_interactive: undefined variable: " ++ show x
                                 
                                 Nothing ->
                                     liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args

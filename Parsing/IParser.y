@@ -12,8 +12,6 @@ import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 
-import Control.Exception
-
 import Data.Char
 import Data.List as List
 }
@@ -102,6 +100,6 @@ parse :: [Token] -> [(String, Type)]
 -- is \'Unexpected end of file\'; this occurs when the parser encounters an incomplete expression. Otherwise, the head corresponds to the location where
 -- the parsing failed.
 parseError :: [Token] -> a
-parseError [] = throw $ ParsingError "Unknown"
-parseError tokens = throw $ ParsingError (show $ head tokens)
+parseError [] = throwNE EndOfFileError
+parseError tokens = throwNE $ ParsingError (show $ head tokens)
 } 

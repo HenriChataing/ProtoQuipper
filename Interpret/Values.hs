@@ -12,6 +12,7 @@ module Interpret.Values where
 
 import Classes
 import Utils
+
 import Monad.QuipperError
 
 import Typing.CoreSyntax
@@ -19,11 +20,10 @@ import Typing.CorePrinter
 
 import Interpret.Circuits
 
-import Control.Exception
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-import Data.Char
+
 
 -- | The type of values.
 data Value =
@@ -56,7 +56,7 @@ instance PPrint Value where
   genprint l (VInt n) opts = show n
   genprint l (VTuple (v:rest)) opts = "(" ++ genprint l v opts ++ List.foldl (\s w -> s ++ ", " ++ genprint l w opts) "" rest ++ ")"
   genprint l (VTuple []) opts = 
-    throw $ ProgramError "Value:genprint: illegal tuple"
+    throwNE $ ProgramError "Values:genprint: illegal tuple"
   genprint l (VCirc _ c _) opts = pprint c
   genprint l (VSumCirc _) opts = "<circ>"
   genprint l (VFun _ _ _) opts = "<fun>"
@@ -78,7 +78,7 @@ instance PPrint Value where
                        Just e -> " " ++ genprint l e [f]
                        Nothing -> ""
   genprint l (VDatacon datacon e) opts =
-    throw $ ProgramError "Value:genprint: illegal argument"
+    throwNE $ ProgramError "Values:genprint: illegal argument"
   genprint l (VUnboxed _) opts = "<fun>"
   genprint l (VBox t) opts = "<fun>"
 
@@ -98,14 +98,6 @@ instance Eq Value where
     else
       False
   (==) (VDatacon dcon v) (VDatacon dcon' v') = (dcon == dcon') && (v == v')
-  (==) _ _ = throw $ ProgramError "Value:==: illegal argument"
+  (==) _ _ = throwNE $ ProgramError "Values:==: illegal argument"
 
-
--- | Return the string corresponding to a value (supposedly a string).
-string_of_value :: Value -> String
-string_of_value (VDatacon _ Nothing) = ""
-string_of_value (VDatacon _ (Just (VTuple [VDatacon _ (Just (VInt c)), rest]))) =
-  (chr c):(string_of_value rest)
-string_of_value v =
-  throw $ RunTimeError $ "value is not a string: " ++ pprint v 
 

@@ -7,9 +7,9 @@ module Parsing.Syntax where
 import Classes
 
 import Parsing.Location
+
 import Monad.QuipperError
 
-import Control.Exception
 import Data.Char
 import Data.Map
 import Data.List as List
@@ -307,7 +307,7 @@ data XExpr a =
 multi_EFun :: [Pattern] -> Expr -> XExpr a
 multi_EFun [p] e = EFun p e
 multi_EFun (p:ps) e = EFun p (multi_EFun ps e)
-multi_EFun [] e = throw $ ProgramError "multi_EFun: empty pattern list"
+multi_EFun [] e = throwNE $ ProgramError "Syntax:multi_EFun: empty pattern list"
 
 
 -- | X-expressions are located objects.
@@ -423,10 +423,10 @@ gen_pattern_of_xexpr_loc ex (EApp e1 e2) =
       if isPVar p then AppPattern (p, [p2])
       else case isPDatacon p of
         Just d -> SimplePattern (PDatacon d (Just p2))
-        Nothing -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
+        Nothing -> throw (ParsingOtherError "bad pattern") ex
   where
     p2 = pattern_of_xexpr_loc ex e2
-gen_pattern_of_xexpr_loc ex _ = throw $ locate_opt (ParsingOtherError "bad pattern") ex
+gen_pattern_of_xexpr_loc ex _ = throw (ParsingOtherError "bad pattern") ex
 
 -- | Auxiliary function for 'pattern_of_xexpr'. The first argument
 -- is the location of the surrounding expression, if known.
@@ -434,7 +434,7 @@ pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> Pattern
 pattern_of_xexpr_loc ex e = 
   case gen_pattern_of_xexpr_loc ex e of
     SimplePattern p -> p
-    _ -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
+    _ -> throw (ParsingOtherError "bad pattern") ex
 
 -- | Auxiliary function for 'app_pattern_of_xexpr'. The first argument
 -- is the location of the surrounding expression, if known.
@@ -442,7 +442,7 @@ app_pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> AppPattern
 app_pattern_of_xexpr_loc ex e = 
   case gen_pattern_of_xexpr_loc ex e of
     AppPattern ap -> ap
-    _ -> throw $ locate_opt (ParsingOtherError "bad pattern: defined function needs at least one parameter") ex
+    _ -> throw (ParsingOtherError "defined function needs at least one parameter") ex
 
 -- ----------------------------------------------------------------------
 -- * Converting x-expressions to expressions.
@@ -456,7 +456,7 @@ expr_of_xexpr = expr_of_xexpr_loc Nothing
 -- | Auxiliary function for 'expr_of_xexpr'. The first argument is the
 -- location of the surrounding expression, if known.
 expr_of_xexpr_loc :: Maybe Extent -> XExpr a -> Expr
-expr_of_xexpr_loc ex (EWildcard a) = throw $ locate_opt (ParsingError "_") ex
+expr_of_xexpr_loc ex (EWildcard a) = throw (ParsingError "_") ex
 expr_of_xexpr_loc ex (EVar x) = EVar x
 expr_of_xexpr_loc ex (EQualified x y) = EQualified x y
 expr_of_xexpr_loc ex (EFun p e) = EFun p e

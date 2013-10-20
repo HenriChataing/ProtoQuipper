@@ -103,8 +103,6 @@ import qualified Monad.QpState as Q (is_qdata_lintype, is_qdata_type)
 import Monad.Modules (Module)
 import qualified Monad.Modules as M
 
-import Control.Exception
-
 import Data.Map as Map
 import qualified Data.List as List
 import Data.IntMap (IntMap)
@@ -160,7 +158,7 @@ import_typedefs dblock label = do
                          -- Type id needed for udpates.
                          typeid <- case Map.lookup typename typs of
                                  Just (TBang _ (TUser id _)) -> return id
-                                 _ -> throwQ $ ProgramError "missing type id"
+                                 _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
 
                          -- Bind the arguments of the type.
                          -- For each string argument a, a type !n a is created and bound in the map mapargs.
@@ -261,9 +259,7 @@ unfold_all names = do
   -- end
   ctx <- get_context
   (finish, ctx) <- List.foldl (\rec (n, s, after) -> do
-                                 let spec = case s of
-                                       Left spec -> spec
-                                       _ -> throw $ ProgramError "unfold_all: bad spec"
+                                 let spec = unTypedef s
                                  (b, ctx) <- rec
                                  (a, a', subt) <- return $ d_subtype spec
                                  before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
@@ -285,6 +281,9 @@ unfold_all names = do
   -- Continue or not with the recursion
   set_context ctx
   unfold_all finish
+    where
+      unTypedef (Left spec) = spec
+      unTypedef _ = throwNE $ ProgramError "TransSyntax:unfold_all: unexpected type synonym"
 
 
 -- | Infer the subtyping relation rules of all the user defined types.
@@ -297,16 +296,12 @@ define_user_subtyping dblock = do
   List.foldl (\rec n -> do
                 rec
                 s <- type_spec n
-                let spec = case s of
-                      Left spec -> spec
-                      _ -> throw $ ProgramError "define_user_subtyping: bad spec"
+                let spec = unTypedef s
                 -- One version of the unfolded type
                 (a, ufold) <- return $ d_unfolded spec
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'
                 (a', ufold') <- List.foldr (\(TBang n t) rec -> do
-                                              let x = case t of 
-                                                     TVar x -> x
-                                                     _ -> throw $ ProgramError "define_user_subtyping: non-atomic constraint"
+                                              let x = unTVar t
                                               (a', ufold') <- rec
                                               b@(TBang m (TVar y)) <- new_type
                                               ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_typ_var x (TVar y) typ)) ufold'
@@ -325,6 +320,12 @@ define_user_subtyping dblock = do
   -- Unfold until the constraint set is stable
   unfold_all dblock
   newlog 0 "<<\n"
+    where
+      unTypedef (Left spec) = spec
+      unTypedef _ = throwNE $ ProgramError "TransSyntax:define_user_subtyping: unexpected type synonym"
+
+      unTVar (TVar x) = x
+      unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_subtyping: unexpected non-atomic constraint"
 
 
 
@@ -451,11 +452,8 @@ define_user_properties dblock = do
                          Left spec <- type_spec n
                          -- Replace the arguments by qubit in the unfolded definition
                          argtyps <- return $ List.map (\(_, argtyp) ->
-                                                         List.foldl (\a (TBang _ t) ->
-                                                                      case t of
-                                                                        TVar x -> subs_typ_var x TQubit a
-                                                                        _ -> throw $ ProgramError "define_user_properties"
-                                                                    ) argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
+                                                         List.foldl (\a (TBang _ t) -> subs_typ_var (unTVar t) TQubit a)
+                                                                    argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
                          -- Check each of the types for quantum data types
                          (b, deps) <- List.foldl (\rec a -> do
                                                     (b, deps) <- rec
@@ -492,7 +490,9 @@ define_user_properties dblock = do
                 
 
     newlog 0 "<<\n"
-
+    where
+      unTVar (TVar x) = x
+      unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_properties: unexpected non-variable argument"
 
 
 
@@ -535,7 +535,7 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (TBang n $ TUser id (as ++ arg), label)
         else do
           ex <- get_location
-          throw $ LocatedError (WrongTypeArguments x nexp nact) ex
+          throwQ (WrongTypeArguments x nexp nact) ex
 
     -- The variable is just a bound type.
     Just typ ->
@@ -543,14 +543,14 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (typ, label)
         else do
           ex <- get_location
-          throw $ LocatedError (WrongTypeArguments (pprint typ) 0 (List.length arg)) ex
+          throwQ (WrongTypeArguments (pprint typ) 0 (List.length arg)) ex
 
     -- If the variable is not found, it can be a free variable (depending on the boolean arg)
     Nothing -> do
         if bound then do
           -- If the type variables are supposed to be bound, this one isn't.
           ex <- get_location
-          throw $ LocatedError (UnboundVariable x) ex
+          throwQ (UnboundVariable x) ex
 
         else do
           -- Last case, if the type authorize free variables, register this one with a new type
@@ -572,7 +572,7 @@ translate_type (S.TQualified m x) arg lbl = do
     return (TBang n (TUser id arg), fst lbl)
   else do
     ex <- get_location
-    throw $ LocatedError (WrongTypeArguments x nexp nact) ex
+    throwQ (WrongTypeArguments x nexp nact) ex
 
 translate_type (S.TArrow t u) [] (label, bound) = do
   (t', lblt) <- translate_type t [] (label, bound)
@@ -615,7 +615,7 @@ translate_type (S.TForall a typ) [] (label, bound) = do
 -- Remaining cases: of types applied to an argument when they are not generic
 translate_type t args label = do
   ex <- get_location
-  throw $ LocatedError (WrongTypeArguments (pprint t) 0 (List.length args)) ex
+  throwQ (WrongTypeArguments (pprint t) 0 (List.length args)) ex
 
 
 
@@ -821,7 +821,7 @@ translate_expression (S.EBox t) label = do
   qdata <- Q.is_qdata_type t'
   if not qdata then do
     prt <- pprint_type_noref t'
-    throwQ $ LocatedError (BoxTypeError prt) ex
+    throwQ (BadBoxType prt) ex
 
   else do
     -- The translation of the type of the box in the core syntax produces
@@ -859,7 +859,7 @@ translate_expression (S.EBuiltin s) label = do
     Nothing -> do
         -- Wrong, no built-in of name s has been defined
         ex <- get_location
-        throwQ $ LocatedError (UndefinedBuiltin s) ex
+        throwQ (UndefinedBuiltin s) ex
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label

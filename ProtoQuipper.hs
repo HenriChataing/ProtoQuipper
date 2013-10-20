@@ -57,5 +57,5 @@ main = do
            _ <- Q.runS (do
                Q.set_verbose (verbose opts)
                do_everything opts files) Q.empty_context
-           return ()) `E.catch` (\(e :: QError) -> hPutStrLn stderr $ show e)
+           return ()) `E.catch` (\(e :: QuipperError) -> hPutStrLn stderr $ show e)
 

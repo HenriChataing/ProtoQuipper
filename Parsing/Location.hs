@@ -25,7 +25,7 @@ data Extent = Ext {
 
 instance Show Extent where
   show ex =
-    file ex ++ ":" ++
+    (if file ex == "" then "" else file ex ++ ":") ++
     if (line $ lbegin ex) == (line $ lend ex) then
       ((show $ line $ lbegin ex) ++ ":" ++
        (show $ column $ lbegin ex) ++ "-" ++

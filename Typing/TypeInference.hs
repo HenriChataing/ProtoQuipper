@@ -20,8 +20,6 @@ import Monad.QuipperError
 import Monad.QpState
 import Monad.Modules
 
-import Control.Exception as E
-
 import Data.List ((\\))
 import qualified Data.List as List
 import Data.Sequence as Seq hiding (filter)
@@ -128,7 +126,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
               case IMap.lookup x g of
                 Just c -> IMap.insert x (y:c) g
                 Nothing -> IMap.insert x [y] g
-          _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
+          _ -> throwNE $ ProgramError "TypeInference:make_polymorphic_type: unexpected unreduced constraint") IMap.empty lc
  
   let initv = List.filter keepvar $ IMap.keys g
   cs' <- walk_all initv g keepvar (\a b ->
@@ -655,7 +653,7 @@ constraint_typing gamma (EDatacon ref dcon e) cst = do
         return $ ((u <:: cst) & info) <> csete <> (csetd & info)
 
     (TBang _ _, Just _) ->
-        throw $ ProgramError "constraint_typing: ill-typed data constructor"
+        fail "TypeInference:constraint_typing: ill-typed data constructor"
 
 -- Match typing rule
 --
@@ -829,8 +827,8 @@ unify_with_poset exact poset (lc, fc) = do
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
                                                        Sublintype (TVar x) _ _ -> List.elem x cx
                                                        Sublintype _ (TVar y) _ -> List.elem y cx
-                                                       Sublintype _ _ _ -> throw $ ProgramError "unify_with_poset: non-atomic constraint"
-                                                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                                                       Sublintype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
+                                                       Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
         ) lc
     -- Log
     logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -877,10 +875,10 @@ unify_with_poset exact poset (lc, fc) = do
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
                          Sublintype t _ _ -> return $ t
-                         Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                         Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
             rightend <- case List.last sorted of
                           Sublintype _ t _ -> return t
-                          Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                          Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
 
             -- One of the ends must be composite
             case (leftend, rightend) of
@@ -923,8 +921,8 @@ unify_with_poset exact poset (lc, fc) = do
             model <- case List.head cset of
                        Sublintype (TVar _) t _ -> return t
                        Sublintype t (TVar _) _ -> return t
-                       Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
-                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                       Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                       Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                         
 
             -- Map the youngest variables each to a new specimen of the model
@@ -942,7 +940,7 @@ unify_with_poset exact poset (lc, fc) = do
                                         yt <- appmap y
                                         atom' <- break_composite True ([Sublintype xt yt info], [])
                                         return $ atom' <> atom
-                                      _ -> throw $ ProgramError "unify_with_poset: bad constraint"
+                                      _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                                  ) (return emptyset) atomx
 
             -- Rewrite and reduce the semi composite constraints
@@ -959,8 +957,8 @@ unify_with_poset exact poset (lc, fc) = do
                                          cs' <- break_composite True ([Sublintype t yt info], [])
                                          return $ cs' <> cs
 
-                                     Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
-                                     Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                                     Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                                     Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non_atomic constraint"
                                 )  (return emptyset) cset
 
             -- Register the relations defined by those new constraints

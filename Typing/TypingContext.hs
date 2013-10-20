@@ -47,7 +47,7 @@ type_of x ctx = do
         c <- get_context
         ex <- get_location
         name <- variable_name x
-        throwQ $ ProgramError $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
+        fail $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
 
 
 -- | Given a pattern, create a type matching the pattern, and bind, in a new typing context, the term variables of the pattern
@@ -116,7 +116,7 @@ bind_pattern (PDatacon _ dcon p) = do
     _ -> do
         ex <- get_location
         ndcon <- datacon_name dcon
-        throwQ $ LocatedError (WrongDataArguments ndcon) ex
+        throwQ (WrongDataArguments ndcon) ex
 
 -- While binding to a pattern with a type constraint,
 -- do things normally, and add a constraint on the actual type of the pattern

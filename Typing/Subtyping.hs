@@ -9,7 +9,6 @@ import Typing.CorePrinter
 import Monad.QuipperError
 import Monad.QpState
 
-import Control.Exception
 import qualified Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -33,23 +32,21 @@ unfold_user_constraint utyp arg utyp' arg' = do
 
   -- Replace the arguments a by arg
   cset <- List.foldl (\rec (TBang n t, TBang m b) -> do
-                        let x = case t of 
-                              TVar x -> x
-                              _ -> throw $ ProgramError "unfold_user_constraint: non-atomic constraint"
+                        let x = unTVar t
                         cs <- rec
                         cset <- return $ subs_flag n m cs
                         return $ subs_typ_var x b cset) (return cset) (List.zip a arg)
   -- Replace the arguments a' by arg'
   cset <- List.foldl (\rec (TBang n t, TBang m b) -> do
-                        let x = case t of 
-                              TVar x -> x
-                              _ -> throw $ ProgramError "unfold_user_constraint: non-atomic constraint"
+                        let x = unTVar t
                         cs <- rec
                         cset <- return $ subs_flag n m cs
                         return $ subs_typ_var x b cset) (return cset) (List.zip a' arg')
 
   return cset
-
+    where
+      unTVar (TVar x) = x
+      unTVar _ = throwNE $ ProgramError "Subtyping:unfold_user_constraint: unexpected non-atomic constraint"
 
 
 -- | Apply the function 'unfold_user_constraints' to the constraints in a constraint set.
@@ -185,7 +182,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
                                      t <- return $ subs_typ_var a a' t
                                      return $ subs_flag n n' t
                                  _ ->
-                                    throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+                                    fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
           break_composite bu ((Sublintype (no_bang typ) (TUser utyp' arg') info):lc, fc)
 
       (_, Right Typesyn { s_unfolded = (args, typ) }) -> do
@@ -196,7 +193,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
                                      t <- return $ subs_typ_var a a' t
                                      return $ subs_flag n n' t
                                  _ ->
-                                     throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg')
+                                     fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg')
           break_composite bu ((Sublintype (TUser utyp arg) (no_bang typ) info):lc, fc)
 
       (Left _, Left _) -> 
@@ -239,7 +236,7 @@ break_composite bu ((Sublintype (TUser utyp arg) u info):lc, fc) = do
                                    t <- return $ subs_typ_var a a' t
                                    return $ subs_flag n n' t
                                _ -> 
-                                   throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+                                   fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
         break_composite bu ((Sublintype (no_bang typ) u info):lc, fc)
 
     -- Algebraic type -> error
@@ -258,7 +255,7 @@ break_composite bu ((Sublintype t (TUser utyp arg) info):lc, fc) = do
                                    t <- return $ subs_typ_var a a' t
                                    return $ subs_flag n n' t
                                _ -> 
-                                   throwQ $ ProgramError "Subtyping: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
+                                   fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
         break_composite bu ((Sublintype t (no_bang typ) info):lc, fc)
 
     -- Algebraic type -> error

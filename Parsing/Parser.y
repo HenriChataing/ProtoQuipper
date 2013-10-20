@@ -11,8 +11,6 @@ import Parsing.Syntax
 
 import Monad.QuipperError
 
-import Control.Exception
-
 import Data.Char
 import Data.List as List
 }
@@ -139,7 +137,7 @@ Var_list :
     | LID Var_list                              { if List.length (snd $1) == 1 then
                                                     (snd $1):$2
                                                   else
-                                                    throw $ ParsingError (show $1) }
+                                                    throwNE $ ParsingError (show $1) }
 
 
 {- Body of the program : list
@@ -382,6 +380,6 @@ parse :: [Token] -> Program
 -- is \'Unexpected end of file\'; this occurs when the parser encounters an incomplete expression. Otherwise, the head corresponds to the location where
 -- the parsing failed.
 parseError :: [Token] -> a
-parseError [] = throw $ ErrorEndOfFile
-parseError tokens = throw $ ParsingError (show $ head tokens)
+parseError [] = throwNE EndOfFileError
+parseError tokens = throwNE $ ParsingError (show $ head tokens)
 } 

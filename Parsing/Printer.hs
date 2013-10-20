@@ -16,7 +16,6 @@ import Parsing.Syntax
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
-import Control.Exception
 import Monad.QuipperError
 
 instance PPrint Type where
@@ -46,7 +45,7 @@ instance PPrint Type where
                      TTensor _ -> "(" ++ sprintn dlv b ++ ")"
                      _ -> sprintn dlv a)) "" rest
   sprintn ln (TTensor []) =
-    throw $ ProgramError "Type:sprintn: bad tensor"
+    throwNE $ ProgramError "Type:sprintn: empty tensor type"
 
   sprintn lv (TArrow a b) =
     let dlv = decr lv in
