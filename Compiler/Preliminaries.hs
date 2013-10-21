@@ -378,12 +378,15 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
               disambiguate_unbox_calls arg mod elet
 
           -- Datacon case, again, unfold the let-binding
-          (C.PDatacon _ dcon (Just p), C.EDatacon _ dcon' (Just e)) | dcon == dcon' -> do
+          (C.PDatacon _ dcon (Just p), C.EDatacon ref' dcon' (Just e)) | dcon == dcon' -> do
               let elet = C.ELet ref r p e' f
               disambiguate_unbox_calls arg mod elet
-                                                                    | otherwise ->
-              -- This case always leads to a matching error, so just replace it
-              -- by the appropriate built-in function : PATTERN_ERROR
+                                                                       | otherwise -> do
+              -- This case always leads to a matching error.
+              -- Raise a warning
+              ri <- ref_info_err ref'
+              warnQ FailedMatch (C.r_location ri)
+              -- And replace it by the appropriate built-in function : PATTERN_ERROR
               return $ C.EBuiltin 0 "PATTERN_ERROR"
 
           -- All other cases should be unreachable
@@ -480,7 +483,7 @@ data DecisionTree =
 data NextStep =
     InTuple Int        -- ^ The information is the Nth element of a tuple.
   | InDatacon Datacon  -- ^ The information is the argument of a record.
-  | InLabel            -- ^ The information is the label of a record. Since at the moment of the test the label is unknown, this extractor is not annotated.
+  | InTag            -- ^ The information is the label of a record. Since at the moment of the test the label is unknown, this extractor is not annotated.
   deriving (Show, Eq, Ord)
 
 
@@ -491,19 +494,25 @@ type TestLocation = [NextStep]
 -- | The result of a test.
 data TestResult =
     RInt Int                -- ^ The result of the test is an integer.
-  | RRemainInt              -- ^ As a matching on integers is never complete, this constructor stands for all the integers not present in the test patterns.
+  | ROtherInt [Int]         -- ^ Represents the set of all the integers not listed by the argument.
   | RBool Bool              -- ^ The result is a boolean.
   | RDatacon Datacon        -- ^ The result is a data constructor.
   deriving (Show, Eq)
 
+
 -- | Return the kind of a list of results. It is typically a result of the list.
 rkind :: [TestResult] -> TestResult
 rkind [] =
-  error "rkind: empty list"
+  throwNE $ ProgramError "Preliminaries:rkind: empty list"
 rkind (RInt _:_) = RInt 0
-rkind (RRemainInt:_) = RInt 0
+rkind (ROtherInt _:_) = RInt 0
 rkind (RBool _:_) = RBool True
 rkind (RDatacon _:_) = RDatacon 0
+
+
+-- | On the supposion that the result is 'RInt', return the associated integer.
+int_of_result (RInt i) = i
+int_of_result _ = 0
 
 
 -- | Build the list of the tests relevant to a pattern. The result of the test is returned each time.
@@ -523,7 +532,7 @@ relevant_tests p =
               if List.length all == 1 then
                 return []
               else
-                return [(List.reverse $ InLabel:ns, RDatacon dcon)]
+                return [(List.reverse $ InTag:ns, RDatacon dcon)]
           C.PDatacon _ dcon (Just p) -> do
               typ <- datacon_datatype dcon
               all <- all_data_constructors typ
@@ -531,7 +540,7 @@ relevant_tests p =
                 ptests ((InDatacon dcon):ns) p
               else do
                 tset <- ptests ((InDatacon dcon):ns) p
-                return $ (List.reverse $ InLabel:ns, RDatacon dcon):tset
+                return $ (List.reverse $ InTag:ns, RDatacon dcon):tset
           C.PConstraint p _ -> ptests ns p
           C.PTuple _ plist ->
               List.foldl (\rec (n, p) -> do
@@ -548,106 +557,155 @@ build_decision_tree plist = do
   -- Build the relevant tests first. Patterns are numbered from left to right, from 0 to n-1.
   -- For each test, the list of patterns for which it is relevant is added, along with the list of possible values.
   tset <- List.foldl (\rec (n,p) -> do
-          tset <- rec
-          tlist <- relevant_tests p
-          return $ List.foldl (\tset (test, result) ->
-                  case Map.lookup test tset of
-                    Nothing ->
-                        Map.insert test [(n,result)] tset
-                    Just results ->
-                        Map.insert test ((n, result):results) tset) tset tlist) (return Map.empty) (List.zip [0..(List.length plist)-1] plist)
+        tset <- rec
+        tlist <- relevant_tests p
+        return $ List.foldl (\tset (test, result) ->
+              case Map.lookup test tset of
+                Nothing ->
+                    Map.insert test [(n,result)] tset
+                Just results ->
+                    Map.insert test ((n, result):results) tset) tset tlist) (return Map.empty) (List.zip [0..(List.length plist)-1] plist)
   
   -- Build the decision tree upon the patterns remaining after the test defined by the given prefix.
-  build_tree <- return (let build_tree = \tests patterns -> do
-                            case (tests, patterns) of
-                              -- Non-exhaustive pattern matching
-                              (_, []) -> return $ Result (-1)
-                              -- One pattern has been identified
-                              ([], [n]) -> return $ Result n
-                              -- Redundency
-                              ([], n:ns) -> return $ Result n
+  let build_tree = \tests patterns -> do
+        case (tests, patterns) of
+          -- Non-exhaustive pattern matching
+          (_, []) -> return (Result (-1), [])
+          -- One pattern has been identified
+          ([], [n]) -> return (Result n, [])
+          -- Redundency
+          ([], n:ns) -> return (Result n, [])
+          -- Undecided
+          (t:ts, _) -> do
+              -- Determine the test to do next, based on the relevance.
+              let next = List.foldl (\(t, results) (t', results') ->
+                    -- Test the validity of the comparison (can't test 1.2.3 before 1.2)
+                    if List.isPrefixOf t' t then
+                      (t', results')
+                    else if List.isPrefixOf t t' then
+                      (t, results)
+                    else
+                      -- Compare the lowest relevant pattern
+                      let min = List.minimum $ fst $ List.unzip results
+                          min' = List.minimum $ fst $ List.unzip results' in
+                      if min' < min then
+                        (t', results')
+                      else if min < min' then
+                        (t, results)
+                      else
+                        -- If the previous test didn't work, compare the branching factor
+                        let branching = List.length $ List.nub $ snd $ List.unzip results
+                            branching' = List.length $ List.nub $ snd $ List.unzip results' in
+                        if branching' < branching then
+                          (t', results')
+                        else
+                          (t, results)) t ts
 
-                              (t:ts, _) -> do
-                                  -- Determine the test to do next, based on the relevance.
-                                  next <- return $ List.foldl (\(t, results) (t', results') ->
-                                                           -- Test the validity of the comparison (can't test 1.2.3 before 1.2)
-                                                           if List.isPrefixOf t' t then
-                                                             (t', results')
-                                                           else if List.isPrefixOf t t' then
-                                                             (t, results)
-                                                           else
-                                                             let min = List.minimum $ fst $ List.unzip results
-                                                                 min' = List.minimum $ fst $ List.unzip results' in
-                                                             -- Compare the lowest relevant pattern
-                                                             if min' < min then
-                                                               (t', results')
-                                                             else if min < min' then
-                                                               (t, results)
-                                                             else
-                                                               let branching = List.length $ List.nub $ snd $ List.unzip results
-                                                                   branching' = List.length $ List.nub $ snd $ List.unzip results' in
-                                                               -- If the previous test didn't work, compare the branching factor
-                                                               if branching' < branching then
-                                                                 (t', results')
-                                                               else
-                                                                 (t, results)) t ts
+              -- Gather the possible results.
+              results <- return $ List.nub $ snd $ List.unzip $ snd next
+              results <- case List.head results of
+                    -- If the result is a data constructor, all the possible results are the constructors from the same type.
+                    RDatacon dcon -> do
+                        typ <- datacon_datatype dcon
+                        all <- all_data_constructors typ
+                        return $ List.map (\dcon -> RDatacon dcon) all
+                    -- If the result is an integer, all the possible results are the ones listed here, plus the remaining integers in ROtherInt.
+                    RInt _ ->
+                       return $ (ROtherInt $ List.map int_of_result results):results
+                    -- If the result is a boolean, check that both true and false are present
+                    RBool _ ->
+                       return [RBool True, RBool False]
+                    _ ->
+                       return results
 
-                                  -- Gather the possible results.
-                                  results <- return $ List.nub $ snd $ List.unzip $ snd next
-                                  results <- case List.head results of
-                                               -- If the result is a data constructor, all the possible results are the constructors from the same type.
-                                               RDatacon dcon -> do
-                                                  typ <- datacon_datatype dcon
-                                                  all <- all_data_constructors typ
-                                                  return $ List.map (\dcon -> RDatacon dcon) all
-                                               -- If the result is an integer, all the possible results are the ones listed here, plus the remaining integers in RRemainInt.
-                                               RInt _ ->
-                                                   return $ RRemainInt:results
-                                               -- If the result is a boolean, check that both true and false are present
-                                               RBool _ ->
-                                                   return [RBool True, RBool False]
-                                               _ ->
-                                                   return results
-                                  
-                                  -- The remaining tests
-                                  rtests <- return $ List.delete next tests
+              -- The remaining tests
+              rtests <- return $ List.delete next tests
 
-                                  -- Build the subtress
-                                  subtrees <- List.foldl (\rec res -> do
-                                                             subtrees <- rec
-                                                             -- List of the patterns matching this condition
-                                                             patterns_ok <- return $ List.filter (\p -> case List.lookup p (snd next) of
-                                                                                                    Just r -> r == res
-                                                                                                    -- This case corresponds to the patterns var and wildcard, that match everything
-                                                                                                    -- and yet are not relevant
-                                                                                                    Nothing -> True) patterns
-                                                             -- List of the tests relevant for these patterns
-                                                             relevant_tests <- return $ List.filter (\(_, results) -> List.intersect (fst $ List.unzip results) patterns_ok /= []) rtests
+              -- Build the subtress. At the same time, the list of unmatched cases is built.
+              (subtrees, unmatched) <- List.foldl (\rec res -> do
+                    (subtrees, unmatched) <- rec
+                    -- List of the patterns matching this condition
+                    patterns_ok <- return $ List.filter (\p ->
+                          case List.lookup p (snd next) of
+                            Just r -> r == res
+                            -- This case corresponds to the patterns var and wildcard, that match everything
+                            -- and yet are not relevant
+                            Nothing -> True) patterns
 
-                                                             -- If no test is relevant to the FIRST pattern, then it passes all the tests
-                                                             case patterns_ok of
-                                                               [] -> do
-                                                                   -- A pattern error
-                                                                   return $ (res, Result (-1)):subtrees
+                    -- List of the tests relevant for these patterns. Also, remove the uneeded results in each of the tests.
+                    let relevant_tests = List.filter (\(_, results) -> List.intersect (fst $ List.unzip results) patterns_ok /= []) rtests
+                        relevant_tests' = List.map (\(t, results) -> (t, List.filter (\(p, _) -> List.elem p patterns_ok) results)) relevant_tests
 
-                                                               n:_ -> do
-                                                                   -- Count the tests relevant to this particular pattern
-                                                                   rtests <- return $ List.filter (\(_, results) -> List.elem n $ fst $ List.unzip results) relevant_tests
-                                                                   if List.length rtests == 0 then
-                                                                     -- No need to take other tests
-                                                                     return $ (res, Result n):subtrees
-                                                                   else do
-                                                                     -- Else, do the normal stuff
-                                                                     -- Build the subtree
-                                                                     nsub <- build_tree relevant_tests patterns_ok
-                                                                     -- Return the rest
-                                                                     return $ (res, nsub):subtrees) (return []) results
-                  
-                                  -- Assemble the final tree
-                                  return $ Test (fst $ next) subtrees in
-                                build_tree)
+                    -- If no test is relevant to the FIRST pattern, then it passes all the tests
+                    case patterns_ok of
+                      [] -> do
+                          -- A pattern error
+                          -- Build a sample pattern that corresponds to the unmatched case
+                          let pcase = modify_pattern (plist !! List.head patterns) (fst next) res
+                          -- Printing
+                          fdata <- display_datacon
+                          let prcase = genprint Inf pcase [\_ -> "x", fdata]
+                          -- In case the expected result is 'ROtherInt', display the list of non-admissible integers as well
+                          let prcase' =
+                                case res of
+                                  ROtherInt (i:is) ->
+                                      prcase ++ " where x is not in {" ++
+                                      show i ++ List.foldl (\s i -> s ++ ", " ++ show i) "" is ++ "}"
+                                  _ ->
+                                      prcase
+                          return ((res, Result (-1)):subtrees, prcase':unmatched)
 
-  build_tree (Map.assocs tset) [0..(List.length plist)-1]
+                      n:_ -> do
+                          -- Count the tests relevant to this particular pattern
+                          rtests <- return $ List.filter (\(_, results) -> List.elem n $ fst $ List.unzip results) relevant_tests'
+                          if List.length rtests == 0 then
+                            -- No need to take other tests
+                            return ((res, Result n):subtrees, unmatched)
+                          else do
+                            -- Else, do the normal stuff
+                            -- Build the subtree
+                            (nsub, unmatched') <- build_tree relevant_tests' patterns_ok
+                            -- Return the rest
+                            return ((res, nsub):subtrees, unmatched'++unmatched)) (return ([], [])) results
+                        
+              -- Assemble the final tree
+              return (Test (fst $ next) subtrees, unmatched)
+
+  (tree, unmatched) <- build_tree (Map.assocs tset) [0..(List.length plist)-1]
+
+  -- If unexhaustive match, send a warning
+  let unmatched' = List.nub unmatched
+  if unmatched' == [] then
+    return ()
+  else do
+    ex <- get_location
+    warnQ (UnexhaustiveMatch unmatched') ex
+
+  -- Return the decision tree
+  return tree
+
+  where
+      modify_pattern _ [] (ROtherInt ns) = C.PVar 0 0
+      modify_pattern _ [] (RInt n) = C.PInt 0 n
+      modify_pattern _ [] (RBool b) = C.PBool 0 b
+      modify_pattern (C.PTuple r plist) ((InTuple n):ns) res =
+        let plist' = List.map (\(m, p) ->
+              if n == m then
+                modify_pattern p ns res
+              else
+                p) (List.zip [0..List.length plist-1] plist) in
+        C.PTuple r plist'
+      modify_pattern (C.PDatacon r dcon (Just _)) [InTag] (RDatacon dcon') =
+        C.PDatacon r dcon' (Just $ C.PWildcard 0)
+      modify_pattern (C.PDatacon r dcon Nothing) [InTag] (RDatacon dcon') =
+        C.PDatacon r dcon' Nothing
+      modify_pattern (C.PDatacon r dcon (Just p)) ((InDatacon _):ns) res =
+        let p' = modify_pattern p ns res in
+        C.PDatacon r dcon (Just p')
+      modify_pattern (C.PVar _ _) _ _ =
+        C.PWildcard 0
+      modify_pattern _ _ _ =
+        throwNE $ ProgramError "Preliminaries;modify_pattern: illegal arguments"
 
 
 -- | Extract the variables of a pattern, and return the sequence of functions applications necessary to retrieve them.
@@ -672,13 +730,13 @@ pattern_variables p =
 longest_prefix :: [(TestLocation, Variable)] -> TestLocation -> (TestLocation, Variable, TestLocation)
 longest_prefix extracted test =
   List.foldl (\(t, var, suf) (t', var') ->
-                case List.stripPrefix t' test of
-                  Nothing -> (t, var, suf)
-                  Just suf' ->
-                    if List.length suf' <= List.length suf then
-                      (t', var', suf')
-                    else
-                      (t, var, suf)) ([], -1, test) extracted
+        case List.stripPrefix t' test of
+          Nothing -> (t, var, suf)
+          Just suf' ->
+              if List.length suf' <= List.length suf then
+                (t', var', suf')
+              else
+                (t, var, suf)) ([], -1, test) extracted
 
 
 -- | Complete the extraction of a piece of information. The argument should be the variable closest to the information we want to access.
@@ -693,9 +751,9 @@ extract (prefix, var, loc) =
       -- Build some intermediary variables
       var' <- dummy_var
       let exp = case l of
-                  InTuple n -> EAccess n var
-                  InDatacon dcon -> EBody dcon var
-                  InLabel -> ETag var
+            InTuple n -> EAccess n var
+            InDatacon dcon -> EBody dcon var
+            InTag -> ETag var
       let nprefix = prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
       return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
@@ -715,9 +773,9 @@ extract_var (prefix, var, loc) endvar =
     l:ls -> do
         var' <- dummy_var
         let exp = case l of
-                    InTuple n -> EAccess n var
-                    InDatacon dcon -> EBody dcon var
-                    InLabel -> ETag var
+              InTuple n -> EAccess n var
+              InDatacon dcon -> EBody dcon var
+              InTag -> ETag var
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
         return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
@@ -731,79 +789,78 @@ simplify_pattern_matching e blist = do
   dtree <- build_decision_tree patterns                         
 
   -- The 'extracted' argument associates locations in a pattern to variables.
-  unbuild <- return (let unbuild = \dtree extracted ->
-                            case dtree of
-                              Result (-1) ->
-                                  return $ EBuiltin "PATTERN_ERROR"
+  let unbuild = \dtree extracted ->
+        case dtree of
+          Result (-1) -> do
+              return $ EBuiltin "PATTERN_ERROR"
 
-                              Result n -> do
-                                  -- Get the list of the variables declared in the pattern
-                                  (pn, en) <- return $ blist List.!! n
-                                  vars <- return $ pattern_variables pn
-                                  -- Remove the patterns from the expression en
-                                  en' <- remove_patterns en
-                                  -- Extract the variables from the pattern
-                                  (initseq, _) <- List.foldl (\rec (loc, var) -> do
-                                                        (cont, extracted) <- rec
-                                                        (prefix, var', loc') <- return $ longest_prefix extracted loc
-                                                        (cont', updates) <- extract_var (prefix, var', loc') var
-                                                        return ((\e -> cont $ cont' e), updates ++ extracted)) (return ((\e -> e), extracted)) vars
-                                  -- Allocate the variables, and build the final expression
-                                  return $ initseq en'
+          Result n -> do
+              -- Get the list of the variables declared in the pattern
+              (pn, en) <- return $ blist List.!! n
+              vars <- return $ pattern_variables pn
+              -- Remove the patterns from the expression en
+              en' <- remove_patterns en
+              -- Extract the variables from the pattern
+              (initseq, _) <- List.foldl (\rec (loc, var) -> do
+                    (cont, extracted) <- rec
+                    (prefix, var', loc') <- return $ longest_prefix extracted loc
+                    (cont', updates) <- extract_var (prefix, var', loc') var
+                    return ((\e -> cont $ cont' e), updates ++ extracted)) (return ((\e -> e), extracted)) vars
+              -- Allocate the variables, and build the final expression
+              return $ initseq en'
 
-                              Test t results -> do
-                                  (prefix, var, loc) <- return $ longest_prefix extracted t
-                                  (initseq, updates, var') <- extract (prefix, var, loc)
-                                  extracted <- return $ updates ++ extracted
-                                  -- Build the sequence of tests
-                                  teste <- case rkind (fst $ List.unzip results) of
-                                             RInt _ -> do 
-                                                 -- Isolate the infinite case, and put it at the end of the list
-                                                 ([(_, remains)], others) <- return $ List.partition (\(r, _) -> case r of
-                                                                                                  RRemainInt -> True
-                                                                                                  _ -> False) results
-                                                 lastcase <- unbuild remains extracted
-                                                 -- Eliminate the cases with the same results as the infinite case (= Result -1)
-                                                 others <- return $ List.filter (\(res, subtree) ->
-                                                                                   case subtree of
-                                                                                     Result (-1) -> False
-                                                                                     _ -> True) others
+          Test t results -> do
+              (prefix, var, loc) <- return $ longest_prefix extracted t
+              (initseq, updates, var') <- extract (prefix, var, loc)
+              extracted <- return $ updates ++ extracted
+              -- Build the sequence of tests
+              teste <- case rkind (fst $ List.unzip results) of
+                    RInt _ -> do 
+                        -- Isolate the infinite case, and put it at the end of the list
+                        ([(_, remains)], others) <- return $ List.partition (\(r, _) ->
+                              case r of
+                                ROtherInt _ -> True
+                                _ -> False) results
+                        lastcase <- unbuild remains extracted
+                        -- Eliminate the cases with the same results as the infinite case (= Result -1)
+                        others <- return $ List.filter (\(res, subtree) ->
+                              case subtree of
+                                Result (-1) -> False
+                                _ -> True) others
 
-                                                 -- Build the if conditions
-                                                 List.foldl (\rec (rint, subtree) -> do
-                                                               n <- return $ case rint of {RInt n -> n; _ -> 0}
-                                                               tests <- rec
-                                                               testn <- unbuild subtree extracted
-                                                               return $ EIf (EApp (EApp (EBuiltin "EQ") (EVar var')) (EInt n))
-                                                                            testn
-                                                                            tests) (return lastcase) others
-     
-                                             RBool _ -> do
-                                                 rtrue <- case List.lookup (RBool True) results of
-                                                            Just t -> return t
-                                                            Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case True"
-                                                 rfalse <- case List.lookup (RBool False) results of
-                                                            Just t -> return t
-                                                            Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case False"
-                                                 casetrue <- unbuild rtrue extracted
-                                                 casefalse <- unbuild rfalse extracted
-                                                 return $ EIf (EVar var') casetrue casefalse
+                        -- Build the if conditions
+                        List.foldl (\rec (rint, subtree) -> do
+                              n <- return $ case rint of {RInt n -> n; _ -> 0}
+                              tests <- rec
+                              testn <- unbuild subtree extracted
+                              return $ EIf (EApp (EApp (EBuiltin "EQ") (EVar var')) (EInt n))
+                                           testn
+                                           tests) (return lastcase) others
 
-                                             RDatacon _ -> do
-                                                 cases <- List.foldl (\rec (rdcon, subtree) -> do
-                                                                         cases <- rec
-                                                                         dcon <- return $ case rdcon of {RDatacon dcon -> dcon; _ -> -1}
-                                                                         e <- unbuild subtree extracted
-                                                                         return $ (dcon, e):cases) (return []) results
-                                                 return $ EMatch (EVar var') cases
+                    RBool _ -> do
+                        rtrue <- case List.lookup (RBool True) results of
+                              Just t -> return t
+                              Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case True"
+                        rfalse <- case List.lookup (RBool False) results of
+                              Just t -> return t
+                              Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case False"
+                        casetrue <- unbuild rtrue extracted
+                        casefalse <- unbuild rfalse extracted
+                        return $ EIf (EVar var') casetrue casefalse
 
-                                             RRemainInt ->
-                                                 fail "Preliminaries:simplify_pattern_matching: unexpected result 'RRemainInt'"
+                    RDatacon _ -> do
+                        cases <- List.foldl (\rec (rdcon, subtree) -> do
+                              cases <- rec
+                              dcon <- return $ case rdcon of {RDatacon dcon -> dcon; _ -> -1}
+                              e <- unbuild subtree extracted
+                              return $ (dcon, e):cases) (return []) results
+                        return $ EMatch (EVar var') cases
 
-                                  -- Complete the sequence with the variable extraction
-                                  return $ initseq teste
-                              in
-                            unbuild)
+                    ROtherInt _ ->
+                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'RRemainInt'"
+
+              -- Complete the sequence with the variable extraction
+              return $ initseq teste
 
   -- If the test expression is not a variable, then push it in a variable
   case e' of
@@ -863,8 +920,8 @@ remove_patterns (C.ELet _ r (C.PWildcard _) e f) = do
   f' <- remove_patterns f
   return $ ESeq e' f'
 
-remove_patterns (C.ELet _ Nonrecursive p e f) = do
-  remove_patterns (C.EMatch 0 e [(p, f)])
+remove_patterns (C.ELet ref Nonrecursive p e f) = do
+  remove_patterns (C.EMatch ref e [(p, f)])
 
 remove_patterns (C.ELet _ Recursive _ _ _) =
   fail "Preliminaries:remove_patterns: unexpected recursive binding"
@@ -888,7 +945,9 @@ remove_patterns (C.EDatacon _ dcon (Just e)) = do
   e' <- remove_patterns e
   return $ EDatacon dcon $ Just e'
 
-remove_patterns (C.EMatch _ e blist) = do
+remove_patterns (C.EMatch ref e blist) = do
+  ri <- ref_info_err ref
+  set_location $ C.r_location ri
   simplify_pattern_matching e blist
 
 remove_patterns (C.EBox _ typ) = do

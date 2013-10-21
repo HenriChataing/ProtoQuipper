@@ -291,7 +291,7 @@ run_interactive opts ctx buffer = do
                             (TForall ff fv cset a@(TBang n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
 
                             -- Display the type
-                            fvar <- display_var fv
+                            fvar <- display_typvar fv
                             fflag <- display_ref (n:ff)
                             fuser <- display_algebraic
 

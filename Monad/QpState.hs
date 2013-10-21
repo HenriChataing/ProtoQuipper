@@ -12,7 +12,7 @@ import Parsing.Syntax (RecFlag (..))
 import Monad.Modules (Module)
 import qualified Monad.Modules as M
 import Monad.QuipperError hiding (throw)
-import qualified Monad.QuipperError as Q (throwNE, throwWE)
+import qualified Monad.QuipperError as Q (throw, throwNE, throwWE)
 import Monad.Namespace (Namespace)
 import qualified Monad.Namespace as N
 
@@ -41,8 +41,9 @@ import Data.Sequence as Seq
 -- The verbose control then discards any log whose priority is lower than the control. The logs are printed
 -- to a channel, which can be, for example, 'stdout', 'stderr', or any file writing channel.
 data Logfile = Logfile {
-  channel :: Handle,
-  verbose :: Int
+  channel :: Handle,          -- ^ The output channel, by default stdout.
+  verbose :: Int,             -- ^ The verbose level, by default nul.
+  wall :: Bool                -- ^ Should warnings be turned into errors ?
 }
 
 
@@ -55,6 +56,22 @@ write_log logfile lvl s = do
   else do
     hPutStrLn (channel logfile) s
     hFlush (channel logfile)
+
+
+-- | Display a warning. The verbose level is ignored.
+write_warning :: Logfile -> Warning -> Maybe Extent -> IO ()
+write_warning logfile warn ex = do
+  w <- hIsWritable $ channel logfile
+  if not w then
+    return ()
+  else if wall logfile then
+    Q.throw warn ex
+  else do
+    case ex of
+      Just ex -> hPutStrLn (channel logfile) $ printE warn ex
+      Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
+    hFlush (channel logfile)
+
 
 
 -- | The different kind of assertions.
@@ -160,6 +177,13 @@ throwQ e ex =
   QpState { runS = (\ctx -> Q.throwWE e ex) }
 
 
+-- | Give a warning.
+warnQ :: Warning -> Extent -> QpState ()
+warnQ w ex = do
+  ctx <- get_context
+  liftIO $ write_warning (logfile ctx) w $ Just ex
+
+
 -- | Catch any error thrown in a certain computation, and run a continuation in case
 -- an error is caught.
 catchQ :: QpState a -> (QuipperError -> QpState a) -> QpState a
@@ -182,7 +206,7 @@ liftIO x = QpState { runS = (\ctx -> do
 empty_context :: Context
 empty_context =  Ctx {
 -- The logfile is initialized to print on the standard output, with the lowest verbose level possible
-  logfile = Logfile { channel = stdout, verbose = 0 },
+  logfile = Logfile { channel = stdout, verbose = 0, wall = False },
 
 -- The namespace is initially empty
   namespace = N.new_namespace,
@@ -251,6 +275,14 @@ set_verbose :: Int -> QpState ()
 set_verbose v = do
   ctx <- get_context
   set_context $ ctx { logfile = (logfile ctx) { verbose = v } }
+
+
+-- | Change the processing of warnings.
+set_wall :: Bool -> QpState ()
+set_wall b = do
+  ctx <- get_context
+  set_context $ ctx { logfile = (logfile ctx) { wall = b } }
+
 
 
 -- | Enter a new log entry.
@@ -1115,31 +1147,6 @@ is_qdata_type (TBang _ a) =
   is_qdata_lintype a
 
 
--- | Complementary printing function for patterns, which
--- replaces the references by their original name.
-pprint_pattern_noref :: Pattern -> QpState String
-pprint_pattern_noref p = do
-  nspace <- get_context >>= return . namespace
-  fvar <- return (\x -> case IMap.lookup x $ N.varcons nspace of
-                          Just n -> n
-                          Nothing -> subvar 'x' x)
-  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'D' d)
-  return $ genprint Inf p [fvar, fdata]
-
-
--- | Like 'pprint_pattern_noref', but for expressions.
-pprint_expr_noref :: Expr -> QpState String
-pprint_expr_noref e = do
-  nspace <- get_context >>= return . namespace
-  fvar <- return (\x -> case IMap.lookup x $ N.varcons nspace of
-                          Just n -> n
-                          Nothing -> subvar 'x' x)
-  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'D' d)
-  return $ genprint Inf e [fvar, fdata]
 
 
 -- | A list of names to be used to represent type variables.
@@ -1157,12 +1164,21 @@ available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
 -- | Pre-defined type variable printing function. The variables that may appear in the final type must be given as argument.
 -- Each one of these variables is then associated with a name (of the list 'Monad.QpState.available_names').
 -- If too few names are given, the remaining variables are displayed as: subvar \'X\' x.
-display_var :: [Variable] -> QpState (Variable -> String)
-display_var fv = do
+display_typvar :: [Variable] -> QpState (Variable -> String)
+display_typvar fv = do
   attr <- return $ List.zip fv available_names
   return (\x -> case List.lookup x attr of
                   Just n -> n
                   Nothing -> subvar 'X' x)
+
+
+-- | Pre-defined variable printing function.
+display_var :: QpState (Variable -> String)
+display_var = do
+  nspace <- get_context >>= return . namespace
+  return (\x -> case IMap.lookup x $ N.varcons nspace of
+                  Just n -> n
+                  Nothing -> subvar 'x' x)
 
 
 -- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
@@ -1198,7 +1214,7 @@ display_ref ff = do
                     | otherwise -> "")
 
 
--- | Re-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
+-- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
 -- subvar \'T\' t if not found.
 display_algebraic :: QpState (Variable -> String)
 display_algebraic = do
@@ -1207,6 +1223,34 @@ display_algebraic = do
                   Just n -> n
                   Nothing -> subvar 'T' t)
 
+-- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
+-- subvar \'D\' dcon if not found.
+display_datacon :: QpState (Datacon -> String)
+display_datacon = do
+  nspace <- get_context >>= return . namespace
+  return (\d -> case IMap.lookup d $ N.datacons nspace of
+                  Just n -> n
+                  Nothing -> subvar 'D' d)
+
+
+-- | Complementary printing function for patterns, which
+-- replaces the references by their original name.
+pprint_pattern_noref :: Pattern -> QpState String
+pprint_pattern_noref p = do
+  fvar <- display_var
+  fdata <- display_datacon
+  
+  return $ genprint Inf p [fvar, fdata]
+
+
+-- | Like 'pprint_pattern_noref', but for expressions.
+pprint_expr_noref :: Expr -> QpState String
+pprint_expr_noref e = do
+  fvar <- display_var
+  fdata <- display_datacon
+
+  return $ genprint Inf e [fvar, fdata]
+
 
 
 -- | Type variables are attributed random names before being printed, and the flags are
@@ -1214,7 +1258,7 @@ display_algebraic = do
 pprint_type_noref :: Type -> QpState String
 pprint_type_noref t = do
   -- Printing of type variables, flags and types
-  fvar <- display_var (free_typ_var t)
+  fvar <- display_typvar (free_typ_var t)
   fflag <- display_flag
   fuser <- display_algebraic
 
@@ -1226,7 +1270,7 @@ pprint_type_noref t = do
 pprint_lintype_noref :: LinType -> QpState String
 pprint_lintype_noref a = do
   -- Printing of type variables, flags and types
-  fvar <- display_var (free_typ_var a)
+  fvar <- display_typvar (free_typ_var a)
   fflag <- display_flag
   fuser <- display_algebraic
 
@@ -1238,7 +1282,7 @@ pprint_lintype_noref a = do
 pprint_typescheme_noref :: TypeScheme -> QpState String
 pprint_typescheme_noref (TForall ff fv cset typ) = do
   -- Printing of type variables, flags and types
-  fvar <- display_var fv
+  fvar <- display_typvar fv
   fflag <- display_flag
   fuser <- display_algebraic
 
@@ -1249,10 +1293,7 @@ pprint_typescheme_noref (TForall ff fv cset typ) = do
 -- | Like 'pprint_expr_noref', but for values.
 pprint_value_noref :: Value -> QpState String
 pprint_value_noref v = do
-  nspace <- get_context >>= return . namespace
   -- Printing of data constructors
-  fdata <- return (\d -> case IMap.lookup d $ N.datacons nspace of
-                           Just n -> n
-                           Nothing -> subvar 'D' d)
+  fdata <- display_datacon
 
   return $ genprint Inf v [fdata]

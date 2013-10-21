@@ -14,6 +14,8 @@ import qualified Data.List as List
 data Options = Options {
   verbose :: Int,                  -- ^ The verbosity level (default: -1).
 
+  raiseWarnings :: Bool,           -- ^ Should warnings cause errors ? (default False).
+
   approximations :: Bool,          -- ^ Permit approximations in the unification? (default: no).
 
   includes :: [FilePath],          -- ^ List of include directories (default: empty).
@@ -31,7 +33,8 @@ default_options :: Options
 default_options = Options {
   -- General options
   verbose = -1,
-  
+  raiseWarnings = False, 
+ 
   -- Include directories
   includes = [],
 
@@ -57,6 +60,8 @@ options =
       "show version info and exit",
     Option ['v'] ["verbose"] (OptArg read_verbose "LEVEL")
       "enable verbose output",
+    Option [] ["wall"] (NoArg (\opts -> return opts { raiseWarnings = True }))
+      "force warnings into errors",
     Option ['i'] ["include"] (ReqArg include_directory "DIR")
       "add a directory to the module path",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))

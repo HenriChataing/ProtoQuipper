@@ -789,6 +789,17 @@ translate_expression (S.EMatch e blist) label = do
   update_ref ref (\ri -> Just ri { r_expression = Left $ EMatch ref e' blist' })
   return (EMatch ref e' blist')
 
+-- Convert the application of a data constructor to a data constrcutor with an argument.
+translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label = do
+  ref <- create_ref
+  e' <- translate_expression e label
+  case Map.lookup dcon $ l_datacons label of
+    Just id -> do
+        update_ref ref (\ri -> Just ri { r_expression = Left $ EDatacon ref id $ Just e' })
+        return (EDatacon ref id $ Just e')
+    Nothing -> do
+        throw_UnboundDatacon dcon
+
 translate_expression (S.EApp e f) label = do
   ref <- create_ref
   e' <- translate_expression e label

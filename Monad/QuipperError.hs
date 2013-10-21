@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 
 -- | This module provides a type enumerating the errors that can be thrown by the lexer, parser, type inference algorithm, interpreter or compiler.
 -- These errors will be divided between these categories. 
@@ -16,10 +18,10 @@ import Data.List as List
 
 -- | The class of ProtoQuipper exceptions.
 class Show a => QError a where
-  prefix :: a -> String                      -- ^ The prefix of all error messages. For example: \"Parsing error".
-  print :: a -> Extent -> String             -- ^ Display the error, with the additionnal extent information.
+  prefix :: a -> String                       -- ^ The prefix of all error messages. For example: \"Parsing error".
+  printE :: a -> Extent -> String             -- ^ Display the error, with the additionnal extent information.
 
-  print err ext =
+  printE err ext =
     if ext == extent_unknown then
       prefix err ++ ": " ++ show err
     else
@@ -38,6 +40,7 @@ instance Show QuipperError where
 instance E.Exception QuipperError
 
 
+
 ------------------------------------------
 -- ** Methods for throwing exceptions.
 
@@ -49,9 +52,9 @@ throw :: QError a => a      -- ^ An error.
 throw err ext =
   case ext of
     Nothing ->
-        E.throw $ QuipperError $ print err extent_unknown
+        E.throw $ QuipperError $ printE err extent_unknown
     Just ext -> 
-        E.throw $ QuipperError $ print err ext
+        E.throw $ QuipperError $ printE err ext
 
 
 -- | Throw an error whose extent is unknown (NE stands for \"No Extent\").
@@ -269,13 +272,9 @@ instance Show TypingError where
 
 
 
---data CompileError =
-  
-
-
 -- | The errors originating from programming errors.
 data ProgramError =
-    ProgramError String                                                                   -- Programming errors, thrown on unexpected behaviours.
+    ProgramError String                                                                   -- ^ Programming errors, thrown on unexpected behaviours.
   deriving (Typeable)
 
 
@@ -289,4 +288,31 @@ instance Show ProgramError where
 
 
 
+-- | Definition of some warnings. If the option \'Wall\' is given, warnings will indeed be turned into errors.
+data Warning =
+    UnexhaustiveMatch [String]                                                            -- ^ Unexhaustive pattern matching. The argument lists some cases that are not matched.
+  | FailedMatch                                                                           -- ^ A pattern matching always fails: e.g. @let Nil = x:xs in ...@
+  deriving (Typeable)
+
+
+instance QError Warning where
+  prefix _ = "WARNING"
+
+
+instance Show Warning where
+  show (UnexhaustiveMatch []) =
+    "this pattern matching is not exhaustive"
+  show (UnexhaustiveMatch [c]) =
+    "this pattern matching is not exhaustive:\n" ++
+    "    the case\n" ++
+    c ++ "\n" ++
+    "    is not matched" 
+  show (UnexhaustiveMatch cases) =
+    "this pattern matching is not exhaustive:\n" ++
+    "    the cases\n" ++
+    List.foldl (\s c -> s ++ c ++ "\n") "" cases ++
+    "    are not matched"
+
+  show FailedMatch =
+    "this pattern matching will always fail"
 
