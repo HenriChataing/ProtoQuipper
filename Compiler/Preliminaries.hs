@@ -49,6 +49,14 @@ type CircType =
   (QType, QType)
 
 
+-- | Return True if and only if the type @Qubit@ appears at least once in the given type.
+has_qubits :: QType -> Bool
+has_qubits (QTensor qlist) =
+  List.or $ List.map has_qubits qlist
+has_qubits QQubit = True
+has_qubits _ = False
+
+
 -- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'. 
 convert_type :: C.Type -> QpState QType
 convert_type (C.TBang _ C.TUnit) =
@@ -905,9 +913,9 @@ remove_patterns (C.EUnit _) = do
 
 remove_patterns (C.ETuple _ elist) = do
   elist' <- List.foldl (\rec e -> do
-                          es <- rec
-                          e' <- remove_patterns e
-                          return $ e':es) (return []) elist
+        es <- rec
+        e' <- remove_patterns e
+        return $ e':es) (return []) elist
   return $ ETuple $ List.reverse elist'
 
 remove_patterns (C.ELet _ r (C.PVar _ v) e f) = do
@@ -972,28 +980,6 @@ remove_patterns (C.EBuiltin _ s) =
   
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
-
-
-{-
--- | Give the implementation of the unbox operator.
-implement_unbox :: (QType, Qtype)        -- ^ The type of the input circuit.
-                -> QpState Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
-
-
-
--- | Give the implementation of the box[T] operator.
-implement_box :: QType                   -- ^ The type of the input value.
-              -> QpState Expr            -- ^ The code (function) implementation of the box[T] operator.
-
-
--- | Produce the implementation of the rev operator. The implementation doesn't need the type of rev.
-implement_rev :: QpState Expr
-
-
-
--- | Implementation of the function applying a binding to a quantum address.
-implement_appbind :: QpState Expr
--}
 
 
 
@@ -1090,20 +1076,20 @@ print_doc lv (EIf e f g) fvar fdata =
 print_doc lv (EDatacon datacon (Just e)) fvar fdata =
   let pe = print_doc (decr lv) e fvar fdata in
   text (fdata datacon) <+> (case e of
-                              EBool _ -> pe
-                              EUnit -> pe
-                              EVar _ -> pe
-                              _ -> parens pe)
+        EBool _ -> pe
+        EUnit -> pe
+        EVar _ -> pe
+        _ -> parens pe)
 
 print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (show p) <+> text "->" <+> print_doc dlv f fvar fdata in
-                        if isEmpty doc then
-                          pmatch
-                        else
-                          doc $$ pmatch) PP.empty blist)
+        let pmatch = char '|' <+> text (show p) <+> text "->" <+> print_doc dlv f fvar fdata in
+        if isEmpty doc then
+          pmatch
+        else
+          doc $$ pmatch) PP.empty blist)
 
 
 

@@ -18,7 +18,7 @@ import Data.List as List
 
 -- | The class of ProtoQuipper exceptions.
 class Show a => QError a where
-  prefix :: a -> String                       -- ^ The prefix of all error messages. For example: \"Parsing error".
+  prefix :: a -> String                       -- ^ The prefix of all error messages. For example: \"Parsing error\".
   printE :: a -> Extent -> String             -- ^ Display the error, with the additionnal extent information.
 
   printE err ext =

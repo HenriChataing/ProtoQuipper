@@ -19,6 +19,7 @@ import Options
 import Interactive
 
 import Compiler.Preliminaries
+import Compiler.QLib
 
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
