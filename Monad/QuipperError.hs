@@ -292,6 +292,7 @@ instance Show ProgramError where
 data Warning =
     UnexhaustiveMatch [String]                                                            -- ^ Unexhaustive pattern matching. The argument lists some cases that are not matched.
   | FailedMatch                                                                           -- ^ A pattern matching always fails: e.g. @let Nil = x:xs in ...@
+  | AmbiguousUnbox                                                                        -- ^ Could not resolve the call type of an unbox operator.
   deriving (Typeable)
 
 
@@ -316,3 +317,5 @@ instance Show Warning where
   show FailedMatch =
     "this pattern matching will always fail"
 
+  show AmbiguousUnbox =
+    "couldn't solve the instance for this unbox operator"

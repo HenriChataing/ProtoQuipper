@@ -113,3 +113,29 @@ trim_end (h:t)
 -- possibly followed by whitespace.
 string_ends_with :: String -> String -> Bool 
 string_ends_with suffix string = List.isSuffixOf suffix (trim_end string)
+
+
+
+-- | Definition of a quantum data type.
+data QType =
+    QQubit
+  | QUnit
+  | QVar Int
+  | QTensor [QType]
+  deriving (Eq, Show, Ord)
+
+-- | The type of the associated circuits.
+type CircType =
+  (QType, QType)
+
+
+
+-- | Return True if and only if the type @Qubit@ appears at least once in the given type.
+has_qubits :: QType -> Bool
+has_qubits (QTensor qlist) =
+  List.or $ List.map has_qubits qlist
+has_qubits QQubit = True
+has_qubits _ = False
+
+ 
+

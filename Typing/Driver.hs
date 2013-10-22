@@ -30,6 +30,7 @@ import Typing.TypingContext
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
+import Compiler.CompileExpr
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -551,6 +552,10 @@ do_everything opts files = do
 ---------------
 
                 return ()) (return ()) deps
+  -- Display the qlib module
+  qlib <- get_context >>= return . qlib
+  newlog (-2) $ "#########  MODULE: QLib  #########"
+  newlog (-2) $ pprint $ qbody qlib
 -- ===================================== --
 
 

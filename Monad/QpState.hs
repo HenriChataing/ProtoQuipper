@@ -3,7 +3,7 @@
 module Monad.QpState where
 
 import Utils
-import Classes
+import Classes hiding (rev)
 import Builtins
 
 import Parsing.Location (Extent, extent_unknown, file_unknown)
@@ -18,6 +18,8 @@ import qualified Monad.Namespace as N
 
 import Typing.CoreSyntax
 import Typing.CorePrinter
+
+import qualified Compiler.CompileExpr as C
 
 import Interpret.Circuits
 import Interpret.Values
@@ -82,6 +84,14 @@ data Assertion =
   deriving (Show, Eq)
 
 
+-- | The definition of the QLib module, which contains the definition of all the unbox and box operators.
+data QLib = QLib {
+  boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
+  unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
+  rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
+  qbody :: C.Expr                           -- ^ The body of the QLib module.
+}
+
 
 -- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
 -- from parsing to interpretation and type inference. We prefer using a single context to using
@@ -138,6 +148,7 @@ data Context = Ctx {
 -- Compiler things
   call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
                                                       -- (see the function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more information).
+  qlib :: QLib,                                       -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
   references :: IntMap RefInfo,                       -- ^ Information about each expression.
@@ -239,6 +250,12 @@ empty_context =  Ctx {
 
 -- no conventions
   call_conventions = IMap.empty,
+  qlib = QLib {
+    boxes = Map.empty,
+    unboxes = Map.empty,
+    rev = Nothing,
+    qbody = C.EUnit
+  },
 
 -- No references
   references = IMap.empty,

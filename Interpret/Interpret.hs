@@ -9,7 +9,7 @@ import Classes
 import qualified Utils
 
 import Monad.QuipperError
-import Monad.QpState
+import Monad.QpState hiding (rev)
 import Monad.Modules
 
 import Parsing.Location
@@ -520,7 +520,5 @@ interpret env (EConstraint e _) = do
 
 interpret _ (EBuiltin _ s) =
   builtin_value s
-
-
 
 

@@ -13,6 +13,9 @@
 --
 module Compiler.QLib where
 
+import Classes hiding (rev)
+import Utils
+
 import Parsing.Syntax (RecFlag (..))
 
 import Typing.CoreSyntax (Variable)
@@ -20,10 +23,10 @@ import Typing.CoreSyntax (Variable)
 import Monad.QpState
 import Monad.QuipperError
 
-import Compiler.Preliminaries
+import Compiler.CompileExpr
 
 import qualified Data.List as List
-
+import qualified Data.Map as Map
 
 -- | Give the implementation of the unbox operator.
 implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
@@ -182,4 +185,68 @@ implement_appbind typ b x = do
       return (elet, ETuple $ List.reverse elist)
     appbind _ _ =
       fail "QLib:appbind: illegal argument"
+
+
+
+-- | Request for an implementation of the unbox operator of type T, U. A reference to the implementation is passed as argument.
+request_unbox :: CircType -> QpState Variable
+request_unbox c = do
+  ctx <- get_context
+  let ql = qlib ctx
+  case Map.lookup c $ unboxes ql of
+    Just x ->
+        return x
+    Nothing -> do
+        -- Implement the needed operator, and upload it to the qlib library.
+        x <- dummy_var
+        eunbox <- implement_unbox c
+        let ql' = ql {
+              unboxes = Map.insert c x $ unboxes ql,
+              qbody = ELet Nonrecursive x eunbox $ qbody ql
+            }
+        ctx <- get_context
+        set_context ctx { qlib = ql' }
+        return x
+
+
+-- | Request for an implementation of the box operator of type T. A reference to the implementation is passed as argument.
+request_box :: QType -> QpState Variable
+request_box t = do
+  ctx <- get_context
+  let ql = qlib ctx
+  case Map.lookup t $ boxes ql of
+    Just x ->
+        return x
+    Nothing -> do
+        -- Implement the needed operator, and upload it to the qlib library.
+        x <- dummy_var
+        ebox <- implement_box t
+        let ql' = ql {
+              boxes = Map.insert t x $ boxes ql,
+              qbody = ELet Nonrecursive x ebox $ qbody ql
+            }
+        ctx <- get_context
+        set_context ctx { qlib = ql' }
+        return x
+
+
+-- | Request for an implementation of the rev operator.
+request_rev :: QpState Variable
+request_rev = do
+  ctx <- get_context
+  let ql = qlib ctx
+  case rev ql of
+    Just x ->
+        return x
+    Nothing -> do
+        -- Implement the needed operator, and upload it to the qlib library.
+        x <- dummy_var
+        erev <- implement_rev
+        let ql' = ql {
+              rev = Just x,
+              qbody = ELet Nonrecursive x erev $ qbody ql
+            }
+        ctx <- get_context
+        set_context ctx { qlib = ql' }
+        return x
 
