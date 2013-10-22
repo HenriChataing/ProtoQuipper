@@ -5,6 +5,7 @@
 module Parsing.Syntax where
 
 import Classes
+import Utils
 
 import Parsing.Location
 
@@ -251,14 +252,6 @@ type AppPattern = (Pattern, [Pattern])
 -- $ An /X-expression/ is an expression that may possibly contain
 -- wildcards. X-expressions are used by the parser before they are
 -- converted either to expressions or to patterns.
-
--- | A recursive flag. This is used in the expression 'ELet' to indicate
--- whether the function is recursive or not. The parser only allows functions (and not arbitrary values)
--- to be declared recursive.
-data RecFlag =
-    Nonrecursive   -- ^ Non recursive binding.
-  | Recursive      -- ^ Recursive binding.
-  deriving (Show, Eq)
 
 
 -- | The type of X-expressions. The type argument /a/ determines

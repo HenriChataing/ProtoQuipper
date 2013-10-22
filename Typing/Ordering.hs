@@ -242,14 +242,14 @@ check_cyclic c explored poset = do
 
         -- Printing variables : print the cluster instead
         fvar <- return (\x -> case IMap.lookup x $ cmap poset of
-                                Just c -> subvar 'a' c
-                                Nothing -> subvar 'x' x)
+                                Just c -> prevar "a" c
+                                Nothing -> prevar "x" x)
         -- Printing type names
         nspace <- get_context >>= return . namespace
         fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
                                  Just n -> n
-                                 Nothing -> subvar 'T' n)
-        ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar, fuser]) cloop
+                                 Nothing -> prevar "T" n)
+        ploop <- return $ List.map (genprint Inf [fflag, fvar, fuser]) cloop
         prt <- return $ fvar infinite
 
         -- See what information we have

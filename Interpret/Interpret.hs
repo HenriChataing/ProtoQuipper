@@ -6,15 +6,13 @@
 module Interpret.Interpret where
 
 import Classes
-import qualified Utils
+import Utils
 
 import Monad.QuipperError
 import Monad.QpState hiding (rev)
 import Monad.Modules
 
 import Parsing.Location
-import Parsing.Syntax (RecFlag (..))
-import Parsing.Printer
 
 import Typing.CoreSyntax
 
@@ -338,7 +336,7 @@ do_application env f x =
 
     -- Circuit reversal
     (VRev, VCirc t c u) -> do
-        return $ VCirc u (rev c) t
+        return $ VCirc u (C.rev c) t
 
     -- Unboxed circuit application
     (VUnboxed (VCirc u c u'), t) -> do
@@ -348,10 +346,6 @@ do_application env f x =
         b' <- unencap c b
         -- Produces the return value by readdressing the output of the circuit
         readdress u' b'
-
-    -- Unboxed unbuilt circuit : build a new circuit, or rather directly apply the boxed function f to t
-    (VUnboxed (VSumCirc f), t) -> do
-        do_application env f t
 
     -- Circuit boxing
     (VBox typ, _) -> do
@@ -377,7 +371,7 @@ do_application env f x =
  
         -- If not, the construction is delayed till use of the box.
         else do
-          return (VSumCirc x)
+          fail "Interpret:do_application: illegal box type"
 
     (VDatacon dcon Nothing, _) ->
         return $ VDatacon dcon $ Just x

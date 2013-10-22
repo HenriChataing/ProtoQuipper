@@ -10,8 +10,6 @@ import Utils
 
 import Monad.QuipperError
 
-import Parsing.Syntax (RecFlag (..))
-
 import Typing.CoreSyntax hiding ((<>))
 
 import Data.List as List
@@ -22,15 +20,15 @@ import Text.PrettyPrint.HughesPJ as PP
 instance PPrint LinType where
   -- Generic printing
   -- The display of flags and type variables is specified by two option functions
-  genprint _ (TVar x) [_, fvar, _] = fvar x
-  genprint _ (TVar x) _ = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
+  genprint _ [_, fvar, _] (TVar x) = fvar x
+  genprint _ _ (TVar x) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
-  genprint _ TUnit _ = "()"
-  genprint _ TInt _ = "int"
-  genprint _ TBool _ = "bool"
-  genprint _ TQubit _ = "qubit"
-  genprint lv (TUser n arg) opts@[_, _, fuser] =
-    fuser n ++ List.foldr (\t rec -> let prt = genprint lv t opts in
+  genprint _ _ TUnit = "()"
+  genprint _ _ TInt = "int"
+  genprint _ _ TBool = "bool"
+  genprint _ _ TQubit = "qubit"
+  genprint lv opts@[_, _, fuser] (TUser n arg) =
+    fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
                                     " " ++
                                     (case no_bang t of
                                        TArrow _ _ -> "(" ++ prt ++ ")"
@@ -39,92 +37,81 @@ instance PPrint LinType where
                                        TUser _ [] -> prt
                                        TUser _ _ -> "(" ++ prt ++ ")"
                                        _ -> prt) ++ rec) "" arg
-  genprint _ (TUser n arg) _ = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
+  genprint _ _ (TUser n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
   genprint (Nth 0) _ _ = "..."
 
-  genprint lv (TTensor (a:rest)) opts =
+  genprint lv opts (TTensor (a:rest)) =
     let dlv = decr lv in
     (case a of
-       TBang _ (TArrow _ _) -> "(" ++ genprint dlv a opts ++ ")"
-       TBang _ (TTensor _) -> "(" ++ genprint dlv a opts ++ ")"
-       _ -> genprint dlv a opts) ++
+       TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts a ++ ")"
+       TBang _ (TTensor _) -> "(" ++ genprint dlv opts a ++ ")"
+       _ -> genprint dlv opts a) ++
     List.foldl (\s b -> s ++ " * " ++
                   (case b of
-                     TBang _ (TArrow _ _) -> "(" ++ genprint dlv b opts ++ ")"
-                     TBang _ (TTensor _) -> "(" ++ genprint dlv b opts ++ ")"
-                     _ -> genprint dlv b opts)) "" rest
-  genprint lv (TTensor []) opts = 
+                     TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts b ++ ")"
+                     TBang _ (TTensor _) -> "(" ++ genprint dlv opts b ++ ")"
+                     _ -> genprint dlv opts b )) "" rest
+  genprint lv opts (TTensor []) = 
     throwNE $ ProgramError "CorePrinter:genprint(LinType): empty tensor"
 
-  genprint lv (TArrow a b) opts =
+  genprint lv opts (TArrow a b) =
     let dlv = decr lv in
     (case a of
-       TBang _ (TArrow _ _) -> "(" ++ genprint dlv a opts ++ ")"
-       _ -> genprint dlv a opts) ++ " -> " ++
-    genprint dlv b opts
+       TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts a ++ ")"
+       _ -> genprint dlv opts a) ++ " -> " ++
+    genprint dlv opts b
 
-  genprint lv (TCirc a b) opts =
+  genprint lv opts (TCirc a b) =
     let dlv = decr lv in
-    "circ(" ++ genprint dlv a opts ++ ", " ++ genprint dlv b opts ++ ")"
+    "circ(" ++ genprint dlv opts a ++ ", " ++ genprint dlv opts b ++ ")"
 
   -- Print unto Lvl = n
   -- By default, the flags are printed using the default pprint function
   -- and the variables are displayed as X_n where n is the variable id
-  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
+  sprintn lv a = genprint lv [pprint, prevar "X", prevar "T"] a
 
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
 
 
 -- | Printing of types. The generic function 'genprint' parameterizes the
 -- printing over the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
-  genprint lv (TBang n a) opts@[fflag, _, _] =
+  genprint lv opts@[fflag, _, _] (TBang n a) =
     case (fflag n, a) of
       -- No flag
-      ("", _) -> genprint (decr lv) a opts
+      ("", _) -> genprint (decr lv) opts a
        
       -- Flag, check whether parenthesis are necessary
-      (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
-      (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) a opts ++ ")"
-      (f, _) -> f ++ genprint (decr lv) a opts
-  genprint lv (TBang n a) _ = 
+      (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, _) -> f ++ genprint (decr lv) opts a
+  genprint lv _ (TBang n a) = 
     throwNE $ ProgramError "CorePrinter:genprint(Type): illegal argument"
 
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
-  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
+  sprintn lv a = genprint lv [pprint, prevar "X", prevar "T"] a
  
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
 
 
 -- | Printing of type schemes. The generic function 'genprint'
   -- parameterizes the printing over the display of flag and type
   -- variables.
 instance PPrint TypeScheme where
-  genprint lv (TForall _ [] _ a) opts =
-    genprint lv a opts
+  genprint lv opts (TForall _ [] _ a) =
+    genprint lv opts a
 
-  genprint lv (TForall ff fv cset a) opts@[_,fvar,_] =
+  genprint lv opts@[_,fvar,_] (TForall ff fv cset a) =
     "forall" ++ List.foldr (\x s -> " " ++ fvar x ++ s) "" fv ++ ",\n" ++
-     genprint Inf ((fst cset, []) :: ConstraintSet) opts ++ "\n => " ++
-     genprint lv a opts
+     genprint Inf opts ((fst cset, []) :: ConstraintSet) ++ "\n => " ++
+     genprint lv opts a
 
   genprint _ _ _ =
     throwNE $ ProgramError "CorePrinter:genprint(TypeScheme): illegal argument"
 
-  sprintn lv a = genprint lv a [pprint, subvar 'X', subvar 'T']
-  pprint a = sprintn Inf a
-  sprint a = sprintn defaultLvl a  
+  sprintn lv a = genprint lv [pprint, prevar "X", prevar "T"] a
+
 
 
 -- | Printing of patterns. The function 'genprint' parameterizes the printing over the display of data constructors and term
@@ -132,40 +119,34 @@ instance PPrint TypeScheme where
 instance PPrint Pattern where
   -- Generic printing
   -- The functions given as argument indicate how to deal with variables (term variables and datacons)
-  genprint _ (PVar _ x) [fvar, _] =  fvar x
-  genprint _ (PVar _ x) _ =
+  genprint _ [fvar, _] (PVar _ x) = fvar x
+  genprint _ _ (PVar _ x) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
-  genprint _ (PUnit _) _ = "()"
-  genprint _ (PBool _ b) _ = if b then "true" else "false"
-  genprint _ (PInt _ n) _ = show n
-  genprint _ (PWildcard _) _ = "_"
-  genprint (Nth 0) _ _= "..."
+  genprint _ _ (PUnit _) = "()"
+  genprint _ _ (PBool _ b) = if b then "true" else "false"
+  genprint _ _ (PInt _ n) = show n
+  genprint _ _ (PWildcard _) = "_"
+  genprint (Nth 0) _ _ = "..."
 
-  genprint lv (PTuple _ (p:rest)) opts =
+  genprint lv opts (PTuple _ (p:rest)) =
     let dlv = decr lv in
-    "(" ++ genprint dlv p opts ++
-           List.foldl (\s q -> s ++ ", " ++ genprint dlv q opts) "" rest ++ ")"
-  genprint lv (PTuple _ []) opts =
+    "(" ++ genprint dlv opts p ++
+           List.foldl (\s q -> s ++ ", " ++ genprint dlv opts q) "" rest ++ ")"
+  genprint lv opts (PTuple _ []) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): empty tuple"
 
-  genprint lv (PDatacon _ dcon p) opts@[_, fdata] =
+  genprint lv opts@[_,fdata] (PDatacon _ dcon p) =
     fdata dcon ++ case p of
-                    Just p -> "(" ++ genprint (decr lv) p opts ++ ")"
+                    Just p -> "(" ++ genprint (decr lv) opts p ++ ")"
                     Nothing -> ""
-  genprint lv (PDatacon _ dcon p) _ =
+  genprint lv _ (PDatacon _ dcon p) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
 
-  genprint lv (PConstraint p _) opts =
-    genprint lv p opts
+  genprint lv opts (PConstraint p _) =
+    genprint lv opts p
 
    -- Print unto Lvl = n
-  sprintn lv p = genprint lv p [subvar 'x', subvar 'D']
-
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
+  sprintn lv p = genprint lv [prevar "x", prevar "D"] p
 
 
 -- * Auxiliary functions
@@ -212,7 +193,7 @@ print_doc (Nth 0) _ _ _ =
 print_doc lv (ELet _ r p e f) fvar fdata =
   let dlv = decr lv in
   let recflag = if r == Recursive then text "rec" else empty in
-  text "let" <+> recflag <+> text (genprint dlv p [fvar, fdata]) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
+  text "let" <+> recflag <+> text (genprint dlv [fvar, fdata] p) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
   print_doc dlv f fvar fdata
 
 print_doc lv (ETuple _ elist) fvar fdata =
@@ -235,7 +216,7 @@ print_doc lv (EApp _ e f) fvar fdata =
 
 print_doc lv (EFun _ p e) fvar fdata =
   let dlv = decr lv in
-  text "fun" <+> text (genprint dlv p [fvar, fdata]) <+> text "->" $$
+  text "fun" <+> text (genprint dlv [fvar, fdata] p) <+> text "->" $$
   nest 2 (print_doc dlv e fvar fdata)
 
 print_doc lv (EIf _ e f g) fvar fdata =
@@ -257,7 +238,7 @@ print_doc lv (EMatch _ e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-                        let pmatch = char '|' <+> text (genprint dlv p [fvar, fdata]) <+> text "->" <+> print_doc dlv f fvar fdata in
+                        let pmatch = char '|' <+> text (genprint dlv [fvar, fdata] p) <+> text "->" <+> print_doc dlv f fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
@@ -272,53 +253,46 @@ print_doc lv (EConstraint e _) fvar fdata =
 -- variables and data constructors.
 instance PPrint Expr where
   -- Generic printing
-  genprint lv e [fvar, fdata] =
+  genprint lv [fvar, fdata] e =
     let doc = print_doc lv e fvar fdata in
     PP.render doc
-  genprint lv e _ =
+  genprint lv _ e =
     throwNE $ ProgramError "CorePrinter:genprint(Expr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
   -- where n is the id of the variable / constructor
-  sprintn lv e = genprint lv e [subvar 'x', subvar 'D']
-  sprint e = sprintn defaultLvl e
-  pprint e = sprintn Inf e
+  sprintn lv e = genprint lv [prevar "x", prevar "D"] e
 
 
 
 -- | Subtyping constraints printing.
 instance PPrint TypeConstraint where
-  genprint lv (Subtype t u _) opts =
-    genprint lv t opts ++ " <: " ++ genprint lv u opts
+  genprint lv opts (Subtype t u _) =
+    genprint lv opts t ++ " <: " ++ genprint lv opts u
 
-  genprint lv (Sublintype t u _) opts =
-    genprint lv t opts ++ " <: " ++ genprint lv u opts
+  genprint lv opts (Sublintype t u _) =
+    genprint lv opts t ++ " <: " ++ genprint lv opts u
 
-  sprintn _ c = pprint c
-  sprint c = pprint c
-  pprint c = genprint Inf c [pprint, subvar 'x', subvar 'T']
+  sprintn lvl c = genprint Inf [pprint, prevar "x", prevar "T"] c
 
 
 -- | Printing of flag constraints. The function 'genprint' cannot be parameterized.
 instance PPrint FlagConstraint where
-  genprint lv (Le m n _) [fflag, _, _] =
+  genprint lv [fflag, _, _] (Le m n _) =
     fflag m ++ " <= " ++ fflag n
-
   genprint lv _ _ =
     throwNE $ ProgramError "CorePrinter:genprint(FlagConstraint): illegal argument"
 
-  sprintn _ c = pprint c
-  sprint c = pprint c
-  pprint c = genprint Inf c [pprint, subvar 'X', subvar 'T']
+  sprintn lvl c = genprint lvl [pprint, prevar "X", prevar "T"] c
 
 
 -- | Printing of constraint sets. The function 'genprint' behaves like the one from the 'PPrint' instance
 -- declaration of types and linear types.
 instance PPrint ConstraintSet where
-  genprint _ (lcs, fcs) opts =
+  genprint _ opts (lcs, fcs) =
     let screenw = 120 in
-    let plcs = List.map (\c -> genprint Inf c opts) lcs in
+    let plcs = List.map (\c -> genprint Inf opts c) lcs in
     let maxw = List.maximum $ List.map List.length plcs in
     let nline = screenw `quot` (maxw + 5) in 
 
@@ -331,7 +305,7 @@ instance PPrint ConstraintSet where
                           (s ++ pc ++ padding, nth-1)) ("", nline+1) plcs
     in
 
-    let pfcs = List.map (\c -> genprint Inf c opts) fcs in
+    let pfcs = List.map (\c -> genprint Inf opts c) fcs in
     let maxw = List.maximum $ List.map List.length pfcs in
     let nline = screenw `quot` (maxw + 5) in
 
@@ -350,7 +324,4 @@ instance PPrint ConstraintSet where
       (_, []) -> slcons
       _ -> slcons ++ "\n" ++ sfcons
 
-  sprintn _ cs = pprint cs
-  sprint cs = pprint cs
-  pprint cs = genprint Inf cs [pprint, subvar 'X', subvar 'T']
-
+  sprintn lvl cs = genprint lvl [pprint, prevar "X", prevar "T"] cs

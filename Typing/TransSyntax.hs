@@ -90,7 +90,6 @@ import Typing.CorePrinter
 import Typing.Subtyping
 
 import Parsing.Location
-import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 

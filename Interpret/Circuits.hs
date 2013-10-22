@@ -20,6 +20,12 @@ import Classes
 type Qubit = Int
 
 
+-- | A type class for things that can be reversed.
+class Reversible a where
+  -- | Reverse.
+  rev :: a -> a
+
+
 
 -- | The list of unary gates.
 -- Unary gates are defined by: their name, the name of the reversed gate, and the symbol used to represent it in
@@ -529,4 +535,4 @@ instance PPrint Circuit where
 
   sprintn _ c = pprint c
   sprint c = pprint c
-  genprint _ c _ = pprint c
+  genprint _ _ c = pprint c

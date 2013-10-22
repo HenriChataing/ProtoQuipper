@@ -11,7 +11,6 @@ import Parsing.Lexer
 import qualified Parsing.Parser as P
 import qualified Parsing.IParser as IP
 import Parsing.Location (clear_location, extent_unknown)
-import Parsing.Syntax (RecFlag(..))
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 
@@ -86,12 +85,11 @@ find_in_directories mod@(initial:rest) directories extension = do
                               return r) (return []) directories
   case existing of
     [] ->
+        -- No implementation found
         return Nothing
-
     [path] ->
         -- OK
         return $ Just path
-
     (m1:m2:_) ->
         -- Several implementations found
         throwNE $ DuplicateImplementation mod m1 m2

@@ -13,10 +13,8 @@
 --
 module Compiler.QLib where
 
-import Classes hiding (rev)
+import Classes
 import Utils
-
-import Parsing.Syntax (RecFlag (..))
 
 import Typing.CoreSyntax (Variable)
 

@@ -4,8 +4,6 @@ module Compiler.CompileExpr where
 import Classes
 import Utils 
 
-import Parsing.Syntax (RecFlag(..))
-
 import Monad.QuipperError
 
 import Typing.CoreSyntax (Variable, Datacon)
@@ -164,17 +162,15 @@ print_doc lv (EMatch e blist) fvar fdata =
 -- variables and data constructors.
 instance PPrint Expr where
   -- Generic printing
-  genprint lv e [fvar, fdata] =
+  genprint lv [fvar, fdata] e =
     let doc = print_doc lv e fvar fdata in
     PP.render doc
-  genprint lv e _ =
+  genprint lv _ e =
     throwNE $ ProgramError "Preliminaries:genprint(Expr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
   -- where n is the id of the variable / constructor
-  sprintn lv e = genprint lv e [subvar '%', subvar 'D']
-  sprint e = sprintn defaultLvl e
-  pprint e = sprintn Inf e
+  sprintn lv e = genprint lv [prevar "%", prevar "D"] e
 
 

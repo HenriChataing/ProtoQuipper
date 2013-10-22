@@ -22,9 +22,6 @@ import Utils
 import Monad.QpState
 import Monad.QuipperError
 
-import Parsing.Syntax (RecFlag(..))
-import qualified Parsing.Syntax as S
-
 import Typing.CoreSyntax (Variable, Datacon)
 import qualified Typing.CoreSyntax as C
 
@@ -598,7 +595,7 @@ build_decision_tree plist = do
                           let pcase = modify_pattern (plist !! List.head patterns) (fst next) res
                           -- Printing
                           fdata <- display_datacon
-                          let prcase = genprint Inf pcase [\_ -> "x", fdata]
+                          let prcase = genprint Inf [\_ -> "x", fdata] pcase
                           -- In case the expected result is 'ROtherInt', display the list of non-admissible integers as well
                           let prcase' =
                                 case res of

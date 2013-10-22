@@ -55,32 +55,32 @@ import_modules opts mnames ctx = do
   -- Process the modules.
   -- If a module was explicitly imported, then it is ret-processed.
   ctx <- List.foldl (\rec p -> do
-                  ctx <- rec
-                  mopts <- return $ MOptions { toplevel = False, disp_decls = False }
+        ctx <- rec
+        let mopts = MOptions { toplevel = False, disp_decls = False }
 
-                  -- If the module has been explicitly included, re-process it
-                  if List.elem (S.module_name p) mnames then do
-                    -- Re-process
-                    m <- process_module (opts, mopts) p
-                    -- Import
-                    vars <- return $ Map.map (\id -> LGlobal id) $ M.variables m
-                    typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ M.types m
-                    return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
-                                                        l_datacons  = Map.union (M.datacons m) $ l_datacons $ labelling ctx,
-                                                        l_types = Map.union typs $ l_types $ labelling ctx } }                   
-                  else do
-                    -- Check whether the module has already been imported or not
-                    imported <- get_context >>= return . modules
-                    -- If needed, process the module, in any case return the module contents
-                    case List.lookup (S.module_name p) imported of
-                      Just m -> do
-                          -- The module already exists
-                          return ()
-                      Nothing -> do
-                          -- Process the module
-                          _ <- process_module (opts, mopts) p
-                          return ()
-                    return ctx) (return ctx) deps
+        -- If the module has been explicitly included, re-process it
+        if List.elem (S.module_name p) mnames then do
+          -- Re-process
+          m <- process_module (opts, mopts) p
+          -- Import
+          let vars = Map.map (\id -> LGlobal id) $ M.variables m
+              typs = Map.map (\id -> TBang 0 $ TUser id []) $ M.types m
+          return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
+                                              l_datacons  = Map.union (M.datacons m) $ l_datacons $ labelling ctx,
+                                              l_types = Map.union typs $ l_types $ labelling ctx } }                   
+        else do
+          -- Check whether the module has already been imported or not
+          imported <- get_context >>= return . modules
+          -- If needed, process the module, in any case return the module contents
+          case List.lookup (S.module_name p) imported of
+            Just m -> do
+                -- The module already exists
+                return ()
+            Nothing -> do
+                -- Process the module
+                _ <- process_module (opts, mopts) p
+                return ()
+          return ctx) (return ctx) deps
   set_file file_unknown
   return ctx
 
@@ -96,8 +96,8 @@ run_command opts prog ctx = do
 
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
-                       ctx <- rec
-                       process_declaration opts prog ctx decl) (return ctx) $ S.body prog
+        ctx <- rec
+        process_declaration opts prog ctx decl) (return ctx) $ S.body prog
   -- Return
   return ctx
 
@@ -118,8 +118,8 @@ run_interactive :: Options -> ExtensiveContext -> [String] -> QpState ()
 run_interactive opts ctx buffer = do
   -- Wait for user input
   l <- case buffer of
-         [] -> prompt "# "
-         _ -> prompt "  "
+        [] -> prompt "# "
+        _ -> prompt "  "
 
   -- Check the command
   case l of
@@ -136,19 +136,22 @@ run_interactive opts ctx buffer = do
 
           -- Process the 'module'
           ctx <- (do
-            tokens <- mylex file_unknown $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
-            prog <- return $ parse tokens
+                tokens <- mylex file_unknown $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
+                prog <- return $ parse tokens
 
-            run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx) `catchQ` (\e -> do
-                                                                                                      liftIO $ hPutStrLn stderr $ show e
-                                                                                                      return ctx)
+                run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx)
+            `catchQ` (\e -> do
+                liftIO $ hPutStrLn stderr $ show e
+                return ctx)
 
           -- Resume the command input
           run_interactive opts ctx []
 
         else if buffer == [] && List.isPrefixOf ":" l then do
           add_history l
-          (cmd:args) <- return $ words l
+          let w = words l
+              cmd = List.head w
+              args = List.tail w
           case prefix_of cmd (List.map fst commands) of
             [] -> do
                 liftIO $ putStrLn $ "Unknown command: '" ++ cmd ++ "' -- Try :help for more information"
@@ -157,8 +160,8 @@ run_interactive opts ctx buffer = do
             [":help"] -> do
                 w <- return $ (List.maximum $ List.map (List.length . fst) commands) + 5
                 List.foldl (\rec (c, descr) -> do
-                              rec
-                              liftIO $ putStrLn $ c ++ (List.replicate (w - List.length c) ' ') ++ descr) (return ()) commands
+                      rec
+                      liftIO $ putStrLn $ c ++ (List.replicate (w - List.length c) ' ') ++ descr) (return ()) commands
                 run_interactive opts ctx []
                 
             [":exit"] -> do
@@ -166,17 +169,17 @@ run_interactive opts ctx buffer = do
 
             [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do 
-                                    rec
-                                    let (TForall _ _ _ (TBang f b)) = a
-                                    v <- flag_value f
-                                    t <- pprint_type_noref (TBang f b)
-                                    nm <- variable_name x
-                                    liftIO $ putStr "~ "
-                                    case v of
-                                      Zero -> putStrC Red nm
-                                      One -> putStrC Yellow nm
-                                      Unknown -> putStrC Blue nm
-                                    liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
+                      rec
+                      let (TForall _ _ _ (TBang f b)) = a
+                      v <- flag_value f
+                      t <- pprint_type_noref (TBang f b)
+                      nm <- variable_name x
+                      liftIO $ putStr "~ "
+                      case v of
+                        Zero -> putStrC Red nm
+                        One -> putStrC Yellow nm
+                        Unknown -> putStrC Blue nm
+                      liftIO $ putStrLn $ " : " ++ t) (return ()) (typing ctx)
                 run_interactive opts ctx []
 
             [":display"] -> do
@@ -191,33 +194,34 @@ run_interactive opts ctx buffer = do
                 else do
                   term <- return $ unwords args
                   (do
-                      tokens <- mylex file_unknown (term ++ ";;")
-                      p <- return $ parse tokens
-                      case S.body p of
-                        [] ->
-                            liftIO $ putStrLn "-: ()"
-                       
-                        _ -> do
-                            S.DExpr e <- return $ List.head (S.body p)
+                        tokens <- mylex file_unknown (term ++ ";;")
+                        p <- return $ parse tokens
+                        case S.body p of
+                          [] ->
+                              liftIO $ putStrLn "-: ()"
+                         
+                          _ -> do
+                              S.DExpr e <- return $ List.head (S.body p)
 
-                            -- Translation of the expression into internal syntax.
-                            e' <- translate_expression e $ labelling ctx
+                              -- Translation of the expression into internal syntax.
+                              e' <- translate_expression e $ labelling ctx
 
-                            -- Free variables of the new expression
-                            fve <- return $ free_var e'
-                            a@(TBang n _) <- new_type
+                              -- Free variables of the new expression
+                              fve <- return $ free_var e'
+                              a@(TBang n _) <- new_type
 
-                            -- Type e. The constraints from the context are added for the unification.
-                            gamma <- return $ typing ctx
-                            (gamma_e, _) <- sub_context fve gamma
-                            cset <- constraint_typing gamma_e e' [a] >>= break_composite True
-                            cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
-                            inferred <- map_type a >>= pprint_type_noref
+                              -- Type e. The constraints from the context are added for the unification.
+                              gamma <- return $ typing ctx
+                              (gamma_e, _) <- sub_context fve gamma
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                              inferred <- map_type a >>= pprint_type_noref
 
-                            -- Display the type
-                            liftIO $ putStrLn $ "-: " ++ inferred) `catchQ` (\e -> do
-                                                                               liftIO $ hPutStrLn stderr $ show e
-                                                                               return ())
+                              -- Display the type
+                              liftIO $ putStrLn $ "-: " ++ inferred)
+                      `catchQ` (\e -> do
+                        liftIO $ hPutStrLn stderr $ show e
+                        return ())
 
                 run_interactive opts ctx []
 
@@ -230,25 +234,25 @@ run_interactive opts ctx buffer = do
 
             [":value"] -> do
                 List.foldl (\rec n -> do
-                              rec
-                              case Map.lookup n $ l_variables (labelling ctx) of
-                                Just (LGlobal x) -> do
-                                    vals <- get_context >>= return . values
-                                    case IMap.lookup x vals of
-                                      Just v ->
-                                          liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
-                                      Nothing ->
-                                          fail $ "INteractive:run_interactive: undefined global variable: " ++ show x
+                      rec
+                      case Map.lookup n $ l_variables (labelling ctx) of
+                        Just (LGlobal x) -> do
+                            vals <- get_context >>= return . values
+                            case IMap.lookup x vals of
+                              Just v ->
+                                  liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
+                              Nothing ->
+                                  fail $ "INteractive:run_interactive: undefined global variable: " ++ show x
 
-                                Just (LVar x) -> do
-                                    case IMap.lookup x $ environment ctx of
-                                      Just v ->
-                                          liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
-                                      Nothing ->
-                                          fail $ "Interactive:run_interactive: undefined variable: " ++ show x
-                                
-                                Nothing ->
-                                    liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
+                        Just (LVar x) -> do
+                            case IMap.lookup x $ environment ctx of
+                              Just v ->
+                                  liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
+                              Nothing ->
+                                  fail $ "Interactive:run_interactive: undefined variable: " ++ show x
+                        
+                        Nothing ->
+                            liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
                 run_interactive opts ctx []
 
@@ -258,49 +262,50 @@ run_interactive opts ctx buffer = do
                 else do
                   term <- return $ unwords args
                   (do
-                      tokens <- mylex file_unknown (term ++ ";;")
-                      p <- return $ parse tokens
-                      case S.body p of
-                        [] ->
-                            liftIO $ putStrLn "-: ()"
-                       
-                        _ -> do
-                            S.DExpr e <- return $ List.head (S.body p)
+                        tokens <- mylex file_unknown (term ++ ";;")
+                        p <- return $ parse tokens
+                        case S.body p of
+                          [] ->
+                              liftIO $ putStrLn "-: ()"
+                         
+                          _ -> do
+                              S.DExpr e <- return $ List.head (S.body p)
 
-                            -- Translation of the expression into internal syntax.
-                            e' <- translate_expression e $ labelling ctx
+                              -- Translation of the expression into internal syntax.
+                              e' <- translate_expression e $ labelling ctx
 
-                            -- Free variables of the new expression
-                            fve <- return $ free_var e'
-                            a@(TBang n _) <- new_type
+                              -- Free variables of the new expression
+                              fve <- return $ free_var e'
+                              a@(TBang n _) <- new_type
 
-                            -- Type e. The constraints from the context are added for the unification.
-                            limtype <- get_context >>= return . type_id
-                            limflag <- get_context >>= return . flag_id
+                              -- Type e. The constraints from the context are added for the unification.
+                              limtype <- get_context >>= return . type_id
+                              limflag <- get_context >>= return . flag_id
 
-                            gamma <- return $ typing ctx
-                            (gamma_e, _) <- sub_context fve gamma
-                            cset <- constraint_typing gamma_e e' [a] >>= break_composite True
-                            cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
-                            inferred <- map_type a
- 
-                            endtype <- get_context >>= return . type_id
-                            endflag <- get_context >>= return . flag_id
+                              gamma <- return $ typing ctx
+                              (gamma_e, _) <- sub_context fve gamma
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                              inferred <- map_type a
+   
+                              endtype <- get_context >>= return . type_id
+                              endflag <- get_context >>= return . flag_id
 
-                            -- Simplify the constraint set
-                            (TForall ff fv cset a@(TBang n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
+                              -- Simplify the constraint set
+                              (TForall ff fv cset a@(TBang n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
 
-                            -- Display the type
-                            fvar <- display_typvar fv
-                            fflag <- display_ref (n:ff)
-                            fuser <- display_algebraic
+                              -- Display the type
+                              fvar <- display_typvar fv
+                              fflag <- display_ref (n:ff)
+                              fuser <- display_algebraic
 
-                            pinf <- return $ genprint Inf a [fflag, fvar, fuser]
-                            pcset <- return $ genprint Inf cset [fflag, fvar, fuser]
+                              pinf <- return $ genprint Inf [fflag, fvar, fuser] a
+                              pcset <- return $ genprint Inf [fflag, fvar, fuser] cset
 
-                            liftIO $ putStrLn $ "-: " ++ pinf ++ " with\n" ++ pcset) `catchQ` (\e -> do
-                                                                               liftIO $ hPutStrLn stderr $ show e
-                                                                               return ())
+                              liftIO $ putStrLn $ "-: " ++ pinf ++ " with\n" ++ pcset)
+                      `catchQ` (\e -> do
+                        liftIO $ hPutStrLn stderr $ show e
+                        return ())
 
                 run_interactive opts ctx []
 
@@ -342,23 +347,24 @@ exit :: ExtensiveContext -> QpState ()
 exit ctx = do
   -- List all the non-duplicable variables
   ndup <- IMap.foldWithKey (\x a rec -> do
-                              ndup <- rec
-                              let (TForall _ _ _ (TBang f _)) = a
-                              v <- flag_value f
-                              case v of
-                                Zero -> do 
-                                    n <- variable_name x
-                                    return $ n:ndup
-                                _ ->
-                                    return ndup) (return []) (typing ctx)
+        ndup <- rec
+        let (TForall _ _ _ (TBang f _)) = a
+        v <- flag_value f
+        case v of
+          Zero -> do 
+              n <- variable_name x
+              return $ n:ndup
+          _ ->
+              return ndup) (return []) (typing ctx)
+
   case ndup of
     [] -> return ()
     _ -> do
       liftIO $ putStrLn "Warning: the following variables are not duplicable and will be discarded:"
       liftIO $ putStr $ "~"
       List.foldl (\rec n -> do
-                    rec
-                    liftIO $ putStr "  "
-                    putStrC Red n) (return ()) ndup
+            rec
+            liftIO $ putStr "  "
+            putStrC Red n) (return ()) ndup
       liftIO $ putStrLn ""
   return ()

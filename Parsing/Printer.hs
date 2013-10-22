@@ -10,6 +10,7 @@
 module Parsing.Printer where
 
 import Classes
+import Utils
 
 import Parsing.Syntax
 
@@ -19,7 +20,7 @@ import Data.List as List
 import Monad.QuipperError
 
 instance PPrint Type where
-  genprint lv t _ =
+  genprint lv _ t =
     sprintn lv t
 
   -- Print unto Lvl = n
@@ -71,17 +72,12 @@ instance PPrint Type where
     let dlv = decr lv in
     sprintn dlv a ++ " " ++ sprintn dlv b
 
-  -- Print unto Lvl = +oo
-  pprint a = sprintn Inf a
-
-  -- Print unto Lvl = default
-  sprint a = sprintn defaultLvl a
 
 
 
 
 instance PPrint Pattern where
-  genprint lv p _ =
+  genprint lv _ p =
     sprintn lv p
 
   -- Print unto Lvl = n
@@ -106,12 +102,6 @@ instance PPrint Pattern where
   sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " <: " ++ pprint t ++ ")"
 
   sprintn lv (PLocated p _) = sprintn lv p
-
-  -- Print unto Lvl = +oo
-  pprint p = sprintn Inf p
- 
-  -- Print unto Lvl = default
-  sprint p = sprintn defaultLvl p
 
 
 -- * Auxiliary functions
@@ -192,8 +182,7 @@ print_doc (EBuiltin s) = text "#builin" <+> text s
 print_doc (ELocated e _) = print_doc e
  
 instance PPrint Expr where
-  genprint lv e _ = sprintn lv e
+  genprint lv _ e = sprintn lv e
   sprintn lv e = PP.render $ print_doc e
-  sprint e = sprintn defaultLvl e
-  pprint e = sprintn Inf e
+
 

@@ -7,7 +7,6 @@ import Classes
 import Utils
 
 import Parsing.Location
-import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 
 import Typing.CoreSyntax

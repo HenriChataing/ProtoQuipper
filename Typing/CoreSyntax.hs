@@ -16,7 +16,6 @@ import Classes
 import Utils
 
 import Parsing.Location
-import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 import Monad.QuipperError
 
@@ -61,16 +60,13 @@ zero :: RefFlag
 zero = 0
 
 
-
 instance PPrint RefFlag where
-  genprint _ f _ = pprint f
+  genprint _ _ f = pprint f
 
   sprintn _ 0 = ""
   sprintn _ 1 = "!"
-  sprintn _ n = supervar '!' n
+  sprintn _ n = "(" ++ show n ++ ")"
 
-  sprint n = sprintn defaultLvl n
-  pprint n = sprintn Inf n
 
 
 -- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except

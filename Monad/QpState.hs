@@ -3,11 +3,10 @@
 module Monad.QpState where
 
 import Utils
-import Classes hiding (rev)
+import Classes
 import Builtins
 
 import Parsing.Location (Extent, extent_unknown, file_unknown)
-import Parsing.Syntax (RecFlag (..))
 
 import Monad.Modules (Module)
 import qualified Monad.Modules as M
@@ -21,7 +20,7 @@ import Typing.CorePrinter
 
 import qualified Compiler.CompileExpr as C
 
-import Interpret.Circuits
+import Interpret.Circuits hiding (rev)
 import Interpret.Values
 
 import System.IO
@@ -445,7 +444,7 @@ variable_name x = do
         return n
 
     Nothing ->
-        return $ subvar 'x' x
+        return $ prevar "x" x
 
 
 -- | Retrieve the reference the vairable was given at ots declaration. 
@@ -467,7 +466,7 @@ datacon_name x = do
         return n
 
     Nothing ->
-        return $ subvar 'D' x
+        return $ prevar "D" x
 
 
 -- | Retrieve the name of the given type. If no match is found in
@@ -480,7 +479,7 @@ type_name x = do
         return n
 
     Nothing ->
-        return $ subvar 'A' x
+        return $ prevar "A" x
 
 
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
@@ -626,7 +625,7 @@ datacon_def id = do
     Nothing ->
         -- The sound definition of the data constructors has already been checked
         -- during the translation into the core syntax
-        fail $ "QpState:datacon_def: undefined data constructor: " ++ subvar 'D' id
+        fail $ "QpState:datacon_def: undefined data constructor: " ++ prevar "D" id
 
 
 -- | Retrieve the reference of the algebraic type of a data constructor.
@@ -702,7 +701,7 @@ flag_value ref =
               return $ f_value info
 
           Nothing ->
-              fail $ "QpState:flag_value: undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:flag_value: undefined flag reference: " ++ prevar "f" ref
 
 
 
@@ -733,7 +732,7 @@ set_flag ref info = do
                     return ()  -- Includes anyflag and one
 
           Nothing ->
-              fail $ "QpState:set_flag: undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:set_flag: undefined flag reference: " ++ prevar "f" ref
 
 
 -- | Set the value of a flag to zero.
@@ -763,7 +762,7 @@ unset_flag ref info = do
                     return ()  -- Includes anyflag and zero
 
           Nothing ->
-              fail $ "QpState:unset_flag: undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:unset_flag: undefined flag reference: " ++ prevar "f" ref
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
@@ -805,7 +804,7 @@ duplicate_flag ref = do
               return id
 
           Nothing ->
-              fail $ "QpState:duplicate_flag: undefined flag reference: " ++ subvar 'f' ref
+              fail $ "QpState:duplicate_flag: undefined flag reference: " ++ prevar "f" ref
 
 
 
@@ -1180,13 +1179,13 @@ available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
 
 -- | Pre-defined type variable printing function. The variables that may appear in the final type must be given as argument.
 -- Each one of these variables is then associated with a name (of the list 'Monad.QpState.available_names').
--- If too few names are given, the remaining variables are displayed as: subvar \'X\' x.
+-- If too few names are given, the remaining variables are displayed as: prevar \'X\' x.
 display_typvar :: [Variable] -> QpState (Variable -> String)
 display_typvar fv = do
   attr <- return $ List.zip fv available_names
   return (\x -> case List.lookup x attr of
                   Just n -> n
-                  Nothing -> subvar 'X' x)
+                  Nothing -> prevar "X" x)
 
 
 -- | Pre-defined variable printing function.
@@ -1195,7 +1194,7 @@ display_var = do
   nspace <- get_context >>= return . namespace
   return (\x -> case IMap.lookup x $ N.varcons nspace of
                   Just n -> n
-                  Nothing -> subvar 'x' x)
+                  Nothing -> prevar "x" x)
 
 
 -- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
@@ -1232,22 +1231,22 @@ display_ref ff = do
 
 
 -- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
--- subvar \'T\' t if not found.
+-- prevar \'T\' t if not found.
 display_algebraic :: QpState (Variable -> String)
 display_algebraic = do
   nspace <- get_context >>= return . namespace
   return (\t -> case IMap.lookup t $ N.typecons nspace of
                   Just n -> n
-                  Nothing -> subvar 'T' t)
+                  Nothing -> prevar "T" t)
 
 -- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
--- subvar \'D\' dcon if not found.
+-- prevar \'D\' dcon if not found.
 display_datacon :: QpState (Datacon -> String)
 display_datacon = do
   nspace <- get_context >>= return . namespace
   return (\d -> case IMap.lookup d $ N.datacons nspace of
                   Just n -> n
-                  Nothing -> subvar 'D' d)
+                  Nothing -> prevar "D" d)
 
 
 -- | Complementary printing function for patterns, which
@@ -1257,7 +1256,7 @@ pprint_pattern_noref p = do
   fvar <- display_var
   fdata <- display_datacon
   
-  return $ genprint Inf p [fvar, fdata]
+  return $ genprint Inf [fvar, fdata] p
 
 
 -- | Like 'pprint_pattern_noref', but for expressions.
@@ -1266,7 +1265,7 @@ pprint_expr_noref e = do
   fvar <- display_var
   fdata <- display_datacon
 
-  return $ genprint Inf e [fvar, fdata]
+  return $ genprint Inf [fvar, fdata] e
 
 
 
@@ -1279,7 +1278,7 @@ pprint_type_noref t = do
   fflag <- display_flag
   fuser <- display_algebraic
 
-  return $ genprint Inf t [fflag, fvar, fuser]
+  return $ genprint Inf [fflag, fvar, fuser] t
 
 
 
@@ -1291,7 +1290,7 @@ pprint_lintype_noref a = do
   fflag <- display_flag
   fuser <- display_algebraic
 
-  return $ genprint Inf a [fflag, fvar, fuser]
+  return $ genprint Inf [fflag, fvar, fuser] a
 
 
 
@@ -1303,7 +1302,7 @@ pprint_typescheme_noref (TForall ff fv cset typ) = do
   fflag <- display_flag
   fuser <- display_algebraic
 
-  return $ genprint Inf (TForall ff fv cset typ) [fflag, fvar, fuser]
+  return $ genprint Inf [fflag, fvar, fuser] (TForall ff fv cset typ)
 
 
 
@@ -1313,4 +1312,7 @@ pprint_value_noref v = do
   -- Printing of data constructors
   fdata <- display_datacon
 
-  return $ genprint Inf v [fdata]
+  return $ genprint Inf [fdata] v
+
+
+

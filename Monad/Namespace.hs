@@ -63,7 +63,7 @@ dummy_var :: Namespace -> (Int, Namespace)
 dummy_var namespace =
   let id = vargen namespace in
   (id, namespace {
-        varcons = IMap.insert id (subvar 'x' id) $ varcons namespace,
+        varcons = IMap.insert id (prevar "x" id) $ varcons namespace,
         vargen = id+1 })
 
 
