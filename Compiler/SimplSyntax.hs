@@ -1,5 +1,5 @@
--- | This module defines an intermediary language of the compilation, where patterns have been removed.
-module Compiler.CompileExpr where
+-- | This module defines an intermediary language of the compilation, where patterns have been removed (SimplSyntax stands for simplified syntax).
+module Compiler.SimplSyntax where
 
 import Classes
 import Utils 

@@ -29,7 +29,7 @@ import Typing.TypingContext
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
-import Compiler.CompileExpr
+import Compiler.SimplSyntax
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))

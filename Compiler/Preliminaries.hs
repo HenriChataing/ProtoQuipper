@@ -25,7 +25,7 @@ import Monad.QuipperError
 import Typing.CoreSyntax (Variable, Datacon)
 import qualified Typing.CoreSyntax as C
 
-import Compiler.CompileExpr
+import Compiler.SimplSyntax
 import Compiler.QLib
 
 import qualified Data.List as List

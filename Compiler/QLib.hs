@@ -21,7 +21,7 @@ import Typing.CoreSyntax (Variable)
 import Monad.QpState
 import Monad.QuipperError
 
-import Compiler.CompileExpr
+import Compiler.SimplSyntax
 
 import qualified Data.List as List
 import qualified Data.Map as Map

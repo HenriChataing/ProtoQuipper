@@ -18,7 +18,7 @@ import qualified Monad.Namespace as N
 import Typing.CoreSyntax
 import Typing.CorePrinter
 
-import qualified Compiler.CompileExpr as C
+import qualified Compiler.SimplSyntax as C
 
 import Interpret.Circuits hiding (rev)
 import Interpret.Values
