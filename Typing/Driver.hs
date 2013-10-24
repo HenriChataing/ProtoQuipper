@@ -26,10 +26,12 @@ import Typing.Ordering
 import Typing.Subtyping
 import Typing.TypeInference
 import Typing.TypingContext
+import Typing.LabellingContext (LabellingContext, lvar_to_lglobal)
+import qualified Typing.LabellingContext as L
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
-import Compiler.SimplSyntax
+--import Compiler.SimplSyntax
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -73,16 +75,19 @@ find_in_directories :: String       -- ^ Module name.
                     -> [FilePath]   -- ^ List of directories.
                     -> String       -- ^ Extension.
                     -> QpState (Maybe FilePath)
-find_in_directories mod@(initial:rest) directories extension = do
-  mfile <- return $ (Char.toLower initial):(rest ++ extension)
+find_in_directories "" directories extension = do
+  fail "Driver:find_in_directories: null module name"
+
+find_in_directories mname directories extension = do
+  let mfile = string_toLower mname ++ extension
   existing <- List.foldl (\rec d -> do
-                            r <- rec
-                            nexttry <- return $ combine d mfile
-                            exists <- liftIO $ doesFileExist nexttry
-                            if exists then
-                              return (nexttry:r)
-                            else
-                              return r) (return []) directories
+        r <- rec
+        let nexttry = combine d mfile
+        exists <- liftIO $ doesFileExist nexttry
+        if exists then
+          return (nexttry:r)
+        else
+          return r) (return []) directories
   case existing of
     [] ->
         -- No implementation found
@@ -92,10 +97,8 @@ find_in_directories mod@(initial:rest) directories extension = do
         return $ Just path
     (m1:m2:_) ->
         -- Several implementations found
-        throwNE $ DuplicateImplementation mod m1 m2
+        throwNE $ DuplicateImplementation mname m1 m2
 
-find_in_directories "" directories extension = do
-  fail "Driver:find_in_directories: null module name"
 
 -- | Specifically look for the implementation of a module.
 -- Since an implementation is expected, the function fails if no matching
@@ -137,35 +140,35 @@ explore_dependencies dirs prog explored sorted = do
   explored <- return $ (S.module_name prog):explored
   -- Sort the dependencies
   (s,ex) <- List.foldl (\rec m -> do
-                           (sorted, exp) <- rec
-                           case (List.elem m exp, List.find (\p -> S.module_name p == m) sorted) of
-                             -- Ok
-                             (True, Just _) ->
-                                 return (sorted, exp)
+        (sorted, exp) <- rec
+        case (List.elem m exp, List.find (\p -> S.module_name p == m) sorted) of
+          -- Ok
+          (True, Just _) ->
+              return (sorted, exp)
 
-                             -- Not ok
-                             (True, Nothing) -> do
-                                 -- The module has already been visited : cyclic dependency
-                                 -- Build the loop : by removing the already sorted modules,
-                                 -- and spliting the explored list at the first visit of this module.
-                                 flush_logs
-                                 inloop <- return $ explored List.\\ (List.map S.module_name sorted)
-                                 (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
+          -- Not ok
+          (True, Nothing) -> do
+              -- The module has already been visited : cyclic dependency
+              -- Build the loop : by removing the already sorted modules,
+              -- and spliting the explored list at the first visit of this module.
+              flush_logs
+              inloop <- return $ explored List.\\ (List.map S.module_name sorted)
+              (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
 
-                                 throwNE $ CircularDependency m (List.reverse (m:loop))
+              throwNE $ CircularDependency m (List.reverse (m:loop))
 
-                             -- Explore
-                             _ -> do
-                                 file <- find_implementation_in_directories m dirs
-                                 inter <- find_interface_in_directories m dirs
-                                 p <- lex_and_parse_implementation file
-                                 p <- case inter of
-                                        Just f -> do
-                                            interface <- lex_and_parse_interface f
-                                            return $ p { S.interface = Just interface }
-                                        Nothing -> return p
+          -- Explore
+          _ -> do
+              file <- find_implementation_in_directories m dirs
+              inter <- find_interface_in_directories m dirs
+              p <- lex_and_parse_implementation file
+              p <- case inter of
+                    Just f -> do
+                        interface <- lex_and_parse_interface f
+                        return $ p { S.interface = Just interface }
+                    Nothing -> return p
 
-                                 explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)
+              explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)
   -- Push the module on top of the list : after its dependencies
   return (prog:s, ex)
 
@@ -265,9 +268,9 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 
   -- Apply the substitution produced by the unification to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
-                               m <- rec
-                               a' <- map_typescheme a
-                               return $ IMap.insert x a' m) (return IMap.empty) gamma
+        m <- rec
+        a' <- map_typescheme a
+        return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- If interpretation, interpret, and display the result
   if run_interpret opts && toplevel mopts then do
@@ -288,20 +291,21 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 
   -- Remove the used AND non duplicable variables from the context
   IMap.foldWithKey (\x a rec -> do
-                      ctx <- rec
-                      let (TForall _ _ _ (TBang f _)) = a
-                      v <- flag_value f
- 
-                      case (List.elem x fve, v) of
-                        (True, Zero) -> do
-                            n <- variable_name x
-                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.delete n $ l_variables (labelling ctx) },
-                                           typing = IMap.delete x $ typing ctx,
-                                           environment = IMap.delete x $ environment ctx }
+        ctx <- rec
+        let (TForall _ _ _ (TBang f _)) = a
+        v <- flag_value f
 
-                        _ ->
-                            return ctx) (return $ ctx { typing = gamma,
-                                                        constraints = cset' }) gamma
+        case (List.elem x fve, v) of
+          (True, Zero) -> do
+              n <- variable_name x
+              return $ ctx {
+                    labelling = (labelling ctx) { L.variables = Map.delete n $ L.variables (labelling ctx) },
+                    typing = IMap.delete x $ typing ctx,
+                    environment = IMap.delete x $ environment ctx
+                  }
+
+          _ ->
+              return ctx) (return $ ctx { typing = gamma, constraints = cset' }) gamma
 
 
 -- LET BINDING
@@ -309,8 +313,8 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', label') <- translate_pattern p $ labelling ctx
   e' <- case recflag of
-          Recursive -> translate_expression e $ (labelling ctx) { l_variables = label' }
-          Nonrecursive -> translate_expression e $ labelling ctx
+        Recursive -> translate_expression e $ (labelling ctx) { L.variables = label' }
+        Nonrecursive -> translate_expression e $ labelling ctx
   fve <- return $ free_var e'
 
   -- Remember the body of the module
@@ -333,12 +337,12 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   (a, gamma_p, csetp) <- Typing.TypingContext.bind_pattern p'
   -- Type e with this type
   csete <- case recflag of
-             Recursive -> do
-                 -- Add the bindings of the pattern into gamma_e
-                 constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_e) e' [a]
-             Nonrecursive -> do
-                 -- If not recursive, do nothing
-                 constraint_typing gamma_e e' [a]
+        Recursive -> do
+            -- Add the bindings of the pattern into gamma_e
+            constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_e) e' [a]
+        Nonrecursive -> do
+            -- If not recursive, do nothing
+            constraint_typing gamma_e e' [a]
 
   -- Unify the constraints produced by the typing of e (exact unification)
   cs <- break_composite True (csetp <> csete)  -- Break the composite constraints
@@ -346,15 +350,15 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
   -- Apply the substitution produced by the unification of csett to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
-                               m <- rec
-                               a' <- map_typescheme a
-                               return $ IMap.insert x a' m) (return IMap.empty) gamma
+        m <- rec
+        a' <- map_typescheme a
+        return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- Map the types of the pattern
   gamma_p <- IMap.foldWithKey (\x a rec -> do
-                                  m <- rec
-                                  a' <- map_type a
-                                  return $ IMap.insert x a' m) (return IMap.empty) gamma_p
+        m <- rec
+        a' <- map_type a
+        return $ IMap.insert x a' m) (return IMap.empty) gamma_p
 
   -- Unify the set again
   fls <- unify_flags $ snd csete
@@ -373,15 +377,15 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   gamma_p <- if is_value e' then
     -- Generalize the types of the pattern (= polymorphism)
     IMap.foldWithKey (\x a rec -> do
-                        ctx <- rec
-                        -- Apply the substitution again
-                        --a' <- map_type a
-                        a' <- return a
-                        -- Clean the constraint set 
-                        gena <- make_polymorphic_type a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+          ctx <- rec
+          -- Apply the substitution again
+          --a' <- map_type a
+          a' <- return a
+          -- Clean the constraint set 
+          gena <- make_polymorphic_type a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
 
-                        -- Update the typing context of u
-                        return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
+          -- Update the typing context of u
+          return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
   -- If the expression is not a value, it has a classical type
   else
@@ -391,56 +395,89 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p
     IMap.foldWithKey (\x a rec -> do
-                        rec
-                        nx <- variable_name x
-                        case a of
-                          TForall _ _ _ a -> do
-                              pa <- pprint_type_noref a
-                              liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
-                        return ()) (return ()) gamma_p
+          rec
+          nx <- variable_name x
+          case a of
+            TForall _ _ _ a -> do
+                pa <- pprint_type_noref a
+                liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+          return ()) (return ()) gamma_p
   else
     return ()
 
   -- Evaluation (even if the module is not top-level, if the general options want it to be evaluated, then so be it)
   ctx <- if run_interpret opts then do
-           -- Reduce the argument e1
-           v <- interpret (environment ctx) e'
+    -- Reduce the argument e1
+    v <- interpret (environment ctx) e'
         
-           -- Recursive function ?
-           env <- case (recflag, v, drop_constraints p') of
-                    (Recursive, VFun ev arg body, PVar _ x) ->
-                        let ev' = IMap.insert x (VFun ev' arg body) ev in do
-                        Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
+    -- Recursive function ?
+    env <- case (recflag, v, drop_constraints p') of
+          (Recursive, VFun ev arg body, PVar _ x) -> do
+              let ev' = IMap.insert x (VFun ev' arg body) ev
+              Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
 
-                    _ -> do
-                        -- Bind it to the pattern p in the current context
-                        Interpret.Interpret.bind_pattern p' v (environment ctx)
-           -- End, at last
-           return $ ctx { typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
-                          environment = env }          -- Environment updated with the bindings of p
-         else
-           return $ ctx { typing = gamma_p <+> gamma } -- Typing context updated with the bindings of p
+          _ -> do
+              -- Bind it to the pattern p in the current context
+              Interpret.Interpret.bind_pattern p' v (environment ctx)
+    -- End, at last
+    return $ ctx {
+          typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
+          environment = env            -- Environment updated with the bindings of p
+       }
+  else
+    return $ ctx { typing = gamma_p <+> gamma } -- Typing context updated with the bindings of p
 
   -- Remove the variables used by e and non duplicable
   ctx <- IMap.foldWithKey (\x a rec -> do
-                      ctx <- rec
-                      let (TForall _ _ _ (TBang f _)) = a
-                      v <- flag_value f
-                      case (List.elem x fve, v) of
-                        (True, Zero) -> do
-                            n <- variable_name x
-                            
-                            return $ ctx { labelling = (labelling ctx) { l_variables = Map.update (\v -> let y = case v of
-                                                                                                                   LVar y -> y
-                                                                                                                   LGlobal y -> y
-                                                                                                                   in
-                                                                                                         -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
-                                                                                                         if x == y then Nothing else Just v) n $ l_variables (labelling ctx) },
-                                           typing = IMap.delete x $ typing ctx,
-                                           environment = IMap.delete x $ environment ctx }
-                        _ ->
-                            return ctx) (return ctx { labelling = (labelling ctx) { l_variables = label' } }) (typing ctx)
+        ctx <- rec
+        let (TForall _ _ _ (TBang f _)) = a
+        v <- flag_value f
+        case (List.elem x fve, v) of
+          (True, Zero) -> do
+              n <- variable_name x
+              
+              return $ ctx {
+                    labelling = (labelling ctx) {
+                          L.variables = Map.update (\v ->
+                                let y = case v of { LVar y -> y; LGlobal y -> y } in
+                                -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
+                                if x == y then Nothing else Just v) n $ L.variables (labelling ctx) },
+                    typing = IMap.delete x $ typing ctx,
+                    environment = IMap.delete x $ environment ctx }
+          _ ->
+              return ctx) (return ctx { labelling = (labelling ctx) { L.variables = label' } }) (typing ctx)
   return ctx
+
+
+-- | Explicit the implementation of functional data constructors.
+explicit_datacons :: Module -> QpState Module
+explicit_datacons mod = do
+  case M.body mod of
+    Nothing ->
+        return mod
+    Just body -> do
+        Map.foldl (\rec dcon -> do
+              mod <- rec
+              ddef <- datacon_def dcon
+              case type_of_typescheme $ d_type ddef of
+                -- Takes an argument -> write an implementation
+                TBang _ (TArrow _ _) -> do
+                    x <- dummy_var
+                    y <- dummy_var
+                    let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
+                    
+                    -- Update the definition of dcon
+                    ctx <- get_context
+                    set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
+                  
+                    -- Update the module definition
+                    return mod { M.body = Just $ ELet 0 Nonrecursive (PVar 0 y) e body }
+
+                -- Takes no argument -> do nothing
+                _ ->
+                    return mod
+              ) (return mod) (L.datacons $ M.labelling mod)
+
 
 
 -- | Processes a module. This implies, in turn:
@@ -464,7 +501,7 @@ process_module opts prog = do
   set_file f
 
   -- Import the global variables from the dependencies
-  (vars, datas, typs) <- global_namespace (S.imports prog)
+  lctx <- global_namespace (S.imports prog)
 
   -- Save and reset the circuit stack
   ctx <- get_context
@@ -473,11 +510,11 @@ process_module opts prog = do
  
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
-                       ctx <- rec
-                       process_declaration opts prog ctx decl) (return $ Context { labelling = LblCtx { l_variables = vars, l_datacons = datas, l_types = typs },
-                                                                                   typing = IMap.empty,
-                                                                                   environment = IMap.empty,
-                                                                                   constraints = emptyset }) $ S.body prog
+        ctx <- rec
+        process_declaration opts prog ctx decl) (return $ Context { labelling = lctx,
+                                                                    typing = IMap.empty,
+                                                                    environment = IMap.empty,
+                                                                    constraints = emptyset }) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
   duplicable_context (typing ctx)
@@ -489,18 +526,13 @@ process_module opts prog = do
   set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
                       values = IMap.union (environment ctx) $ values qst }
                             
-
-  -- Identify the variables created during the processing of the module
-  vars <- return $ Map.difference (l_variables $ labelling ctx) vars
-  datas <- return $ Map.difference (l_datacons $ labelling ctx) datas
-  typs <- return $ Map.difference (l_types $ labelling ctx) typs
-
   -- Push the definition of the new module to the stack
   body <- module_body
-  newmod <- return $ Mod { M.variables = Map.map unLVar vars,
-                           M.datacons = datas,
-                           M.types = Map.map unTUser typs,
-                           M.body = body }
+  let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.
+                     M.body = body }
+  -- Explicit the construction of the data constructors
+  newmod <- explicit_datacons newmod
+
   ctx <- get_context
   set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
 
@@ -514,9 +546,10 @@ process_module opts prog = do
   where
       unLVar (LVar id) = id
       unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
-      
+    
       unTUser (TBang _ (TUser id _)) = id
       unTUser _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
+
 
 -- ==================================== --
 -- | A function to do everything!
@@ -535,21 +568,19 @@ do_everything opts files = do
 
   -- Process everything, finishing by the main file
   List.foldl (\rec p -> do
-                rec
-                mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
-                nm <- process_module (opts, mopts) p
+        rec
+        mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
+        nm <- process_module (opts, mopts) p
 
--- TO REMOVE --
-                case M.body nm of
-                  Nothing -> return ()
-                  Just e -> do
-                      e' <- disambiguate_unbox_calls [] IMap.empty e
-                      e' <- remove_patterns e'
-                      newlog (-2) $ "#########  MODULE: " ++ S.module_name p ++ " #########"
-                      newlog (-2) $ pprint e' ++ "\n"
----------------
+        case M.body nm of
+          Nothing -> return ()
+          Just e -> do
+              e' <- disambiguate_unbox_calls [] IMap.empty e 
+              e' <- remove_patterns e'
+              newlog (-2) $ "#########  MODULE: " ++ S.module_name p ++ " #########"
+              newlog (-2) $ pprint e' ++ "\n"
 
-                return ()) (return ()) deps
+        return ()) (return ()) deps
   -- Display the qlib module
   qlib <- get_context >>= return . qlib
   newlog (-2) $ "#########  MODULE: QLib  #########"

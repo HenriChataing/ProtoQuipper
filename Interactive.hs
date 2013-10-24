@@ -16,6 +16,7 @@ import Typing.TypingContext
 import Typing.Driver
 import Typing.TransSyntax
 import Typing.Subtyping
+import Typing.LabellingContext as L
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
 
@@ -63,11 +64,7 @@ import_modules opts mnames ctx = do
           -- Re-process
           m <- process_module (opts, mopts) p
           -- Import
-          let vars = Map.map (\id -> LGlobal id) $ M.variables m
-              typs = Map.map (\id -> TBang 0 $ TUser id []) $ M.types m
-          return $ ctx { labelling = LblCtx { l_variables = Map.union vars $ l_variables $ labelling ctx,
-                                              l_datacons  = Map.union (M.datacons m) $ l_datacons $ labelling ctx,
-                                              l_types = Map.union typs $ l_types $ labelling ctx } }                   
+          return $ ctx { labelling = M.labelling m <+> labelling ctx }
         else do
           -- Check whether the module has already been imported or not
           imported <- get_context >>= return . modules
@@ -235,7 +232,7 @@ run_interactive opts ctx buffer = do
             [":value"] -> do
                 List.foldl (\rec n -> do
                       rec
-                      case Map.lookup n $ l_variables (labelling ctx) of
+                      case Map.lookup n $ L.variables (labelling ctx) of
                         Just (LGlobal x) -> do
                             vals <- get_context >>= return . values
                             case IMap.lookup x vals of

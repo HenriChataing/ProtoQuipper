@@ -77,15 +77,15 @@ module Typing.TransSyntax (
   translate_pattern,
   with_interface,
   import_typedefs,
-  import_typesyn,
-  LabellingContext (..),
-  empty_label) where
+  import_typesyn) where
 
 import Utils
 import Classes
 import Builtins
 
 import Typing.CoreSyntax
+import Typing.LabellingContext (LabellingContext, empty_label)
+import qualified Typing.LabellingContext as L
 import Typing.CorePrinter
 import Typing.Subtyping
 
@@ -95,6 +95,8 @@ import Parsing.Printer
 
 import Interpret.Values
 import Interpret.Circuits as C
+
+import qualified Compiler.SimplSyntax as CS
 
 import Monad.QuipperError
 import Monad.QpState hiding (is_qdata_lintype, is_qdata_type)
@@ -106,25 +108,6 @@ import Data.Map as Map
 import qualified Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
-
-
--- | Labelling context: it contains the variable identifiers of all the variables, data constructors,
--- types in scope.
-data LabellingContext = LblCtx {
-  l_variables :: Map String LVariable,
-  l_datacons :: Map String Datacon,
-  l_types :: Map String Type
-}
-
-
-
--- | Empty labelling map.
-empty_label :: LabellingContext
-empty_label = LblCtx {
-  l_variables = Map.empty,
-  l_datacons = Map.empty,
-  l_types = Map.empty
-}
 
 
 
@@ -139,64 +122,77 @@ import_typedefs dblock label = do
   -- At first, the definition is empty, it will be elaborated later.
   -- The types of the block are added to the labelling map: this is what allows for co-inductive types
   (typs, names) <- List.foldl (\rec def@(S.Typedef typename args _) -> do
-                                 (typs, names) <- rec
-                                 spec <- return $ Typedef { d_args = List.length args,
-                                                            d_qdatatype = True,            -- qdata type by default
-                                                            d_unfolded = ([], []),
-                                                            d_subtype = ([], [], emptyset) }
+        (typs, names) <- rec
+        spec <- return $ Typedef {
+              d_args = List.length args,
+              d_qdatatype = True,            -- qdata type by default
+              d_unfolded = ([], []),
+              d_subtype = ([], [], emptyset),
+              d_gettag = \x -> CS.EVar x
+            }
 
-                                 -- Register the type in the current context
-                                 id <- register_typedef typename spec
-                                 -- Add the type in the map
-                                 return (Map.insert typename (TBang 0 $ TUser id []) typs, id:names)) (return (l_types label, [])) dblock
+        -- Register the type in the current context
+        id <- register_typedef typename spec
+        -- Add the type in the map
+        return (Map.insert typename (TBang 0 $ TUser id []) typs, id:names)) (return (L.types label, [])) dblock
 
   -- Transcribe the rest of the type definitions.
   -- Type definitions include: the name of the type, generic variables, the list of constructors
   datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
-                         lbl <- rec
-                         -- Type id needed for udpates.
-                         typeid <- case Map.lookup typename typs of
-                                 Just (TBang _ (TUser id _)) -> return id
-                                 _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
+        lbl <- rec
+        -- Type id needed for udpates.
+        typeid <- case Map.lookup typename typs of
+            Just (TBang _ (TUser id _)) -> return id
+            _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
 
-                         -- Bind the arguments of the type.
-                         -- For each string argument a, a type !n a is created and bound in the map mapargs.
-                         (args', mapargs) <- List.foldr (\a rec -> do
-                                                           (args, m) <- rec
-                                                           ta <- new_type
-                                                           return (ta:args, Map.insert a ta m)) (return ([], typs)) args
+        -- Bind the arguments of the type.
+        -- For each string argument a, a type !n a is created and bound in the map mapargs.
+        (args', mapargs) <- List.foldr (\a rec -> do
+              (args, m) <- rec
+              ta <- new_type
+              return (ta:args, Map.insert a ta m)) (return ([], typs)) args
 
-                         -- Define the type of the data constructors
-                         (dtypes', m) <- List.foldl (\rec (no, (dcon, dtype)) -> do
-                                                      (dt, lbl) <- rec
-                                                      (dtype, argtyp, cset) <- case dtype of
-                                                                                -- If the constructor takes no argument
-                                                                                Nothing -> do
-                                                                                    m <- fresh_flag
-                                                                                    return (TBang m (TUser typeid args'), TBang one TUnit, emptyset)
-      
-                                                                                -- If the constructor takes an argument
-                                                                                Just dt -> do
-                                                                                    dt'@(TBang n _) <- translate_bound_type dt $ empty_label { l_types = mapargs }
-                                                                                    m <- fresh_flag
-                                                                                    return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), dt', ([], [Le m n no_info]))
- 
-                                                      -- Generalize the type of the constructor over the free variables and flags
-                                                      -- Those variables must also respect the constraints from the construction of the type
-                                                      (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
-                                                      dtype <- return $ TForall ff fv cset dtype
+        -- Define the type of the data constructors
+        (dtypes', m) <- List.foldl (\rec (no, (dcon, dtype)) -> do
+              (dt, lbl) <- rec
+              (dtype, argtyp, cset) <- case dtype of
+                    -- If the constructor takes no argument
+                    Nothing -> do
+                        m <- fresh_flag
+                        return (TBang m (TUser typeid args'), TBang one TUnit, emptyset)
 
-                                                      -- Register the datacon
-                                                      id <- register_datacon dcon $ Datacondef { d_type = dtype,
-                                                                                                 d_datatype = typeid,
-                                                                                                 d_label = no }
-                                                      return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
+                    -- If the constructor takes an argument
+                    Just dt -> do
+                        dt'@(TBang n _) <- translate_bound_type dt $ empty_label { L.types = mapargs }
+                        m <- fresh_flag
+                        return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), dt', ([], [Le m n no_info]))
 
-                         -- Update the specification of the type
-                         Left spec <- type_spec typeid
-                         ctx <- get_context
-                         set_context $ ctx { types = IMap.insert typeid (Left $ spec { d_unfolded = (args', List.map (\(id, t) -> (id, t)) dtypes') }) $ types ctx }
-                         return m) (return $ l_datacons label) dblock
+              -- Generalize the type of the constructor over the free variables and flags
+              -- Those variables must also respect the constraints from the construction of the type
+              (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
+              dtype <- return $ TForall ff fv cset dtype
+
+              -- Register the datacon
+              id <- register_datacon dcon $ Datacondef {
+                    d_type = dtype,
+                    d_datatype = typeid,
+                    d_tag = no,
+                    d_ref = -1,
+                    d_construct = Left CS.EUnit,
+                    d_deconstruct = \x -> CS.EVar x
+                  }
+              return $ ((id, type_of_typescheme dtype):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
+
+        -- Update the specification of the type
+        Left spec <- type_spec typeid
+        ctx <- get_context
+        set_context $ ctx { types = IMap.insert typeid (Left $ spec { d_unfolded = (args', dtypes') }) $ types ctx }
+
+        -- Specify the implementation of this type
+        choose_implementation typeid
+
+        return m) (return $ L.datacons label) dblock
+
 
 
   -- Infer the properties of the user types
@@ -204,9 +200,80 @@ import_typedefs dblock label = do
   define_user_properties names
 
   -- Return the updated labelling map for types, and the map for dataconstructors.
-  return $ label { l_datacons = datas,
-                   l_types = typs }
+  return $ label { L.datacons = datas,
+                   L.types = typs }
 
+
+
+-- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
+choose_implementation :: Algebraic -> QpState ()
+choose_implementation typ = do
+  spec <- type_spec typ
+  case spec of
+    -- Algebraic type
+    Left dtyp -> do
+        let datas = snd $ d_unfolded dtyp
+        ctx <- get_context
+        case datas of
+          -- Cases with one constructor:
+          -- The tag is omitted. No definition of the function gettag is needed. 
+          [(dcon, TBang _ (TArrow _ _))] -> do
+              update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
+              
+          [(dcon, _)] ->
+              update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
+              
+          -- Cases with several constrcutors
+          _ -> do
+              -- First thing : count the constructors taking an argument.
+              let (with_args, no_args) = List.partition (\(_, t) -> 
+                    case t of
+                      TBang _ (TArrow _ _) -> True
+                      _ -> False) datas
+
+              -- In case at most one takes an argument, the remaining can be represented by just their tag.
+              if List.length with_args <= 1 then do
+                -- The constructor with one argument can forget its tag
+                List.foldl (\rec (dcon, _) -> do
+                      rec
+                      update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [e]), d_deconstruct = \v -> CS.EAccess 0 v })
+                    ) (return ()) with_args
+                -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+                List.foldl (\rec (dcon, _) -> do
+                      rec
+                      update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.EInt (d_tag ddef) })
+                    ) (return ()) no_args
+                -- The tag is obtained by checking for references.
+                case with_args of
+                  -- Since there isn't any reference in the lot, no need to check
+                  [] -> update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EVar v })
+                  -- There is a reference: need to check
+                  [(dcon, _)] -> do
+                      tag <- datacon_def dcon >>= return . d_tag
+                      update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EIf (CS.EApp (CS.EBuiltin "ISREF") (CS.EVar v))
+                                                                             (CS.EInt tag)
+                                                                             (CS.EVar v) })
+                  _ ->
+                      fail "TransSyntax:choose_implementation: unexpected case"
+
+              -- If not, just give the default implementation.
+              else do
+                -- The constructor with one argument can forget its tag
+                List.foldl (\rec (dcon, _) -> do
+                      rec
+                      update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [CS.EInt (d_tag ddef),e]), d_deconstruct = \v -> CS.EAccess 1 v })
+                    ) (return ()) with_args
+                -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+                List.foldl (\rec (dcon, _) -> do
+                      rec
+                      update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.ETuple [CS.EInt (d_tag ddef)] })
+                    ) (return ()) no_args
+                -- The tag is the first element of the tuple.
+                update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EAccess 0 v })
+
+    -- Not an algebraic type
+    Right _ ->
+        fail "TransSyntax:choose_implementation: illegal argument"
 
 
 -- | Unfold the definitions of the types in the subtyping constraints
@@ -343,7 +410,7 @@ import_typesyn typesyn label = do
                          return $ Map.insert a a' map) (return Map.empty) (S.s_args typesyn)
 
   -- Translate the synonym type
-  syn <- translate_bound_type (S.s_synonym typesyn) (label { l_types = Map.union margs $ l_types label }) 
+  syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label }) 
 
   -- Is it a quantum data type ?
   qdata <- Q.is_qdata_type syn
@@ -358,7 +425,7 @@ import_typesyn typesyn label = do
   id <- register_typesyn (S.s_typename typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { l_types = Map.insert (S.s_typename typesyn) (TBang 0 $ TUser id []) $ l_types label }
+  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TUser id []) $ L.types label }
 
 
 
@@ -622,7 +689,7 @@ translate_type t args label = do
 -- The arguments must be null initially.
 translate_bound_type :: S.Type -> LabellingContext -> QpState Type
 translate_bound_type t label = do
-  (t', _) <- translate_type t [] (l_types label, True)
+  (t', _) <- translate_type t [] (L.types label, True)
   return t'
 
 
@@ -632,7 +699,7 @@ translate_bound_type t label = do
 -- No argument is passed to the top type.
 translate_unbound_type :: S.Type -> LabellingContext -> QpState Type
 translate_unbound_type t label = do
-  (t', _) <- translate_type t [] (l_types label, False)
+  (t', _) <- translate_type t [] (L.types label, False)
   return t'
 
 
@@ -643,41 +710,41 @@ translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map Stri
 translate_pattern S.PUnit label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PUnit ref })
-  return (PUnit ref, l_variables label)
+  return (PUnit ref, L.variables label)
 
 translate_pattern (S.PBool b) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PBool ref b })
-  return (PBool ref b, l_variables label)
+  return (PBool ref b, L.variables label)
 
 translate_pattern (S.PInt n) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PInt ref n })
-  return (PInt ref n, l_variables label)
+  return (PInt ref n, L.variables label)
 
 translate_pattern S.PWildcard label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PWildcard ref })
-  return (PWildcard ref, l_variables label)
+  return (PWildcard ref, L.variables label)
 
 translate_pattern (S.PVar x) label = do
   ref <- create_ref
   id <- register_var x ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
-  return (PVar ref id, Map.insert x (LVar id) $ l_variables label)
+  return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
 
 translate_pattern (S.PTuple plist) label = do
   ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
                                   (r, lbl) <- rec
-                                  (p', lbl') <- translate_pattern p $ label { l_variables = lbl }
-                                  return ((p':r), lbl')) (return ([], l_variables label)) plist
+                                  (p', lbl') <- translate_pattern p $ label { L.variables = lbl }
+                                  return ((p':r), lbl')) (return ([], L.variables label)) plist
   update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
 translate_pattern (S.PDatacon datacon p) label = do
   ref <- create_ref
-  case Map.lookup datacon $ l_datacons label of
+  case Map.lookup datacon $ L.datacons label of
     Just id -> do
         case p of
           Just p -> do
@@ -687,7 +754,7 @@ translate_pattern (S.PDatacon datacon p) label = do
 
           Nothing -> do
               update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id Nothing })
-              return (PDatacon ref id Nothing, l_variables label)
+              return (PDatacon ref id Nothing, L.variables label)
 
     Nothing ->
         throw_UnboundDatacon datacon
@@ -698,7 +765,7 @@ translate_pattern (S.PLocated p ex) label = do
 
 translate_pattern (S.PConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
-  return (PConstraint p' (t, l_types label), lbl)
+  return (PConstraint p' (t, L.types label), lbl)
 
 
 
@@ -723,7 +790,7 @@ translate_expression (S.EInt n) _ = do
 
 translate_expression (S.EVar x) label = do
   ref <- create_ref
-  case Map.lookup x $ l_variables label of
+  case Map.lookup x $ L.variables label of
     Just (LVar v) -> do
         update_ref ref (\ri -> Just ri { r_expression = Left $ EVar ref v })
         return (EVar ref v)
@@ -744,7 +811,7 @@ translate_expression (S.EQualified m x) _ = do
 translate_expression (S.EFun p e) label = do
   ref <- create_ref
   (p', lbl) <- translate_pattern p label
-  e' <- translate_expression e $ label { l_variables = lbl }
+  e' <- translate_expression e $ label { L.variables = lbl }
   update_ref ref (\ri -> Just ri { r_expression = Left $ EFun ref p' e' })
   return (EFun ref p' e')
 
@@ -753,16 +820,16 @@ translate_expression (S.ELet r p e f) label = do
   (p', lbl) <- translate_pattern p label
   e' <- case r of
         Recursive -> do
-            translate_expression e $ label { l_variables = lbl }
+            translate_expression e $ label { L.variables = lbl }
         Nonrecursive -> do
             translate_expression e $ label
-  f' <- translate_expression f $ label { l_variables = lbl }
+  f' <- translate_expression f $ label { L.variables = lbl }
   update_ref ref (\ri -> Just ri { r_expression = Left $ ELet ref r p' e' f' })
   return (ELet ref r p' e' f')
 
 translate_expression (S.EDatacon datacon e) label = do
   ref <- create_ref
-  case Map.lookup datacon $ l_datacons label of
+  case Map.lookup datacon $ L.datacons label of
     Just id -> do
         case e of
           Just e -> do
@@ -783,7 +850,7 @@ translate_expression (S.EMatch e blist) label = do
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
                           (p', lbl) <- translate_pattern p label
-                          f' <- translate_expression f $ label { l_variables = lbl }
+                          f' <- translate_expression f $ label { L.variables = lbl }
                           return ((p', f'):r)) (return []) blist
   update_ref ref (\ri -> Just ri { r_expression = Left $ EMatch ref e' blist' })
   return (EMatch ref e' blist')
@@ -792,7 +859,7 @@ translate_expression (S.EMatch e blist) label = do
 translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label = do
   ref <- create_ref
   e' <- translate_expression e label
-  case Map.lookup dcon $ l_datacons label of
+  case Map.lookup dcon $ L.datacons label of
     Just id -> do
         update_ref ref (\ri -> Just ri { r_expression = Left $ EDatacon ref id $ Just e' })
         return (EDatacon ref id $ Just e')
@@ -873,7 +940,7 @@ translate_expression (S.EBuiltin s) label = do
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
-  return $ EConstraint e' (t, l_types label)
+  return $ EConstraint e' (t, L.types label)
 
 
 
@@ -887,7 +954,7 @@ with_interface prog label (PVar ref x) = do
         n <- variable_name x
         case List.lookup n inter of
           Just typ -> do
-              return $ PConstraint (PVar ref x) (typ, l_types label)
+              return $ PConstraint (PVar ref x) (typ, L.types label)
           Nothing -> do
               return $ PVar ref x
     Nothing -> do

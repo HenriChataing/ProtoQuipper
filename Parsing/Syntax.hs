@@ -34,15 +34,12 @@ instance Show Empty where
 -- ----------------------------------------------------------------------
 -- ** Declarations
 
--- | A data constructor. A data constructor is uniquely determined by its name.
-type Datacon = String
-
 
 -- | An algebraic data type definition.
 data Typedef = Typedef {
   d_typename :: String,                        -- ^ Name of the defined type.
   d_args :: [String],                          -- ^ List of bound type arguments.
-  d_constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
+  d_constructors :: [(String, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
 }
 
 
@@ -215,7 +212,7 @@ data Pattern =
   | PInt Int                             -- ^ Integer pattern.
   | PVar String                          -- ^ Variable pattern: /x/.
   | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PDatacon String (Maybe Pattern)     -- ^ Data constructor pattern: \"@String@\" or \"@String /pattern/@\".
   | PConstraint Pattern Type             -- ^ Constraint pattern: @(x <: A)@.
   | PLocated Pattern Extent              -- ^ A located pattern.
   deriving Show
@@ -278,7 +275,7 @@ data XExpr a =
   | EUnit                          -- ^ Unit term: @()@.
 
 -- Addition of sum types
-  | EDatacon String (Maybe (XExpr a)) -- ^ Data constructor: @Datacon e@.
+  | EDatacon String (Maybe (XExpr a)) -- ^ Data constructor: @String e@.
   | EMatch Expr [(Pattern, Expr)]  -- ^ Case distinction: @match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)@.
   | EIf Expr Expr Expr             -- ^ Conditional: @if e then f else g@
   | EBool Bool                     -- ^ Boolean constant: @true@ or @false@.
@@ -361,7 +358,7 @@ isPVar _ = False
 -- located), and therefore appropriate as the head of a data
 -- constructor pattern. If yes, return the data constructor; if no,
 -- return 'Nothing'.
-isPDatacon :: Pattern -> Maybe Datacon
+isPDatacon :: Pattern -> Maybe String
 isPDatacon (PDatacon d Nothing) = Just d
 isPDatacon (PLocated p ex) = isPDatacon p
 isPDatacon _ = Nothing

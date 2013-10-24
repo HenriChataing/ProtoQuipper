@@ -22,7 +22,6 @@ import Utils
 import Monad.QpState
 import Monad.QuipperError
 
-import Typing.CoreSyntax (Variable, Datacon)
 import qualified Typing.CoreSyntax as C
 
 import Compiler.SimplSyntax
@@ -434,7 +433,7 @@ data DecisionTree =
 data NextStep =
     InTuple Int        -- ^ The information is the Nth element of a tuple.
   | InDatacon Datacon  -- ^ The information is the argument of a record.
-  | InTag            -- ^ The information is the label of a record. Since at the moment of the test the label is unknown, this extractor is not annotated.
+  | InTag Algebraic    -- ^ The information is the label of a record. The label is specific to a type.
   deriving (Show, Eq, Ord)
 
 
@@ -483,7 +482,7 @@ relevant_tests p =
               if List.length all == 1 then
                 return []
               else
-                return [(List.reverse $ InTag:ns, RDatacon dcon)]
+                return [(List.reverse $ (InTag typ):ns, RDatacon dcon)]
           C.PDatacon _ dcon (Just p) -> do
               typ <- datacon_datatype dcon
               all <- all_data_constructors typ
@@ -491,7 +490,7 @@ relevant_tests p =
                 ptests ((InDatacon dcon):ns) p
               else do
                 tset <- ptests ((InDatacon dcon):ns) p
-                return $ (List.reverse $ InTag:ns, RDatacon dcon):tset
+                return $ (List.reverse $ (InTag typ):ns, RDatacon dcon):tset
           C.PConstraint p _ -> ptests ns p
           C.PTuple _ plist ->
               List.foldl (\rec (n, p) -> do
@@ -646,9 +645,9 @@ build_decision_tree plist = do
               else
                 p) (List.zip [0..List.length plist-1] plist) in
         C.PTuple r plist'
-      modify_pattern (C.PDatacon r dcon (Just _)) [InTag] (RDatacon dcon') =
+      modify_pattern (C.PDatacon r dcon (Just _)) [InTag _] (RDatacon dcon') =
         C.PDatacon r dcon' (Just $ C.PWildcard 0)
-      modify_pattern (C.PDatacon r dcon Nothing) [InTag] (RDatacon dcon') =
+      modify_pattern (C.PDatacon r dcon Nothing) [InTag _] (RDatacon dcon') =
         C.PDatacon r dcon' Nothing
       modify_pattern (C.PDatacon r dcon (Just p)) ((InDatacon _):ns) res =
         let p' = modify_pattern p ns res in
@@ -701,10 +700,17 @@ extract (prefix, var, loc) =
     l:ls -> do
       -- Build some intermediary variables
       var' <- dummy_var
-      let exp = case l of
-            InTuple n -> EAccess n var
-            InDatacon dcon -> EBody dcon var
-            InTag -> ETag var
+      exp <- case l of
+            InTuple n ->
+                return $ EAccess n var
+            InDatacon dcon -> do
+                deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
+                return $ deconstruct var
+            InTag typ -> do
+                Left tdef <- type_spec typ
+                let gettag = C.d_gettag tdef
+                return $ gettag var
+
       let nprefix = prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
       return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
@@ -719,14 +725,24 @@ extract_var (prefix, var, loc) endvar =
     -- The LAST action is a tuple accessor
     [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EAccess n var) e), [])
     -- The LAST action is a destructor
-    [InDatacon dcon] -> return ((\e -> ELet Nonrecursive endvar (EBody dcon var) e), [])
+    [InDatacon dcon] -> do
+        deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
+        return ((\e -> ELet Nonrecursive endvar (deconstruct var) e), [])
+
     -- Else use an intermediary variable
     l:ls -> do
         var' <- dummy_var
-        let exp = case l of
-              InTuple n -> EAccess n var
-              InDatacon dcon -> EBody dcon var
-              InTag -> ETag var
+        exp <- case l of
+            InTuple n ->
+                return $ EAccess n var
+            InDatacon dcon -> do
+                deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
+                return $ deconstruct var
+            InTag typ -> do
+                Left tdef <- type_spec typ
+                let gettag = C.d_gettag tdef
+                return $ gettag var
+
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
         return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
@@ -802,9 +818,11 @@ simplify_pattern_matching e blist = do
                     RDatacon _ -> do
                         cases <- List.foldl (\rec (rdcon, subtree) -> do
                               cases <- rec
-                              dcon <- return $ case rdcon of {RDatacon dcon -> dcon; _ -> -1}
+                              tag <- case rdcon of
+                                    RDatacon dcon -> datacon_def dcon >>= return . C.d_tag
+                                    _ -> return (-1)
                               e <- unbuild subtree extracted
-                              return $ (dcon, e):cases) (return []) results
+                              return $ (tag, e):cases) (return []) results
                         return $ EMatch (EVar var') cases
 
                     ROtherInt _ ->
@@ -890,11 +908,19 @@ remove_patterns (C.EIf _ e f g) = do
   return $ EIf e' f' g'
 
 remove_patterns (C.EDatacon _ dcon Nothing) = do
-  return $ EDatacon dcon Nothing
+  ddef <- datacon_def dcon
+  -- If the data constructor expected an argument, then return a pointer to an implementation
+  -- of the incomplete constructor.
+  if C.d_ref ddef == -1 then do
+    Left construct <- datacon_def dcon >>= return . C.d_construct
+    return construct
+  else
+    return $ EGlobal $ C.d_ref ddef
 
 remove_patterns (C.EDatacon _ dcon (Just e)) = do
+  Right construct <- datacon_def dcon >>= return . C.d_construct
   e' <- remove_patterns e
-  return $ EDatacon dcon $ Just e'
+  return $ construct e'
 
 remove_patterns (C.EMatch ref e blist) = do
   ri <- ref_info_err ref

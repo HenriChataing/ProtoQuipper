@@ -2,6 +2,7 @@
 module Typing.Subtyping where
 
 import Classes
+import Utils
 
 import Typing.CoreSyntax
 import Typing.CorePrinter

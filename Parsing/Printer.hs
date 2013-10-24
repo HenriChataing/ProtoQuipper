@@ -9,7 +9,7 @@
 -- view the source code.
 module Parsing.Printer where
 
-import Classes
+import Classes hiding ((<+>))
 import Utils
 
 import Parsing.Syntax

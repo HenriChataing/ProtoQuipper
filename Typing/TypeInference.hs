@@ -3,7 +3,7 @@ module Typing.TypeInference where
 
 import Prelude hiding (filter)
 
-import Classes
+import Classes hiding ((\\))
 import Utils
 
 import Parsing.Location
@@ -14,6 +14,7 @@ import Typing.TypingContext
 import Typing.Ordering
 import Typing.Subtyping
 import Typing.TransSyntax
+import Typing.LabellingContext as L
 
 import Monad.QuipperError
 import Monad.QpState
@@ -740,7 +741,7 @@ constraint_typing gamma (EIf _ e f g) cst = do
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
 constraint_typing gamma (EConstraint e (t, typs)) cst = do
-  t' <- translate_unbound_type t $ empty_label { l_types = typs }
+  t' <- translate_unbound_type t $ empty_label { L.types = typs }
   csete <- constraint_typing gamma e (t':cst)
   return csete
 

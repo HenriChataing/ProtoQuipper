@@ -62,4 +62,9 @@ class Param a where
   subs_var :: Int -> Int -> a -> a
 
 
-
+-- | The class of contexts. For example: typing context, labelling context, evaluation context.
+class Context a where
+  -- | The union of two contexts.
+  (<+>) :: a -> a -> a
+  -- | the difference between two contexts.
+  (\\) :: a -> a -> a

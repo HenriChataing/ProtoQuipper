@@ -12,28 +12,18 @@
 -- other data structures.
 module Typing.CoreSyntax where
 
-import Classes
+import Classes hiding ((\\))
 import Utils
 
 import Parsing.Location
 import qualified Parsing.Syntax as S
 import Monad.QuipperError
 
+import qualified Compiler.SimplSyntax as C
+
 import Control.Exception
 import Data.List as List
 import Data.Map (Map)
-
--- ----------------------------------------------------------------------
--- * General
-
--- | The type of term and type variables. Each term or type variable is represented by a unique integer id.
-type Variable = Int
-
--- | Like term and type variables, data constructors are attributed unique ids.
-type Datacon = Int
-
--- | The type of algebraic types.
-type Algebraic = Int
 
 -- ----------------------------------------------------------------------
 -- * Types
@@ -282,8 +272,9 @@ data Typedef = Typedef {
   d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
                                                              -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
 
-  d_subtype :: ([Type], [Type], ConstraintSet)               -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
+  d_subtype :: ([Type], [Type], ConstraintSet),              -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                              -- is automatically inferred during the translation into the core syntax.
+  d_gettag :: Variable -> C.Expr                             -- ^ The extraction of the tag is common to all the constructors of an algebraic type.
 }
 
 -- ----------------------------------------------------------------------
@@ -304,13 +295,22 @@ data Typesyn = Typesyn {
 -- ----------------------------------------------------------------------
 -- ** Data constructors
 
+
+
 -- | A data constructor definition.
 data Datacondef = Datacondef {
   d_datatype :: Variable,                                    -- ^ The original data type.
 
   d_type :: TypeScheme,                                      -- ^ The type of the constructor.
 
-  d_label :: Int                                             -- ^ A label (local to the type definition) uniquely identifying each constructor.
+  d_tag :: Int,                                              -- ^ A tag (local to the type definition) uniquely identifying each constructor.
+
+  d_ref :: Variable,                                         -- ^ Data constructors with one argument must define a function representing the constructor used without its argument.
+                                                             -- For example, take the constructor \'Just\': a function is defined with the body
+                                                             -- @ fun x -> Just x @
+                                                             -- This variable records the name of definition of this function.
+  d_construct :: Either C.Expr (C.Expr -> C.Expr),           -- ^ The implementation of a data constructor.
+  d_deconstruct :: Variable -> C.Expr                        -- ^ The deconstructor associated with a data constrcuctor.
 }
 
 

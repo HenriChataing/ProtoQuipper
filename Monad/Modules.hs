@@ -8,29 +8,22 @@ module Monad.Modules (
 import Parsing.Location
 
 import Typing.CoreSyntax
-import Interpret.Values
+import Typing.LabellingContext (LabellingContext, empty_label)
 
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
-
 
 -- | Internal representation of a module. It results from processing
 -- a module implementation.
 data Module = Mod {
-  variables :: Map String Variable,        -- ^ The module's global variables (the ones acessible outside the module).
-  datacons :: Map String Datacon,          -- ^ The module's data constructors.
-  types :: Map String Int,                 -- ^ The module's algebraic types and type synonyms.
-  body :: Maybe Expr                       -- ^ The body of the module. This attribute is filled only when the compilation has been requested.
+  labelling :: LabellingContext,                 -- ^ A labelling context that contains all the global variables, data constructors and types defined inside the module.
+  body :: Maybe Expr                             -- ^ The body of the module. This attribute is filled only when the compilation has been requested.
 }
 
 
 -- | A dummy module.
 empty_module :: Module
 empty_module = Mod {
-  variables = Map.empty,
-  datacons = Map.empty,
-  types = Map.empty,
+  labelling = empty_label,
   body = Nothing
 }

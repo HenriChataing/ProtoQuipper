@@ -22,6 +22,11 @@ string_toUpper [] = []
 string_toUpper (h:t) = Char.toUpper h : t
 
 
+-- | Convert the first character of a string to uppercase.
+string_toLower :: String -> String
+string_toLower [] = []
+string_toLower (h:t) = Char.toLower h : t
+
 -- | Convert a digit to the equivalent Unicode subscript character.
 subdigit :: Int -> Char
  -- Subscript digits are \x2080 .. \x2089
@@ -125,6 +130,16 @@ instance Show RecFlag where
   show Recursive = "rec"
 
 
+-- | Type of term (and type) variables.
+type Variable = Int
+
+-- | Type of data constructors.
+type Datacon = Int
+
+-- | Type of algebraic types.
+type Algebraic = Int
+
+
 -- | A representation of N u {+oo}.
 data Lvl =
     Nth Int      -- ^ Finite number n.
@@ -160,7 +175,6 @@ data QType =
 -- | The type of the associated circuits.
 type CircType =
   (QType, QType)
-
 
 
 -- | Return True if and only if the type @Qubit@ appears at least once in the given type.

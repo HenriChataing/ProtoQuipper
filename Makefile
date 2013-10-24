@@ -24,7 +24,7 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   ProtoQuipper.hs Typing/CorePrinter.hs Typing/CoreSyntax.hs		\
   Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
   Typing/TransSyntax.hs Typing/TypeInference.hs				\
-  Typing/TypingContext.hs Utils.hs \
+  Typing/TypingContext.hs Utils.hs Typing/LabellingContext.hs \
   Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/QLib.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 

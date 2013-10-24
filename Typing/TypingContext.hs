@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 -- | This module provides definitions and functions for manipulating
 -- typing contexts. Typing contexts are represented by maps from term
 -- variables to types. The functions provided here include union,
@@ -10,6 +13,7 @@ import Classes
 
 import Typing.CoreSyntax
 import Typing.TransSyntax
+import Typing.LabellingContext as L
 
 import Monad.QpState
 import Monad.QuipperError
@@ -122,7 +126,7 @@ bind_pattern (PDatacon _ dcon p) = do
 -- do things normally, and add a constraint on the actual type of the pattern
 bind_pattern (PConstraint p (t, typs)) = do
   (typ, ctx, cset) <- bind_pattern p
-  t' <- translate_unbound_type t $ empty_label { l_types = typs }
+  t' <- translate_unbound_type t $ empty_label { L.types = typs }
   return (typ, ctx, [typ <: t'] <> cset)
 
 
@@ -149,11 +153,12 @@ duplicable_context ctx = do
         set_flag f no_info { c_ref = ref }
 
 
--- | Perform the union of two typing contexts. The \<+\> operator respects the order of the arguments
--- when calling 'IMap.union' (meaning it is left-biased).
-(<+>) :: TypingContext -> TypingContext -> TypingContext
-ctx0 <+> ctx1 =
-  IMap.union ctx0 ctx1
+instance Context TypingContext where
+  ctx0 <+> ctx1 =
+    IMap.union ctx0 ctx1
+
+  ctx0 \\ ctx1 =
+    ctx0 IMap.\\ ctx1
 
 
 -- | Split the context according to a boolean function. The elements (keys) for which the function returns
@@ -167,4 +172,5 @@ split_context f ctx = do
 sub_context :: [Variable] -> TypingContext -> QpState (TypingContext, TypingContext)
 sub_context set ctx =
   split_context (\x -> List.elem x set) ctx
+
 

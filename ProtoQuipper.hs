@@ -9,6 +9,7 @@ import qualified Monad.QpState as Q
 import Typing.CoreSyntax
 import Typing.Driver
 import Typing.TransSyntax
+import Typing.LabellingContext
 
 import System.IO
 import System.Environment
@@ -44,7 +45,7 @@ main = do
     [] -> do
         putStrLn "### Proto-Quipper -- Interactive Mode ###"
         _ <- Q.runS (do
-            run_interactive opts (Context { labelling = LblCtx { l_variables = Map.empty, l_datacons = Map.empty, l_types = Map.empty },
+            run_interactive opts (Context { labelling = empty_label,
                                             typing = IMap.empty,
                                             environment = IMap.empty, constraints = emptyset }) []
             return ()) Q.empty_context

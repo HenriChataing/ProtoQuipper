@@ -16,8 +16,6 @@ module Compiler.QLib where
 import Classes
 import Utils
 
-import Typing.CoreSyntax (Variable)
-
 import Monad.QpState
 import Monad.QuipperError
 

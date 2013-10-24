@@ -17,6 +17,8 @@ import qualified Monad.Namespace as N
 
 import Typing.CoreSyntax
 import Typing.CorePrinter
+import Typing.LabellingContext (LabellingContext)
+import qualified Typing.LabellingContext as L
 
 import qualified Compiler.SimplSyntax as C
 
@@ -108,7 +110,7 @@ data QLib = QLib {
 -- 
 -- *  For the interpreter: an evaluation context, including the current circuit and mappings.
 
-data Context = Ctx {
+data QContext = QCtx {
 
 -- Log file  
   logfile :: Logfile,                                 -- ^ Log file currently in use.
@@ -170,7 +172,7 @@ data Context = Ctx {
 -- | The state monad associated with a 'Context'.
 -- The monad runs its operations in the 'IO' monad, so it can perform input \/ output operations
 -- via a simple lift.
-newtype QpState a = QpState { runS :: (Context -> IO (Context, a)) }
+newtype QpState a = QpState { runS :: (QContext -> IO (QContext, a)) }
 
 instance Monad QpState where
   return a = QpState { runS = (\ctx -> return (ctx, a)) }
@@ -213,8 +215,8 @@ liftIO x = QpState { runS = (\ctx -> do
 
 -- | The initial context. Except for the logfile, which is set to print on standard output (stdout) with the lowest verbose level (block everything),
 -- everything else is set to empty \/ 0 \/ [].
-empty_context :: Context
-empty_context =  Ctx {
+empty_context :: QContext
+empty_context =  QCtx {
 -- The logfile is initialized to print on the standard output, with the lowest verbose level possible
   logfile = Logfile { channel = stdout, verbose = 0, wall = False },
 
@@ -273,12 +275,12 @@ empty_context =  Ctx {
 
 
 -- | Return the state context.
-get_context :: QpState Context
+get_context :: QpState QContext
 get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
 
 
 -- | Set the state context.
-set_context :: Context -> QpState ()
+set_context :: QContext -> QpState ()
 set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
@@ -486,20 +488,13 @@ type_name x = do
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
 global_namespace :: [String]                                                          -- ^ A list of module dependencies.
-                 -> QpState (Map String LVariable, Map String Int, Map String Type)   -- ^ The resulting labelling maps.
+                 -> QpState LabellingContext                                          -- ^ The resulting labelling maps.
 global_namespace deps = do
   mods <- get_context >>= return . modules
-  List.foldl (\rec m -> do
-                (lblv, lbld, lblt) <- rec
-                case List.lookup m mods of
-                  Just mod -> do
-                      vars <- return $ Map.map (\id -> LGlobal id) $ M.variables mod
-                      typs <- return $ Map.map (\id -> TBang 0 $ TUser id []) $ M.types mod
-                      return (Map.union vars lblv, Map.union (M.datacons mod) lbld, Map.union typs lblt)
-
-                  Nothing ->
-                      fail $ "QpState:global_namespace: missing implementation of module " ++ m) (return (Map.empty, Map.empty, Map.empty)) deps
-
+  return $ List.foldl (\lctx m ->
+        case List.lookup m mods of
+          Just mod -> M.labelling mod <+> lctx
+          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty_label deps
 
 
 
@@ -531,8 +526,9 @@ lookup_qualified_var (mod, n) = do
   if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ M.variables modi of
-            Just x -> return x
+          case Map.lookup n $ L.variables $ M.labelling modi of
+            Just (LVar x) -> return x
+            Just (LGlobal x) -> return x
             Nothing -> do
                 throw_UnboundVariable (mod ++ "." ++ n)
 
@@ -553,9 +549,9 @@ lookup_qualified_type (mod, n) = do
   if List.elem mod $ dependencies ctx then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ M.types modi of
-            Just x -> return x
-            Nothing -> do
+          case Map.lookup n $ L.types $ M.labelling modi of
+            Just (TBang _ (TUser x _)) -> return x
+            _ -> do
                 throw_UndefinedType (mod ++ "." ++ n)
 
       Nothing -> do
@@ -614,6 +610,16 @@ type_spec typ = do
         fail $ "QpState:type_spec: undefined type: " ++ n
 
 
+-- | Update the definiton of a type.
+update_type :: Algebraic -> (Typedef -> Maybe Typedef) -> QpState ()
+update_type typ update = do
+  ctx <- get_context
+  set_context ctx { types = IMap.update (\tdef ->
+        case tdef of
+          Left def -> (update def) >>= (\x -> return $ Left x)
+          Right _ -> throwNE $ ProgramError "QpState:update_type: illegal argument") typ $ types ctx }
+
+
 -- | Retrieve the definition of a data constructor.
 datacon_def :: Datacon -> QpState Datacondef
 datacon_def id = do
@@ -641,9 +647,16 @@ datacon_type dcon =
 
 
 -- | Return the local identifier of a data constructor.
-datacon_label :: Datacon -> QpState Int
-datacon_label dcon =
-  datacon_def dcon >>= return . d_label
+datacon_tag :: Datacon -> QpState Int
+datacon_tag dcon =
+  datacon_def dcon >>= return . d_tag
+
+
+-- | Update the definition of a data contructor.
+update_datacon :: Datacon -> (Datacondef -> Maybe Datacondef) -> QpState ()
+update_datacon dcon update = do
+  ctx <- get_context
+  set_context ctx { datacons = IMap.update update dcon $ datacons ctx }
 
 
 -- | Retrieve the list of the data constructors from a type definition.
