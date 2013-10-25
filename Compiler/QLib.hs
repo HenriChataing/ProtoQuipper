@@ -43,13 +43,13 @@ implement_unbox (t, u) = do
 
   return $ EFun x0 $ EFun x1 $
         -- Extract the information from the argument
-        ELet Nonrecursive xt (EAccess 0 x0) $
-        ELet Nonrecursive xc (EAccess 1 x0) $
-        ELet Nonrecursive xu (EAccess 2 x0) $
+        ELet xt (EAccess 0 x0) $
+        ELet xc (EAccess 1 x0) $
+        ELet xu (EAccess 2 x0) $
         -- Build the binding
-        elet $ ELet Nonrecursive xb b $
+        elet $ ELet xb b $
         -- Call the unencap function
-        ELet Nonrecursive xb' (EApp (EApp (EBuiltin "UNENCAP") (EVar xb)) (EVar xc)) $
+        ELet xb' (EApp (EApp (EBuiltin "UNENCAP") (EVar xb)) (EVar xc)) $
         -- Finally, apply the binding to the output value
         elet' $ v
 
@@ -69,10 +69,10 @@ implement_box typ = do
 
   -- Implementation of box[T]
   return $ EFun x0 $
-        ELet Nonrecursive x1 spec $                                -- Create the specimen
+        ELet x1 spec $                                -- Create the specimen
         ESeq (EApp (EBuiltin "OPENBOX") (EInt n)) $                -- Open a new box
-        ELet Nonrecursive x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
-        ELet Nonrecursive x3 (EBuiltin "CLOSEBOX") $               -- Close the box
+        ELet x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
+        ELet x3 (EBuiltin "CLOSEBOX") $               -- Close the box
         ETuple [EVar x1, EVar x3, EVar x2]                         -- Build the resulting circuit
 
 
@@ -88,9 +88,9 @@ implement_rev = do
 
   -- Implementation of the function
   return $ EFun x0 $
-        ELet Nonrecursive x1 (EAccess 0 x0) $
-        ELet Nonrecursive x2 (EAccess 1 x0) $
-        ELet Nonrecursive x3 (EAccess 2 x0)
+        ELet x1 (EAccess 0 x0) $
+        ELet x2 (EAccess 1 x0) $
+        ELet x3 (EAccess 2 x0)
         (ETuple [EVar x3, EApp (EBuiltin "REV") (EVar x2), EVar x1])
 
 
@@ -126,7 +126,7 @@ implement_bind typ x y = do
   -- Build both the final binding and let-bindings
   let b' = List.foldl (\e (x, y) -> ETuple [EInt 1, EVar x, EVar y, e]) (ETuple [EInt 0]) b
   let elet' = List.foldr (\(x, ex) e ->
-        \f -> e (ELet Nonrecursive x ex f)) (\f -> f) elet
+        \f -> e (ELet x ex f)) (\f -> f) elet
   return (elet', b')
  
   where
@@ -159,7 +159,7 @@ implement_appbind typ b x = do
   (elet, e) <- appbind typ x
   -- Build the series of instructions
   let elet' = List.foldr (\(x, ex) e ->
-        \f -> e (ELet Nonrecursive x ex f)) (\f -> f) elet
+        \f -> e (ELet x ex f)) (\f -> f) elet
   return (elet', e)
 
   where
@@ -198,7 +198,7 @@ request_unbox c = do
         eunbox <- implement_unbox c
         let ql' = ql {
               unboxes = Map.insert c x $ unboxes ql,
-              qbody = ELet Nonrecursive x eunbox $ qbody ql
+              qbody = ELet x eunbox $ qbody ql
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }
@@ -219,7 +219,7 @@ request_box t = do
         ebox <- implement_box t
         let ql' = ql {
               boxes = Map.insert t x $ boxes ql,
-              qbody = ELet Nonrecursive x ebox $ qbody ql
+              qbody = ELet x ebox $ qbody ql
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }
@@ -240,7 +240,7 @@ request_rev = do
         erev <- implement_rev
         let ql' = ql {
               rev = Just x,
-              qbody = ELet Nonrecursive x erev $ qbody ql
+              qbody = ELet x erev $ qbody ql
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }

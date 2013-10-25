@@ -713,7 +713,7 @@ extract (prefix, var, loc) =
 
       let nprefix = prefix ++ [l]
       (cont, updates, endvar) <- extract (nprefix, var', ls)
-      return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates, endvar)
+      return ((\e -> ELet var' exp $ cont e), (nprefix, var'):updates, endvar)
 
 
 -- | Same as extract, except that the variable holding the information is specified beforehand.
@@ -721,13 +721,13 @@ extract_var :: (TestLocation, Variable, TestLocation) -> Variable -> QpState (Ex
 extract_var (prefix, var, loc) endvar =
   case loc of
     -- The variable 'var' already contains what we want
-    [] -> return ((\e -> ELet Nonrecursive endvar (EVar var) e), [])
+    [] -> return ((\e -> ELet endvar (EVar var) e), [])
     -- The LAST action is a tuple accessor
-    [InTuple n] -> return ((\e -> ELet Nonrecursive endvar (EAccess n var) e), [])
+    [InTuple n] -> return ((\e -> ELet endvar (EAccess n var) e), [])
     -- The LAST action is a destructor
     [InDatacon dcon] -> do
         deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
-        return ((\e -> ELet Nonrecursive endvar (deconstruct var) e), [])
+        return ((\e -> ELet endvar (deconstruct var) e), [])
 
     -- Else use an intermediary variable
     l:ls -> do
@@ -745,7 +745,7 @@ extract_var (prefix, var, loc) endvar =
 
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
-        return ((\e -> ELet Nonrecursive var' exp $ cont e), (nprefix, var'):updates)
+        return ((\e -> ELet var' exp $ cont e), (nprefix, var'):updates)
 
 
 -- | Using a decision tree, explain the tests that have to be done to compute a pattern matching.
@@ -838,7 +838,7 @@ simplify_pattern_matching e blist = do
     _ -> do
         initvar <- dummy_var
         tests <- unbuild dtree [([], initvar)]
-        return $ ELet Nonrecursive initvar e' tests
+        return $ ELet initvar e' tests
 
 
 
@@ -879,10 +879,20 @@ remove_patterns (C.ETuple _ elist) = do
         return $ e':es) (return []) elist
   return $ ETuple $ List.reverse elist'
 
-remove_patterns (C.ELet _ r (C.PVar _ v) e f) = do
+-- Intercept recursive functions.
+remove_patterns (C.ELet _ Recursive (C.PVar _ v) e f) = do
   e' <- remove_patterns e
   f' <- remove_patterns f
-  return $ ELet r v e' f'
+  case e' of
+    EFun x e -> 
+        return $ ELet v (ERecFun v x e') f'
+    _ ->
+        fail "Preliminaries:remove_patterns: unexpected recursive object"
+
+remove_patterns (C.ELet _ _ (C.PVar _ v) e f) = do
+  e' <- remove_patterns e
+  f' <- remove_patterns f
+  return $ ELet v e' f'
 
 remove_patterns (C.ELet _ r (C.PWildcard _) e f) = do
   e' <- remove_patterns e

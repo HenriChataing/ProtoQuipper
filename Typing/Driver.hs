@@ -31,7 +31,7 @@ import qualified Typing.LabellingContext as L
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
---import Compiler.SimplSyntax
+import Compiler.CPS
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))

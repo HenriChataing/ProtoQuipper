@@ -17,12 +17,13 @@ data Expr =
     EVar Variable                                 -- ^ Variable: /x/.
   | EGlobal Variable                              -- ^ Global variable from the imported modules.
   | EFun Variable Expr                            -- ^ Function abstraction: @fun x -> t@.
+  | ERecFun Variable Variable Expr                -- ^ A recursive function, that binds a name (variable) in its local context.
   | EApp Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
   | EUnit                                         -- ^ Unit term: @()@.
   | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | ELet RecFlag Variable Expr Expr               -- ^ Let-binding: @let [rec] p = e in f@.
+  | ELet Variable Expr Expr                       -- ^ Let-binding: @let p = e in f@. We have no more use for the recursive flag, so it has been dropped.
   | ESeq Expr Expr                                -- ^ The expression @e; f@, semantically equivalent to @let _ = e in f@.
 
 -- Custom union types
@@ -40,8 +41,6 @@ data Expr =
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
   deriving Show
-
-
 
 -- * Printing functions.
 
@@ -88,10 +87,9 @@ print_doc lv (ESeq e f) fvar fdata =
   (print_doc lv e fvar fdata) <+> text ";" $$
   (print_doc lv f fvar fdata)
 
-print_doc lv (ELet r v e f) fvar fdata =
+print_doc lv (ELet v e f) fvar fdata =
   let dlv = decr lv in
-  let recflag = if r == Recursive then text "rec" else empty in
-  text "let" <+> recflag <+> text (fvar v) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
+  text "let" <+> text (fvar v) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
   print_doc dlv f fvar fdata
 
 print_doc lv (ETuple elist) fvar fdata =
@@ -111,6 +109,11 @@ print_doc lv (EApp e f) fvar fdata =
      EFun _ _ -> parens pf
      EApp _ _ -> parens pf
      _ -> pf)
+
+print_doc lv (ERecFun f x e) fvar fdata =
+  let dlv = decr lv in
+  text "fun(" <> text (fvar f) <> text ")" <+> text (fvar x) <+> text "->" $$
+  nest 2 (print_doc dlv e fvar fdata)
 
 print_doc lv (EFun v e) fvar fdata =
   let dlv = decr lv in

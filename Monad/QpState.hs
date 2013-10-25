@@ -853,7 +853,7 @@ ref_info_err :: Ref -> QpState RefInfo
 ref_info_err ref = do
   ctx <- get_context
   case IMap.lookup ref $ references ctx of
-    Nothing -> fail "QpState:ref_info_err: undefined reference"
+    Nothing -> fail "QpState:ref_info_err: null reference"
     Just ri -> return ri
 
 
