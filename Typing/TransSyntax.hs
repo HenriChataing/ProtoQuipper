@@ -159,13 +159,13 @@ import_typedefs dblock label = do
                     -- If the constructor takes no argument
                     Nothing -> do
                         m <- fresh_flag
-                        return (TBang m (TUser typeid args'), TBang one TUnit, emptyset)
+                        return (TBang m (TUser typeid args'), Nothing, emptyset)
 
                     -- If the constructor takes an argument
                     Just dt -> do
                         dt'@(TBang n _) <- translate_bound_type dt $ empty_label { L.types = mapargs }
                         m <- fresh_flag
-                        return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), dt', ([], [Le m n no_info]))
+                        return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), Just dt', ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
               -- Those variables must also respect the constraints from the construction of the type
@@ -181,7 +181,7 @@ import_typedefs dblock label = do
                     d_construct = Left CS.EUnit,
                     d_deconstruct = \x -> CS.EVar x
                   }
-              return $ ((id, type_of_typescheme dtype):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
+              return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type
         Left spec <- type_spec typeid
@@ -217,19 +217,16 @@ choose_implementation typ = do
         case datas of
           -- Cases with one constructor:
           -- The tag is omitted. No definition of the function gettag is needed. 
-          [(dcon, TBang _ (TArrow _ _))] -> do
+          [(dcon, Just _)] -> do
               update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
               
-          [(dcon, _)] ->
+          [(dcon, Nothing)] ->
               update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
               
           -- Cases with several constrcutors
           _ -> do
               -- First thing : count the constructors taking an argument.
-              let (with_args, no_args) = List.partition (\(_, t) -> 
-                    case t of
-                      TBang _ (TArrow _ _) -> True
-                      _ -> False) datas
+              let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
 
               -- In case at most one takes an argument, the remaining can be represented by just their tag.
               if List.length with_args <= 1 then do
@@ -365,20 +362,25 @@ define_user_subtyping dblock = do
                 let spec = unTypedef s
                 -- One version of the unfolded type
                 (a, ufold) <- return $ d_unfolded spec
+                 
                 -- Another version of the unfolded type, where a has been replaced by fresh types a'
                 (a', ufold') <- List.foldr (\(TBang n t) rec -> do
                                               let x = unTVar t
                                               (a', ufold') <- rec
                                               b@(TBang m (TVar y)) <- new_type
-                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_typ_var x (TVar y) typ)) ufold'
-                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, subs_flag n m typ)) ufold'
+                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_typ_var x (TVar y) t))) ufold'
+                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_flag n m t))) ufold'
                                               return (b:a', ufold')) (return ([], ufold)) a
 
                 -- Generate the constraints ufold <: ufold'
                 constraints <- List.foldl (\rec ((_, t), (_, u)) -> do
                                              r <- rec
-                                             cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
-                                             return $ cset <> r) (return emptyset) (List.zip ufold ufold')
+                                             case (t, u) of
+                                               (Just t, Just u) -> do
+                                                   cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
+                                                   return $ cset <> r
+                                               _ ->
+                                                   return r) (return emptyset) (List.zip ufold ufold')
 
                 ctx <- get_context
                 set_context $ ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ types ctx }) (return ()) dblock
@@ -517,9 +519,13 @@ define_user_properties dblock = do
                          (mdata, mgraph) <- rec
                          Left spec <- type_spec n
                          -- Replace the arguments by qubit in the unfolded definition
-                         argtyps <- return $ List.map (\(_, argtyp) ->
-                                                         List.foldl (\a (TBang _ t) -> subs_typ_var (unTVar t) TQubit a)
-                                                                    argtyp $ fst $ d_unfolded spec) (snd $ d_unfolded spec)
+                        
+                         let argtyps = List.foldl (\args (_, typ) -> do
+                                case typ of
+                                  Nothing -> args
+                                  Just t ->
+                                    let t' = List.foldl (\t a -> subs_typ_var (unTVar a) TQubit t) t (fst $ d_unfolded spec) in
+                                    t':args) [] (snd $ d_unfolded spec)
                          -- Check each of the types for quantum data types
                          (b, deps) <- List.foldl (\rec a -> do
                                                     (b, deps) <- rec
@@ -557,7 +563,7 @@ define_user_properties dblock = do
 
     newlog 0 "<<\n"
     where
-      unTVar (TVar x) = x
+      unTVar (TBang _ (TVar x)) = x
       unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_properties: unexpected non-variable argument"
 
 

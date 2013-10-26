@@ -269,8 +269,8 @@ data Typedef = Typedef {
                                                              -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
                                                              -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
 
-  d_unfolded :: ([Type], [(Datacon, Type)]),                 -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
-                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ is its type.
+  d_unfolded :: ([Type], [(Datacon, Maybe Type)]),           -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
+                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ the type of its optinal argument.
 
   d_subtype :: ([Type], [Type], ConstraintSet),              -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
                                                              -- is automatically inferred during the translation into the core syntax.
