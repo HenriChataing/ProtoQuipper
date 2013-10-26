@@ -79,21 +79,6 @@ convert_to_cps c (EBool b) =
 convert_to_cps c EUnit =
   c (VInt 0)
 
--- Fetch the implementation of rev
-convert_to_cps c ERev = do
-  x <- request_rev
-  c (VVar x)
-
--- Fetch the implementation of box
-convert_to_cps c (EBox t) = do
-  x <- request_box t
-  c (VVar x)
-
--- Fetch the implementation of unbox 
-convert_to_cps c (EUnbox t u) = do
-  x <- request_unbox (t,u)
-  c (VVar x)
-
 convert_to_cps c (ETuple []) =
   c (VInt 0)
 

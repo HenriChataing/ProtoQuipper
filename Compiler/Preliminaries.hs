@@ -939,7 +939,8 @@ remove_patterns (C.EMatch ref e blist) = do
 
 remove_patterns (C.EBox _ typ) = do
   typ <- convert_type typ
-  return $ EBox typ
+  x <- request_box typ
+  return (EVar x)
 
 remove_patterns (C.EUnbox ref) = do
   ri <- ref_info_err ref
@@ -949,12 +950,14 @@ remove_patterns (C.EUnbox ref) = do
   -- Check the type of the unbox operator
   if not (is_concrete t && is_concrete u) then do
     warnQ (AmbiguousUnbox) (C.r_location ri)
-    return $ EUnbox QUnit QUnit
+    return $ EInt 0
   else do
-    return $ EUnbox t u
+    x <- request_unbox (t,u)
+    return (EVar x)
 
 remove_patterns (C.ERev _) = do
-  return ERev
+  x <- request_rev
+  return (EVar x)
 
 remove_patterns (C.EBuiltin _ s) =
   return (EBuiltin s)

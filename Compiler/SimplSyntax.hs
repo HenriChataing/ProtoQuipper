@@ -32,11 +32,6 @@ data Expr =
   | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
   | EMatch Expr [(Int, Expr)]                     -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
--- Quantum rules
-  | EBox QType                                    -- ^ The constant @box[T]@.
-  | EUnbox QType QType                            -- ^ The constant @unbox@.
-  | ERev                                          -- ^ The constant @rev@.
-
 -- Unrelated
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
@@ -67,15 +62,6 @@ print_doc _ (EInt n) _ _ =
 print_doc _ (EVar x) fvar _ = text $ fvar x
 
 print_doc _ (EGlobal x) fvar _ = text $ fvar x
-
-print_doc _ (EBox n) _ _=
-  text "box" <> brackets (text $ show n)
-
-print_doc _ (EUnbox t u) _ _ =
-  text $ "unbox(" ++ show t ++ "," ++ show u ++ ")"
-
-print_doc _ ERev _ _ =
-  text "rev"
 
 print_doc _ (EBuiltin s) _ _=
   text s
