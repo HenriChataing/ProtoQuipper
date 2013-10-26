@@ -850,7 +850,7 @@ remove_patterns (C.EVar _ x) =
 remove_patterns (C.EGlobal _ x) =
   return $ EGlobal x
 
-remove_patterns (C.EFun _ p e) = do
+remove_patterns (C.EFun ref p e) = do
    -- Check whether the expression is already  or not
   case p of
     -- The pattern is only one variable: do nothing
@@ -861,7 +861,7 @@ remove_patterns (C.EFun _ p e) = do
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
       x <- dummy_var
-      e' <- remove_patterns $ C.ELet 0 Nonrecursive p (C.EVar 0 x) e
+      e' <- remove_patterns $ C.ELet ref Nonrecursive p (C.EVar 0 x) e
       return $ EFun x e'
 
 remove_patterns (C.EApp _ e f) = do
@@ -944,6 +944,7 @@ remove_patterns (C.EBox _ typ) = do
 remove_patterns (C.EUnbox ref) = do
   ri <- ref_info_err ref
   let typ = C.r_type ri
+  typ <- map_type typ
   (t, u) <- circuit_type typ
   -- Check the type of the unbox operator
   if not (is_concrete t && is_concrete u) then do
