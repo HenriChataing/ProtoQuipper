@@ -46,7 +46,7 @@ import Data.Sequence as Seq
 data Logfile = Logfile {
   channel :: Handle,          -- ^ The output channel, by default stdout.
   verbose :: Int,             -- ^ The verbose level, by default nul.
-  wall :: Bool                -- ^ Should warnings be turned into errors ?
+  warnings :: String          -- ^ Should warnings be turned into errors ?
 }
 
 
@@ -62,17 +62,22 @@ write_log logfile lvl s = do
 
 
 -- | Display a warning. The verbose level is ignored.
+-- If the option \'Werror\' was added, all warnings are raised as errors.
 write_warning :: Logfile -> Warning -> Maybe Extent -> IO ()
 write_warning logfile warn ex = do
   w <- hIsWritable $ channel logfile
   if not w then
     return ()
-  else if wall logfile then
-    Q.throw warn ex
   else do
-    case ex of
-      Just ex -> hPutStrLn (channel logfile) $ printE warn ex
-      Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
+    let waction = warnings logfile
+    if waction == "display" then
+      case ex of
+        Just ex -> hPutStrLn (channel logfile) $ printE warn ex
+        Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
+    else if waction == "error" then
+      Q.throw warn ex
+    else
+      return ()
     hFlush (channel logfile)
 
 
@@ -128,7 +133,8 @@ data QContext = QCtx {
   body :: Maybe (Expr -> Expr),                       -- ^ The (incomplete) body of the current module.
 
 -- Helpers of the typing / interpretation 
-  types :: IntMap (Either Typedef Typesyn),           -- ^ The definitions of both the imported types and the types defined in the current module.
+  algebraics :: IntMap (Either Typedef Typesyn),      -- ^ The definitions of both the imported types and the types defined in the current module.
+  synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
 
   builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
                                                       -- in the 'builtins' field, where they are available to both the type checker and the interpreter.
@@ -218,7 +224,7 @@ liftIO x = QpState { runS = (\ctx -> do
 empty_context :: QContext
 empty_context =  QCtx {
 -- The logfile is initialized to print on the standard output, with the lowest verbose level possible
-  logfile = Logfile { channel = stdout, verbose = 0, wall = False },
+  logfile = Logfile { channel = stdout, verbose = 0, warnings = "display" },
 
 -- The namespace is initially empty
   namespace = N.new_namespace,
@@ -240,7 +246,8 @@ empty_context =  QCtx {
   location = extent_unknown,
 
 -- No predefined types, datacons or flags
-  types = IMap.empty,
+  algebraics = IMap.empty,
+  synonyms = IMap.empty,
   datacons = IMap.empty,
 
 -- No assertions
@@ -296,10 +303,10 @@ set_verbose v = do
 
 
 -- | Change the processing of warnings.
-set_wall :: Bool -> QpState ()
-set_wall b = do
+set_warning_action :: String -> QpState ()
+set_warning_action action = do
   ctx <- get_context
-  set_context $ ctx { logfile = (logfile ctx) { wall = b } }
+  set_context $ ctx { logfile = (logfile ctx) { warnings = action } }
 
 
 
@@ -413,17 +420,17 @@ register_typedef typename def = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_type typename (namespace ctx)
   set_context $ ctx { namespace = nspace,
-                      types = IMap.insert id (Left def) $ types ctx }
+                      algebraics = IMap.insert id (Left def) $ algebraics ctx }
   return id
 
 
 -- | Register a type synonym.
-register_typesyn :: String -> Typesyn -> QpState Int
+register_typesyn :: String -> Typesyn -> QpState Synonym
 register_typesyn typename syn = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_type typename (namespace ctx)
   set_context $ ctx { namespace = nspace,
-                      types = IMap.insert id (Right syn) $ types ctx }
+                      synonyms = IMap.insert id syn $ synonyms ctx }
   return id
 
 
@@ -601,7 +608,7 @@ builtin_value s = do
 type_spec :: Variable -> QpState (Either Typedef Typesyn)
 type_spec typ = do
   ctx <- get_context
-  case IMap.lookup typ $ types ctx of
+  case IMap.lookup typ $ algebraics ctx of
     Just n ->
         return n
 
@@ -614,10 +621,10 @@ type_spec typ = do
 update_type :: Algebraic -> (Typedef -> Maybe Typedef) -> QpState ()
 update_type typ update = do
   ctx <- get_context
-  set_context ctx { types = IMap.update (\tdef ->
+  set_context ctx { algebraics = IMap.update (\tdef ->
         case tdef of
           Left def -> (update def) >>= (\x -> return $ Left x)
-          Right _ -> throwNE $ ProgramError "QpState:update_type: illegal argument") typ $ types ctx }
+          Right _ -> throwNE $ ProgramError "QpState:update_type: illegal argument") typ $ algebraics ctx }
 
 
 -- | Retrieve the definition of a data constructor.
@@ -714,8 +721,7 @@ flag_value ref =
               return $ f_value info
 
           Nothing ->
-              fail $ "QpState:flag_value: undefined flag reference: " ++ prevar "f" ref
-
+              return Unknown
 
 
 -- | Set the value of a flag to one.
@@ -745,7 +751,7 @@ set_flag ref info = do
                     return ()  -- Includes anyflag and one
 
           Nothing ->
-              fail $ "QpState:set_flag: undefined flag reference: " ++ prevar "f" ref
+              set_context ctx { flags = IMap.insert ref FInfo { f_value = One } $ flags ctx }
 
 
 -- | Set the value of a flag to zero.
@@ -775,27 +781,28 @@ unset_flag ref info = do
                     return ()  -- Includes anyflag and zero
 
           Nothing ->
-              fail $ "QpState:unset_flag: undefined flag reference: " ++ prevar "f" ref
+              set_context ctx { flags = IMap.insert ref FInfo { f_value = Zero } $ flags ctx }
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
--- The flag is initially set to 'Unknown', with no expression or location.
+-- The flag is not immediatly added to the state, as its value is initially unknown.
 fresh_flag :: QpState RefFlag
 fresh_flag = do
   ctx <- get_context
-  id <- return $ flag_id ctx
-  set_context $ ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { f_value = Unknown }) $ flags ctx }
+  let id = flag_id ctx
+  set_context $ ctx { flag_id = id + 1 }
   return id 
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
 -- The new flag is set to the specified value, but it is still un-located.
 fresh_flag_with_value :: FlagValue -> QpState RefFlag
+fresh_flag_with_value Unknown =
+  fresh_flag
 fresh_flag_with_value v = do
   ctx <- get_context
   id <- return $ flag_id ctx
-  set_context $ ctx { flag_id = id + 1,
+  set_context ctx { flag_id = id + 1,
                       flags = IMap.insert id (FInfo { f_value = v }) $ flags ctx }
   return id 
 
@@ -812,14 +819,13 @@ duplicate_flag ref = do
         id <- return $ flag_id ctx
         case IMap.lookup ref $ flags ctx of
           Just info -> do
-              set_context $ ctx { flag_id = id + 1,
+              set_context ctx { flag_id = id + 1,
                                   flags = IMap.insert id info $ flags ctx }
-              return id
 
+          -- Value is unknown
           Nothing ->
-              fail $ "QpState:duplicate_flag: undefined flag reference: " ++ prevar "f" ref
-
-
+              set_context ctx { flag_id = id + 1 }
+        return id
 
 
 -- | Create a new reference, with the current location.
@@ -958,6 +964,19 @@ new_type = do
   return (TBang f (TVar x))
 
 
+-- | Generate /n/ new types.
+new_types :: Int -> QpState [Type]
+new_types n | n <= 0 =
+  fail "QpState:new_types: illegal argument"
+            | otherwise = do
+  ctx <- get_context
+  let xid = type_id ctx
+      fid = flag_id ctx
+  let xs = [xid .. xid+n-1]
+      fs = [fid .. fid+n-1]
+  let typs = List.map (\(x, f) -> TBang f $ TVar x) $ List.zip xs fs
+  set_context ctx { type_id = xid+n, flag_id = fid+n }
+  return typs
 
 
 -- | Return the location and expression of a reference.

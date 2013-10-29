@@ -186,7 +186,7 @@ import_typedefs dblock label = do
         -- Update the specification of the type
         Left spec <- type_spec typeid
         ctx <- get_context
-        set_context $ ctx { types = IMap.insert typeid (Left $ spec { d_unfolded = (args', dtypes') }) $ types ctx }
+        set_context $ ctx { algebraics = IMap.insert typeid (Left $ spec { d_unfolded = (args', dtypes') }) $ algebraics ctx }
 
         -- Specify the implementation of this type
         choose_implementation typeid
@@ -337,10 +337,10 @@ unfold_all names = do
                            List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
                     pprint (TAlgebraic n a) ++ " <: " ++ pprint (TAlgebraic n a'))
 
-          return (b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ types ctx })
+          return (b, ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ algebraics ctx })
         else do
           -- Continue the recursion, but update the subtyping of n
-          return (n:b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
+          return (n:b, ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
 
   -- Continue or not with the recursion
   set_context ctx
@@ -384,7 +384,7 @@ define_user_subtyping dblock = do
                     return r) (return emptyset) (List.zip ufold ufold')
 
         ctx <- get_context
-        set_context $ ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ types ctx }) (return ()) dblock
+        set_context $ ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ algebraics ctx }) (return ()) dblock
 
   -- Unfold until the constraint set is stable
   unfold_all dblock
@@ -407,10 +407,8 @@ import_typesyn typesyn label = do
   let nargs = List.length $ S.s_args typesyn
 
   -- map the arguments to core types
-  margs <- List.foldl (\rec a -> do
-        map <- rec
-        a' <- new_type
-        return $ Map.insert a a' map) (return Map.empty) (S.s_args typesyn)
+  as <- new_types nargs
+  let margs = Map.fromList $ List.zip (S.s_args typesyn) as
 
   -- Translate the synonym type
   syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label }) 
@@ -428,7 +426,7 @@ import_typesyn typesyn label = do
   id <- register_typesyn (S.s_typename typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TAlgebraic id []) $ L.types label }
+  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TSynonym id []) $ L.types label }
 
 
 
@@ -554,7 +552,7 @@ define_user_properties dblock = do
                     newlog 0 $ "-- " ++ show n ++ " is not a quantum data type"
                     ctx <- get_context
                     Left spec <- type_spec n
-                    set_context $ ctx { types = IMap.insert n (Left spec { d_qdatatype = False }) $ types ctx }
+                    set_context $ ctx { algebraics = IMap.insert n (Left spec { d_qdatatype = False }) $ algebraics ctx }
                   else do
                     -- Quantum data type
                     newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"

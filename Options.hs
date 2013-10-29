@@ -14,7 +14,7 @@ import qualified Data.List as List
 data Options = Options {
   verbose :: Int,                  -- ^ The verbosity level (default: -1).
 
-  raiseWarnings :: Bool,           -- ^ Should warnings cause errors ? (default False).
+  warningAction :: String,         -- ^ How should warnings be handled (default: \"display\").
 
   approximations :: Bool,          -- ^ Permit approximations in the unification? (default: no).
 
@@ -33,7 +33,7 @@ default_options :: Options
 default_options = Options {
   -- General options
   verbose = -1,
-  raiseWarnings = False, 
+  warningAction = "display", 
  
   -- Include directories
   includes = [],
@@ -60,8 +60,8 @@ options =
       "show version info and exit",
     Option ['v'] ["verbose"] (OptArg read_verbose "LEVEL")
       "enable verbose output",
-    Option [] ["wall"] (NoArg (\opts -> return opts { raiseWarnings = True }))
-      "force warnings into errors",
+    Option ['W'] [] (ReqArg read_warning "ATTR")
+      "specify the handling of warnings. Possible actions are 'error', 'hide', 'display' (default).",
     Option ['i'] ["include"] (ReqArg include_directory "DIR")
       "add a directory to the module path",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
@@ -134,6 +134,20 @@ read_format f opts =
     [] -> optFail $ "-f: Invalid format '" ++ f ++ "'"
     [format] -> return $ opts { circuitFormat = format }
     _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
+
+
+
+-- | Read the warning handler.
+-- The action must be supported, and supported actions are \"error\", \"hide\" and \"display\".
+-- All other cases cause the parsing to fail.
+read_warning :: String -> Options -> IO Options
+read_warning f opts =
+  let actions = ["error", "hide", "display"] in
+  case prefix_of f actions of
+    [] -> optFail $ "-W: Invalid action '" ++ f ++ "'"
+    [action] -> return $ opts { warningAction = action }
+    _ -> optFail $ "-W: Ambiguous action '" ++ f ++ "'"
+
 
 
 -- | Add a directory to the list of include directories. This first checks the existence of the directory,
