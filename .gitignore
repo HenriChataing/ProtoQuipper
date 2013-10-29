@@ -19,6 +19,8 @@ ProtoQuipper
 *.bbl
 *.blg
 *.texwatch.lock
+*.hp
+*.prof
 _build
 doc
 test
