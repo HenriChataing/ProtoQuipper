@@ -62,7 +62,7 @@ options =
       "enable verbose output",
     Option ['W'] [] (ReqArg read_warning "ATTR")
       "specify the handling of warnings. Possible actions are 'error', 'hide', 'display' (default).",
-    Option ['i'] ["include"] (ReqArg include_directory "DIR")
+    Option ['I'] ["include"] (ReqArg include_directory "DIR")
       "add a directory to the module path",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
       "run the interpreter (default)",
