@@ -17,7 +17,7 @@ import qualified Monad.Namespace as N
 
 import Typing.CoreSyntax
 import Typing.CorePrinter
-import Typing.LabellingContext (LabellingContext)
+import Typing.LabellingContext (LabellingContext, LVariable (..))
 import qualified Typing.LabellingContext as L
 
 import qualified Compiler.SimplSyntax as C
@@ -550,7 +550,7 @@ lookup_qualified_type (mod, n) = do
     case List.lookup mod $ modules ctx of
       Just modi -> do
           case Map.lookup n $ L.types $ M.labelling modi of
-            Just (TBang _ (TUser x _)) -> return x
+            Just (TBang _ (TAlgebraic x _)) -> return x
             _ -> do
                 throw_UndefinedType (mod ++ "." ++ n)
 
@@ -692,7 +692,7 @@ check_assertions = do
                   IsDuplicable -> return ()
                   IsNonduplicable -> return ()
                   IsNotfun ->
-                      if not $ is_fun_type typ' then
+                      if not $ is_fun typ' then
                         return ()
                       else
                         fail "QpState:check_assertions: matched value has a function type") (return ()) (assertions ctx)
@@ -909,12 +909,12 @@ rewrite_flags_in_lintype (TCirc t u) = do
   u' <- rewrite_flags u
   return (TCirc t' u')
 
-rewrite_flags_in_lintype (TUser n args) = do
+rewrite_flags_in_lintype (TAlgebraic n args) = do
   args' <- List.foldr (\a rec -> do
                          r <- rec
                          a' <- rewrite_flags a
                          return (a':r)) (return []) args
-  return (TUser n args')
+  return (TAlgebraic n args')
 
 rewrite_flags_in_lintype t =
   return t
@@ -989,6 +989,18 @@ call_convention :: Variable -> QpState (Maybe [Type])
 call_convention v = do
   ctx <- get_context
   return $ IMap.lookup v $ call_conventions ctx
+
+
+-- | Profile information.
+profile :: QpState ()
+profile = do
+  ctx <- get_context
+  newlog (-2) "############   PROFILE   ############"
+  newlog (-2) $ "--- References   : " ++ show (ref_id ctx)
+  newlog (-2) $ "--- Flags        : " ++ show (flag_id ctx)
+  newlog (-2) $ "--- Types        : " ++ show (type_id ctx)
+  newlog (-2) $ "--- Variables    : " ++ show (N.vargen $ namespace ctx)
+  newlog (-2) "#####################################"
 
 
 -- | Throw a typing error, based on the reference flags of the faulty types.
@@ -1102,12 +1114,12 @@ map_lintype (TCirc t u) = do
   u' <- map_type u
   return (TCirc t' u')
 
-map_lintype (TUser typename arg) = do
+map_lintype (TAlgebraic typename arg) = do
   arg' <- List.foldr (\a rec -> do
                         r <- rec
                         a' <- map_type a
                         return (a':r)) (return []) arg
-  return (TUser typename arg')
+  return (TAlgebraic typename arg')
 
 -- The remainging linear types are unit bool qubit and int, and mapped to themselves.
 map_lintype typ = do
@@ -1151,7 +1163,7 @@ is_qdata_lintype (TTensor tlist) =
                 else
                   return False) (return True) tlist
 
-is_qdata_lintype (TUser typeid args) = do
+is_qdata_lintype (TAlgebraic typeid args) = do
   spec <- type_spec typeid
   isqdata <- case spec of
                Left def -> return $ d_qdatatype def

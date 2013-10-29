@@ -54,7 +54,7 @@ unfold_user_constraint utyp arg utyp' arg' = do
 unfold_user_constraints_in_set :: ConstraintSet -> QpState ConstraintSet
 unfold_user_constraints_in_set ([], fc) = return ([], fc)
 
-unfold_user_constraints_in_set ((Sublintype (TUser utyp args) (TUser utyp' args') _):lc, fc) = do
+unfold_user_constraints_in_set ((Sublintype (TAlgebraic utyp args) (TAlgebraic utyp' args') _):lc, fc) = do
   cset <- unfold_user_constraint utyp args utyp' args'
   cset' <- unfold_user_constraints_in_set (lc, fc)
   return $ cset <> cset'
@@ -151,14 +151,14 @@ break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) =
 -- User type against user type
 -- The result of breaking this kind of constraints has been placed in the specification of the user type
 -- It need only be instantiated with the current type arguments
-break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc) = do
+break_composite bu ((Sublintype (TAlgebraic utyp arg) (TAlgebraic utyp' arg') info):lc, fc) = do
   -- If the two types are the same (either two type synonyms or two algebraic types)
   if utyp == utyp' then do
     
     if bu then do
       intype <- case c_type info of
                   Just a -> return $ Just a
-                  Nothing -> return $ Just $ if c_actual info then TBang 0 $ TUser utyp arg else TBang 0 $ TUser utyp' arg'
+                  Nothing -> return $ Just $ if c_actual info then TBang 0 $ TAlgebraic utyp arg else TBang 0 $ TAlgebraic utyp' arg'
 
       cset <- unfold_user_constraint utyp arg utyp' arg'
 
@@ -167,7 +167,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
 
     else do
       cset <- break_composite bu (lc, fc)
-      return $ [Sublintype (TUser utyp arg) (TUser utyp' arg') info] <> cset
+      return $ [Sublintype (TAlgebraic utyp arg) (TAlgebraic utyp' arg') info] <> cset
       
   -- Only if one of the types is a synonym can this be possible
   else do
@@ -184,7 +184,7 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
                                      return $ subs_flag n n' t
                                  _ ->
                                     fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg)
-          break_composite bu ((Sublintype (no_bang typ) (TUser utyp' arg') info):lc, fc)
+          break_composite bu ((Sublintype (no_bang typ) (TAlgebraic utyp' arg') info):lc, fc)
 
       (_, Right Typesyn { s_unfolded = (args, typ) }) -> do
           typ <- List.foldl (\rec (a, a') -> do
@@ -195,10 +195,10 @@ break_composite bu ((Sublintype (TUser utyp arg) (TUser utyp' arg') info):lc, fc
                                      return $ subs_flag n n' t
                                  _ ->
                                      fail "Subtyping:break_composite: inadequate type arguments in type synonym definition") (return typ) (List.zip args arg')
-          break_composite bu ((Sublintype (TUser utyp arg) (no_bang typ) info):lc, fc)
+          break_composite bu ((Sublintype (TAlgebraic utyp arg) (no_bang typ) info):lc, fc)
 
       (Left _, Left _) -> 
-          throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 $ TUser utyp' arg') info
+          throw_TypingError (TBang 0 $ TAlgebraic utyp arg) (TBang 0 $ TAlgebraic utyp' arg') info
 
 
 -- Circ against Circ
@@ -225,7 +225,7 @@ break_composite bu (c@(Sublintype _ (TVar _) _):lc, fc) = do
   return (c:lc', fc')
 
 -- Type synonyms
-break_composite bu ((Sublintype (TUser utyp arg) u info):lc, fc) = do
+break_composite bu ((Sublintype (TAlgebraic utyp arg) u info):lc, fc) = do
   spec <- type_spec utyp
   case spec of
     -- Type synonym -> ok
@@ -242,9 +242,9 @@ break_composite bu ((Sublintype (TUser utyp arg) u info):lc, fc) = do
 
     -- Algebraic type -> error
     Left _ ->
-        throw_TypingError (TBang 0 $ TUser utyp arg) (TBang 0 u) info
+        throw_TypingError (TBang 0 $ TAlgebraic utyp arg) (TBang 0 u) info
 
-break_composite bu ((Sublintype t (TUser utyp arg) info):lc, fc) = do
+break_composite bu ((Sublintype t (TAlgebraic utyp arg) info):lc, fc) = do
   spec <- type_spec utyp
   case spec of
     -- Type synonym -> ok
@@ -261,7 +261,7 @@ break_composite bu ((Sublintype t (TUser utyp arg) info):lc, fc) = do
 
     -- Algebraic type -> error
     Left _ ->
-        throw_TypingError (TBang 0 t) (TBang 0 $ TUser utyp arg) info
+        throw_TypingError (TBang 0 t) (TBang 0 $ TAlgebraic utyp arg) info
 
 
 break_composite bu ((Subtype (TBang n a) (TBang m b) info):lc, fc) = do

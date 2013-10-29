@@ -349,29 +349,23 @@ do_application env f x =
 
     -- Circuit boxing
     (VBox typ, _) -> do
-        -- If the type is classical, the circuit is readily built
-        if not $ is_user_type typ then do
-          -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
-          -- n the number of qubits in the type typ
-          qinit <- last_qubit
-          reset_qubits
-          s <- spec typ
-          
-          -- Open a new circuit, initialized with the quantum addresses of the specimen
-          ql <- extract s
-          open_box ql
-          -- Build the circuit by applying the function argument to the specimen
-          s' <- do_application env x s
-          -- Close the box, and return the corresponding circuit
-          c <- close_box
-          
-          -- Reset the counter for qubit values
-          set_qubits qinit
-          return (VCirc s c s')
- 
-        -- If not, the construction is delayed till use of the box.
-        else do
-          fail "Interpret:do_application: illegal box type"
+        -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
+        -- n the number of qubits in the type typ
+        qinit <- last_qubit
+        reset_qubits
+        s <- spec typ
+        
+        -- Open a new circuit, initialized with the quantum addresses of the specimen
+        ql <- extract s
+        open_box ql
+        -- Build the circuit by applying the function argument to the specimen
+        s' <- do_application env x s
+        -- Close the box, and return the corresponding circuit
+        c <- close_box
+        
+        -- Reset the counter for qubit values
+        set_qubits qinit
+        return (VCirc s c s')
 
     (VDatacon dcon Nothing, _) ->
         return $ VDatacon dcon $ Just x

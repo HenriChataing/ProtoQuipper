@@ -11,6 +11,18 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 
+-- ----------------------------------------------------------------------
+-- * Labelling context
+
+
+-- | The type of variables in a labelling context; these can be either
+-- local or global.
+data LVariable =
+    LVar Variable       -- ^ Variable: /x/.
+  | LGlobal Variable    -- ^ Global variable from the imported modules.
+
+
+
 -- | Labelling context: it contains the variable identifiers of all the variables, data constructors,
 -- types in scope.
 data LabellingContext = LblCtx {

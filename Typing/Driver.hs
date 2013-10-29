@@ -26,7 +26,7 @@ import Typing.Ordering
 import Typing.Subtyping
 import Typing.TypeInference
 import Typing.TypingContext
-import Typing.LabellingContext (LabellingContext, lvar_to_lglobal)
+import Typing.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
 import qualified Typing.LabellingContext as L
 import Typing.TransSyntax
 
@@ -547,8 +547,8 @@ process_module opts prog = do
       unLVar (LVar id) = id
       unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
     
-      unTUser (TBang _ (TUser id _)) = id
-      unTUser _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
+      unTAlgebraic (TBang _ (TAlgebraic id _)) = id
+      unTAlgebraic _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
 
 
 -- ==================================== --
@@ -567,13 +567,13 @@ do_everything opts files = do
   deps <- return $ List.init deps
 
   -- Process everything, finishing by the main file
-  List.foldl (\rec p -> do
-        rec
+  mods <- List.foldl (\rec p -> do
+        ms <- rec
         mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
         nm <- process_module (opts, mopts) p
 
         case M.body nm of
-          Nothing -> return ()
+          Nothing -> return () 
           Just e -> do
               e' <- disambiguate_unbox_calls [] IMap.empty e 
               e' <- remove_patterns e'
@@ -585,6 +585,8 @@ do_everything opts files = do
   qlib <- get_context >>= return . qlib
   newlog (-2) $ "#########  MODULE: QLib  #########"
   newlog (-2) $ pprint $ qbody qlib
+
+  
 -- ===================================== --
 
 

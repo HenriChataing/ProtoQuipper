@@ -84,7 +84,7 @@ import Classes
 import Builtins
 
 import Typing.CoreSyntax
-import Typing.LabellingContext (LabellingContext, empty_label)
+import Typing.LabellingContext (LabellingContext, empty_label, LVariable (..))
 import qualified Typing.LabellingContext as L
 import Typing.CorePrinter
 import Typing.Subtyping
@@ -134,7 +134,7 @@ import_typedefs dblock label = do
         -- Register the type in the current context
         id <- register_typedef typename spec
         -- Add the type in the map
-        return (Map.insert typename (TBang 0 $ TUser id []) typs, id:names)) (return (L.types label, [])) dblock
+        return (Map.insert typename (TBang 0 $ TAlgebraic id []) typs, id:names)) (return (L.types label, [])) dblock
 
   -- Transcribe the rest of the type definitions.
   -- Type definitions include: the name of the type, generic variables, the list of constructors
@@ -142,7 +142,7 @@ import_typedefs dblock label = do
         lbl <- rec
         -- Type id needed for udpates.
         typeid <- case Map.lookup typename typs of
-            Just (TBang _ (TUser id _)) -> return id
+            Just (TBang _ (TAlgebraic id _)) -> return id
             _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
 
         -- Bind the arguments of the type.
@@ -159,13 +159,13 @@ import_typedefs dblock label = do
                     -- If the constructor takes no argument
                     Nothing -> do
                         m <- fresh_flag
-                        return (TBang m (TUser typeid args'), Nothing, emptyset)
+                        return (TBang m (TAlgebraic typeid args'), Nothing, emptyset)
 
                     -- If the constructor takes an argument
                     Just dt -> do
                         dt'@(TBang n _) <- translate_bound_type dt $ empty_label { L.types = mapargs }
                         m <- fresh_flag
-                        return (TBang one (TArrow dt' (TBang m $ TUser typeid args')), Just dt', ([], [Le m n no_info]))
+                        return (TBang one (TArrow dt' (TBang m $ TAlgebraic typeid args')), Just dt', ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
               -- Those variables must also respect the constraints from the construction of the type
@@ -277,7 +277,7 @@ choose_implementation typ = do
 -- products of the reduction of user a <: user a'
 -- Takes the name of the type as input, and returns the resulting set.
 -- No modification is made to the specification of the type.
-unfold_once :: Variable -> QpState ConstraintSet
+unfold_once :: Algebraic -> QpState ConstraintSet
 unfold_once name = do
   Left spec <- type_spec name
   
@@ -307,39 +307,40 @@ unfold_all [] = return ()
 unfold_all names = do
   -- Get all the specifications
   specs <- List.foldr (\n rec -> do 
-                         r <- rec
-                         s <- type_spec n
-                         return (s:r)) (return []) names
+        r <- rec
+        s <- type_spec n
+        return (s:r)) (return []) names
 
   -- Unfold all
   unfolded <- List.foldr (\n rec -> do
-                             r <- rec
-                             uf <- unfold_once n
-                             return (uf:r)) (return []) names
+        r <- rec
+        uf <- unfold_once n
+        return (uf:r)) (return []) names
 
   -- Compare the set after unfolding to before unfolding
   -- If any has been changed, go for another round, else
   -- end
   ctx <- get_context
   (finish, ctx) <- List.foldl (\rec (n, s, after) -> do
-                                 let spec = unTypedef s
-                                 (b, ctx) <- rec
-                                 (a, a', subt) <- return $ d_subtype spec
-                                 before <- return $ (List.filter (not . is_user) (fst subt), snd subt)
-                                 (cuser, cnuser) <- return $ (let (lc, lc') = List.partition is_user (fst after) in
-                                                              (lc, (lc', snd after)))
-                          
-                                 -- Check the stability of the non user constraints of before and after the unfolding
-                                 if before `equals_set` cnuser then do
-                                   -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
-                                   newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++ 
-                                                    List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
-                                             pprint (TUser n a) ++ " <: " ++ pprint (TUser n a'))
+        let spec = unTypedef s
+        (b, ctx) <- rec
+        let (a, a', subt) = d_subtype spec
+        let before = (List.filter (not . is_algebraic) (fst subt), snd subt)
+        let (cuser, cnuser) =
+              let (lc, lc') = List.partition is_algebraic (fst after) in
+              (lc, (lc', snd after))
 
-                                   return (b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ types ctx })
-                                 else do
-                                   -- Continue the recursion, but update the subtyping of n
-                                   return (n:b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
+        -- Check the stability of the non user constraints of before and after the unfolding
+        if before `equals_set` cnuser then do
+          -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
+          newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++ 
+                           List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
+                    pprint (TAlgebraic n a) ++ " <: " ++ pprint (TAlgebraic n a'))
+
+          return (b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ types ctx })
+        else do
+          -- Continue the recursion, but update the subtyping of n
+          return (n:b, ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ types ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
 
   -- Continue or not with the recursion
   set_context ctx
@@ -357,33 +358,33 @@ define_user_subtyping dblock = do
 
   -- Initialize the constraint set of each user type
   List.foldl (\rec n -> do
-                rec
-                s <- type_spec n
-                let spec = unTypedef s
-                -- One version of the unfolded type
-                (a, ufold) <- return $ d_unfolded spec
-                 
-                -- Another version of the unfolded type, where a has been replaced by fresh types a'
-                (a', ufold') <- List.foldr (\(TBang n t) rec -> do
-                                              let x = unTVar t
-                                              (a', ufold') <- rec
-                                              b@(TBang m (TVar y)) <- new_type
-                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_typ_var x (TVar y) t))) ufold'
-                                              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_flag n m t))) ufold'
-                                              return (b:a', ufold')) (return ([], ufold)) a
+        rec
+        s <- type_spec n
+        let spec = unTypedef s
+        -- One version of the unfolded type
+        let (a, ufold) = d_unfolded spec
+         
+        -- Another version of the unfolded type, where a has been replaced by fresh types a'
+        (a', ufold') <- List.foldr (\(TBang n t) rec -> do
+              let x = unTVar t
+              (a', ufold') <- rec
+              b@(TBang m (TVar y)) <- new_type
+              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_typ_var x (TVar y) t))) ufold'
+              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_flag n m t))) ufold'
+              return (b:a', ufold')) (return ([], ufold)) a
 
-                -- Generate the constraints ufold <: ufold'
-                constraints <- List.foldl (\rec ((_, t), (_, u)) -> do
-                                             r <- rec
-                                             case (t, u) of
-                                               (Just t, Just u) -> do
-                                                   cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
-                                                   return $ cset <> r
-                                               _ ->
-                                                   return r) (return emptyset) (List.zip ufold ufold')
+        -- Generate the constraints ufold <: ufold'
+        constraints <- List.foldl (\rec ((_, t), (_, u)) -> do
+              r <- rec
+              case (t, u) of
+                (Just t, Just u) -> do
+                    cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
+                    return $ cset <> r
+                _ ->
+                    return r) (return emptyset) (List.zip ufold ufold')
 
-                ctx <- get_context
-                set_context $ ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ types ctx }) (return ()) dblock
+        ctx <- get_context
+        set_context $ ctx { types = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ types ctx }) (return ()) dblock
 
   -- Unfold until the constraint set is stable
   unfold_all dblock
@@ -403,13 +404,13 @@ import_typesyn :: S.Typesyn                   -- ^ A type synonym.
                -> QpState LabellingContext    -- ^ The updated labelling context.
 import_typesyn typesyn label = do
   -- Count the arguments
-  nargs <- return $ List.length $ S.s_args typesyn
+  let nargs = List.length $ S.s_args typesyn
 
   -- map the arguments to core types
   margs <- List.foldl (\rec a -> do
-                         map <- rec
-                         a' <- new_type
-                         return $ Map.insert a a' map) (return Map.empty) (S.s_args typesyn)
+        map <- rec
+        a' <- new_type
+        return $ Map.insert a a' map) (return Map.empty) (S.s_args typesyn)
 
   -- Translate the synonym type
   syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label }) 
@@ -419,15 +420,15 @@ import_typesyn typesyn label = do
 
   -- Build the type specification
   spec <- return $ Typesyn {
-                     s_args = nargs,
-                     s_qdatatype = qdata,
-                     s_unfolded = (snd $ List.unzip $ Map.assocs margs, syn) }
+        s_args = nargs,
+        s_qdatatype = qdata,
+        s_unfolded = (snd $ List.unzip $ Map.assocs margs, syn) }
 
   -- Register the type synonym
   id <- register_typesyn (S.s_typename typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TUser id []) $ L.types label }
+  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TAlgebraic id []) $ L.types label }
 
 
 
@@ -444,15 +445,15 @@ is_qdata_lintype TUnit _ =
 
 is_qdata_lintype (TTensor tlist) names =
   List.foldl (\rec t -> do
-                (b, deps) <- rec
-                if b then do
-                  (b', deps') <- is_qdata_type t names
-                  return (b', List.union deps deps')
-                else
-                  return (False, [])) (return (True, [])) tlist
+      (b, deps) <- rec
+      if b then do
+        (b', deps') <- is_qdata_type t names
+        return (b', List.union deps deps')
+      else
+        return (False, [])) (return (True, [])) tlist
 
 -- We stil check whether the arguments are of qdata type
-is_qdata_lintype (TUser typename args) names = do
+is_qdata_lintype (TAlgebraic typename args) names = do
   -- Check the type of the arguments
   (b, deps) <- List.foldl (\rec t -> do
                              (b, deps) <- rec
@@ -595,7 +596,7 @@ translate_type (S.TVar x) arg (label, bound) = do
   case Map.lookup x label of
 
     -- The variable is a user type, either algebraic type or type synonym.
-    Just (TBang _ (TUser id as)) -> do
+    Just (TBang _ (TAlgebraic id as)) -> do
         spec <- type_spec id
         nexp <- case spec of
                   Left def -> return $ d_args def
@@ -604,7 +605,7 @@ translate_type (S.TVar x) arg (label, bound) = do
 
         if nexp == nact then do
           n <- fresh_flag
-          return (TBang n $ TUser id (as ++ arg), label)
+          return (TBang n $ TAlgebraic id (as ++ arg), label)
         else do
           ex <- get_location
           throwQ (WrongTypeArguments x nexp nact) ex
@@ -641,7 +642,7 @@ translate_type (S.TQualified m x) arg lbl = do
 
   if nexp == nact then do
     n <- fresh_flag
-    return (TBang n (TUser id arg), fst lbl)
+    return (TBang n (TAlgebraic id arg), fst lbl)
   else do
     ex <- get_location
     throwQ (WrongTypeArguments x nexp nact) ex

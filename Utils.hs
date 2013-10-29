@@ -139,6 +139,10 @@ type Datacon = Int
 -- | Type of algebraic types.
 type Algebraic = Int
 
+-- | Type of type synonyms.
+type Synonym = Int
+
+
 
 -- | A representation of N u {+oo}.
 data Lvl =

@@ -164,7 +164,7 @@ bind_types (C.TBang _ (C.TCirc t u)) (C.TBang _ (C.TCirc t' u')) = do
   bt <- bind_types t t'
   bu <- bind_types u u'
   return $ IMap.union bt bu
-bind_types (C.TBang _ (C.TUser _ arg)) (C.TBang _ (C.TUser _ arg')) = do
+bind_types (C.TBang _ (C.TAlgebraic _ arg)) (C.TBang _ (C.TAlgebraic _ arg')) = do
   List.foldl (\rec (a, a') -> do
         map <- rec
         ba <- bind_types a a'

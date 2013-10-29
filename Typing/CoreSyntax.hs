@@ -99,11 +99,14 @@ data LinType =
 -- Sum types
   | TBool                      -- ^ The basic type /bool/.
   | TInt                       -- ^ The basic type /int/.
-  | TUser Variable [Type]      -- ^ Algebraic type, parameterized over the variables /a/1 ... /an/.
+  | TAlgebraic Variable [Type]      -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
 
 -- Quantum related types
   | TQubit                     -- ^ The basic type /qubit/.
   | TCirc Type Type            -- ^ The type @circ (T, U)@.
+
+-- Others
+  | TSynonym Synonym [Type]    -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
   deriving (Show, Eq)
 
 
@@ -124,7 +127,7 @@ eq_skel (TBang _ (TTensor tlist)) (TBang _ (TTensor ulist)) =
     List.and $ List.map (\(t, u) -> eq_skel t u) (List.zip tlist ulist)
   else
     False
-eq_skel (TBang _ (TUser alg arg)) (TBang _ (TUser alg' arg')) =
+eq_skel (TBang _ (TAlgebraic alg arg)) (TBang _ (TAlgebraic alg' arg')) =
   if alg == alg' && List.length arg == List.length arg' then
     List.and $ List.map (\(a, a') -> eq_skel a a') (List.zip arg arg')
   else
@@ -165,31 +168,6 @@ no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
--- | Check whether a linear type uses algebraic data types.
-is_user_lintype :: LinType -> Bool
-is_user_lintype (TUser _ _) = True
-is_user_lintype (TCirc t u) = is_user_type t || is_user_type u
-is_user_lintype (TTensor tlist) = List.or $ List.map is_user_type tlist
-is_user_lintype (TArrow t u) = is_user_type t || is_user_type u
-is_user_lintype _ = False
-
-
--- | Check whether a type uses algebraic data types. This function can
--- only be applied to types. It is an error to apply it to a typing
--- scheme.
-is_user_type :: Type -> Bool
-is_user_type (TBang _ a) = is_user_lintype a
-
-
--- | Check whether a linear type is a function type or not.
-is_fun_lintype :: LinType -> Bool
-is_fun_lintype (TArrow _ _) = True
-is_fun_lintype _ = False
-
-
--- | Check whether a type is a function type or not.
-is_fun_type :: Type -> Bool
-is_fun_type (TBang _ a) = is_fun_lintype a
 
 
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
@@ -209,14 +187,30 @@ class KType a where
   subs_flag :: Int -> Int -> a -> a
 
 
+  -- | Return @True@ iff the argument is of the form \A -> B\.
+  is_fun :: a -> Bool
+
+  -- | Return @True@ iff the argument is a quantum data type.
+  is_qdata :: a -> Bool
+
+  -- | Return @True@ iff the argument is an algebraic type.
+  is_algebraic :: a -> Bool
+
+  -- | Return @True@ iff the argument is a type synonym.
+  -- This function is optinal (default is False).
+  is_synonym :: a -> Bool
+
+  is_synonym _ = False
+
+
 instance KType LinType where
   free_typ_var (TVar x) = [x]
   free_typ_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] tlist
   free_typ_var (TArrow t u) = List.union (free_typ_var t) (free_typ_var u)
   free_typ_var (TCirc t u) = List.union (free_typ_var t) (free_typ_var u)
-  free_typ_var (TUser _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
+  free_typ_var (TAlgebraic _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
+  free_typ_var (TSynonym _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
   free_typ_var _ = []
-
 
   subs_typ_var a b (TVar x) | x == a = b
                         | otherwise = TVar x
@@ -224,25 +218,36 @@ instance KType LinType where
   subs_typ_var _ _ TInt = TInt
   subs_typ_var _ _ TBool = TBool
   subs_typ_var _ _ TQubit = TQubit
-  subs_typ_var a b (TUser n args) = TUser n $ List.map (subs_typ_var a b) args
+  subs_typ_var a b (TAlgebraic n args) = TAlgebraic n $ List.map (subs_typ_var a b) args
+  subs_typ_var a b (TSynonym n args) = TSynonym n $ List.map (subs_typ_var a b) args
   subs_typ_var a b (TArrow t u) = TArrow (subs_typ_var a b t) (subs_typ_var a b u)
   subs_typ_var a b (TTensor tlist) = TTensor $ List.map (subs_typ_var a b) tlist
   subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
 
-
   free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
   free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
   free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
-  free_flag (TUser _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
+  free_flag (TAlgebraic _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
   free_flag _ = []
 
-
-  subs_flag n m (TUser typename args) = TUser typename $ List.map (subs_flag n m) args
+  subs_flag n m (TAlgebraic typename args) = TAlgebraic typename $ List.map (subs_flag n m) args
   subs_flag n m (TArrow t u) = TArrow (subs_flag n m t) (subs_flag n m u)
   subs_flag n m (TTensor tlist) = TTensor $ List.map (subs_flag n m) tlist
   subs_flag n m (TCirc t u) = TCirc (subs_flag n m t) (subs_flag n m u)
   subs_flag _ _ t = t
 
+  is_fun (TArrow _ _) = True
+  is_fun _ = False
+
+  is_qdata TQubit = True
+  is_qdata TUnit = True
+  is_qdata (TTensor tlist) = List.and $ List.map is_qdata tlist
+  is_qdata _ = False
+
+  is_algebraic (TAlgebraic _ _) = True
+  is_algebraic _ = False
+
+ 
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
@@ -256,6 +261,11 @@ instance KType Type where
       TBang m t'
     else
       TBang p t'
+
+  is_fun (TBang _ t) = is_fun t
+  is_algebraic (TBang _ t) = is_algebraic t
+  is_qdata (TBang _ t) = is_qdata t
+  is_synonym (TBang _ t) = is_synonym t
 
 
 -- ----------------------------------------------------------------------
@@ -682,14 +692,6 @@ is_semi_composite (Sublintype t u _) =
 is_semi_composite _ = False
 
 
--- | Return true iff the constraint is of the form (user /n/ /a/ <: user /n/ /a/').
-is_user :: TypeConstraint -> Bool
-is_user (Sublintype t u _) =
-  case (t, u) of
-    (TUser _ _, TUser _ _) -> True
-    _ -> False
-is_user _ = False
-
 -- | Check whether the constraints of a list are either all right-sided or all left-sided. Here, a constraint is
 --
 -- * /left-sided/ if it is of the form /a/ <: /T/, and
@@ -792,6 +794,22 @@ instance KType TypeConstraint where
   subs_flag n m (Sublintype t u info) = Sublintype (subs_flag n m t) (subs_flag n m u) info
   subs_flag n m (Subtype t u info) = Subtype (subs_flag n m t) (subs_flag n m u) info
 
+  -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are function types.
+  is_fun (Sublintype t u _) = is_fun t && is_fun u
+  is_fun (Subtype t u _) = is_fun t && is_fun u
+
+  -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are quantum data types.
+  is_qdata (Sublintype t u _) = is_qdata t && is_qdata u
+  is_qdata (Subtype t u _) = is_qdata t && is_qdata u
+
+  -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are algebraic types.
+  is_algebraic (Sublintype t u _) = is_algebraic t && is_algebraic u
+  is_algebraic (Subtype t u _) = is_algebraic t && is_algebraic u
+
+  -- | Return @True@ if either @t@ or @u@ from the constraint @t <: u@ is a type synonym.
+  is_synonym (Sublintype t u _) = is_synonym t || is_synonym u
+  is_synonym (Subtype t u _) = is_synonym t || is_synonym u
+
 
 -- | Constraint sets are an instance of 'KType'.
 instance KType ConstraintSet where
@@ -810,14 +828,16 @@ instance KType ConstraintSet where
                                    else (Le p q info)) fc in
     (lc', fc')
 
+  -- Not implemented.
+  is_fun _ = False
 
--- ----------------------------------------------------------------------
--- * Labelling context
+  -- Not implemented.
+  is_qdata _ = False
 
+  -- Not implemented.
+  is_algebraic _ = False
+  
+  -- Not implemented.
+  is_synonym _ = False
 
--- | The type of variables in a labelling context; these can be either
--- local or global.
-data LVariable =
-    LVar Variable       -- ^ Variable: /x/.
-  | LGlobal Variable    -- ^ Global variable from the imported modules.
 

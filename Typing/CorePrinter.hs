@@ -27,17 +27,28 @@ instance PPrint LinType where
   genprint _ _ TInt = "int"
   genprint _ _ TBool = "bool"
   genprint _ _ TQubit = "qubit"
-  genprint lv opts@[_, _, fuser] (TUser n arg) =
+  genprint lv opts@[_, _, fuser] (TAlgebraic n arg) =
     fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
                                     " " ++
                                     (case no_bang t of
                                        TArrow _ _ -> "(" ++ prt ++ ")"
                                        TTensor _ -> "(" ++ prt ++ ")"
                                        TCirc _ _ -> "(" ++ prt ++ ")"
-                                       TUser _ [] -> prt
-                                       TUser _ _ -> "(" ++ prt ++ ")"
+                                       TAlgebraic _ [] -> prt
+                                       TAlgebraic _ _ -> "(" ++ prt ++ ")"
                                        _ -> prt) ++ rec) "" arg
-  genprint _ _ (TUser n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
+  genprint _ _ (TAlgebraic n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
+  genprint lv opts@[_, _, fuser] (TSynonym n arg) =
+    fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
+                                    " " ++
+                                    (case no_bang t of
+                                       TArrow _ _ -> "(" ++ prt ++ ")"
+                                       TTensor _ -> "(" ++ prt ++ ")"
+                                       TCirc _ _ -> "(" ++ prt ++ ")"
+                                       TAlgebraic _ [] -> prt
+                                       TAlgebraic _ _ -> "(" ++ prt ++ ")"
+                                       _ -> prt) ++ rec) "" arg
+  genprint _ _ (TSynonym n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
   genprint (Nth 0) _ _ = "..."
 

@@ -769,12 +769,12 @@ duplicate_lintype (TTensor tlist) = do
                           return (t':rc)) (return []) tlist
   return (TTensor tlist')
 
-duplicate_lintype (TUser n args) = do
+duplicate_lintype (TAlgebraic n args) = do
   args' <- List.foldr (\a rec -> do
                          rc <- rec
                          a' <- duplicate_type a
                          return (a':rc)) (return []) args
-  return (TUser n args')
+  return (TAlgebraic n args')
 
 duplicate_lintype (TVar _) = do
   x <- fresh_type
