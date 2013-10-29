@@ -184,9 +184,9 @@ import_typedefs dblock label = do
               return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type
-        Left spec <- type_spec typeid
+        spec <- algebraic_def typeid
         ctx <- get_context
-        set_context $ ctx { algebraics = IMap.insert typeid (Left $ spec { d_unfolded = (args', dtypes') }) $ algebraics ctx }
+        set_context $ ctx { algebraics = IMap.insert typeid spec { d_unfolded = (args', dtypes') } $ algebraics ctx }
 
         -- Specify the implementation of this type
         choose_implementation typeid
@@ -208,69 +208,63 @@ import_typedefs dblock label = do
 -- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
 choose_implementation :: Algebraic -> QpState ()
 choose_implementation typ = do
-  spec <- type_spec typ
-  case spec of
-    -- Algebraic type
-    Left dtyp -> do
-        let datas = snd $ d_unfolded dtyp
-        ctx <- get_context
-        case datas of
-          -- Cases with one constructor:
-          -- The tag is omitted. No definition of the function gettag is needed. 
-          [(dcon, Just _)] -> do
-              update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
-              
-          [(dcon, Nothing)] ->
-              update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
-              
-          -- Cases with several constrcutors
-          _ -> do
-              -- First thing : count the constructors taking an argument.
-              let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
+  dtyp <- algebraic_def typ
+  let datas = snd $ d_unfolded dtyp
+  ctx <- get_context
+  case datas of
+    -- Cases with one constructor:
+    -- The tag is omitted. No definition of the function gettag is needed. 
+    [(dcon, Just _)] -> do
+        update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
+        
+    [(dcon, Nothing)] ->
+        update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
+        
+    -- Cases with several constrcutors
+    _ -> do
+        -- First thing : count the constructors taking an argument.
+        let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
 
-              -- In case at most one takes an argument, the remaining can be represented by just their tag.
-              if List.length with_args <= 1 then do
-                -- The constructor with one argument can forget its tag
-                List.foldl (\rec (dcon, _) -> do
-                      rec
-                      update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [e]), d_deconstruct = \v -> CS.EAccess 0 v })
-                    ) (return ()) with_args
-                -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-                List.foldl (\rec (dcon, _) -> do
-                      rec
-                      update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.EInt (d_tag ddef) })
-                    ) (return ()) no_args
-                -- The tag is obtained by checking for references.
-                case with_args of
-                  -- Since there isn't any reference in the lot, no need to check
-                  [] -> update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EVar v })
-                  -- There is a reference: need to check
-                  [(dcon, _)] -> do
-                      tag <- datacon_def dcon >>= return . d_tag
-                      update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EIf (CS.EApp (CS.EBuiltin "ISREF") (CS.EVar v))
-                                                                             (CS.EInt tag)
-                                                                             (CS.EVar v) })
-                  _ ->
-                      fail "TransSyntax:choose_implementation: unexpected case"
+        -- In case at most one takes an argument, the remaining can be represented by just their tag.
+        if List.length with_args <= 1 then do
+          -- The constructor with one argument can forget its tag
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [e]), d_deconstruct = \v -> CS.EAccess 0 v })
+              ) (return ()) with_args
+          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.EInt (d_tag ddef) })
+              ) (return ()) no_args
+          -- The tag is obtained by checking for references.
+          case with_args of
+            -- Since there isn't any reference in the lot, no need to check
+            [] -> update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EVar v })
+            -- There is a reference: need to check
+            [(dcon, _)] -> do
+                tag <- datacon_def dcon >>= return . d_tag
+                update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EIf (CS.EApp (CS.EBuiltin "ISREF") (CS.EVar v))
+                                                                       (CS.EInt tag)
+                                                                       (CS.EVar v) })
+            _ ->
+                fail "TransSyntax:choose_implementation: unexpected case"
 
-              -- If not, just give the default implementation.
-              else do
-                -- The constructor with one argument can forget its tag
-                List.foldl (\rec (dcon, _) -> do
-                      rec
-                      update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [CS.EInt (d_tag ddef),e]), d_deconstruct = \v -> CS.EAccess 1 v })
-                    ) (return ()) with_args
-                -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-                List.foldl (\rec (dcon, _) -> do
-                      rec
-                      update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.ETuple [CS.EInt (d_tag ddef)] })
-                    ) (return ()) no_args
-                -- The tag is the first element of the tuple.
-                update_type typ (\tdef -> Just tdef { d_gettag = \v -> CS.EAccess 0 v })
+        -- If not, just give the default implementation.
+        else do
+          -- The constructor with one argument can forget its tag
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [CS.EInt (d_tag ddef),e]), d_deconstruct = \v -> CS.EAccess 1 v })
+              ) (return ()) with_args
+          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.ETuple [CS.EInt (d_tag ddef)] })
+              ) (return ()) no_args
+          -- The tag is the first element of the tuple.
+          update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EAccess 0 v })
 
-    -- Not an algebraic type
-    Right _ ->
-        fail "TransSyntax:choose_implementation: illegal argument"
 
 
 -- | Unfold the definitions of the types in the subtyping constraints
@@ -279,13 +273,13 @@ choose_implementation typ = do
 -- No modification is made to the specification of the type.
 unfold_once :: Algebraic -> QpState ConstraintSet
 unfold_once name = do
-  Left spec <- type_spec name
+  spec <- algebraic_def name
   
   -- Unfolded constraints
   (a, a', current) <- return $ d_subtype spec
   
   -- unfold the user type constraints
-  cuser <- unfold_user_constraints_in_set current
+  cuser <- unfold_algebraic_constraints_in_set current
 
   -- Break the composite constraints, although without touching
   -- the user type constraints, thus the false flag in the call to break_composite
@@ -302,13 +296,13 @@ unfold_once name = do
 -- resulting constraint set becomes stable. The input is a list of co-inductive
 -- types. It doesn't output anything, but updates the constraint set in the specification
 -- of the input types
-unfold_all :: [Variable] -> QpState ()
+unfold_all :: [Algebraic] -> QpState ()
 unfold_all [] = return ()
 unfold_all names = do
   -- Get all the specifications
   specs <- List.foldr (\n rec -> do 
         r <- rec
-        s <- type_spec n
+        s <- algebraic_def n
         return (s:r)) (return []) names
 
   -- Unfold all
@@ -321,8 +315,7 @@ unfold_all names = do
   -- If any has been changed, go for another round, else
   -- end
   ctx <- get_context
-  (finish, ctx) <- List.foldl (\rec (n, s, after) -> do
-        let spec = unTypedef s
+  (finish, ctx) <- List.foldl (\rec (n, spec, after) -> do
         (b, ctx) <- rec
         let (a, a', subt) = d_subtype spec
         let before = (List.filter (not . is_algebraic) (fst subt), snd subt)
@@ -337,30 +330,27 @@ unfold_all names = do
                            List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
                     pprint (TAlgebraic n a) ++ " <: " ++ pprint (TAlgebraic n a'))
 
-          return (b, ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', before) }) $ algebraics ctx })
+          return (b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', before) } $ algebraics ctx })
         else do
           -- Continue the recursion, but update the subtyping of n
-          return (n:b, ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', after) }) $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
+          return (n:b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', after) } $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
 
   -- Continue or not with the recursion
   set_context ctx
   unfold_all finish
-    where
-      unTypedef (Left spec) = spec
-      unTypedef _ = throwNE $ ProgramError "TransSyntax:unfold_all: unexpected type synonym"
+
 
 
 -- | Infer the subtyping relation rules of all the user defined types.
 -- It uses the algorithm described above.
-define_user_subtyping :: [Variable] -> QpState () 
+define_user_subtyping :: [Algebraic] -> QpState () 
 define_user_subtyping dblock = do
   newlog 0 ">> User subtyping relations"
 
   -- Initialize the constraint set of each user type
   List.foldl (\rec n -> do
         rec
-        s <- type_spec n
-        let spec = unTypedef s
+        spec <- algebraic_def n
         -- One version of the unfolded type
         let (a, ufold) = d_unfolded spec
          
@@ -384,15 +374,12 @@ define_user_subtyping dblock = do
                     return r) (return emptyset) (List.zip ufold ufold')
 
         ctx <- get_context
-        set_context $ ctx { algebraics = IMap.insert n (Left spec { d_subtype = (a, a', constraints) }) $ algebraics ctx }) (return ()) dblock
+        set_context $ ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', constraints) } $ algebraics ctx }) (return ()) dblock
 
   -- Unfold until the constraint set is stable
   unfold_all dblock
   newlog 0 "<<\n"
     where
-      unTypedef (Left spec) = spec
-      unTypedef _ = throwNE $ ProgramError "TransSyntax:define_user_subtyping: unexpected type synonym"
-
       unTVar (TVar x) = x
       unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_subtyping: unexpected non-atomic constraint"
 
@@ -460,12 +447,10 @@ is_qdata_lintype (TAlgebraic typename args) names = do
                                return (b', List.union deps deps')
                              else
                                return (False, [])) (return (True, [])) args
-  -- If the arguments are ok, check the type (iff it is not in the list
+  -- If the arguments are ok, check the type (iff it is not in the list)
   if b && (not $ List.elem typename names) then do
-    spec <- type_spec typename
-    case spec of
-      Left def -> return (d_qdatatype def, deps)
-      Right syn -> return (s_qdatatype syn, deps)
+    spec <- algebraic_def typename
+    return (d_qdatatype spec, deps)
   else
     return (b, typename:deps)
 
@@ -516,7 +501,7 @@ define_user_properties dblock = do
     -- The edges are oriented so that if one of the types doesn't have a property, then neither should the dependencies.
     (mdata, mgraph) <- List.foldl (\rec n -> do
                          (mdata, mgraph) <- rec
-                         Left spec <- type_spec n
+                         spec <- algebraic_def n
                          -- Replace the arguments by qubit in the unfolded definition
                         
                          let argtyps = List.foldl (\args (_, typ) -> do
@@ -551,8 +536,8 @@ define_user_properties dblock = do
                     -- Not a quantum data type
                     newlog 0 $ "-- " ++ show n ++ " is not a quantum data type"
                     ctx <- get_context
-                    Left spec <- type_spec n
-                    set_context $ ctx { algebraics = IMap.insert n (Left spec { d_qdatatype = False }) $ algebraics ctx }
+                    spec <- algebraic_def n
+                    set_context $ ctx { algebraics = IMap.insert n spec { d_qdatatype = False } $ algebraics ctx }
                   else do
                     -- Quantum data type
                     newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"
@@ -593,12 +578,10 @@ translate_type S.TQubit [] m = do
 translate_type (S.TVar x) arg (label, bound) = do
   case Map.lookup x label of
 
-    -- The variable is a user type, either algebraic type or type synonym.
+    -- The variable is an algebraic type.
     Just (TBang _ (TAlgebraic id as)) -> do
-        spec <- type_spec id
-        nexp <- case spec of
-                  Left def -> return $ d_args def
-                  Right syn -> return $ s_args syn
+        spec <- algebraic_def id
+        let nexp = d_args spec
         nact <- return $ (List.length as) + (List.length arg)
 
         if nexp == nact then do
@@ -607,6 +590,20 @@ translate_type (S.TVar x) arg (label, bound) = do
         else do
           ex <- get_location
           throwQ (WrongTypeArguments x nexp nact) ex
+
+    -- The variable is a type synonym.
+    Just (TBang _ (TSynonym id as)) -> do
+        spec <- synonym_def id
+        let nexp = s_args spec
+        nact <- return $ (List.length as) + (List.length arg)
+
+        if nexp == nact then do
+          n <- fresh_flag
+          return (TBang n $ TAlgebraic id (as ++ arg), label)
+        else do
+          ex <- get_location
+          throwQ (WrongTypeArguments x nexp nact) ex
+
 
     -- The variable is just a bound type.
     Just typ ->
@@ -630,11 +627,9 @@ translate_type (S.TVar x) arg (label, bound) = do
 
 translate_type (S.TQualified m x) arg lbl = do
   id <- lookup_qualified_type (m, x)
-  spec <- type_spec id
+  spec <- algebraic_def id
   -- Expected number of args
-  nexp <- case spec of
-            Left def -> return $ d_args def
-            Right syn -> return $ s_args syn
+  let nexp = d_args spec
   -- Actual number of args
   nact <- return $ List.length arg
 

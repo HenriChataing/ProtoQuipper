@@ -707,7 +707,7 @@ extract (prefix, var, loc) =
                 deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
                 return $ deconstruct var
             InTag typ -> do
-                Left tdef <- type_spec typ
+                tdef <- algebraic_def typ
                 let gettag = C.d_gettag tdef
                 return $ gettag var
 
@@ -739,7 +739,7 @@ extract_var (prefix, var, loc) endvar =
                 deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
                 return $ deconstruct var
             InTag typ -> do
-                Left tdef <- type_spec typ
+                tdef <- algebraic_def typ
                 let gettag = C.d_gettag tdef
                 return $ gettag var
 

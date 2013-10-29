@@ -133,7 +133,7 @@ data QContext = QCtx {
   body :: Maybe (Expr -> Expr),                       -- ^ The (incomplete) body of the current module.
 
 -- Helpers of the typing / interpretation 
-  algebraics :: IntMap (Either Typedef Typesyn),      -- ^ The definitions of both the imported types and the types defined in the current module.
+  algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
   synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
 
   builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
@@ -392,6 +392,9 @@ module_body = do
         return $ Just bdy
 
 
+------------------------------------------------
+-- ** Type and variable manipulation.
+
 
 -- | Register a variable in the namespace. A new id is generated, bound to
 -- the given variable, and returned.
@@ -420,7 +423,7 @@ register_typedef typename def = do
   ctx <- get_context
   (id, nspace) <- return $ N.register_type typename (namespace ctx)
   set_context $ ctx { namespace = nspace,
-                      algebraics = IMap.insert id (Left def) $ algebraics ctx }
+                      algebraics = IMap.insert id def $ algebraics ctx }
   return id
 
 
@@ -456,7 +459,7 @@ variable_name x = do
         return $ prevar "x" x
 
 
--- | Retrieve the reference the vairable was given at ots declaration. 
+-- | Retrieve the reference the vairable was given at its declaration. 
 variable_reference :: Variable -> QpState Ref
 variable_reference x = do
   ctx <- get_context
@@ -605,26 +608,43 @@ builtin_value s = do
 
 
 -- | Retrieve the definition of a type.
-type_spec :: Variable -> QpState (Either Typedef Typesyn)
-type_spec typ = do
+algebraic_def :: Algebraic -> QpState Typedef
+algebraic_def typ = do
   ctx <- get_context
   case IMap.lookup typ $ algebraics ctx of
     Just n ->
         return n
-
     Nothing -> do
         n <- type_name typ
         fail $ "QpState:type_spec: undefined type: " ++ n
 
 
 -- | Update the definiton of a type.
-update_type :: Algebraic -> (Typedef -> Maybe Typedef) -> QpState ()
-update_type typ update = do
+update_algebraic :: Algebraic -> (Typedef -> Maybe Typedef) -> QpState ()
+update_algebraic typ update = do
   ctx <- get_context
-  set_context ctx { algebraics = IMap.update (\tdef ->
-        case tdef of
-          Left def -> (update def) >>= (\x -> return $ Left x)
-          Right _ -> throwNE $ ProgramError "QpState:update_type: illegal argument") typ $ algebraics ctx }
+  set_context ctx { algebraics = IMap.update (\tdef -> update tdef) typ $ algebraics ctx }
+
+
+
+-- | Retrieve the definition of a type.
+synonym_def :: Synonym -> QpState Typesyn
+synonym_def typ = do
+  ctx <- get_context
+  case IMap.lookup typ $ synonyms ctx of
+    Just n ->
+        return n
+    Nothing -> do
+        n <- type_name typ
+        fail $ "QpState:type_spec: undefined type: " ++ n
+
+
+-- | Update the definiton of a type.
+update_synonym :: Synonym -> (Typesyn -> Maybe Typesyn) -> QpState ()
+update_synonym typ update = do
+  ctx <- get_context
+  set_context ctx { synonyms = IMap.update (\tdef -> update tdef) typ $ synonyms ctx }
+
 
 
 -- | Retrieve the definition of a data constructor.
@@ -667,16 +687,16 @@ update_datacon dcon update = do
 
 
 -- | Retrieve the list of the data constructors from a type definition.
-all_data_constructors :: Variable -> QpState [Datacon]
+all_data_constructors :: Algebraic -> QpState [Datacon]
 all_data_constructors typ = do
-  Left def <- type_spec typ
+  def <- algebraic_def typ
   return $ fst $ List.unzip $ snd $ d_unfolded def
 
 
 -- | Return the list of the constructors' labels of a type definition.
-constructors_labels :: Variable -> QpState [Int]
-constructors_labels typ = do
-  Left def <- type_spec typ
+constructors_tags :: Algebraic -> QpState [Int]
+constructors_tags typ = do
+  def <- algebraic_def typ
   return $ [0 .. (List.length $ snd $ d_unfolded def) -1]
 
 
@@ -1183,11 +1203,8 @@ is_qdata_lintype (TTensor tlist) =
                   return False) (return True) tlist
 
 is_qdata_lintype (TAlgebraic typeid args) = do
-  spec <- type_spec typeid
-  isqdata <- case spec of
-               Left def -> return $ d_qdatatype def
-               Right syn -> return $ s_qdatatype syn
-  if isqdata then
+  spec <- algebraic_def typeid
+  if d_qdatatype spec then
     List.foldl (\rec t -> do
                   b <- rec
                   if b then
@@ -1196,6 +1213,19 @@ is_qdata_lintype (TAlgebraic typeid args) = do
                     return False) (return True) args
   else
     return False
+
+is_qdata_lintype (TSynonym typeid args) = do
+  spec <- synonym_def typeid
+  if s_qdatatype spec then
+    List.foldl (\rec t -> do
+                  b <- rec
+                  if b then
+                    is_qdata_type t
+                  else
+                    return False) (return True) args
+  else
+    return False
+
 
 is_qdata_lintype _ =
   return False
