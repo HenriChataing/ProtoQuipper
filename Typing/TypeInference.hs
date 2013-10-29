@@ -429,7 +429,7 @@ constraint_typing gamma (EApp _ t u) cst = do
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
  
-  return $ csett <> csetu
+  return $ csetu <> csett
 
 
 -- Lambda typing rule
