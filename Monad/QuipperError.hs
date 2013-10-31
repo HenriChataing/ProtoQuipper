@@ -293,6 +293,7 @@ data Warning =
     UnexhaustiveMatch [String]                                                            -- ^ Unexhaustive pattern matching. The argument lists some cases that are not matched.
   | FailedMatch                                                                           -- ^ A pattern matching always fails: e.g. @let Nil = x:xs in ...@
   | AmbiguousUnbox                                                                        -- ^ Could not resolve the call type of an unbox operator.
+  | NakedExpressionToplevel                                                               -- ^ At compile time, a naked expression was found at top-level.
   deriving (Typeable)
 
 
@@ -319,3 +320,6 @@ instance Show Warning where
 
   show AmbiguousUnbox =
     "couldn't solve the instance for this unbox operator"
+
+  show NakedExpressionToplevel =
+    "naked expression at toplevel"

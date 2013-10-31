@@ -206,7 +206,7 @@ which_unbox a arg =
 -- else, the function using the unbox is modified to take the unbox operator as argument.
 disambiguate_unbox_calls :: [(C.Type, Variable)]                      -- ^ The unbox operators available in the current context.
                          -> IntMap (C.Type, [C.Type])                 -- ^ Each modified (local) function, along with its polymorphic type and the arguments it expects.
-                         -> C.Expr                                    -- ^ The expresson to disambiguate.
+                         -> C.Expr                                    -- ^ The expression to disambiguate.
                          -> QpState C.Expr                            -- ^ The disambiguated expression. 
 disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
   ri <- ref_info_err ref
@@ -964,5 +964,63 @@ remove_patterns (C.EBuiltin _ s) =
   
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
+
+
+
+-- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern' to all the top-level declarations.
+transform_declarations :: [C.Declaration] -> QpState [Declaration]
+transform_declarations decls = do
+  (decls, _) <- List.foldl (\rec d -> do
+        (decls, mod) <- rec
+        case d of
+          C.DExpr e -> do
+              e <- disambiguate_unbox_calls [] mod e
+              e <- remove_patterns e
+              return ((DExpr e):decls, mod)
+          
+          C.DLet recflag x e -> do
+              -- DISAMBIGUATION  
+              -- First disambiguate the calls from e
+              e' <- disambiguate_unbox_calls [] mod e
+  
+              -- Then pick up the remaining unbox calls
+              need <- unbox_types e'
+              need <- return $ List.filter (\a -> not $ C.is_concrete a) need
+
+              -- Unresolved unbox operators
+              if need /= [] then do
+                typ <- type_of_global x >>= return . C.type_of_typescheme
+
+                -- Specify the calling convention for x
+                set_call_convention x need
+
+                -- Add the variable and its (new) arguments to the mod context
+                let mod' = IMap.insert x (typ, need) mod
+
+                -- Add new argument variables to the arg context
+                args <- List.foldr (\a rec -> do
+                      as <- rec
+                      v <- dummy_var
+                      return $ (a, v):as) (return []) need
+
+                -- Disambiguate the calls from e again
+                e' <- disambiguate_unbox_calls args mod' e
+
+                -- Transform e' into a function
+                let e'' = List.foldl (\e (_, v) ->
+                      C.EFun 0 (C.PVar 0 v) e) e' args
+
+                -- Remove the patterns
+                e'' <- remove_patterns e''
+
+                return ((DLet x e''):decls, mod')
+
+              -- No unresolved unbox operators
+              else do
+                e' <- remove_patterns e
+                return ((DLet x e'):decls, mod)
+      ) (return ([], IMap.empty)) decls
+  return $ List.reverse decls
+
 
 

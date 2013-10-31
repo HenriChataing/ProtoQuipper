@@ -45,12 +45,14 @@ import Data.List as List
 import Data.Map as Map
 import Data.IntMap as IMap
 import Data.Char as Char
+import qualified Data.ByteString.Lazy.Internal as BI
+import qualified Data.ByteString.Lazy as B
 
 
 -- | Lex and parse the module implementation file at the given filepath.
 lex_and_parse_implementation :: FilePath -> QpState S.Program
 lex_and_parse_implementation file = do
-  contents <- liftIO $ readFile file
+  contents <- liftIO $ B.readFile file
   tokens <- mylex file contents
   mod <- return $ module_of_file file
   return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
@@ -59,7 +61,7 @@ lex_and_parse_implementation file = do
 -- | Lex and parse the interface file at the given filepath.
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
-  contents <- liftIO $ readFile file
+  contents <- liftIO $ B.readFile file
   tokens <- mylex file contents
   mod <- return $ module_of_file file
   return $ IP.parse tokens
@@ -191,6 +193,20 @@ build_dependencies dirs main = do
   return $ List.reverse deps
 
 
+-- | Sort the dependencies of a set of modules in a topological fashion.
+-- The program argument is the list of programs on which Proto-Quipper has been called. The return value
+-- is a list of the dependencies, with the properties:
+--
+--     * each module may only appear once;
+--
+--     * the dependencies of each module are placed before it in the sorted list; and
+--
+build_set_dependencies :: [FilePath]          -- ^ List of directories.
+                       -> [String]            -- ^ Main modules (by name only).
+                       -> QpState [S.Program] -- ^ Returns the total list of dependencies, sorted in a topological fashion.
+build_set_dependencies dirs progs = do
+  deps <- build_dependencies dirs S.dummy_program { S.imports = progs }
+  return $ List.init deps
 
 
 
@@ -219,19 +235,19 @@ process_declaration :: (Options, MOptions)       -- ^ The command line and modul
                     -> S.Program                 -- ^ The current module.
                     -> ExtensiveContext          -- ^ The context.
                     -> S.Declaration             -- ^ The declaration to process.
-                    -> QpState ExtensiveContext  -- ^ Returns the updated context.
+                    -> QpState (ExtensiveContext, Maybe Declaration)  -- ^ Returns the updated context, and the translated declaration.
 
 
 -- TYPE SYNONYMS
 process_declaration (opts, mopts) prog ctx (S.DSyn typesyn) = do
   label <- import_typesyn typesyn $ labelling ctx
-  return $ ctx { labelling = label }
+  return (ctx { labelling = label }, Nothing)
 
 
 -- DATA TYPE BLOCKS
 process_declaration (opts, mopts) prog ctx (S.DTypes typedefs) = do
   label <- import_typedefs typedefs $ labelling ctx
-  return $ ctx { labelling = label }
+  return (ctx { labelling = label }, Nothing)
 
 
 -- EXPRESSIONS
@@ -240,10 +256,10 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   e' <- translate_expression e $ labelling ctx
 
   -- Remember the body of the module
-  if runCompiler opts then
-    with_expression e'
-  else
-    return ()
+  let decl = if runCompiler opts then
+          Just (DExpr e')
+        else
+          Nothing
 
   -- Free variables of the new expression
   fve <- return $ free_var e'
@@ -290,7 +306,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
     return ()
 
   -- Remove the used AND non duplicable variables from the context
-  IMap.foldWithKey (\x a rec -> do
+  ctx <- IMap.foldWithKey (\x a rec -> do
         ctx <- rec
         let (TForall _ _ _ (TBang f _)) = a
         v <- flag_value f
@@ -306,6 +322,8 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 
           _ ->
               return ctx) (return $ ctx { typing = gamma, constraints = cset' }) gamma
+  return (ctx, decl)
+
 
 
 -- LET BINDING
@@ -318,10 +336,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   fve <- return $ free_var e'
 
   -- Remember the body of the module
-  if runCompiler opts then
-    with_declaration (recflag, p', e')
-  else
-    return ()
+  let decl = if runCompiler opts then
+          Just (DLet recflag (unPVar p') e')
+        else
+          Nothing
 
   -- Export the variables of the pattern
   p' <- with_interface prog (labelling ctx) p'
@@ -446,37 +464,36 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
                     environment = IMap.delete x $ environment ctx }
           _ ->
               return ctx) (return ctx { labelling = (labelling ctx) { L.variables = label' } }) (typing ctx)
-  return ctx
+  return (ctx, decl)
+    where
+      unPVar (PVar _ x) = x
+      unPVar _ = throwNE $ ProgramError "Driver:process_declaration: illegal pattern"
 
 
 -- | Explicit the implementation of functional data constructors.
 explicit_datacons :: Module -> QpState Module
 explicit_datacons mod = do
-  case M.body mod of
-    Nothing ->
-        return mod
-    Just body -> do
-        Map.foldl (\rec dcon -> do
-              mod <- rec
-              ddef <- datacon_def dcon
-              case type_of_typescheme $ d_type ddef of
-                -- Takes an argument -> write an implementation
-                TBang _ (TArrow _ _) -> do
-                    x <- dummy_var
-                    y <- dummy_var
-                    let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
+  Map.foldl (\rec dcon -> do
+        mod <- rec
+        ddef <- datacon_def dcon
+        case type_of_typescheme $ d_type ddef of
+          -- Takes an argument -> write an implementation
+          TBang _ (TArrow _ _) -> do
+              x <- dummy_var
+              y <- dummy_var
+              let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
                     
-                    -- Update the definition of dcon
-                    ctx <- get_context
-                    set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
-                  
-                    -- Update the module definition
-                    return mod { M.body = Just $ ELet 0 Nonrecursive (PVar 0 y) e body }
+              -- Update the definition of dcon
+              ctx <- get_context
+              set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
+            
+              -- Update the module definition
+              return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
 
-                -- Takes no argument -> do nothing
-                _ ->
-                    return mod
-              ) (return mod) (L.datacons $ M.labelling mod)
+          -- Takes no argument -> do nothing
+          _ ->
+              return mod
+        ) (return mod) (L.datacons $ M.labelling mod)
 
 
 
@@ -509,12 +526,16 @@ process_module opts prog = do
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
  
   -- Interpret all the declarations
-  ctx <- List.foldl (\rec decl -> do
-        ctx <- rec
-        process_declaration opts prog ctx decl) (return $ Context { labelling = lctx,
-                                                                    typing = IMap.empty,
-                                                                    environment = IMap.empty,
-                                                                    constraints = emptyset }) $ S.body prog
+  (ctx, decls) <- List.foldl (\rec decl -> do
+        (ctx, decls) <- rec
+        (ctx, decl) <- process_declaration opts prog ctx decl
+        case decl of
+          Just d -> return (ctx, d:decls)
+          Nothing -> return (ctx, [])
+      ) (return (Context { labelling = lctx,
+                           typing = IMap.empty,
+                           environment = IMap.empty,
+                           constraints = emptyset }, [])) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
   duplicable_context (typing ctx)
@@ -527,9 +548,9 @@ process_module opts prog = do
                       values = IMap.union (environment ctx) $ values qst }
                             
   -- Push the definition of the new module to the stack
-  body <- module_body
   let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.
-                     M.body = body }
+                     M.declarations = List.reverse decls }
+
   -- Explicit the construction of the data constructors
   newmod <- explicit_datacons newmod
 
@@ -562,25 +583,23 @@ do_everything opts files = do
   -- Get the modules' names
   progs <- return $ List.map module_of_file files
 
-  -- Build the dependencies (with a dummy module that is removed immediately)
-  deps <- build_dependencies (includes opts) S.dummy_program { S.imports = progs }
-  deps <- return $ List.init deps
+  -- Build the dependencies
+  deps <- build_set_dependencies (includes opts) progs
 
-  -- Process everything, finishing by the main file
+  -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec p -> do
         ms <- rec
-        mopts <- return $ MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
+        let mopts = MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
         nm <- process_module (opts, mopts) p
 
-        case M.body nm of
-          Nothing -> return () 
-          Just e -> do
-              e' <- disambiguate_unbox_calls [] IMap.empty e 
-              e' <- remove_patterns e'
-              newlog (-2) $ "#########  MODULE: " ++ S.module_name p ++ " #########"
-              newlog (-2) $ pprint e' ++ "\n"
+        -- Compilation 
+        -- decls <- transform_declarations (M.declarations nm)
 
-        return ()) (return ()) deps
+        -- The references used during the processing of the module p have become useless,
+        -- so remove them.
+        clear_references
+      ) (return ()) deps
+
   -- Display the qlib module
   qlib <- get_context >>= return . qlib
   newlog (-2) $ "#########  MODULE: QLib  #########"

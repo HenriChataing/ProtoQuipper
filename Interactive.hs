@@ -32,7 +32,7 @@ import Control.Exception
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
-
+import qualified Data.ByteString.Lazy as B
 
 
 -- | Imports a list of modules in the current context. This function is not stupid: if the modules
@@ -94,7 +94,8 @@ run_command opts prog ctx = do
   -- Interpret all the declarations
   ctx <- List.foldl (\rec decl -> do
         ctx <- rec
-        process_declaration opts prog ctx decl) (return ctx) $ S.body prog
+        (ctx, _) <- process_declaration opts prog ctx decl
+        return ctx) (return ctx) $ S.body prog
   -- Return
   return ctx
 
@@ -133,7 +134,7 @@ run_interactive opts ctx buffer = do
 
           -- Process the 'module'
           ctx <- (do
-                tokens <- mylex file_unknown $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer)
+                tokens <- mylex file_unknown $ B.pack (List.map (toEnum . fromEnum) $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer))
                 prog <- return $ parse tokens
 
                 run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx)
@@ -191,7 +192,7 @@ run_interactive opts ctx buffer = do
                 else do
                   term <- return $ unwords args
                   (do
-                        tokens <- mylex file_unknown (term ++ ";;")
+                        tokens <- mylex file_unknown $ B.pack (List.map (toEnum . fromEnum) (term ++ ";;"))
                         p <- return $ parse tokens
                         case S.body p of
                           [] ->
@@ -259,7 +260,7 @@ run_interactive opts ctx buffer = do
                 else do
                   term <- return $ unwords args
                   (do
-                        tokens <- mylex file_unknown (term ++ ";;")
+                        tokens <- mylex file_unknown $ B.pack (List.map (toEnum . fromEnum) (term ++ ";;"))
                         p <- return $ parse tokens
                         case S.body p of
                           [] ->

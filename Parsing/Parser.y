@@ -156,10 +156,12 @@ Decl :
     | Typesyn                                              { DSyn $1 }
     | Typesyn ";;"                                         { DSyn $1 }
     | LET GenPattern '=' Expr ";;"                         { case $2 of
-                                                                SimplePattern p ->
-                                                                  DLet Nonrecursive p $4
+                                                                SimplePattern p | isPVar p ->
+                                                                      DLet Nonrecursive p $4
+                                                                                | otherwise ->
+                                                                      throwNE $ ParsingError (show $1)
                                                                 AppPattern (p, ps) ->
-                                                                  DLet Nonrecursive p (multi_EFun ps $4) }
+                                                                      DLet Nonrecursive p (multi_EFun ps $4) }
     | LET REC AppPattern '=' Expr ";;"                     { let (p, ps) = $3 in
                                                               DLet Recursive p (multi_EFun ps $5) }
     | Expr ";;"                                            { DExpr $1 }

@@ -10,6 +10,7 @@ import qualified Data.List as List
 
 import Text.PrettyPrint.HughesPJ as PP
 
+-- * Definition of the simplified syntax.
 
 -- | Definition of a set of expressions, where patterns have been removed.
 data Expr =
@@ -36,6 +37,13 @@ data Expr =
   | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
   deriving Show
+
+
+-- | The top-level declarations of the simplified syntax.
+data Declaration =
+    DExpr Expr                                    -- ^ Top level expression.
+  | DLet Variable Expr                            -- ^ Top level declaration.
+
 
 -- * Printing functions.
 

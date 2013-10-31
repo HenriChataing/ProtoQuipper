@@ -130,7 +130,6 @@ data QContext = QCtx {
 -- Module related fields
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
-  body :: Maybe (Expr -> Expr),                       -- ^ The (incomplete) body of the current module.
 
 -- Helpers of the typing / interpretation 
   algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
@@ -232,7 +231,6 @@ empty_context =  QCtx {
 -- No modules
   modules = [],
   dependencies = [],
-  body = Nothing,
  
 -- No global variables
   globals = IMap.empty,
@@ -354,42 +352,6 @@ get_file =
   get_context >>= return . filename
 
 
-
-------------------------------------------------
--- ** Module settings.
-
-
--- | Reinitialize the body.
-new_module :: QpState ()
-new_module = do
-  ctx <- get_context
-  set_context ctx { body = Nothing }
-
--- | Append a declaration at the end of the body.
-with_declaration :: (RecFlag, Pattern, Expr) -> QpState ()
-with_declaration (r, p, e) = do
-  ctx <- get_context
-  case body ctx of
-    Nothing -> set_context ctx { body = Just (\f -> ELet 0 r p e f) }
-    Just cont -> set_context ctx { body = Just (\f -> cont $ ELet 0 r p e f) }
-
--- | Append an expression at the end of the body.
-with_expression :: Expr -> QpState ()
-with_expression e =
-  with_declaration (Nonrecursive, (PWildcard 0), e)
-
--- | Return the body of the module, and reinitialize it just after.
-module_body :: QpState (Maybe Expr)
-module_body = do
-  ctx <- get_context
-  bdy <- return $ body ctx
-  case bdy of
-    Nothing -> do
-        return Nothing
-    Just cont -> do
-        bdy <- return $ cont (EUnit 0)
-        set_context $ ctx { body = Nothing }
-        return $ Just bdy
 
 
 ------------------------------------------------
@@ -552,7 +514,7 @@ lookup_qualified_var (mod, n) = do
 
 -- | Look up a type from a specific module (typically used with a qualified type name).
 -- The input name is (Module, Type name).
-lookup_qualified_type :: (String, String) -> QpState Variable
+lookup_qualified_type :: (String, String) -> QpState Type
 lookup_qualified_type (mod, n) = do
   ctx <- get_context
   -- Check that the module is part of the M.dependencies
@@ -560,12 +522,11 @@ lookup_qualified_type (mod, n) = do
     case List.lookup mod $ modules ctx of
       Just modi -> do
           case Map.lookup n $ L.types $ M.labelling modi of
-            Just (TBang _ (TAlgebraic x _)) -> return x
-            _ -> do
-                throw_UndefinedType (mod ++ "." ++ n)
+            Just typ -> return typ
+            _ -> throw_UndefinedType (mod ++ "." ++ n)
 
-      Nothing -> do
-          throw_UndefinedType (mod ++ "." ++ n)
+      Nothing ->
+          fail $ "QpState:lookup_qualified_type: missing module interface: " ++ mod
 
   else do
     throw_UndefinedType (mod ++ "." ++ n)
@@ -865,6 +826,13 @@ update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
 update_ref ref f = do
   ctx <- get_context
   set_context ctx { references = IMap.update f ref $ references ctx }
+
+
+-- | Clear the references map.
+clear_references :: QpState ()
+clear_references = do
+  ctx <- get_context
+  set_context ctx { references = IMap.empty }
 
 
 -- | Return the information referenced by the argument, if any is found (else Nothing).

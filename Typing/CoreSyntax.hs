@@ -520,8 +520,19 @@ is_value (EUnit _) = True
 
 is_value _ = False
 
+
 -- ----------------------------------------------------------------------
--- * Subtyping constraints
+-- * Module declarations.
+
+-- | Type of the module declarations. Once the type definitions have been taken care of,
+-- there remains only top-level expressions and declarations.
+data Declaration =
+    DExpr Expr                   -- ^ A top-level expression.
+  | DLet RecFlag Variable Expr   -- ^ A top-level declaration.
+
+
+-- ----------------------------------------------------------------------
+-- * Subtyping constraints.
 
 -- | Information about a constraint. This includes the original
 -- expression, location, and orientation (which side of the constraint

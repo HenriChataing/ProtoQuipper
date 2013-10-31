@@ -626,16 +626,27 @@ translate_type (S.TVar x) arg (label, bound) = do
           return (t, Map.insert x t label)
 
 translate_type (S.TQualified m x) arg lbl = do
-  id <- lookup_qualified_type (m, x)
-  spec <- algebraic_def id
-  -- Expected number of args
-  let nexp = d_args spec
-  -- Actual number of args
+  typ <- lookup_qualified_type (m, x)
+
+  -- Expected number of arguments
+  nexp <- case typ of
+        TBang _ (TAlgebraic alg _) -> do
+          dalg <- algebraic_def alg
+          return $ d_args dalg
+        TBang _ (TSynonym syn _) -> do
+          dsyn <- synonym_def syn
+          return $ s_args dsyn
+        _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
+
+  -- Actual number
   nact <- return $ List.length arg
 
   if nexp == nact then do
     n <- fresh_flag
-    return (TBang n (TAlgebraic id arg), fst lbl)
+    case typ of
+      TBang _ (TAlgebraic alg _) -> return (TBang n (TAlgebraic alg arg), fst lbl)
+      TBang _ (TSynonym syn _) -> return (TBang n (TSynonym syn arg), fst lbl)
+      _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
   else do
     ex <- get_location
     throwQ (WrongTypeArguments x nexp nact) ex

@@ -28,7 +28,7 @@ data CExpr =
     CFun Variable [Variable] CExpr CExpr          -- ^ Function abstraction: @fun x1 .. xN -> t@.
   | CApp Value [Value]                            -- ^ Function application: @t u@.
   | CTuple [Value] Variable CExpr                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | COffset Int Value Variable CExpr
+  | COffset Int Value Variable CExpr              -- ^ Return the pointer increased by an offset /n/.
   | CAccess Int Value Variable CExpr              -- ^ Access the nth element of a tuple.
   | CSwitch Value [CExpr]                         -- ^ Switch condition.
   | CPrimop [Value] (Maybe Variable) CExpr        -- ^ Primitive call. The arguments are given by the second argument, the return value is stored in the third. After
@@ -157,4 +157,6 @@ convert_to_cps c (EMatch e blist) = do
 
 convert_to_cps c (EBuiltin s) =
   c (VInt 0)
+
+
 

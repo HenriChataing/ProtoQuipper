@@ -17,7 +17,7 @@ import qualified Data.IntMap as IMap
 -- a module implementation.
 data Module = Mod {
   labelling :: LabellingContext,                 -- ^ A labelling context that contains all the global variables, data constructors and types defined inside the module.
-  body :: Maybe Expr                             -- ^ The body of the module. This attribute is filled only when the compilation has been requested.
+  declarations :: [Declaration]                  -- ^ The body of the module, which contains the global variable declarations.
 }
 
 
@@ -25,5 +25,5 @@ data Module = Mod {
 empty_module :: Module
 empty_module = Mod {
   labelling = empty_label,
-  body = Nothing
+  declarations = []
 }
