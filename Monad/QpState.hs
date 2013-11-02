@@ -90,13 +90,24 @@ data Assertion =
   deriving (Show, Eq)
 
 
--- | The definition of the QLib module, which contains the definition of all the unbox and box operators.
+-- | The context of implemented quantum operations. If a module uses different instances of the box, unbox, rev operators, their
+-- implementation will be placed here until it is added to the module.
 data QLib = QLib {
   boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
   unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
   rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
-  qbody :: [C.Declaration]                  -- ^ The body of the QLib module.
+  code :: [C.Declaration]                  -- ^ The body of the QLib module.
 }
+
+-- | Empty quantum library: no operation defined.
+empty_qlib :: QLib
+empty_qlib = QLib {
+  boxes = Map.empty,
+  unboxes = Map.empty,
+  rev = Nothing,
+  code = []
+}
+
 
 
 -- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
@@ -256,12 +267,7 @@ empty_context =  QCtx {
 
 -- no conventions
   call_conventions = IMap.empty,
-  qlib = QLib {
-    boxes = Map.empty,
-    unboxes = Map.empty,
-    rev = Nothing,
-    qbody = []
-  },
+  qlib = empty_qlib,
 
 -- No references
   references = IMap.empty,

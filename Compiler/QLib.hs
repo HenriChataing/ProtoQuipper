@@ -198,7 +198,7 @@ request_unbox c = do
         eunbox <- implement_unbox c
         let ql' = ql {
               unboxes = Map.insert c x $ unboxes ql,
-              qbody = (DLet x eunbox):(qbody ql)
+              code = (DLet x eunbox):(code ql)
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }
@@ -219,7 +219,7 @@ request_box t = do
         ebox <- implement_box t
         let ql' = ql {
               boxes = Map.insert t x $ boxes ql,
-              qbody = (DLet x ebox):(qbody ql)
+              code = (DLet x ebox):(code ql)
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }
@@ -240,7 +240,7 @@ request_rev = do
         erev <- implement_rev
         let ql' = ql {
               rev = Just x,
-              qbody = (DLet x erev):(qbody ql)
+              code = (DLet x erev):(code ql)
             }
         ctx <- get_context
         set_context ctx { qlib = ql' }

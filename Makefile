@@ -51,7 +51,7 @@ bwt.circ : $(MAIN)
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
-	rm -f $(MAIN) $(MAIN).exe
+	rm -f $(MAIN) $(MAIN).exe $(MAIN).prof $(MAIN).aux
 	rm -rf $(BUILD_DIR)/*
 	rm -f bwt.circ
 

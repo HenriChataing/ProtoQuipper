@@ -1023,13 +1023,8 @@ transform_declarations decls = do
 
   -- Retrieve the declaration of quantum operations
   ctx <- get_context
-  let qops = qbody $ qlib ctx
-  set_context ctx { qlib = QLib {
-        unboxes = Map.empty,
-        boxes = Map.empty,
-        rev = Nothing,
-        qbody = []
-      } }
+  let qops = code $ qlib ctx
+  set_context ctx { qlib = empty_qlib }
 
   return $ qops ++ List.reverse decls
 

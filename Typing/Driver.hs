@@ -593,7 +593,7 @@ do_everything opts files = do
         nm <- process_module (opts, mopts) p
 
         -- Compilation 
-        -- decls <- transform_declarations (M.declarations nm)
+        --decls <- transform_declarations (M.declarations nm)
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.
