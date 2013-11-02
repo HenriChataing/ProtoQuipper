@@ -1020,7 +1020,18 @@ transform_declarations decls = do
                 e' <- remove_patterns e
                 return ((DLet x e'):decls, mod)
       ) (return ([], IMap.empty)) decls
-  return $ List.reverse decls
+
+  -- Retrieve the declaration of quantum operations
+  ctx <- get_context
+  let qops = qbody $ qlib ctx
+  set_context ctx { qlib = QLib {
+        unboxes = Map.empty,
+        boxes = Map.empty,
+        rev = Nothing,
+        qbody = []
+      } }
+
+  return $ qops ++ List.reverse decls
 
 
 

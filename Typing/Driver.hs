@@ -31,7 +31,7 @@ import qualified Typing.LabellingContext as L
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
-import Compiler.CPS
+import qualified Compiler.CPS as CPS
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -599,11 +599,7 @@ do_everything opts files = do
         -- so remove them.
         clear_references
       ) (return ()) deps
-
-  -- Display the qlib module
-  qlib <- get_context >>= return . qlib
-  newlog (-2) $ "#########  MODULE: QLib  #########"
-  newlog (-2) $ pprint $ qbody qlib
+  return ()
 
   
 -- ===================================== --

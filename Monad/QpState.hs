@@ -95,7 +95,7 @@ data QLib = QLib {
   boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
   unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
   rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
-  qbody :: C.Expr                           -- ^ The body of the QLib module.
+  qbody :: [C.Declaration]                  -- ^ The body of the QLib module.
 }
 
 
@@ -260,7 +260,7 @@ empty_context =  QCtx {
     boxes = Map.empty,
     unboxes = Map.empty,
     rev = Nothing,
-    qbody = C.EUnit
+    qbody = []
   },
 
 -- No references
