@@ -406,10 +406,10 @@ register_typesyn typename syn = do
 
 
 -- | Create a dummy variable from a new id /n/, registered under the name /x_n/.
-dummy_var :: QpState Int
-dummy_var = do
+create_var :: String -> QpState Int
+create_var s = do
   ctx <- get_context
-  (id, nspace) <- return $ N.dummy_var (namespace ctx)
+  (id, nspace) <- return $ N.create_var s (namespace ctx)
   set_context $ ctx { namespace = nspace }
   return id
 

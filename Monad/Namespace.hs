@@ -9,7 +9,7 @@ module Monad.Namespace (
   register_datacon,
   register_type,
 
-  dummy_var
+  create_var
 ) where
 
 import Utils
@@ -18,6 +18,8 @@ import Parsing.Location
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 -- | The type of name spaces. A namespace includes three mappings from ids to strings, recording the original names.
 -- In the case of variables, a reference is recorded that keeps informaton about the type and place of declaration.
@@ -30,7 +32,9 @@ data Namespace = NSpace {
 
   vargen :: Int,                 -- ^ Used to generate new variables ids.
   datagen :: Int,                -- ^ Used to generate new datacon ids.
-  typegen :: Int                 -- ^ Used to generate new type ids.
+  typegen :: Int,                -- ^ Used to generate new type ids.
+
+  prefix :: Map String Int       -- ^ Used for variable name generation: attributes a counter to each used string prefix.
 }
 
 
@@ -44,7 +48,9 @@ new_namespace = NSpace {
 
   vargen = 0,
   datagen = 0,
-  typegen = 0
+  typegen = 0,
+
+  prefix = Map.empty
 }
 
 
@@ -58,13 +64,24 @@ register_var s ref namespace =
         vargen = id+1 })
 
 
--- | Create a dummy variable. This chooses a fresh id /n/, and registers it under the name /x_n/.
-dummy_var :: Namespace -> (Int, Namespace)
-dummy_var namespace =
+-- | Create a new variable. If the name provided already exists, a number is appended to differenciate it from the previous ones.
+create_var :: String -> Namespace -> (Int, Namespace)
+create_var s namespace =
   let id = vargen namespace in
-  (id, namespace {
-        varcons = IMap.insert id (prevar "x" id) $ varcons namespace,
-        vargen = id+1 })
+  case Map.lookup s $ prefix namespace of
+    Just n ->
+        (id, namespace {
+              varcons = IMap.insert id (prevar s n) $ varcons namespace,
+              vargen = id+1,
+              prefix = Map.insert s (n+1) $ prefix namespace
+            })
+
+    Nothing ->
+        (id, namespace {
+              varcons = IMap.insert id (prevar s 0) $ varcons namespace,
+              vargen = id+1,
+              prefix = Map.insert s 1 $ prefix namespace
+            })
 
 
 -- | Register a new data constructor, and return a newly assigned id.

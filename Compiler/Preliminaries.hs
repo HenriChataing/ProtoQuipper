@@ -308,7 +308,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
               -- Add new argument variables to the arg context
               nargs <- List.foldr (\a rec -> do
                     as <- rec
-                    v <- dummy_var
+                    v <- create_var "u"
                     return $ (a, v):as) (return []) need
               let arg' = nargs ++ arg
 
@@ -343,7 +343,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
               -- Add new argument variables to the arg context
               nargs <- List.foldr (\a rec -> do
                     as <- rec
-                    v <- dummy_var
+                    v <- create_var "u"
                     return $ (a, v):as) (return []) need
               let arg' = nargs ++ arg
 
@@ -699,7 +699,7 @@ extract (prefix, var, loc) =
     -- Else 
     l:ls -> do
       -- Build some intermediary variables
-      var' <- dummy_var
+      var' <- create_var "x"
       exp <- case l of
             InTuple n ->
                 return $ EAccess n var
@@ -731,7 +731,7 @@ extract_var (prefix, var, loc) endvar =
 
     -- Else use an intermediary variable
     l:ls -> do
-        var' <- dummy_var
+        var' <- create_var "x"
         exp <- case l of
             InTuple n ->
                 return $ EAccess n var
@@ -836,7 +836,7 @@ simplify_pattern_matching e blist = do
     EVar initvar -> do
         unbuild dtree [([], initvar)]
     _ -> do
-        initvar <- dummy_var
+        initvar <- create_var "x"
         tests <- unbuild dtree [([], initvar)]
         return $ ELet initvar e' tests
 
@@ -860,7 +860,7 @@ remove_patterns (C.EFun ref p e) = do
 
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
-      x <- dummy_var
+      x <- create_var "x"
       e' <- remove_patterns $ C.ELet ref Nonrecursive p (C.EVar 0 x) e
       return $ EFun x e'
 
@@ -1000,7 +1000,7 @@ transform_declarations decls = do
                 -- Add new argument variables to the arg context
                 args <- List.foldr (\a rec -> do
                       as <- rec
-                      v <- dummy_var
+                      v <- create_var "u"
                       return $ (a, v):as) (return []) need
 
                 -- Disambiguate the calls from e again

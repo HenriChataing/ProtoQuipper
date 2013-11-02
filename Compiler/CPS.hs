@@ -84,7 +84,7 @@ convert_to_cps c (S.ETuple []) =
   c (VInt 0)
 
 convert_to_cps c (S.ETuple elist) = do
-  x <- dummy_var
+  x <- create_var "x"
   aux elist (\w -> do
         cx <- c (VVar x)
         return $ CTuple w x cx)
@@ -95,13 +95,13 @@ convert_to_cps c (S.ETuple elist) = do
       aux' l []
 
 convert_to_cps c (S.EAccess n x) = do
-  y <- dummy_var
+  y <- create_var "x"
   cy <- c (VVar y)
   return $ CAccess n (VVar x) y cy
   
 convert_to_cps c (S.EFun x e) = do
-  f <- dummy_var       -- function name
-  k <- dummy_var       -- continuation argument
+  f <- create_var "x"       -- function name
+  k <- create_var "x"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   body <- convert_to_cps (\z -> return $ CApp (VVar k) [z]) e 
   -- The reference f of the function is passed to the building continuation c
@@ -109,7 +109,7 @@ convert_to_cps c (S.EFun x e) = do
   return $ CFun f [x, k] body $ cf
 
 convert_to_cps c (S.ERecFun f x e) = do
-  k <- dummy_var       -- continuation argument
+  k <- create_var "x"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   body <- convert_to_cps (\z -> return $ CApp (VVar k) [z]) e 
   -- The reference f of the function is passed to the building continuation c
@@ -117,8 +117,8 @@ convert_to_cps c (S.ERecFun f x e) = do
   return $ CFun f [x, k] body $ cf
 
 convert_to_cps c (S.EApp e f) = do
-  r <- dummy_var       -- return address
-  x <- dummy_var       -- argument of the return address
+  r <- create_var "x"       -- return address
+  x <- create_var "x"       -- argument of the return address
   app <- convert_to_cps (\f -> convert_to_cps (\e -> return $ CApp f [e, VVar r]) e) f
   cx <- c (VVar x)
   return $ CFun r [x] cx app
@@ -132,8 +132,8 @@ convert_to_cps c (S.ELet x e f) = do
         return $ replace x z cf) e
 
 convert_to_cps c (S.EIf e f g) = do
-  k <- dummy_var
-  x <- dummy_var
+  k <- create_var "x"
+  x <- create_var "x"
   cx <- c (VVar x)
   f' <- convert_to_cps (\z -> return $ CApp (VVar k) [z]) f
   g' <- convert_to_cps (\z -> return $ CApp (VVar k) [z]) g
@@ -142,8 +142,8 @@ convert_to_cps c (S.EIf e f g) = do
                  CSwitch e [g', f']) e
 
 convert_to_cps c (S.EMatch e blist) = do
-  k <- dummy_var
-  x <- dummy_var
+  k <- create_var "x"
+  x <- create_var "x"
   cx <- c (VVar x)
   let slist = List.sortBy (\(n,_) (m,_) -> compare n m) blist
   elist' <- List.foldl (\rec (_, e) -> do
@@ -170,7 +170,7 @@ convert_declarations c decls = do
               convert_to_cps (\_ -> return ce) e
           
           S.DLet x e -> do
-              r <- dummy_var
+              r <- create_var "x"
               convert_to_cps (\z ->
                     return $ CFun r [x] ce $
                              CApp (VVar r) [z]) e

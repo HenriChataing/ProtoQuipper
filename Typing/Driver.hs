@@ -479,8 +479,8 @@ explicit_datacons mod = do
         case type_of_typescheme $ d_type ddef of
           -- Takes an argument -> write an implementation
           TBang _ (TArrow _ _) -> do
-              x <- dummy_var
-              y <- dummy_var
+              x <- create_var "x"
+              y <- create_var "d"
               let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
                     
               -- Update the definition of dcon

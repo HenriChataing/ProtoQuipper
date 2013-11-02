@@ -29,13 +29,13 @@ implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
                 -> QpState Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
 implement_unbox (t, u) = do
   -- Creation of auxiliary variables
-  x0 <- dummy_var
-  x1 <- dummy_var
-  xt <- dummy_var
-  xu <- dummy_var
-  xc <- dummy_var
-  xb <- dummy_var
-  xb' <- dummy_var
+  x0 <- create_var "cc"
+  x1 <- create_var "q"
+  xt <- create_var "t"
+  xu <- create_var "u"
+  xc <- create_var "c"
+  xb <- create_var "b"
+  xb' <- create_var "b"
 
   -- Implementation of the chunks of code needed for the bindings
   (elet, b) <- implement_bind t x1 xt
@@ -62,18 +62,18 @@ implement_box typ = do
   (spec, n) <- implement_spec typ
 
   -- Creation of some variables
-  x0 <- dummy_var
-  x1 <- dummy_var
-  x2 <- dummy_var
-  x3 <- dummy_var
+  x0 <- create_var "f"
+  x1 <- create_var "t"
+  x2 <- create_var "u"
+  x3 <- create_var "c"
 
   -- Implementation of box[T]
   return $ EFun x0 $
         ELet x1 spec $                                -- Create the specimen
-        ESeq (EApp (EBuiltin "OPENBOX") (EInt n)) $                -- Open a new box
+        ESeq (EApp (EBuiltin "OPENBOX") (EInt n)) $   -- Open a new box
         ELet x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
         ELet x3 (EBuiltin "CLOSEBOX") $               -- Close the box
-        ETuple [EVar x1, EVar x3, EVar x2]                         -- Build the resulting circuit
+        ETuple [EVar x1, EVar x3, EVar x2]            -- Build the resulting circuit
 
 
 -- | Produce the implementation of the rev operator. The implementation doesn't need the type of rev.
@@ -81,10 +81,10 @@ implement_box typ = do
 implement_rev :: QpState Expr
 implement_rev = do
   -- Creation of the variables needed to define the function
-  x0 <- dummy_var
-  x1 <- dummy_var
-  x2 <- dummy_var
-  x3 <- dummy_var
+  x0 <- create_var "cc"
+  x1 <- create_var "t"
+  x2 <- create_var "c"
+  x3 <- create_var "u"
 
   -- Implementation of the function
   return $ EFun x0 $
@@ -141,8 +141,8 @@ implement_bind typ x y = do
             -- Test beforehand to known whether q holds some qubits
             if has_qubits q then do
               -- Yes: extract the nth element of x and y, and apply the function recursively
-              xn <- dummy_var
-              yn <- dummy_var
+              xn <- create_var "x"
+              yn <- create_var "y"
               (elet', b') <- bind q xn yn
               return (elet ++ [(xn, EAccess n x), (yn, EAccess n y)] ++ elet', b' ++ b)
             else
@@ -172,7 +172,7 @@ implement_appbind typ b x = do
             -- Test beforehand to known whether q holds some qubits
             if has_qubits q then do
               -- Yes: extract the nth element of x, and apply the function recursively
-              xn <- dummy_var
+              xn <- create_var "x"
               (elet', e') <- appbind q xn
               return (elet ++ [(xn, EAccess n x)] ++ elet', e':elist)
             else
@@ -194,7 +194,7 @@ request_unbox c = do
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the qlib library.
-        x <- dummy_var
+        x <- create_var "unbox"
         eunbox <- implement_unbox c
         let ql' = ql {
               unboxes = Map.insert c x $ unboxes ql,
@@ -215,7 +215,7 @@ request_box t = do
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the qlib library.
-        x <- dummy_var
+        x <- create_var "box"
         ebox <- implement_box t
         let ql' = ql {
               boxes = Map.insert t x $ boxes ql,
@@ -236,7 +236,7 @@ request_rev = do
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the qlib library.
-        x <- dummy_var
+        x <- create_var "rev"
         erev <- implement_rev
         let ql' = ql {
               rev = Just x,
