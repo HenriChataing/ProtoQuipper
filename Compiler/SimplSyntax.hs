@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 -- | This module defines an intermediary language of the compilation, where patterns have been removed (SimplSyntax stands for simplified syntax).
 module Compiler.SimplSyntax where
 
@@ -53,49 +55,48 @@ data Declaration =
 print_doc :: Lvl                   -- ^ Maximum depth.
           -> Expr                  -- ^ Expression to print.
           -> (Variable -> String)  -- ^ Rendering of term variables.
-          -> (Variable -> String)  -- ^ Rendering of data constructors.
           -> Doc                   -- ^ Resulting PP document.
-print_doc _ (EAccess n v) fvar _ =
+print_doc _ (EAccess n v) fvar =
   text ("#" ++ show n) <+> text (fvar v)
 
-print_doc _ EUnit _ _ =
+print_doc _ EUnit _ =
   text "()"
 
-print_doc _ (EBool b) _ _ = 
+print_doc _ (EBool b) _ = 
   if b then text "true" else text "false"
 
-print_doc _ (EInt n) _ _ =
+print_doc _ (EInt n) _ =
   text $ show n
 
-print_doc _ (EVar x) fvar _ = text $ fvar x
+print_doc _ (EVar x) fvar = text $ fvar x
 
-print_doc _ (EGlobal x) fvar _ = text $ fvar x
+print_doc _ (EGlobal x) fvar = text $ fvar x
 
-print_doc _ (EBuiltin s) _ _=
+print_doc _ (EBuiltin s) _ =
   text s
 
-print_doc (Nth 0) _ _ _ =
+print_doc (Nth 0) _ _ =
   text "..."
 
-print_doc lv (ESeq e f) fvar fdata =
-  (print_doc lv e fvar fdata) <+> text ";" $$
-  (print_doc lv f fvar fdata)
+print_doc lv (ESeq e f) fvar =
+  (print_doc lv e fvar) <+> text ";" $$
+  (print_doc lv f fvar)
 
-print_doc lv (ELet v e f) fvar fdata =
+print_doc lv (ELet v e f) fvar =
   let dlv = decr lv in
-  text "let" <+> text (fvar v) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
-  print_doc dlv f fvar fdata
+  text "let" <+> text (fvar v) <+> equals <+> print_doc dlv e fvar <+> text "in" $$
+  print_doc dlv f fvar
 
-print_doc lv (ETuple elist) fvar fdata =
+print_doc lv (ETuple elist) fvar =
   let dlv = decr lv in
-  let plist = List.map (\e -> print_doc dlv e fvar fdata) elist in
+  let plist = List.map (\e -> print_doc dlv e fvar) elist in
   let slist = punctuate comma plist in
   char '(' <> hsep slist <> char ')'
 
-print_doc lv (EApp e f) fvar fdata =
+print_doc lv (EApp e f) fvar =
   let dlv = decr lv in
-  let pe = print_doc dlv e fvar fdata
-      pf = print_doc dlv f fvar fdata in
+  let pe = print_doc dlv e fvar
+      pf = print_doc dlv f fvar in
   (case e of
      EFun _ _ -> parens pe
      _ -> pe) <+> 
@@ -104,28 +105,28 @@ print_doc lv (EApp e f) fvar fdata =
      EApp _ _ -> parens pf
      _ -> pf)
 
-print_doc lv (ERecFun f x e) fvar fdata =
+print_doc lv (ERecFun f x e) fvar =
   let dlv = decr lv in
   text "fun(" <> text (fvar f) <> text ")" <+> text (fvar x) <+> text "->" $$
-  nest 2 (print_doc dlv e fvar fdata)
+  nest 2 (print_doc dlv e fvar)
 
-print_doc lv (EFun v e) fvar fdata =
+print_doc lv (EFun v e) fvar =
   let dlv = decr lv in
   text "fun" <+> text (fvar v) <+> text "->" $$
-  nest 2 (print_doc dlv e fvar fdata)
+  nest 2 (print_doc dlv e fvar)
 
-print_doc lv (EIf e f g) fvar fdata =
+print_doc lv (EIf e f g) fvar =
   let dlv = decr lv in
-  text "if" <+> print_doc dlv e fvar fdata <+> text "then" $$
-  nest 2 (print_doc dlv f fvar fdata) $$
+  text "if" <+> print_doc dlv e fvar <+> text "then" $$
+  nest 2 (print_doc dlv f fvar) $$
   text "else" $$
-  nest 2 (print_doc dlv g fvar fdata)
+  nest 2 (print_doc dlv g fvar)
 
-print_doc lv (EMatch e blist) fvar fdata =
+print_doc lv (EMatch e blist) fvar =
   let dlv = decr lv in
-  text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
+  text "match" <+> print_doc dlv e fvar <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
-        let pmatch = char '|' <+> text (show p) <+> text "->" <+> print_doc dlv f fvar fdata in
+        let pmatch = char '|' <+> text (show p) <+> text "->" <+> print_doc dlv f fvar in
         if isEmpty doc then
           pmatch
         else
@@ -137,8 +138,8 @@ print_doc lv (EMatch e blist) fvar fdata =
 -- variables and data constructors.
 instance PPrint Expr where
   -- Generic printing
-  genprint lv [fvar, fdata] e =
-    let doc = print_doc lv e fvar fdata in
+  genprint lv [fvar] e =
+    let doc = print_doc lv e fvar in
     PP.render doc
   genprint lv _ e =
     throwNE $ ProgramError "Preliminaries:genprint(Expr): illegal argument"
@@ -146,6 +147,29 @@ instance PPrint Expr where
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
   -- where n is the id of the variable / constructor
-  sprintn lv e = genprint lv [prevar "%", prevar "D"] e
+  sprintn lv e = genprint lv [prevar "%"] e
+
+
+instance PPrint [Declaration] where
+  genprint lv opts [] =
+    ""
+  genprint lv [fvar] ((DLet x e):ds) =
+    let pre = genprint lv [fvar] e in
+    let prx = fvar x in
+    
+    "let " ++ prx ++ " = " ++ pre ++ "\n" ++
+    genprint lv [fvar] ds
+
+  genprint lv opts ((DExpr e):ds) =
+    let pre = genprint lv opts e in
+    
+    pre ++ "\n" ++
+    genprint lv opts ds
+
+  genprint _ _ _ =
+    throwNE $ ProgramError "Preliminaries:genprint([Declaration]): illegal argument"
+
+  sprintn lv e = genprint lv [prevar "%"] e
+
 
 
