@@ -2,6 +2,7 @@
 module Compiler.CPS where
 
 import Utils
+import Classes
 
 import Monad.QpState
 
@@ -18,6 +19,15 @@ data Value =
   | VLabel Variable
   deriving (Show, Eq)
 
+
+instance Param Value where
+  free_var (VVar x) = [x]
+  free_var (VLabel x) = [x]
+  free_var _ = []
+
+  subs_var _ _ v = v
+
+
 data AccessPath =
     Offset Int
   | Select Int AccessPath
@@ -31,9 +41,30 @@ data CExpr =
   | COffset Int Value Variable CExpr              -- ^ Return the pointer increased by an offset /n/.
   | CAccess Int Value Variable CExpr              -- ^ Access the nth element of a tuple.
   | CSwitch Value [CExpr]                         -- ^ Switch condition.
-  | CPrimop [Value] (Maybe Variable) CExpr        -- ^ Primitive call. The arguments are given by the second argument, the return value is stored in the third. After
+--  | CPrimop [Value] (Maybe Variable) CExpr        -- ^ Primitive call. The arguments are given by the second argument, the return value is stored in the third. After
                                                   -- that, the continuation c is called.
   deriving Show
+
+
+
+instance Param CExpr where
+  free_var (CFun f args cf c) =
+    List.union (free_var cf List.\\ args) (free_var c)
+  free_var (CApp f args) =
+    List.foldl (\fv a ->
+          List.union (free_var a) fv) (free_var f) args
+  free_var (CTuple vlist x c) =
+    let fvl = List.foldl (\fv a ->
+          List.union (free_var a) fv) [] vlist in
+    List.union (free_var c List.\\ [x]) fvl
+  free_var (CAccess _ v x c) =
+    List.union (free_var c List.\\ [x]) (free_var v)
+  free_var (CSwitch v clist) =
+    List.foldl (\fv c ->
+          List.union (free_var c) fv) (free_var v) clist
+  free_var _ = []
+
+  subs_var _ _ c = c
 
 
 
@@ -175,3 +206,51 @@ convert_declarations c decls = do
                     return $ CFun r [x] ce $
                              CApp (VVar r) [z]) e
     ) (c $ VInt 0) decls
+
+
+-- | Closure conversion of the CPS code.
+closure_conversion :: CExpr -> QpState CExpr
+closure_conversion (CFun f args cf c) = do
+  -- close the function body and continuation
+  cf' <- closure_conversion cf
+  c' <- closure_conversion c
+
+  -- free variables of f
+  let fv = free_var cf'
+  -- name of the function pointer and closure
+  f' <- create_var "f"
+  f'' <- create_var "f"
+  cl <- create_var "c"
+
+  -- extraction of the free variables of cf'
+  let cf'' = List.foldl (\cf (x,n) ->
+        CAccess n (VVar f'') x cf) cf' $ List.zip fv [1..List.length fv]
+
+  -- construction of the closure (with continuation c' and name f)
+  let c'' = CTuple (VVar f':(List.map VVar fv)) f c'
+
+  -- re-definition of the function f
+  return $ CFun f' (f'':args) cf'' c''
+
+closure_conversion (CApp (VVar f) args) = do
+  f' <- create_var "f"
+  return $ CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+           CApp (VLabel f') (VVar f:args)       -- Apply the function to its own closure
+  
+closure_conversion (CTuple clist x c) = do
+  c' <- closure_conversion c
+  return $ CTuple clist x c
+
+closure_conversion (CAccess n v x c) = do
+  c' <- closure_conversion c
+  return $ CAccess n v x c'
+
+closure_conversion (CSwitch v clist) = do
+  clist' <- List.foldl (\rec c -> do
+        cl <- rec
+        c' <- closure_conversion c
+        return $ c':cl) (return []) clist
+  return $ CSwitch v (List.reverse clist')
+
+closure_conversion c =
+  return c 
