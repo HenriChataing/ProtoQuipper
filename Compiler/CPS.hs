@@ -253,4 +253,38 @@ closure_conversion (CSwitch v clist) = do
   return $ CSwitch v (List.reverse clist')
 
 closure_conversion c =
-  return c 
+  return c
+
+
+-- | Lift the function definitions to the top of the module.
+-- This function separates the function definitions from the rest of the continuation expression.
+-- Since this operation is sound only if the functions are closed, this has to be done after the closure conversion.
+lift_functions :: CExpr -> ([(Variable, [Variable], CExpr)],CExpr)
+lift_functions (CFun f args cf c) =
+  let (funs, c') = lift_functions c
+      (funs', cf') = lift_functions cf in
+  ((f,args,cf'):(funs' ++ funs), c')
+
+lift_functions (CTuple vlist x c) =
+  let (funs, c') = lift_functions c in
+  (funs, CTuple vlist x c')
+
+lift_functions (COffset n x y c) =
+  let (funs, c') = lift_functions c in
+  (funs, COffset n x y c')
+
+lift_functions (CAccess n x y c) =
+  let (funs, c') = lift_functions c in
+  (funs, CAccess n x y c')
+
+lift_functions (CSwitch v clist) =
+  let (funs, clist') = List.foldl (\(fs, cl) c ->
+        let (fs', c') = lift_functions c in
+        (fs' ++ fs, c':cl)) ([], []) clist in
+  (funs, CSwitch v $ List.reverse clist')
+
+lift_functions c =
+ ([], c)
+
+
+
