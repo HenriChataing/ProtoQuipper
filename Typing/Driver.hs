@@ -593,7 +593,11 @@ do_everything opts files = do
         nm <- process_module (opts, mopts) p
 
         -- Compilation 
-        --decls <- transform_declarations (M.declarations nm)
+        decls <- transform_declarations (M.declarations nm)
+
+        newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
+        fvar <- display_var
+        newlog (-2) $ genprint Inf [fvar] decls
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

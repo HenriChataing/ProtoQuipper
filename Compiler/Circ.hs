@@ -11,7 +11,7 @@
 -- * @UNENCAP@: inputs a binding and a circuit, and appends this circuit to the one on top of the stack. It returns a binding that gives the renaming
 -- of the ouput wires.
 --
-module Compiler.QLib where
+module Compiler.Circ where
 
 import Classes
 import Utils
@@ -21,8 +21,12 @@ import Monad.QuipperError
 
 import Compiler.SimplSyntax
 
+import Interpret.Circuits (unary_gates, binary_gates)
+
 import qualified Data.List as List
+import Data.Map (Map)
 import qualified Data.Map as Map
+
 
 -- | Give the implementation of the unbox operator.
 implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
@@ -188,12 +192,12 @@ implement_appbind typ b x = do
 request_unbox :: CircType -> QpState Variable
 request_unbox c = do
   ctx <- get_context
-  let ql = qlib ctx
+  let ql = circOps ctx
   case Map.lookup c $ unboxes ql of
     Just x ->
         return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the qlib library.
+        -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "unbox"
         eunbox <- implement_unbox c
         let ql' = ql {
@@ -201,7 +205,7 @@ request_unbox c = do
               code = (DLet x eunbox):(code ql)
             }
         ctx <- get_context
-        set_context ctx { qlib = ql' }
+        set_context ctx { circOps = ql' }
         return x
 
 
@@ -209,12 +213,12 @@ request_unbox c = do
 request_box :: QType -> QpState Variable
 request_box t = do
   ctx <- get_context
-  let ql = qlib ctx
+  let ql = circOps ctx
   case Map.lookup t $ boxes ql of
     Just x ->
         return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the qlib library.
+        -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "box"
         ebox <- implement_box t
         let ql' = ql {
@@ -222,7 +226,7 @@ request_box t = do
               code = (DLet x ebox):(code ql)
             }
         ctx <- get_context
-        set_context ctx { qlib = ql' }
+        set_context ctx { circOps = ql' }
         return x
 
 
@@ -230,12 +234,12 @@ request_box t = do
 request_rev :: QpState Variable
 request_rev = do
   ctx <- get_context
-  let ql = qlib ctx
+  let ql = circOps ctx
   case rev ql of
     Just x ->
         return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the qlib library.
+        -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "rev"
         erev <- implement_rev
         let ql' = ql {
@@ -243,6 +247,8 @@ request_rev = do
               code = (DLet x erev):(code ql)
             }
         ctx <- get_context
-        set_context ctx { qlib = ql' }
+        set_context ctx { circOps = ql' }
         return x
+
+
 

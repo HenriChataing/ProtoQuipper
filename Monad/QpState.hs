@@ -92,7 +92,7 @@ data Assertion =
 
 -- | The context of implemented quantum operations. If a module uses different instances of the box, unbox, rev operators, their
 -- implementation will be placed here until it is added to the module.
-data QLib = QLib {
+data CircOps = CircOps {
   boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
   unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
   rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
@@ -100,8 +100,8 @@ data QLib = QLib {
 }
 
 -- | Empty quantum library: no operation defined.
-empty_qlib :: QLib
-empty_qlib = QLib {
+empty_circOps :: CircOps
+empty_circOps = CircOps {
   boxes = Map.empty,
   unboxes = Map.empty,
   rev = Nothing,
@@ -165,7 +165,7 @@ data QContext = QCtx {
 -- Compiler things
   call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
                                                       -- (see the function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more information).
-  qlib :: QLib,                                       -- ^ The qlib module, from which unbox and box operations are accessed.
+  circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
   references :: IntMap RefInfo,                       -- ^ Information about each expression.
@@ -267,7 +267,7 @@ empty_context =  QCtx {
 
 -- no conventions
   call_conventions = IMap.empty,
-  qlib = empty_qlib,
+  circOps = empty_circOps,
 
 -- No references
   references = IMap.empty,

@@ -25,7 +25,7 @@ import Monad.QuipperError
 import qualified Typing.CoreSyntax as C
 
 import Compiler.SimplSyntax
-import Compiler.QLib
+import Compiler.Circ
 
 import qualified Data.List as List
 import Data.Map (Map)
@@ -1023,8 +1023,8 @@ transform_declarations decls = do
 
   -- Retrieve the declaration of quantum operations
   ctx <- get_context
-  let qops = code $ qlib ctx
-  set_context ctx { qlib = empty_qlib }
+  let qops = code $ circOps ctx
+  set_context ctx { circOps = empty_circOps }
 
   return $ qops ++ List.reverse decls
 
