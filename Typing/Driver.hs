@@ -32,6 +32,7 @@ import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CPS as CPS
+import Compiler.Interfaces
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -586,6 +587,10 @@ do_everything opts files = do
   -- Build the dependencies
   deps <- build_set_dependencies (includes opts) progs
 
+  -- Build the builtin / qlib interfaces
+  iqlib <- build_iqlib
+  ibuiltins <- build_ibuiltins
+
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec p -> do
         ms <- rec
@@ -594,10 +599,14 @@ do_everything opts files = do
 
         -- Compilation 
         decls <- transform_declarations (M.declarations nm)
+        cps <- CPS.convert_declarations (iqlib, ibuiltins) decls
+        cps <- CPS.closure_conversion cps
+        (cfuns, cps) <- return $ CPS.lift_functions cps
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var
-        newlog (-2) $ genprint Inf [fvar] decls
+--        newlog (-2) $ genprint Inf [fvar] decls
+        newlog (-2) $ CPS.print_CPS fvar (cfuns, cps)
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

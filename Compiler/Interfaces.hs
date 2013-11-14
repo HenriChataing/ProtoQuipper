@@ -35,7 +35,7 @@ build_iqlib = do
       bgates = List.map fst binary_gates
       qinit = ["INIT0", "INIT1"]
       qterm = ["TERM0", "TERM1"]
-      others = ["OPENBOX", "CLOSEBOX", "REV", "UNENCAP"]  
+      others = ["OPENBOX", "CLOSEBOX", "REV", "UNENCAP", "APPBIND"]  
   
   qlib <- List.foldl (\rec g -> do
         qi <- rec
@@ -63,10 +63,11 @@ data IBuiltins = IBuiltins {
 build_ibuiltins :: QpState IBuiltins
 build_ibuiltins = do
   let bops = Map.keys builtin_operations
+      others = ["ISREF", "EXIT"]
   builtins <- List.foldl (\rec b -> do
         bi <- rec
         i <- register_var b 0
-        return $ Map.insert b i bi) (return Map.empty) bops 
+        return $ Map.insert b i bi) (return Map.empty) (bops ++ others)
 
   return IBuiltins { ibuiltins = builtins }
 

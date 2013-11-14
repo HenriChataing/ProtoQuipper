@@ -4,15 +4,18 @@ module Compiler.CPS where
 import Prelude hiding (lookup)
 
 import Utils
-import Classes
+import Classes hiding ((<+>))
 
 import Monad.QpState
+import Monad.QuipperError
 
 import qualified Compiler.SimplSyntax as S
 import Compiler.Circ
 import Compiler.Interfaces
 
 import qualified Data.List as List
+import Text.PrettyPrint.HughesPJ as PP
+
 
 
 -- | The definition of values.
@@ -189,18 +192,22 @@ convert_to_cps (iqlib, ibuiltins) c (S.EBuiltin s) =
     Nothing ->
         case lookup s ibuiltins of
           Just v -> c (VBuiltin v)
-          Nothing -> fail "CPS:convert_to_cps: undefined builtin operation"
+          Nothing -> fail $ "CPS:convert_to_cps: undefined builtin operation: " ++ s
 
 
 
 
 
 -- | Convert the toplevel declarations into the CPS form.
+-- By default, the evalution finishes by a call to @exit 0@.
 convert_declarations :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib and Builtins modules.
-                     -> (Value -> QpState CExpr)   -- ^ Semantic continuation.
                      -> [S.Declaration]            -- ^ List of declarations.
                      -> QpState CExpr              -- ^ Resulting continuationj expression.
-convert_declarations dict c decls = do
+convert_declarations dict decls = do
+  let vexit = case lookup "EXIT" (snd dict) of
+        Just v -> VBuiltin v
+        Nothing -> throwNE $ ProgramError "CPS:convert_declarations: undefined builtin operation: EXIT"
+
   List.foldr (\d rec -> do
         ce <- rec
         case d of
@@ -212,7 +219,7 @@ convert_declarations dict c decls = do
               convert_to_cps dict (\z ->
                     return $ CFun r [x] ce $
                              CApp (VVar r) [z]) e
-    ) (c $ VInt 0) decls
+    ) (return $ CApp vexit [VInt 0]) decls
 
 
 -- | Closure conversion of the CPS code.
@@ -290,4 +297,98 @@ lift_functions c =
  ([], c)
 
 
+
+-- | Pretty-print a value using Hughes's and Peyton Jones's
+-- pretty printer combinators. The type 'Doc' is defined in the library
+-- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+print_value :: (Variable -> String)  -- ^ Rendering of term variables.
+            -> Value                 -- ^ Expression to print.
+            -> Doc                   -- ^ Resulting PP document.
+print_value _ (VInt n) =
+  text (show n)
+print_value fvar (VVar v) =
+  text (fvar v)
+print_value fvar (VBuiltin v) =
+  text (fvar v)
+print_value fvar (VLabel v) =
+  text (fvar v)
+
+
+-- | Pretty-print an expression using Hughes's and Peyton Jones's
+-- pretty printer combinators. The type 'Doc' is defined in the library
+-- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+print_cfun :: (Variable -> String)                      -- ^ Rendering of term variables.
+           -> (Variable, [Variable], CExpr)             -- ^ Function to print.
+           -> Doc                                       -- ^ Resulting PP document.
+print_cfun fvar (f, [], cf) =
+  text (fvar f ++ "() {") $$
+  nest 2 (print_cexpr Inf fvar cf) $$
+  text "}"
+print_cfun fvar (f, args, cf) =
+  let pargs = List.map (text . fvar) args
+      sargs = punctuate comma (List.init pargs) ++ [List.last pargs] in
+  text (fvar f ++ "(") <> hsep sargs <> text ") {" $$
+  nest 2 (print_cexpr Inf fvar cf) $$
+  text "}"
+
+
+-- | Pretty-print a continuation function using Hughes's and Peyton Jones's
+-- pretty printer combinators. The type 'Doc' is defined in the library
+-- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+print_cexpr :: Lvl                   -- ^ Maximum depth.
+            -> (Variable -> String)  -- ^ Rendering of term variables.
+            -> CExpr                 -- ^ Expression to print.
+            -> Doc                   -- ^ Resulting PP document.
+print_cexpr _ fvar (CApp f []) =
+  text (show f) <+> text "();"
+print_cexpr _ fvar (CApp f args) =
+  let pargs = List.map (print_value fvar) args
+      sargs = punctuate comma pargs in
+  print_value fvar f <> text "(" <> hsep sargs <> text ");"
+print_cexpr _ fvar (CTuple vals x c) =
+  let pvals = List.map (print_value fvar) vals
+      svals = punctuate comma pvals in
+  text (fvar x ++ " := [") <> hsep svals <> text "];" $$
+  print_cexpr Inf fvar c
+print_cexpr _ fvar (CAccess n x y c) =
+  text (fvar y ++ " :=") <+> print_value fvar x <> text ("[" ++ show n ++ "];") $$
+  print_cexpr Inf fvar c
+print_cexpr _ fvar (CSwitch v clist) =
+  let tags = [0 .. List.length clist-1]
+      pcs = List.map (print_cexpr Inf fvar) clist in
+  text "switch" <+> print_value fvar v <+> text "with" $$
+  nest 2 (List.foldl (\doc (tag, c) ->
+        doc $$
+        text (show tag ++ ":") $$
+        nest 2 c) (text "") (List.zip tags pcs))
+print_cexpr _ fvar (CFun _ _ _ _) =
+  text ""
+
+
+
+-- | Printing of expressions. The function 'genprint' generalizes the display of term
+-- variables and data constructors.
+instance PPrint CExpr where
+  -- Generic printing
+  genprint lv [fvar] e =
+    let doc = print_cexpr lv fvar e in
+    PP.render doc
+  genprint lv _ e =
+    throwNE $ ProgramError "Preliminaries:genprint(CExpr): illegal argument"
+
+  -- Other
+  -- By default, the term variables are printed as x_n and the data constructors as D_n,
+  -- where n is the id of the variable / constructor
+  sprintn lv e = genprint lv [prevar "%"] e
+
+
+
+-- | Print the CPS code, after lifting of the function declarations.
+print_CPS :: (Variable -> String) -> ([(Variable, [Variable], CExpr)], CExpr) -> String
+print_CPS fvar (cfuns, c) =
+  let pcfuns = List.map (print_cfun fvar) cfuns
+      pc = print_cexpr Inf fvar c in
+
+  let all = List.foldl (\doc cfun -> cfun $$ doc) pc pcfuns in
+  PP.render all
 

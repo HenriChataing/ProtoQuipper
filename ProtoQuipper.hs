@@ -21,6 +21,7 @@ import Interactive
 
 import Compiler.Preliminaries
 import Compiler.Circ
+-- import Compiler.CPStoLLVM
 
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
