@@ -222,15 +222,15 @@ convert_declarations dict decls = do
     ) (return $ CApp vexit [VInt 0]) decls
 
 
--- | Closure conversion of the CPS code.
-closure_conversion :: CExpr -> QpState CExpr
-closure_conversion (CFun f args cf c) = do
+-- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
+closure_conversion_aux :: CExpr -> QpState (CExpr, [Variable])
+closure_conversion_aux (CFun f args cf c) = do
   -- close the function body and continuation
-  cf' <- closure_conversion cf
-  c' <- closure_conversion c
+  (cf', fvcf) <- closure_conversion_aux cf
+  (c', fvc) <- closure_conversion_aux c
 
   -- free variables of f
-  let fv = free_var cf'
+  let fv = fvcf List.\\ args
   -- name of the function pointer and closure
   f' <- create_var "f"
   f'' <- create_var "f"
@@ -244,30 +244,39 @@ closure_conversion (CFun f args cf c) = do
   let c'' = CTuple (VVar f':(List.map VVar fv)) f c'
 
   -- re-definition of the function f
-  return $ CFun f' (f'':args) cf'' c''
+  return (CFun f' (f'':args) cf'' c'', fvc List.\\ [f])
 
-closure_conversion (CApp (VVar f) args) = do
+closure_conversion_aux (CApp (VVar f) args) = do
   f' <- create_var "f"
-  return $ CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CApp (VLabel f') (VVar f:args)              -- Apply the function to its own closure
+  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+           CApp (VLabel f') (VVar f:args),             -- Apply the function to its own closure
+           f:(List.concat $ List.map free_var args) )
   
-closure_conversion (CTuple clist x c) = do
-  c' <- closure_conversion c
-  return $ CTuple clist x c
+closure_conversion_aux (CTuple clist x c) = do
+  (c', fc) <- closure_conversion_aux c
+  return (CTuple clist x c, fc List.\\ [x])
 
-closure_conversion (CAccess n v x c) = do
-  c' <- closure_conversion c
-  return $ CAccess n v x c'
+closure_conversion_aux (CAccess n v x c) = do
+  (c', fc) <- closure_conversion_aux c
+  return (CAccess n v x c', fc List.\\ [x])
 
-closure_conversion (CSwitch v clist) = do
-  clist' <- List.foldl (\rec c -> do
-        cl <- rec
-        c' <- closure_conversion c
-        return $ c':cl) (return []) clist
-  return $ CSwitch v (List.reverse clist')
+closure_conversion_aux (CSwitch v clist) = do
+  (clist', fc) <- List.foldl (\rec c -> do
+        (cl, fc) <- rec
+        (c', fc') <- closure_conversion_aux c
+        return (c':cl, fc' ++ fc)) (return ([], [])) clist
+  return (CSwitch v (List.reverse clist'), fc)
 
-closure_conversion c =
-  return c
+closure_conversion_aux e =
+  return (e, free_var e)
+
+
+-- | Closure conversion of the CPS code.
+closure_conversion :: CExpr -> QpState CExpr
+closure_conversion e = do
+  (e, _) <- closure_conversion_aux e
+  return e
+
 
 
 -- | Lift the function definitions to the top of the module.
@@ -326,7 +335,7 @@ print_cfun fvar (f, [], cf) =
   text "}"
 print_cfun fvar (f, args, cf) =
   let pargs = List.map (text . fvar) args
-      sargs = punctuate comma (List.init pargs) ++ [List.last pargs] in
+      sargs = punctuate comma pargs in
   text (fvar f ++ "(") <> hsep sargs <> text ") {" $$
   nest 2 (print_cexpr Inf fvar cf) $$
   text "}"
