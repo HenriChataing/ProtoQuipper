@@ -51,7 +51,7 @@ data CExpr =
 
 instance Param CExpr where
   free_var (CFun f args cf c) =
-    List.union (free_var cf List.\\ args) (free_var c)
+    List.union (free_var cf List.\\ args) (free_var c List.\\ [f])
   free_var (CApp f args) =
     List.foldl (\fv a ->
           List.union (free_var a) fv) (free_var f) args
@@ -132,8 +132,8 @@ convert_to_cps dict c (S.EAccess n x) = do
   return $ CAccess n (VVar x) y cy
   
 convert_to_cps dict c (S.EFun x e) = do
-  f <- create_var "x"       -- function name
-  k <- create_var "x"       -- continuation argument
+  f <- create_var "f"       -- function name
+  k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   body <- convert_to_cps dict (\z -> return $ CApp (VVar k) [z]) e 
   -- The reference f of the function is passed to the building continuation c
@@ -141,17 +141,17 @@ convert_to_cps dict c (S.EFun x e) = do
   return $ CFun f [x, k] body $ cf
 
 convert_to_cps dict c (S.ERecFun f x e) = do
-  k <- create_var "x"       -- continuation argument
+  k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   body <- convert_to_cps dict (\z -> return $ CApp (VVar k) [z]) e 
   -- The reference f of the function is passed to the building continuation c
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
 
-convert_to_cps dict c (S.EApp e f) = do
-  r <- create_var "x"       -- return address
+convert_to_cps dict c (S.EApp f arg) = do
+  r <- create_var "r"       -- return address
   x <- create_var "x"       -- argument of the return address
-  app <- convert_to_cps dict (\f -> convert_to_cps dict (\e -> return $ CApp f [e, VVar r]) e) f
+  app <- convert_to_cps dict (\f -> convert_to_cps dict (\arg -> return $ CApp f [arg, VVar r]) arg) f
   cx <- c (VVar x)
   return $ CFun r [x] cx app
 
@@ -164,7 +164,7 @@ convert_to_cps dict c (S.ELet x e f) = do
         return $ replace x z cf) e
 
 convert_to_cps dict c (S.EIf e f g) = do
-  k <- create_var "x"
+  k <- create_var "k"
   x <- create_var "x"
   cx <- c (VVar x)
   f' <- convert_to_cps dict (\z -> return $ CApp (VVar k) [z]) f
@@ -174,7 +174,7 @@ convert_to_cps dict c (S.EIf e f g) = do
                  CSwitch e [g', f']) e
 
 convert_to_cps dict c (S.EMatch e blist) = do
-  k <- create_var "x"
+  k <- create_var "k"
   x <- create_var "x"
   cx <- c (VVar x)
   let slist = List.sortBy (\(n,_) (m,_) -> compare n m) blist
@@ -215,7 +215,7 @@ convert_declarations dict decls = do
               convert_to_cps dict (\_ -> return ce) e
           
           S.DLet x e -> do
-              r <- create_var "x"
+              r <- create_var "r"
               convert_to_cps dict (\z ->
                     return $ CFun r [x] ce $
                              CApp (VVar r) [z]) e
@@ -233,7 +233,7 @@ closure_conversion_aux (CFun f args cf c) = do
   let fv = fvcf List.\\ args
   -- name of the function pointer and closure
   f' <- create_var "f"
-  f'' <- create_var "f"
+  f'' <- create_var "fc"
   cl <- create_var "c"
 
   -- extraction of the free variables of cf'
@@ -252,20 +252,21 @@ closure_conversion_aux (CApp (VVar f) args) = do
            CApp (VLabel f') (VVar f:args),             -- Apply the function to its own closure
            f:(List.concat $ List.map free_var args) )
   
-closure_conversion_aux (CTuple clist x c) = do
-  (c', fc) <- closure_conversion_aux c
-  return (CTuple clist x c, fc List.\\ [x])
+closure_conversion_aux (CTuple vlist x c) = do
+  (c', fvc) <- closure_conversion_aux c
+  let fv = List.concat $ List.map free_var vlist
+  return (CTuple vlist x c, List.union fv (fvc List.\\ [x]))
 
 closure_conversion_aux (CAccess n v x c) = do
-  (c', fc) <- closure_conversion_aux c
-  return (CAccess n v x c', fc List.\\ [x])
+  (c', fvc) <- closure_conversion_aux c
+  return (CAccess n v x c', List.union (free_var v) (fvc List.\\ [x]))
 
 closure_conversion_aux (CSwitch v clist) = do
-  (clist', fc) <- List.foldl (\rec c -> do
-        (cl, fc) <- rec
-        (c', fc') <- closure_conversion_aux c
-        return (c':cl, fc' ++ fc)) (return ([], [])) clist
-  return (CSwitch v (List.reverse clist'), fc)
+  (clist', fvc) <- List.foldl (\rec c -> do
+        (cl, fvc) <- rec
+        (c', fvc') <- closure_conversion_aux c
+        return (c':cl, List.union fvc' fvc)) (return ([], [])) clist
+  return (CSwitch v (List.reverse clist'), List.union (free_var v) fvc)
 
 closure_conversion_aux e =
   return (e, free_var e)
@@ -348,8 +349,10 @@ print_cexpr :: Lvl                   -- ^ Maximum depth.
             -> (Variable -> String)  -- ^ Rendering of term variables.
             -> CExpr                 -- ^ Expression to print.
             -> Doc                   -- ^ Resulting PP document.
+print_cexpr _ _ (CApp (VInt _) _) =
+  text "WATWATWAT"
 print_cexpr _ fvar (CApp f []) =
-  text (show f) <+> text "();"
+  print_value fvar f <> text "();"
 print_cexpr _ fvar (CApp f args) =
   let pargs = List.map (print_value fvar) args
       sargs = punctuate comma pargs in
@@ -369,7 +372,7 @@ print_cexpr _ fvar (CSwitch v clist) =
   nest 2 (List.foldl (\doc (tag, c) ->
         doc $$
         text (show tag ++ ":") $$
-        nest 2 c) (text "") (List.zip tags pcs))
+        nest 2 c) empty (List.zip tags pcs))
 print_cexpr _ fvar (CFun _ _ _ _) =
   text ""
 
@@ -398,6 +401,6 @@ print_CPS fvar (cfuns, c) =
   let pcfuns = List.map (print_cfun fvar) cfuns
       pc = print_cexpr Inf fvar c in
 
-  let all = List.foldl (\doc cfun -> cfun $$ doc) pc pcfuns in
+  let all = List.foldl (\doc cfun -> cfun $$ text "" $$ doc) pc pcfuns in
   PP.render all
 
