@@ -26,13 +26,13 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
   Typing/TransSyntax.hs Typing/TypeInference.hs	\
   Typing/TypingContext.hs Utils.hs Typing/LabellingContext.hs \
-  Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CPS.hs Compiler/Interfaces.hs
+  Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CPS.hs Compiler/Interfaces.hs Compiler/CPStoLLVM.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
 all : $(MAIN)
 
 $(MAIN) : $(MODULES)
-	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
+	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parsing/Parser.hs : Parsing/Parser.y
 	$(HAPPY) Parsing/Parser.y
