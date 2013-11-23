@@ -187,3 +187,10 @@ cexpr_to_llvm vals (CSwitch x clist) = do
 
   switch vx dcase $ List.zip tags bcases
 
+cexpr_to_llvm vals (CSet x v) = do
+  vx <- lvalue_to_int vals (VVar x)
+  vv <- lvalue_to_int vals v
+  vx <- bitcast vx :: CodeGenFunction r (L.Value (Ptr ArchInt))
+  store vv vx
+
+

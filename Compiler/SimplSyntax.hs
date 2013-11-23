@@ -41,10 +41,9 @@ data Expr =
   deriving Show
 
 
--- | The top-level declarations of the simplified syntax.
+-- | The top-level declarations of the simplified syntax. The top-level expressions have been eliminated at this point.
 data Declaration =
-    DExpr Expr                                    -- ^ Top level expression.
-  | DLet Variable Expr                            -- ^ Top level declaration.
+    DLet Variable Expr                            -- ^ Top level declaration.
 
 
 -- * Printing functions.
@@ -155,16 +154,9 @@ instance PPrint [Declaration] where
     ""
   genprint lv [fvar] ((DLet x e):ds) =
     let pre = genprint lv [fvar] e in
-    let prx = fvar x in
-    
+    let prx = fvar x in    
     "let " ++ prx ++ " = " ++ pre ++ "\n" ++
     genprint lv [fvar] ds
-
-  genprint lv opts ((DExpr e):ds) =
-    let pre = genprint lv opts e in
-    
-    pre ++ "\n" ++
-    genprint lv opts ds
 
   genprint _ _ _ =
     throwNE $ ProgramError "Preliminaries:genprint([Declaration]): illegal argument"

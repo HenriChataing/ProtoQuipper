@@ -330,7 +330,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 -- LET BINDING
 process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
-  (p', label') <- translate_pattern p $ labelling ctx
+  (p', label') <- translate_pattern p True $ labelling ctx
   e' <- case recflag of
         Recursive -> translate_expression e $ (labelling ctx) { L.variables = label' }
         Nonrecursive -> translate_expression e $ labelling ctx
@@ -599,14 +599,12 @@ do_everything opts files = do
 
         -- Compilation 
         decls <- transform_declarations (M.declarations nm)
-        cps <- CPS.convert_declarations (iqlib, ibuiltins) decls
-        cps <- CPS.closure_conversion cps
-        (cfuns, cps) <- return $ CPS.lift_functions cps
+        cunit <- CPS.convert_declarations (iqlib, ibuiltins) decls
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var
 --        newlog (-2) $ genprint Inf [fvar] decls
-        newlog (-2) $ CPS.print_CPS fvar (cfuns, cps)
+        newlog (-2) $ genprint Inf [fvar] cunit
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

@@ -974,9 +974,9 @@ transform_declarations decls = do
         (decls, mod) <- rec
         case d of
           C.DExpr e -> do
-              e <- disambiguate_unbox_calls [] mod e
-              e <- remove_patterns e
-              return ((DExpr e):decls, mod)
+              ri <- ref_info_err (C.reference e)
+              warnQ NakedExpressionToplevel (C.r_location ri)
+              return (decls, mod)
           
           C.DLet recflag x e -> do
               -- DISAMBIGUATION  

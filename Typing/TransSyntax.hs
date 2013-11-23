@@ -717,49 +717,50 @@ translate_unbound_type t label = do
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String LVariable)
-translate_pattern S.PUnit label = do
+-- The second argument indicates whether the pattern is from a top level declaration or not.
+translate_pattern :: S.Pattern -> Bool -> LabellingContext -> QpState (Pattern, Map String LVariable)
+translate_pattern S.PUnit _ label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PUnit ref })
   return (PUnit ref, L.variables label)
 
-translate_pattern (S.PBool b) label = do
+translate_pattern (S.PBool b) _ label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PBool ref b })
   return (PBool ref b, L.variables label)
 
-translate_pattern (S.PInt n) label = do
+translate_pattern (S.PInt n) _ label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PInt ref n })
   return (PInt ref n, L.variables label)
 
-translate_pattern S.PWildcard label = do
+translate_pattern S.PWildcard _ label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PWildcard ref })
   return (PWildcard ref, L.variables label)
 
-translate_pattern (S.PVar x) label = do
+translate_pattern (S.PVar x) toplevel label = do
   ref <- create_ref
   id <- register_var x ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
-  return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
+  return (PVar ref id, Map.insert x (if toplevel then LGlobal id else LVar id) $ L.variables label)
 
-translate_pattern (S.PTuple plist) label = do
+translate_pattern (S.PTuple plist) toplevel label = do
   ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
                                   (r, lbl) <- rec
-                                  (p', lbl') <- translate_pattern p $ label { L.variables = lbl }
+                                  (p', lbl') <- translate_pattern p toplevel label { L.variables = lbl }
                                   return ((p':r), lbl')) (return ([], L.variables label)) plist
   update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
-translate_pattern (S.PDatacon datacon p) label = do
+translate_pattern (S.PDatacon datacon p) toplevel label = do
   ref <- create_ref
   case Map.lookup datacon $ L.datacons label of
     Just id -> do
         case p of
           Just p -> do
-              (p', lbl) <- translate_pattern p label
+              (p', lbl) <- translate_pattern p toplevel label
               update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id (Just p') })
               return (PDatacon ref id (Just p'), lbl)
 
@@ -770,12 +771,12 @@ translate_pattern (S.PDatacon datacon p) label = do
     Nothing ->
         throw_UnboundDatacon datacon
 
-translate_pattern (S.PLocated p ex) label = do
+translate_pattern (S.PLocated p ex) toplevel label = do
   set_location ex
-  translate_pattern p label
+  translate_pattern p toplevel label
 
-translate_pattern (S.PConstraint p t) label = do
-  (p', lbl) <- translate_pattern p label
+translate_pattern (S.PConstraint p t) toplevel label = do
+  (p', lbl) <- translate_pattern p toplevel label
   return (PConstraint p' (t, L.types label), lbl)
 
 
@@ -821,14 +822,14 @@ translate_expression (S.EQualified m x) _ = do
 
 translate_expression (S.EFun p e) label = do
   ref <- create_ref
-  (p', lbl) <- translate_pattern p label
+  (p', lbl) <- translate_pattern p False label
   e' <- translate_expression e $ label { L.variables = lbl }
   update_ref ref (\ri -> Just ri { r_expression = Left $ EFun ref p' e' })
   return (EFun ref p' e')
 
 translate_expression (S.ELet r p e f) label = do
   ref <- create_ref
-  (p', lbl) <- translate_pattern p label
+  (p', lbl) <- translate_pattern p False label
   e' <- case r of
         Recursive -> do
             translate_expression e $ label { L.variables = lbl }
@@ -860,7 +861,7 @@ translate_expression (S.EMatch e blist) label = do
   e' <- translate_expression e label
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
-                          (p', lbl) <- translate_pattern p label
+                          (p', lbl) <- translate_pattern p False label
                           f' <- translate_expression f $ label { L.variables = lbl }
                           return ((p', f'):r)) (return []) blist
   update_ref ref (\ri -> Just ri { r_expression = Left $ EMatch ref e' blist' })
