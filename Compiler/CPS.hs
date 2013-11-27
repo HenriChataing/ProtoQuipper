@@ -9,6 +9,8 @@ import Classes hiding ((<+>))
 import Monad.QpState
 import Monad.QuipperError
 
+import qualified Typing.CoreSyntax as CS
+
 import qualified Compiler.SimplSyntax as S
 import Compiler.Circ
 import Compiler.Interfaces
@@ -21,14 +23,14 @@ import qualified Data.IntMap as IMap
 
 -- | The definition of values.
 data Value =
-    VVar Variable          -- ^ A variable.
+    VVar Variable          -- ^ A local variable _ function or not.
   | VInt Int               -- ^ An integer.
-  | VLabel Variable        -- ^ A function label.
-  | VGlobal Variable       -- ^ A global variable, either imported, or defined at top-level.
+  | VLabel Variable        -- ^ The label of a function _ global.
+  | VGlobal Variable       -- ^ A global variable _ doesn't include functions.
   deriving (Show, Eq)
 
 
--- | Are considered free variables only variables bound in a local scope.
+-- | Are considered free variables only variables bound in a local scope and not a function.
 instance Param Value where
   free_var (VVar x) = [x]
   free_var _ = []
@@ -107,10 +109,23 @@ convert_to_cps :: (IQLib, IBuiltins)              -- ^ Interfaces to the QLib an
                -> QpState CExpr                   -- ^ The resulting continuation expression.
 
 convert_to_cps dict vals c (S.EVar x) =
-  c (value vals x)
+  case value vals x of
+    -- global variables are available through accessors only
+    VGlobal gx -> do
+        r <- create_var "r"       -- return address
+        x <- create_var "x"       -- argument of the return address
+        cx <- c (VVar x)
+        return $ CFun r [x] cx (CApp (VLabel gx) [VVar r])
+    -- global functions when handled as objects must be boxed
+    VLabel gx -> do
+        cf <- create_var "f"      -- function closure
+        cx <- c (VVar cf)
+        return $ CTuple [VLabel gx] cf cx
+    v -> 
+        c v
 
 convert_to_cps dict vals c (S.EGlobal x) =
-  c (VVar x)
+  convert_to_cps dict vals c (S.EVar x)
 
 convert_to_cps dict vals c (S.EInt n) =
   c (VInt n)
@@ -157,11 +172,28 @@ convert_to_cps dict vals c (S.EFun x e) = do
 convert_to_cps dict vals c (S.ERecFun f x e) = do
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
-  let vals' = IMap.insert f (VLabel f) vals
+  let vals' = IMap.insert f (VVar f) vals
   body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) e 
   -- The reference f of the function is passed to the building continuation c
-  cf <- c (VLabel f)
+  cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
+
+-- the direct application of global functions is treated separately.
+convert_to_cps dict vals c (S.EApp (S.EVar f) arg) = do
+  r <- create_var "r"       -- return address
+  x <- create_var "x"       -- argument of the return address
+  case value vals f of
+    VLabel f -> do
+        app <- convert_to_cps dict vals (\arg ->
+              return $ CApp (VLabel f) [arg, VVar r]) arg
+        cx <- c (VVar x)
+        return $ CFun r [x] cx app
+    _ -> do 
+        app <- convert_to_cps dict vals (\f ->
+              convert_to_cps dict vals (\arg ->
+              return $ CApp f [arg, VVar r]) arg) (S.EVar f)
+        cx <- c (VVar x)
+        return $ CFun r [x] cx app
 
 convert_to_cps dict vals c (S.EApp f arg) = do
   r <- create_var "r"       -- return address
@@ -220,26 +252,35 @@ convert_declarations :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib a
                      -> [S.Declaration]            -- ^ List of declarations.
                      -> QpState CUnit              -- ^ Resulting compile unit.
 convert_declarations dict decls = do
-  let vexit = case lookup "EXIT" (snd dict) of
-        Just v -> VGlobal v
-        Nothing -> throwNE $ ProgramError "CPS:convert_declarations: undefined builtin operation: EXIT"
+  -- build the list of imported variables
+  let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
+  ivals <- List.foldl (\rec ix -> do
+        ivals <- rec
+        tix <- type_of_global ix
+        if CS.is_fun tix then
+          return $ IMap.insert ix (VLabel ix) ivals
+        else
+          return $ IMap.insert ix (VGlobal ix) ivals) (return IMap.empty) imported 
 
-  (cu, _) <- List.foldr (\(S.DLet f e) rec -> do
+  -- translate the declarations
+  (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
         (cu, vals) <- rec
         case e of
           S.EFun x c -> do
               k <- create_var "k"       -- continuation argument
+              fc <- create_var "fc"     -- closure argument
               body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { functions = (f, [x,k], body):(funs ++ functions cu) },
-                      IMap.insert f (VGlobal f) vals)
+              return (cu { functions = (f, [fc,x,k], body):(funs ++ functions cu) },
+                      IMap.insert f (VLabel f) vals)
 
           S.ERecFun _ x c -> do
               k <- create_var "k"       -- continuation argument
-              let vals' = IMap.insert f (VGlobal f) vals
+              fc <- create_var "fc"     -- closure argument
+              let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) c 
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { functions = (f, [x,k], body):(funs ++ functions cu) }, vals')
+              return (cu { functions = (f, [fc,x,k], body):(funs ++ functions cu) }, vals')
 
           _ -> do
               -- global variables are divided between initialization and accessor.
@@ -247,13 +288,23 @@ convert_declarations dict decls = do
               -- is added.
               g <- create_var "g"       -- what will be the global variable of the llvm code
               k <- create_var "k"       -- the continuation of the accessor
+              k' <- create_var "f"      -- extraction of the address of the continuation
+
+              -- translate the computation of g
               init <- convert_to_cps dict vals (\z -> return $ CSet g z) e
               (funs,init) <- closure_conversion init >>= return . lift_functions
-              return (cu { vglobals = (g, init):(vglobals cu),
-                           functions = (f, [k], CApp (VLabel k) [VGlobal g]):(funs ++ functions cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { functions = [], vglobals = [], imports = []}, IMap.empty)) decls
-  return cu
+              -- write the code thta will form the accessor
+              let access =
+                    CAccess 0 (VVar k) k' $
+                    CApp (VVar k') [VVar k, VGlobal g]
+        
+              -- return the whole
+              return (cu { vglobals = (g, init):(vglobals cu),
+                           functions = (f, [k], access):(funs ++ functions cu) }, IMap.insert f (VGlobal f) vals)
+
+    ) (return (CUnit { functions = [], vglobals = [], imports = imported}, ivals)) decls
+  return cu { functions = List.reverse $ functions cu, vglobals = List.reverse $ vglobals cu }
 
 
 -- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
@@ -278,18 +329,23 @@ closure_conversion_aux (CFun f args cf c) = do
   let c'' = CTuple (VVar f':(List.map VVar fv)) f c'
 
   -- re-definition of the function f
-  return (CFun f' (f'':args) cf'' c'', fvc List.\\ [f])
+  return (CFun f' (f'':args) cf'' c'', List.union fv (fvc List.\\ [f]))
 
 closure_conversion_aux (CApp (VVar f) args) = do
   f' <- create_var "f"
   return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CApp (VLabel f') (VVar f:args),             -- Apply the function to its own closure
+           CApp (VVar f') (VVar f:args),               -- Apply the function to its own closure
            f:(List.concat $ List.map free_var args) )
-  
+
+-- since global functions are already closed, only a dummy closure is passed as argument.
+closure_conversion_aux (CApp (VLabel f) args) = do
+  return ( CApp (VLabel f) (VInt 0:args),               -- Apply the function to a dummy closure (1)
+           List.concat $ List.map free_var args )
+
 closure_conversion_aux (CTuple vlist x c) = do
   (c', fvc) <- closure_conversion_aux c
-  let fv = List.concat $ List.map free_var vlist
-  return (CTuple vlist x c, List.union fv (fvc List.\\ [x]))
+  let fv = List.nub $ List.concat $ List.map free_var vlist
+  return (CTuple vlist x c', List.union fv (fvc List.\\ [x]))
 
 closure_conversion_aux (CAccess n v x c) = do
   (c', fvc) <- closure_conversion_aux c
@@ -356,7 +412,6 @@ print_value fvar (VGlobal v) =
   text (fvar v)
 print_value fvar (VLabel v) =
   text (fvar v)
-
 
 -- | Pretty-print an expression using Hughes's and Peyton Jones's
 -- pretty printer combinators. The type 'Doc' is defined in the library
@@ -434,8 +489,11 @@ instance PPrint CUnit where
     let pcfuns = List.map (print_cfun fvar) (functions cu) in
     let (gdef, ginit) = List.unzip $ List.map (\(g, e) ->
           (text (fvar g), print_cexpr Inf fvar e)) (vglobals cu) in
+    let pimport = List.map (text . fvar) (imports cu) in
 
-    let all = text "globals " <+> hsep (punctuate comma gdef) $$ text " " $$
+    let all =
+          text "extern" <+> hsep (punctuate comma pimport) $$
+          text "globals" <+> hsep (punctuate comma gdef) $$ text " " $$
           text "init () {" $$
           nest 2 (vcat ginit) $$
           text "}" $$

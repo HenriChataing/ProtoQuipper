@@ -168,6 +168,17 @@ no_bang :: Type -> LinType
 no_bang (TBang _ t) = t
 
 
+instance KType TypeScheme where
+  free_typ_var _ = []
+  subs_typ_var _ _ a = a
+  free_flag _ = []
+  subs_flag _ _ a = a
+  is_fun (TForall _ _ _ t) = is_fun t
+  is_qdata (TForall _ _ _ t) = is_qdata t
+  is_algebraic (TForall _ _ _ t) = is_algebraic t
+  is_synonym _ = False
+
+
 
 
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also

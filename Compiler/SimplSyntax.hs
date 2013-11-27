@@ -46,6 +46,21 @@ data Declaration =
     DLet Variable Expr                            -- ^ Top level declaration.
 
 
+-- | Return the list of imported variables of an expression.
+imports :: Expr -> [Variable]
+imports (EGlobal x) = [x]
+imports (EFun _ e) = imports e
+imports (ERecFun _ _ e) = imports e 
+imports (EApp e f) = List.union (imports e) (imports f)
+imports (ETuple elist) = List.nub $ List.concat $ List.map imports elist
+imports (ELet _ e f) = List.union (imports e) (imports f)
+imports (ESeq e f) = List.union (imports e) (imports f)
+imports (EIf e f g) = List.union (imports e) $ List.union (imports f) (imports g)
+imports (EMatch e clist) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] clist 
+imports _ = []
+ 
+
+
 -- * Printing functions.
 
 -- | Pretty-print an expression using Hughes's and Peyton Jones's

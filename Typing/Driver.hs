@@ -330,7 +330,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 -- LET BINDING
 process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
-  (p', label') <- translate_pattern p True $ labelling ctx
+  (p', label') <- translate_pattern p $ labelling ctx
   e' <- case recflag of
         Recursive -> translate_expression e $ (labelling ctx) { L.variables = label' }
         Nonrecursive -> translate_expression e $ labelling ctx
