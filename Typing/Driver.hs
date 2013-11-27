@@ -32,6 +32,7 @@ import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CPS as CPS
+import Compiler.CPStoLLVM
 import Compiler.Interfaces
 
 import Monad.QpState
@@ -605,6 +606,9 @@ do_everything opts files = do
         fvar <- display_var
 --        newlog (-2) $ genprint Inf [fvar] decls
         newlog (-2) $ genprint Inf [fvar] cunit
+
+
+        cunit_to_llvm (S.module_name p) cunit
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

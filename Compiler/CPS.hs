@@ -25,7 +25,7 @@ import qualified Data.IntMap as IMap
 data Value =
     VVar Variable          -- ^ A local variable _ function or not.
   | VInt Int               -- ^ An integer.
-  | VLabel Variable        -- ^ The label of a function _ global.
+  | VLabel Variable        -- ^ The label of a (global) function.
   | VGlobal Variable       -- ^ A global variable _ doesn't include functions.
   deriving (Show, Eq)
 
@@ -57,7 +57,6 @@ data CExpr =
   | CTuple [Value] Variable CExpr                  -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
   | CAccess Int Value Variable CExpr               -- ^ Access the nth element of a tuple.
   | CSwitch Value [CExpr]                          -- ^ Switch condition.
-
   | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
   deriving Show
 
@@ -110,18 +109,12 @@ convert_to_cps :: (IQLib, IBuiltins)              -- ^ Interfaces to the QLib an
 
 convert_to_cps dict vals c (S.EVar x) =
   case value vals x of
-    -- global variables are available through accessors only
-    VGlobal gx -> do
-        r <- create_var "r"       -- return address
-        x <- create_var "x"       -- argument of the return address
-        cx <- c (VVar x)
-        return $ CFun r [x] cx (CApp (VLabel gx) [VVar r])
     -- global functions when handled as objects must be boxed
     VLabel gx -> do
         cf <- create_var "f"      -- function closure
         cx <- c (VVar cf)
         return $ CTuple [VLabel gx] cf cx
-    v -> 
+    v ->
         c v
 
 convert_to_cps dict vals c (S.EGlobal x) =
@@ -159,12 +152,12 @@ convert_to_cps dict vals c (S.EAccess n x) = do
     unVVar (VLabel x) = x
     unVVar (VGlobal x) = x
     unVVar _ = throwNE $ ProgramError "CPS:unVVar: illegal argument"
- 
+
 convert_to_cps dict vals c (S.EFun x e) = do
   f <- create_var "f"       -- function name
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
-  body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) e 
+  body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) e
   -- The reference f of the function is passed to the building continuation c
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
@@ -173,7 +166,7 @@ convert_to_cps dict vals c (S.ERecFun f x e) = do
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   let vals' = IMap.insert f (VVar f) vals
-  body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) e 
+  body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) e
   -- The reference f of the function is passed to the building continuation c
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
@@ -188,7 +181,7 @@ convert_to_cps dict vals c (S.EApp (S.EVar f) arg) = do
               return $ CApp (VLabel f) [arg, VVar r]) arg
         cx <- c (VVar x)
         return $ CFun r [x] cx app
-    _ -> do 
+    _ -> do
         app <- convert_to_cps dict vals (\f ->
               convert_to_cps dict vals (\arg ->
               return $ CApp f [arg, VVar r]) arg) (S.EVar f)
@@ -263,7 +256,7 @@ convert_declarations dict decls = do
         if CS.is_fun tix then
           return (IMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else
-          return (IMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IMap.empty, [])) imported 
+          return (IMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IMap.empty, [])) imported
 
   -- translate the declarations
   (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
@@ -281,31 +274,16 @@ convert_declarations dict decls = do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
-              body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) c 
+              body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { functions = (f, [fc,x,k], body):(funs ++ functions cu) }, vals')
 
           _ -> do
-              -- global variables are divided between initialization and accessor.
-              -- Some initializing code is retained, and an accessor (which takes the original name of the variable,
-              -- is added.
-              g <- create_var "g"       -- what will be the global variable of the llvm code
-              k <- create_var "k"       -- the continuation of the accessor
-              k' <- create_var "f"      -- extraction of the address of the continuation
-              fc <- create_var "fc"     -- dummy closure argument
-
               -- translate the computation of g
-              init <- convert_to_cps dict vals (\z -> return $ CSet g z) e
+              init <- convert_to_cps dict vals (\z -> return $ CSet f z) e
               (funs,init) <- closure_conversion init >>= return . lift_functions
-
-              -- write the code thta will form the accessor
-              let access =
-                    CAccess 0 (VVar k) k' $
-                    CApp (VVar k') [VVar k, VGlobal g]
-        
-              -- return the whole
-              return (cu { vglobals = (g, init):(vglobals cu),
-                           functions = (f, [fc,k], access):(funs ++ functions cu) }, IMap.insert f (VGlobal f) vals)
+              -- return the extend compile unit
+              return (cu { vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
     ) (return (CUnit { functions = [], vglobals = [], imports = imported}, ivals)) decls
   return cu { functions = List.reverse $ functions cu, vglobals = List.reverse $ vglobals cu }
@@ -470,7 +448,6 @@ print_cexpr _ fvar (CFun _ _ _ _) =
   text ""
 print_cexpr _ fvar (CSet x v) =
   text (fvar x) <+> text ":=" <+> print_value fvar v
-
 
 
 instance PPrint CExpr where
