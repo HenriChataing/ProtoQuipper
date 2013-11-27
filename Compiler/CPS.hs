@@ -195,6 +195,9 @@ convert_to_cps dict vals c (S.EApp (S.EVar f) arg) = do
         cx <- c (VVar x)
         return $ CFun r [x] cx app
 
+convert_to_cps dict vals c (S.EApp (S.EGlobal f) arg) =
+  convert_to_cps dict vals c (S.EApp (S.EVar f) arg)
+
 convert_to_cps dict vals c (S.EApp f arg) = do
   r <- create_var "r"       -- return address
   x <- create_var "x"       -- argument of the return address
