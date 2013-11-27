@@ -34,7 +34,7 @@ import qualified Data.List as List
 -- | The type of used llvm values.
 data LValue =
     LVInt (L.Value ArchInt)                                               -- ^ Basic integers.
-  | LVFun1 (L.Function (ArchInt -> IO ArchInt))                           -- ^ Function taking one argument.
+  | LVIntPtr (L.Value (Ptr ArchInt))                                      -- ^ Pointers.
   | LVFun2 (L.Function (ArchInt -> ArchInt -> IO ArchInt))                -- ^ Function taking two arguments.
   | LVFun3 (L.Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))     -- ^ Function taking three arguments.
 
@@ -43,23 +43,47 @@ data LValue =
 type LContext = IntMap LValue
 
 
+-- | Proceed to the declaration of the imported functions.
+declare_imported :: [CPS.Value] -> QpState (CodeGenModule LContext)
+declare_imported [] =
+  return $ return IMap.empty
+declare_imported ((VLabel ix):ixs) = do
+  nix <- variable_name ix
+  m <- declare_imported ixs
+  return (do
+        vals <- m
+        fix <- newNamedFunction ExternalLinkage nix :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+        return $ IMap.insert ix (LVFun3 fix) vals)
+declare_imported ((VGlobal ix):ixs) = do
+  nix <- variable_name ix
+  m <- declare_imported ixs
+  return (do
+        vals <- m
+        fix <- newNamedFunction ExternalLinkage nix :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        return $ IMap.insert ix (LVFun2 fix) vals)
+declare_imported _ =
+  fail "CPStoLLVM:declare_imported: illegal argument"
+
+
+-- | Proceed to the declaration of the global variables.
+declare_globals :: [Variable] -> CodeGenModule LContext
+declare_globals [] =
+  return IMap.empty
+declare_globals (gx:gxs) = do
+  vals <- declare_globals gxs
+  ngx <- createGlobal False InternalLinkage (constOf 0) :: TGlobal ArchInt
+  return $ IMap.insert gx (LVIntPtr ngx) vals
+
+
 -- | Proceed to the declaration of the module fucntions.
 declare_module_functions :: [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
 declare_module_functions [] =
   return $ return IMap.empty
-declare_module_functions ((f, [_], _):fs) = do
-  nf <- variable_name f
-  vals <- declare_module_functions fs
-  return (do
-        vf <- newNamedFunction InternalLinkage nf :: CodeGenModule (Function (ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun1 vf) m
-      )
 declare_module_functions ((f, [_,_], _):fs) = do
   nf <- variable_name f
   vals <- declare_module_functions fs
   return (do
-        vf <- newNamedFunction InternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun2 vf) m
       )
@@ -67,7 +91,7 @@ declare_module_functions ((f, [_,_,_], _):fs) = do
   nf <- variable_name f
   vals <- declare_module_functions fs
   return (do
-        vf <- newNamedFunction InternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun3 vf) m
       )
@@ -77,13 +101,10 @@ declare_module_functions _ = do
 
 -- | Proceed to the definition of the module functions.
 define_module_functions :: LContext -> [(Variable, [Variable], CExpr)] -> CodeGenModule ()
-define_module_functions vals [] =
+define_module_functions _ [] =
   return ()
 define_module_functions vals ((f, arg, c):fs) = do
   case (IMap.lookup f vals, arg) of
-    (Just (LVFun1 f), [x]) -> do
-        defineFunction f $ \vx -> cexpr_to_llvm (IMap.insert x (LVInt vx) vals) c 
-        define_module_functions vals fs 
     (Just (LVFun2 f), [x,y]) -> do
         defineFunction f $ \vx vy -> do
               let vals' = IMap.insert x (LVInt vx) vals
@@ -107,7 +128,7 @@ lvalue_to_int vals v =
   let fv = free_var v in
   case IMap.lookup (List.head fv) vals of
     Just (LVInt v) -> return v
-    Just (LVFun1 f) -> bitcast f
+    Just (LVIntPtr p) -> load p
     Just (LVFun2 f) -> bitcast f
     Just (LVFun3 f) -> bitcast f
     Nothing -> throwNE $ ProgramError "CPStoLLVM:vlookup: undefined variable"
@@ -194,3 +215,20 @@ cexpr_to_llvm vals (CSet x v) = do
   store vv vx
 
 
+
+-- | Convert a whole compilation unit to llvm.
+cunit_to_llvm :: CUnit -> QpState (CodeGenModule ())
+cunit_to_llvm cu = do
+  -- declare the global variables
+  gvals <- return $ declare_globals (List.map fst $ vglobals cu)
+  -- declare the imported functions
+  ivals <- declare_imported (imports cu)
+  -- declare the functions
+  fvals <- declare_module_functions (functions cu)
+ 
+  return $ do
+        gvals <- gvals
+        ivals <- ivals
+        fvals <- fvals
+        let vals = IMap.union gvals $ IMap.union fvals ivals
+        define_module_functions vals (functions cu)

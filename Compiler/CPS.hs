@@ -85,7 +85,7 @@ instance Param CExpr where
 
 -- | Compilation unit.
 data CUnit = CUnit {
-  imports :: [Variable],                   -- ^ The list of functions and variables imported from extern modules.
+  imports :: [Value],                      -- ^ The list of functions and variables imported from extern modules.
   functions :: [FunctionDef],              -- ^ The list of function definitions. This includes internal functions, exported functions, and also global variables, for which variables
                                            -- only an accessor is made available.
   vglobals :: [GlobalDef]                  -- ^ Contains the list of global variables, along with the code initializing these variables.
@@ -254,13 +254,13 @@ convert_declarations :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib a
 convert_declarations dict decls = do
   -- build the list of imported variables
   let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
-  ivals <- List.foldl (\rec ix -> do
-        ivals <- rec
+  (ivals, imported) <- List.foldl (\rec ix -> do
+        (ivals, imported) <- rec
         tix <- type_of_global ix
         if CS.is_fun tix then
-          return $ IMap.insert ix (VLabel ix) ivals
+          return (IMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else
-          return $ IMap.insert ix (VGlobal ix) ivals) (return IMap.empty) imported 
+          return (IMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IMap.empty, [])) imported 
 
   -- translate the declarations
   (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
@@ -289,6 +289,7 @@ convert_declarations dict decls = do
               g <- create_var "g"       -- what will be the global variable of the llvm code
               k <- create_var "k"       -- the continuation of the accessor
               k' <- create_var "f"      -- extraction of the address of the continuation
+              fc <- create_var "fc"     -- dummy closure argument
 
               -- translate the computation of g
               init <- convert_to_cps dict vals (\z -> return $ CSet g z) e
@@ -301,7 +302,7 @@ convert_declarations dict decls = do
         
               -- return the whole
               return (cu { vglobals = (g, init):(vglobals cu),
-                           functions = (f, [k], access):(funs ++ functions cu) }, IMap.insert f (VGlobal f) vals)
+                           functions = (f, [fc,k], access):(funs ++ functions cu) }, IMap.insert f (VGlobal f) vals)
 
     ) (return (CUnit { functions = [], vglobals = [], imports = imported}, ivals)) decls
   return cu { functions = List.reverse $ functions cu, vglobals = List.reverse $ vglobals cu }
@@ -489,7 +490,10 @@ instance PPrint CUnit where
     let pcfuns = List.map (print_cfun fvar) (functions cu) in
     let (gdef, ginit) = List.unzip $ List.map (\(g, e) ->
           (text (fvar g), print_cexpr Inf fvar e)) (vglobals cu) in
-    let pimport = List.map (text . fvar) (imports cu) in
+    let pimport = List.map (\v -> case v of
+          VLabel x -> text $ fvar x
+          VGlobal x -> text $ fvar x
+          _ -> text "WATWATWAT") (imports cu) in
 
     let all =
           text "extern" <+> hsep (punctuate comma pimport) $$
