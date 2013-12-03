@@ -4,7 +4,7 @@
 module Compiler.SimplSyntax where
 
 import Classes hiding ((<+>))
-import Utils 
+import Utils
 
 import Monad.QuipperError
 
@@ -50,15 +50,15 @@ data Declaration =
 imports :: Expr -> [Variable]
 imports (EGlobal x) = [x]
 imports (EFun _ e) = imports e
-imports (ERecFun _ _ e) = imports e 
+imports (ERecFun _ _ e) = imports e
 imports (EApp e f) = List.union (imports e) (imports f)
 imports (ETuple elist) = List.nub $ List.concat $ List.map imports elist
 imports (ELet _ e f) = List.union (imports e) (imports f)
 imports (ESeq e f) = List.union (imports e) (imports f)
 imports (EIf e f g) = List.union (imports e) $ List.union (imports f) (imports g)
-imports (EMatch e clist) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] clist 
+imports (EMatch e clist) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] clist
 imports _ = []
- 
+
 
 
 -- * Printing functions.
@@ -76,7 +76,7 @@ print_doc _ (EAccess n v) fvar =
 print_doc _ EUnit _ =
   text "()"
 
-print_doc _ (EBool b) _ = 
+print_doc _ (EBool b) _ =
   if b then text "true" else text "false"
 
 print_doc _ (EInt n) _ =
@@ -113,7 +113,7 @@ print_doc lv (EApp e f) fvar =
       pf = print_doc dlv f fvar in
   (case e of
      EFun _ _ -> parens pe
-     _ -> pe) <+> 
+     _ -> pe) <+>
   (case f of
      EFun _ _ -> parens pf
      EApp _ _ -> parens pf
@@ -169,7 +169,7 @@ instance PPrint [Declaration] where
     ""
   genprint lv [fvar] ((DLet x e):ds) =
     let pre = genprint lv [fvar] e in
-    let prx = fvar x in    
+    let prx = fvar x in
     "let " ++ prx ++ " = " ++ pre ++ "\n" ++
     genprint lv [fvar] ds
 

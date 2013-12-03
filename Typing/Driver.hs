@@ -32,7 +32,9 @@ import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CPS as CPS
+import qualified Compiler.Alternate as Alt
 import Compiler.CPStoLLVM
+import qualified Compiler.AlttoLLVM as AL
 import Compiler.Interfaces
 
 import Monad.QpState
@@ -112,7 +114,7 @@ find_implementation_in_directories mod directories = do
   f <- find_in_directories mod directories ".qp"
   case f of
     Just f ->
-        return f 
+        return f
 
     Nothing ->
         -- The module doesn't exist
@@ -301,7 +303,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
       (VCirc _ c _, "visual") ->
           liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
-          liftIO $ putStrLn (pv ++ " : " ++ inferred) 
+          liftIO $ putStrLn (pv ++ " : " ++ inferred)
   else if toplevel mopts && not (runCompiler opts) then
     liftIO $ putStrLn ("-: "  ++ inferred)
   else
@@ -401,7 +403,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           -- Apply the substitution again
           --a' <- map_type a
           a' <- return a
-          -- Clean the constraint set 
+          -- Clean the constraint set
           gena <- make_polymorphic_type a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
 
           -- Update the typing context of u
@@ -410,7 +412,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- If the expression is not a value, it has a classical type
   else
     return (IMap.map typescheme_of_type gamma_p)
-    
+
 
   if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p
@@ -429,7 +431,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   ctx <- if run_interpret opts then do
     -- Reduce the argument e1
     v <- interpret (environment ctx) e'
-        
+
     -- Recursive function ?
     env <- case (recflag, v, drop_constraints p') of
           (Recursive, VFun ev arg body, PVar _ x) -> do
@@ -455,7 +457,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
         case (List.elem x fve, v) of
           (True, Zero) -> do
               n <- variable_name x
-              
+
               return $ ctx {
                     labelling = (labelling ctx) {
                           L.variables = Map.update (\v ->
@@ -484,11 +486,11 @@ explicit_datacons mod = do
               x <- create_var "x"
               y <- create_var "d"
               let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
-                    
+
               -- Update the definition of dcon
               ctx <- get_context
               set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
-            
+
               -- Update the module definition
               return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
 
@@ -504,7 +506,7 @@ explicit_datacons mod = do
 -- * processing of the algebraic type definitions.
 --
 -- * processing of each of the top-level declarations.
--- 
+--
 -- * linearity check at the end of the module implementation: checks that no
 -- global and non-duplicable variable is discarded.
 --
@@ -526,7 +528,7 @@ process_module opts prog = do
   ctx <- get_context
   old_stack <- return $ circuits ctx
   set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
- 
+
   -- Interpret all the declarations
   (ctx, decls) <- List.foldl (\rec decl -> do
         (ctx, decls) <- rec
@@ -548,7 +550,7 @@ process_module opts prog = do
   qst <- get_context
   set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
                       values = IMap.union (environment ctx) $ values qst }
-                            
+
   -- Push the definition of the new module to the stack
   let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.
                      M.declarations = List.reverse decls }
@@ -569,7 +571,7 @@ process_module opts prog = do
   where
       unLVar (LVar id) = id
       unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
-    
+
       unTAlgebraic (TBang _ (TAlgebraic id _)) = id
       unTAlgebraic _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
 
@@ -598,17 +600,19 @@ do_everything opts files = do
         let mopts = MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
         nm <- process_module (opts, mopts) p
 
-        -- Compilation 
+        -- Compilation
         decls <- transform_declarations (M.declarations nm)
+
         cunit <- CPS.convert_declarations (iqlib, ibuiltins) decls
+        aunit <- Alt.convert_declarations (iqlib, ibuiltins) decls
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var
 --        newlog (-2) $ genprint Inf [fvar] decls
-        newlog (-2) $ genprint Inf [fvar] cunit
+        newlog (-2) $ genprint Inf [fvar] aunit
 
 
-        cunit_to_llvm (S.module_name p) cunit
+        AL.cunit_to_llvm (S.module_name p) aunit
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.
@@ -616,7 +620,7 @@ do_everything opts files = do
       ) (return ()) deps
   return ()
 
-  
+
 -- ===================================== --
 
 
