@@ -41,7 +41,6 @@ data LValue =
     LVInt (L.Value ArchInt)                                               -- ^ Basic integers.
   | LVIntPtr (L.Value (Ptr ArchInt))                                      -- ^ Pointers.
   | LVFun2 (L.Function (ArchInt -> ArchInt -> IO ArchInt))                -- ^ Function taking two arguments.
-  | LVFun3 (L.Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))     -- ^ Function taking three arguments.
   | LVExtern String                                                       -- ^ An imported variable or function, by its name.
 
 
@@ -60,26 +59,22 @@ declare_globals (gx:gxs) = do
 
 
 -- | Proceed to the declaration of the module fucntions.
-declare_module_functions :: [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
-declare_module_functions [] =
+declare_module_functions :: Linkage -> [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
+declare_module_functions linkage [] =
   return $ return IMap.empty
-declare_module_functions ((f, [_,_], _):fs) = do
+declare_module_functions linkage ((f, [_,_], _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions fs
+  vals <- declare_module_functions linkage fs
   return (do
-        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        vf <- case linkage of
+              ExternalLinkage ->
+                  newNamedFunction linkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+              _ ->
+                  newFunction linkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun2 vf) m
       )
-declare_module_functions ((f, [_,_,_], _):fs) = do
-  nf <- variable_name f
-  vals <- declare_module_functions fs
-  return (do
-        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun3 vf) m
-      )
-declare_module_functions _ = do
+declare_module_functions _ _ = do
   fail "AlttpLLVM:declare_module_functions: illegal argument"
 
 
@@ -94,12 +89,6 @@ define_module_functions vals ((f, arg, c):fs) = do
               let vals' = IMap.insert x (LVInt vx) vals
               alt_to_llvm (IMap.insert y (LVInt vy) vals') c
         define_module_functions vals fs
-    (Just (LVFun3 f), [x,y,z]) -> do
-        defineFunction f $ \vx vy vz -> do
-              let vals' = IMap.insert x (LVInt vx) vals
-              let vals'' = IMap.insert y (LVInt vy) vals'
-              alt_to_llvm (IMap.insert z (LVInt vz) vals'') c
-        define_module_functions vals fs
     _ ->
         throwNE $ ProgramError "AlttoLLVM:define_module_functions: illegal argument"
 
@@ -110,7 +99,6 @@ lvalue_to_int :: LValue -> CodeGenFunction r (L.Value ArchInt)
 lvalue_to_int (LVInt v) = return v
 lvalue_to_int (LVIntPtr p) = load p
 lvalue_to_int (LVFun2 f) = ptrtoint f
-lvalue_to_int (LVFun3 f) = ptrtoint f
 lvalue_to_int _ = throwNE $ ProgramError "AlttoLLVM:lvalue_to_int: illegal argument"
 
 
@@ -272,14 +260,16 @@ cunit_to_llvm mods cu = do
   -- declare the global variables
   let gvals = declare_globals (List.map fst $ vglobals cu)
   -- declare the functions
-  fvals <- declare_module_functions (functions cu)
+  efvals <- declare_module_functions ExternalLinkage (extern cu)
+  lfvals <- declare_module_functions InternalLinkage (local cu)
 
   liftIO $ defineModule mod $ do
         gvals <- gvals
-        fvals <- fvals
-        let vals = IMap.union ivals (IMap.union gvals fvals)
+        efvals <- efvals
+        lfvals <- lfvals
+        let vals = IMap.union (IMap.union gvals ivals) (IMap.union lfvals efvals)
         -- define the functions
-        define_module_functions vals (functions cu)
+        define_module_functions vals (local cu ++ extern cu)
         -- define the module initializer
         createNamedFunction ExternalLinkage ("init" ++ mods) $
               List.foldr (\(_,cinit) rec -> do

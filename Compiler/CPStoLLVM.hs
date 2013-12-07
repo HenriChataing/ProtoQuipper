@@ -60,26 +60,34 @@ declare_globals (gx:gxs) = do
 
 
 -- | Proceed to the declaration of the module fucntions.
-declare_module_functions :: [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
-declare_module_functions [] =
+declare_module_functions :: Linkage -> [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
+declare_module_functions linkage [] =
   return $ return IMap.empty
-declare_module_functions ((f, [_,_], _):fs) = do
+declare_module_functions linkage ((f, [_,_], _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions fs
+  vals <- declare_module_functions linkage fs
   return (do
-        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        vf <- case linkage of
+              ExternalLinkage ->
+                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+              _ ->
+                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun2 vf) m
       )
-declare_module_functions ((f, [_,_,_], _):fs) = do
+declare_module_functions linkage ((f, [_,_,_], _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions fs
+  vals <- declare_module_functions linkage fs
   return (do
-        vf <- newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+        vf <- case linkage of
+              ExternalLinkage ->
+                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt-> IO ArchInt))
+              _ ->
+                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun3 vf) m
       )
-declare_module_functions _ = do
+declare_module_functions _ _ = do
   fail "CPStpLLVM:declare_module_functions: illegal argument"
 
 
@@ -245,14 +253,16 @@ cunit_to_llvm mods cu = do
   -- declare the global variables
   let gvals = declare_globals (List.map fst $ vglobals cu)
   -- declare the functions
-  fvals <- declare_module_functions (functions cu)
+  efvals <- declare_module_functions ExternalLinkage (extern cu)
+  lfvals <- declare_module_functions InternalLinkage (local cu)
 
   liftIO $ defineModule mod $ do
         gvals <- gvals
-        fvals <- fvals
-        let vals = IMap.union ivals (IMap.union gvals fvals)
+        efvals <- efvals
+        lfvals <- lfvals
+        let vals = IMap.union (IMap.union gvals ivals) (IMap.union lfvals efvals)
         -- define the functions
-        define_module_functions vals (functions cu)
+        define_module_functions vals (extern cu ++ local cu)
         -- define the module initializer
         createNamedFunction ExternalLinkage ("init" ++ mods) $
               List.foldr (\(_,cinit) rec -> do

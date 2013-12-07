@@ -85,8 +85,8 @@ instance Param CExpr where
 -- | Compilation unit.
 data CUnit = CUnit {
   imports :: [Value],                      -- ^ The list of functions and variables imported from extern modules.
-  functions :: [FunctionDef],              -- ^ The list of function definitions. This includes internal functions, exported functions, and also global variables, for which variables
-                                           -- only an accessor is made available.
+  local :: [FunctionDef],
+  extern :: [FunctionDef],
   vglobals :: [GlobalDef]                  -- ^ Contains the list of global variables, along with the code initializing these variables.
 }
 
@@ -267,7 +267,7 @@ convert_declarations dict decls = do
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { functions = (f, [fc,x,k], body):(funs ++ functions cu) },
+              return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) },
                       IMap.insert f (VLabel f) vals)
 
           S.ERecFun _ x c -> do
@@ -276,7 +276,7 @@ convert_declarations dict decls = do
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { functions = (f, [fc,x,k], body):(funs ++ functions cu) }, vals')
+              return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) }, vals')
 
           _ -> do
               -- translate the computation of g
@@ -285,8 +285,8 @@ convert_declarations dict decls = do
               -- return the extend compile unit
               return (cu { vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { functions = [], vglobals = [], imports = imported}, ivals)) decls
-  return cu { functions = List.reverse $ functions cu, vglobals = List.reverse $ vglobals cu }
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported}, ivals)) decls
+  return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
 
 
 -- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
@@ -467,7 +467,7 @@ instance PPrint CExpr where
 
 instance PPrint CUnit where
   genprint _ [fvar] cu =
-    let pcfuns = List.map (print_cfun fvar) (functions cu) in
+    let pcfuns = List.map (print_cfun fvar) (extern cu ++ local cu) in
     let (gdef, ginit) = List.unzip $ List.map (\(g, e) ->
           (text (fvar g), print_cexpr Inf fvar e)) (vglobals cu) in
     let pimport = List.map (\v -> case v of
