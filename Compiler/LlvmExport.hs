@@ -1,12 +1,12 @@
 {-# LANGUAGE CPP #-}
 
 -- | This module contains the functions necessary for the production of LLVM code.
-module Compiler.CPStoLLVM where
+module Compiler.LlvmExport where
 
 import Utils
 import Classes
 
-import Compiler.CPS as CPS
+import Compiler.CExpr as C
 
 import Monad.QpState
 import Monad.QuipperError
@@ -123,7 +123,7 @@ lvalue_to_int _ = throwNE $ ProgramError "CPStoLLVM:lvalue_to_int: illegal argum
 
 
 -- | Convert a CPS value to an LLVM integer, using trcast __LINE__ as needed.
-cvalue_to_int :: LContext -> CPS.Value -> CodeGenFunction r (L.Value ArchInt)
+cvalue_to_int :: LContext -> C.Value -> CodeGenFunction r (L.Value ArchInt)
 cvalue_to_int _ (VInt n) =
   return $ valueOf $ fromIntegral n
 cvalue_to_int vals (VLabel l) =

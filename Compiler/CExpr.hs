@@ -1,6 +1,6 @@
 -- | This module contains the definition of the last language used before the cnstruction of the LLVM module.
 -- It explicitates the flow control, and uses only simple operations.
-module Compiler.CPS where
+module Compiler.CExpr where
 
 import Prelude hiding (lookup)
 

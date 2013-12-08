@@ -31,8 +31,8 @@ import qualified Typing.LabellingContext as L
 import Typing.TransSyntax
 
 import Compiler.Preliminaries
-import qualified Compiler.CPS as CPS
-import Compiler.CPStoLLVM
+import qualified Compiler.CExpr as C
+import Compiler.LlvmExport
 import Compiler.Interfaces
 
 import Monad.QpState
@@ -601,7 +601,7 @@ do_everything opts files = do
         -- Compilation
         decls <- transform_declarations (M.declarations nm)
 
-        cunit <- CPS.convert_declarations (iqlib, ibuiltins) CPS.convert_to_cps decls
+        cunit <- C.convert_declarations (iqlib, ibuiltins) C.convert_to_cps decls
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var
