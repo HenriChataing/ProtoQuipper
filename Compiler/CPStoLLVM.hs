@@ -156,7 +156,31 @@ cexpr_to_llvm :: LContext                                      -- ^ Context of v
 cexpr_to_llvm _ (CFun _ _ _ _) =
   fail "CPStoLLVM:cexpr_to_llvm: illegal argument"
 
-cexpr_to_llvm vals (CApp f args) = do
+cexpr_to_llvm vals (CApp f args x c) = do
+  vf <- cvalue_to_int vals f
+  vargs <- List.foldr (\a rec -> do
+        as <- rec
+        a <- cvalue_to_int vals a
+        return $ a:as) (return []) args
+
+  -- build the function application
+  -- this suppose functions do not take more than 3 arguments (function closure, actual argument, continuation)
+  app <- case vargs of
+        [a] -> do
+            f <- inttoptr vf :: CodeGenFunction r (L.Value (Ptr (ArchInt -> IO ArchInt)))
+            call f a
+        [a,b] -> do
+            f <- inttoptr vf :: CodeGenFunction r (L.Value (Ptr (ArchInt -> ArchInt -> IO ArchInt)))
+            call f a b
+        [a,b,c] -> do
+            f <- inttoptr vf :: CodeGenFunction r (L.Value (Ptr (ArchInt -> ArchInt -> ArchInt -> IO ArchInt)))
+            call f a b c
+        _ ->
+            throwNE $ ProgramError "AlttoLLVM:alt_to_llvm: bad function application"
+  -- the return value is that of the function application
+  cexpr_to_llvm (IMap.insert x (LVInt app) vals) c
+
+cexpr_to_llvm vals (CTailApp f args) = do
   vf <- cvalue_to_int vals f
   vargs <- List.foldr (\a rec -> do
         as <- rec
@@ -228,6 +252,10 @@ cexpr_to_llvm vals (CSet x v) = do
   vv <- cvalue_to_int vals v
   vx <- inttoptr vx :: CodeGenFunction r (L.Value (Ptr ArchInt))
   store vv vx
+
+cexpr_to_llvm vals (CRet v) = do
+  vv <- cvalue_to_int vals v
+  ret vv
 
 
 

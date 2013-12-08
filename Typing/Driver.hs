@@ -32,9 +32,7 @@ import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CPS as CPS
-import qualified Compiler.Alternate as Alt
 import Compiler.CPStoLLVM
-import qualified Compiler.AlttoLLVM as AL
 import Compiler.Interfaces
 
 import Monad.QpState
@@ -603,16 +601,15 @@ do_everything opts files = do
         -- Compilation
         decls <- transform_declarations (M.declarations nm)
 
-        cunit <- CPS.convert_declarations (iqlib, ibuiltins) decls
-        aunit <- Alt.convert_declarations (iqlib, ibuiltins) decls
+        cunit <- CPS.convert_declarations (iqlib, ibuiltins) CPS.convert_to_cps decls
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var
 --        newlog (-2) $ genprint Inf [fvar] decls
-        newlog (-2) $ genprint Inf [fvar] aunit
+        newlog (-2) $ genprint Inf [fvar] cunit
 
 
-        AL.cunit_to_llvm (S.module_name p) aunit
+        cunit_to_llvm (S.module_name p) cunit
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

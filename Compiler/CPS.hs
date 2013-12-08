@@ -1,4 +1,5 @@
-{- This module contains the conversion from the pattern-less proto quipper to Continuation Passing Style. -}
+-- | This module contains the definition of the last language used before the cnstruction of the LLVM module.
+-- It explicitates the flow control, and uses only simple operations.
 module Compiler.CPS where
 
 import Prelude hiding (lookup)
@@ -25,12 +26,12 @@ import qualified Data.IntMap as IMap
 data Value =
     VVar Variable          -- ^ A local variable _ function or not.
   | VInt Int               -- ^ An integer.
-  | VLabel Variable        -- ^ The label of a (global) function.
-  | VGlobal Variable       -- ^ A global variable _ doesn't include functions.
+  | VLabel Variable        -- ^ The label of an extern function.
+  | VGlobal Variable       -- ^ A reference to a global variable.
   deriving (Show, Eq)
 
 
--- | Are considered free variables only variables bound in a local scope and not a function.
+-- | Are considered free variables only variables bound in a local scope.
 instance Param Value where
   free_var (VVar x) = [x]
   free_var _ = []
@@ -38,7 +39,7 @@ instance Param Value where
   subs_var _ _ v = v
 
 
--- | Context of CPS values.
+-- | Context of values used during the translation.
 type CContext = IntMap Value
 
 
@@ -50,14 +51,16 @@ value vals x =
     Nothing -> VVar x
 
 
--- | Definition of continuations.
+-- | Definition of expressions.
 data CExpr =
-    CFun Variable [Variable] CExpr CExpr           -- ^ Function abstraction: @fun x1 .. xN -> t@.
-  | CApp Value [Value]                             -- ^ Function application: @t u@.
-  | CTuple [Value] Variable CExpr                  -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+    CFun Variable [Variable] CExpr CExpr           -- ^ Function abstraction: @fun x1 .. xN -> t@. All definitions are recursive.
+  | CTailApp Value [Value]                         -- ^ Application of a function in tail position: @t u@.
+  | CApp Value [Value] Variable CExpr              -- ^ Application of a function, with a continuation.
+  | CTuple [Value] Variable CExpr                  -- ^ Construction of a tuple: @(/t/1, .. , /t//n/)@.
   | CAccess Int Value Variable CExpr               -- ^ Access the nth element of a tuple.
   | CSwitch Value [CExpr]                          -- ^ Switch condition.
   | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
+  | CRet Value                                     -- ^ Return a value. This instruction is terminal.
   deriving Show
 
 
@@ -65,9 +68,12 @@ data CExpr =
 instance Param CExpr where
   free_var (CFun f args cf c) =
     List.union (free_var cf List.\\ args) (free_var c List.\\ [f])
-  free_var (CApp f args) =
+  free_var (CApp f args x c) =
     List.foldl (\fv a ->
-          List.union (free_var a) fv) (free_var f) args
+          List.union (free_var a) fv) (free_var c List.\\ [x]) (f:args)
+  free_var (CTailApp f args) =
+    List.foldl (\fv a ->
+          List.union (free_var a) fv) [] (f:args)
   free_var (CTuple vlist x c) =
     let fvl = List.foldl (\fv a ->
           List.union (free_var a) fv) [] vlist in
@@ -78,6 +84,7 @@ instance Param CExpr where
     List.foldl (\fv c ->
           List.union (free_var c) fv) (free_var v) clist
   free_var (CSet x v) = free_var v
+  free_var (CRet v) = free_var v
 
   subs_var _ _ c = c
 
@@ -97,7 +104,8 @@ type FunctionDef = (Variable, [Variable], CExpr)
 -- | The type of global variable declarations.
 type GlobalDef = (Variable, CExpr)
 
-
+-- | The type of conversion functions.
+type Conversion = ((IQLib, IBuiltins) -> CContext -> (Value -> QpState CExpr) -> S.Expr -> QpState CExpr)
 
 
 -- | Convert an expression from the simplified syntax to the continuation passing style.
@@ -157,7 +165,7 @@ convert_to_cps dict vals c (S.EFun x e) = do
   f <- create_var "f"       -- function name
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
-  body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) e
+  body <- convert_to_cps dict vals (\z -> return $ CTailApp (VVar k) [z]) e
   -- The reference f of the function is passed to the building continuation c
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
@@ -166,7 +174,7 @@ convert_to_cps dict vals c (S.ERecFun f x e) = do
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   let vals' = IMap.insert f (VVar f) vals
-  body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) e
+  body <- convert_to_cps dict vals' (\z -> return $ CTailApp (VVar k) [z]) e
   -- The reference f of the function is passed to the building continuation c
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
@@ -178,13 +186,13 @@ convert_to_cps dict vals c (S.EApp (S.EVar f) arg) = do
   case value vals f of
     VLabel f -> do
         app <- convert_to_cps dict vals (\arg ->
-              return $ CApp (VLabel f) [arg, VVar r]) arg
+              return $ CTailApp (VLabel f) [arg, VVar r]) arg
         cx <- c (VVar x)
         return $ CFun r [x] cx app
     _ -> do
         app <- convert_to_cps dict vals (\f ->
               convert_to_cps dict vals (\arg ->
-              return $ CApp f [arg, VVar r]) arg) (S.EVar f)
+              return $ CTailApp f [arg, VVar r]) arg) (S.EVar f)
         cx <- c (VVar x)
         return $ CFun r [x] cx app
 
@@ -196,7 +204,7 @@ convert_to_cps dict vals c (S.EApp f arg) = do
   x <- create_var "x"       -- argument of the return address
   app <- convert_to_cps dict vals (\f ->
         convert_to_cps dict vals (\arg ->
-              return $ CApp f [arg, VVar r]) arg) f
+              return $ CTailApp f [arg, VVar r]) arg) f
   cx <- c (VVar x)
   return $ CFun r [x] cx app
 
@@ -211,8 +219,8 @@ convert_to_cps dict vals c (S.EIf e f g) = do
   k <- create_var "k"
   x <- create_var "x"
   cx <- c (VVar x)
-  f' <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) f
-  g' <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) g
+  f' <- convert_to_cps dict vals (\z -> return $ CTailApp (VVar k) [z]) f
+  g' <- convert_to_cps dict vals (\z -> return $ CTailApp (VVar k) [z]) g
   convert_to_cps dict vals (\e ->
         return $ CFun k [x] cx $
                  CSwitch e [g', f']) e
@@ -224,7 +232,7 @@ convert_to_cps dict vals c (S.EMatch e blist) = do
   let slist = List.sortBy (\(n,_) (m,_) -> compare n m) blist
   elist' <- List.foldl (\rec (_, e) -> do
         es <- rec
-        e' <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) e
+        e' <- convert_to_cps dict vals (\z -> return $ CTailApp (VVar k) [z]) e
         return $ e':es) (return []) slist
   convert_to_cps dict vals (\e ->
         return $ CFun k [x] cx $
@@ -240,14 +248,146 @@ convert_to_cps (iqlib, ibuiltins) vals c (S.EBuiltin s) =
 
 
 
+-- | Convert an expression from the simplified syntax to a weak form of the continuation passing style, where only branching conditions impose the use of continuations.
+convert_to_wcps :: (IQLib, IBuiltins)              -- ^ Interfaces to the QLib and Builtins modules.
+               -> CContext                        -- ^ Current context.
+               -> (Value -> QpState CExpr)        -- ^ A continuation.
+               -> S.Expr                          -- ^ Argument expression.
+               -> QpState CExpr                   -- ^ The resulting continuation expression.
+convert_to_wcps dict vals c (S.EVar x) =
+  case value vals x of
+    -- global functions when handled as objects must be boxed
+    VLabel gx -> do
+        cf <- create_var "f"      -- function closure
+        cx <- c (VVar cf)
+        return $ CTuple [VLabel gx] cf cx
+    v ->
+        c v
+
+convert_to_wcps dict vals c (S.EGlobal x) =
+  convert_to_wcps dict vals c (S.EVar x)
+
+convert_to_wcps dict vals c (S.EInt n) =
+  c (VInt n)
+
+convert_to_wcps dict vals c (S.EBool b) =
+  c (if b then VInt 1 else VInt 0)
+
+convert_to_wcps dict vals c S.EUnit =
+  c (VInt 0)
+
+convert_to_wcps dict vals c (S.ETuple []) =
+  c (VInt 0)
+
+convert_to_wcps dict vals c (S.ETuple elist) = do
+  x <- create_var "x"
+  aux elist (\w -> do
+        cx <- c (VVar x)
+        return $ CTuple w x cx)
+  where
+    aux l c = do
+      let aux' [] w = c (List.reverse w)
+          aux' (e:es) w = convert_to_wcps dict vals (\v -> aux' es (v:w)) e
+      aux' l []
+
+convert_to_wcps dict vals c (S.EAccess n x) = do
+  y <- create_var "x"
+  cy <- c (VVar y)
+  return $ CAccess n (value vals x) y cy
+  where
+    unVVar (VVar x) = x
+    unVVar (VLabel x) = x
+    unVVar (VGlobal x) = x
+    unVVar _ = throwNE $ ProgramError "CPS:unVVar: illegal argument"
+
+convert_to_wcps dict vals c (S.EFun x e) = do
+  f <- create_var "f"       -- function name
+  -- At the end of the body, the result is returned using CRet
+  body <- convert_to_wcps dict vals (\z -> return $ CRet z) e
+  -- The reference f of the function is passed to the building continuation c
+  cf <- c (VVar f)
+  return $ CFun f [x] body $ cf
+
+convert_to_wcps dict vals c (S.ERecFun f x e) = do
+  -- At the end of the body, the result is returned using CRet k
+  let vals' = IMap.insert f (VVar f) vals
+  body <- convert_to_wcps dict vals' (\z -> return $ CRet z) e
+  -- The reference f of the function is passed to the building continuation c
+  cf <- c (VVar f)
+  return $ CFun f [x] body $ cf
+
+-- the direct application of global functions is treated separately.
+convert_to_wcps dict vals c (S.EApp (S.EVar f) arg) = do
+  x <- create_var "x"    -- result of the application
+  case value vals f of
+    VLabel f -> do
+        cx <- c (VVar x)
+        convert_to_wcps dict vals (\arg ->
+              return $ CApp (VLabel f) [arg] x cx) arg
+    _ -> do
+        cx <- c (VVar x)
+        convert_to_wcps dict vals (\f ->
+              convert_to_wcps dict vals (\arg ->
+                    return $ CApp f [arg] x cx) arg) (S.EVar f)
+
+convert_to_wcps dict vals c (S.EApp (S.EGlobal f) arg) =
+  convert_to_wcps dict vals c (S.EApp (S.EVar f) arg)
+
+convert_to_wcps dict vals c (S.EApp f arg) = do
+  x <- create_var "x"       -- result of the application
+  cx <- c (VVar x)
+  convert_to_wcps dict vals (\f ->
+        convert_to_wcps dict vals (\arg ->
+              return $ CApp f [arg] x cx) arg) f
+
+convert_to_wcps dict vals c (S.ESeq e f) = do
+  convert_to_wcps dict vals (\z -> convert_to_wcps dict vals c f) e
+
+convert_to_wcps dict vals c (S.ELet x e f) = do
+  convert_to_wcps dict vals (\z -> do
+        convert_to_wcps dict (IMap.insert x z vals) c f) e
+
+convert_to_wcps dict vals c (S.EIf e f g) = do
+  k <- create_var "k"
+  x <- create_var "x"
+  cx <- c (VVar x)
+  f' <- convert_to_wcps dict vals (\z -> return $ CTailApp (VVar k) [z]) f
+  g' <- convert_to_wcps dict vals (\z -> return $ CTailApp (VVar k) [z]) g
+  convert_to_wcps dict vals (\e ->
+        return $ CFun k [x] cx $
+                 CSwitch e [g', f']) e
+
+convert_to_wcps dict vals c (S.EMatch e blist) = do
+  -- until a better solution is found, each branch finishes with a call to the function implementing the continuation
+  k <- create_var "k"
+  x <- create_var "x"
+  cx <- c (VVar x)
+  let slist = List.sortBy (\(n,_) (m,_) -> compare n m) blist
+  elist' <- List.foldl (\rec (_, e) -> do
+        es <- rec
+        e' <- convert_to_wcps dict vals (\z -> return $ CTailApp (VVar k) [z]) e
+        return $ e':es) (return []) slist
+  convert_to_wcps dict vals (\e ->
+        return $ CFun k [x] cx $
+                 CSwitch e (List.reverse elist')) e
+
+convert_to_wcps (iqlib, ibuiltins) vals c (S.EBuiltin s) =
+  case lookup s iqlib of
+    Just v -> c (VGlobal v)
+    Nothing ->
+        case lookup s ibuiltins of
+          Just v -> c (VGlobal v)
+          Nothing -> fail $ "CPS:convert_to_wcps: undefined builtin operation: " ++ s
+
 
 
 -- | Convert the toplevel declarations into CPS form.
 -- By default, the evalution finishes by a call to @exit 0@.
 convert_declarations :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib and Builtins modules.
+                     -> Conversion                 -- ^ The translation method used.
                      -> [S.Declaration]            -- ^ List of declarations.
                      -> QpState CUnit              -- ^ Resulting compile unit.
-convert_declarations dict decls = do
+convert_declarations dict convert decls = do
   -- build the list of imported variables
   let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
@@ -265,7 +405,7 @@ convert_declarations dict decls = do
           S.EFun x c -> do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
-              body <- convert_to_cps dict vals (\z -> return $ CApp (VVar k) [z]) c
+              body <- convert dict vals (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) },
                       IMap.insert f (VLabel f) vals)
@@ -274,13 +414,13 @@ convert_declarations dict decls = do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
-              body <- convert_to_cps dict vals' (\z -> return $ CApp (VVar k) [z]) c
+              body <- convert dict vals' (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) }, vals')
 
           _ -> do
               -- translate the computation of g
-              init <- convert_to_cps dict vals (\z -> return $ CSet f z) e
+              init <- convert dict vals (\z -> return $ CSet f z) e
               (funs,init) <- closure_conversion init >>= return . lift_functions
               -- return the extend compile unit
               return (cu { vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
@@ -313,15 +453,28 @@ closure_conversion_aux (CFun f args cf c) = do
   -- re-definition of the function f
   return (CFun f' (f'':args) cf'' c'', List.union fv (fvc List.\\ [f]))
 
-closure_conversion_aux (CApp (VVar f) args) = do
+closure_conversion_aux (CApp (VVar f) args x c) = do
+  f' <- create_var "f"
+  (c', fvc) <- closure_conversion_aux c
+  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+           CApp (VVar f') (VVar f:args) x c',          -- Apply the function to its own closure
+           List.union (fvc List.\\ [x]) (f:(List.concat $ List.map free_var args)) )
+
+-- since global functions are already closed, only a dummy closure is passed as argument.
+closure_conversion_aux (CApp (VLabel f) args x c) = do
+  (c', fvc) <- closure_conversion_aux c
+  return ( CApp (VLabel f) (VInt 0:args) x c',         -- Apply the function to a dummy closure (0)
+           List.union (fvc List.\\ [x]) (List.concat $ List.map free_var args) )
+
+closure_conversion_aux (CTailApp (VVar f) args) = do
   f' <- create_var "f"
   return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CApp (VVar f') (VVar f:args),               -- Apply the function to its own closure
+           CTailApp (VVar f') (VVar f:args),           -- Apply the function to its own closure
            f:(List.concat $ List.map free_var args) )
 
 -- since global functions are already closed, only a dummy closure is passed as argument.
-closure_conversion_aux (CApp (VLabel f) args) = do
-  return ( CApp (VLabel f) (VInt 0:args),               -- Apply the function to a dummy closure (1)
+closure_conversion_aux (CTailApp (VLabel f) args) = do
+  return ( CTailApp (VLabel f) (VInt 0:args),               -- Apply the function to a dummy closure (1)
            List.concat $ List.map free_var args )
 
 closure_conversion_aux (CTuple vlist x c) = do
@@ -355,7 +508,7 @@ closure_conversion e = do
 -- | Lift the function definitions to the top of the module.
 -- This function separates the function definitions from the rest of the continuation expression.
 -- Since this operation is sound only if the functions are closed, this has to be done after the closure conversion.
-lift_functions :: CExpr -> ([(Variable, [Variable], CExpr)],CExpr)
+lift_functions :: CExpr -> ([FunctionDef], CExpr)
 lift_functions (CFun f args cf c) =
   let (funs, c') = lift_functions c
       (funs', cf') = lift_functions cf in
@@ -375,8 +528,13 @@ lift_functions (CSwitch v clist) =
         (fs' ++ fs, c':cl)) ([], []) clist in
   (funs, CSwitch v $ List.reverse clist')
 
+lift_functions (CApp f args x c) =
+  let (funs, c') = lift_functions c in
+  (funs, CApp f args x c')
+
 lift_functions c =
  ([], c)
+
 
 
 
@@ -420,11 +578,12 @@ print_cexpr :: Lvl                   -- ^ Maximum depth.
             -> (Variable -> String)  -- ^ Rendering of term variables.
             -> CExpr                 -- ^ Expression to print.
             -> Doc                   -- ^ Resulting PP document.
-print_cexpr _ _ (CApp (VInt _) _) =
-  text "WATWATWAT"
-print_cexpr _ fvar (CApp f []) =
-  print_value fvar f <> text "();"
-print_cexpr _ fvar (CApp f args) =
+print_cexpr _ fvar (CApp f args x c) =
+  let pargs = List.map (print_value fvar) args
+      sargs = punctuate comma pargs in
+  text (fvar x) <+> text ":=" <+> print_value fvar f <> text "(" <> hsep sargs <> text ");" $$
+  print_cexpr Inf fvar c
+print_cexpr _ fvar (CTailApp f args) =
   let pargs = List.map (print_value fvar) args
       sargs = punctuate comma pargs in
   print_value fvar f <> text "(" <> hsep sargs <> text ");"
@@ -448,6 +607,9 @@ print_cexpr _ fvar (CFun _ _ _ _) =
   text ""
 print_cexpr _ fvar (CSet x v) =
   text (fvar x) <+> text ":=" <+> print_value fvar v
+print_cexpr _ fvar (CRet v) =
+  text "ret" <+> print_value fvar v
+
 
 
 instance PPrint CExpr where
@@ -456,7 +618,7 @@ instance PPrint CExpr where
     let doc = print_cexpr lv fvar e in
     PP.render doc
   genprint lv _ e =
-    throwNE $ ProgramError "Preliminaries:genprint(CExpr): illegal argument"
+    throwNE $ ProgramError "CPS:genprint(CExpr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
