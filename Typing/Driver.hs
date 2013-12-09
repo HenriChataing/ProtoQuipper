@@ -601,7 +601,10 @@ do_everything opts files = do
         -- Compilation
         decls <- transform_declarations (M.declarations nm)
 
-        cunit <- C.convert_declarations (iqlib, ibuiltins) C.convert_to_cps decls
+        cunit <- case conversionFormat opts of
+              "cps" -> C.convert_declarations_to_cps (iqlib, ibuiltins) decls
+              "wcps" -> C.convert_declarations_to_wcps (iqlib, ibuiltins) decls
+              _ -> fail "Driver:do_everything: illegal format"
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
         fvar <- display_var

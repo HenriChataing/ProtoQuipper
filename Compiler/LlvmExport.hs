@@ -135,18 +135,18 @@ cvalue_to_int vals (VLabel l) =
         p <- externFunction s :: CodeGenFunction r (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
         ptrtoint p
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError "CPStoLLVM:lvalue_to_int: undefined variable"
+    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined label"
 cvalue_to_int vals (VGlobal g) =
   case IMap.lookup g vals of
     Just (LVExtern s) -> do
-        p <- externGlobal False s
-        load p
+        p <- externGlobal False s :: CodeGenFunction r (L.Value (Ptr ArchInt))
+        ptrtoint p
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError "CPStoLLVM:lvalue_to_int: undefined variable"
+    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined global"
 cvalue_to_int vals (VVar x) =
   case IMap.lookup x vals of
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError "CPStoLLVM:vlookup: undefined variable"
+    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined variable"
 
 
 
@@ -158,10 +158,10 @@ cexpr_to_llvm _ (CFun _ _ _ _) =
   fail "CPStoLLVM:cexpr_to_llvm: illegal argument"
 
 cexpr_to_llvm vals (CApp f args x c) = do
-  vf <- cvalue_to_int vals f
+  vf <- cvalue_to_int  vals f
   vargs <- List.foldr (\a rec -> do
         as <- rec
-        a <- cvalue_to_int vals a
+        a <- cvalue_to_int  vals a
         return $ a:as) (return []) args
 
   -- build the function application
@@ -182,10 +182,10 @@ cexpr_to_llvm vals (CApp f args x c) = do
   cexpr_to_llvm (IMap.insert x (LVInt app) vals) c
 
 cexpr_to_llvm vals (CTailApp f args) = do
-  vf <- cvalue_to_int vals f
+  vf <- cvalue_to_int  vals f
   vargs <- List.foldr (\a rec -> do
         as <- rec
-        a <- cvalue_to_int vals a
+        a <- cvalue_to_int  vals a
         return $ a:as) (return []) args
 
   -- build the function application
@@ -225,7 +225,7 @@ cexpr_to_llvm vals (CTuple vlist x c) = do
 
 cexpr_to_llvm vals (CAccess n x y c) = do
   -- retrieve the array from the context
-  vx <- cvalue_to_int vals x
+  vx <- cvalue_to_int  vals x
   ptr <- inttoptr vx :: CodeGenFunction r (L.Value (Ptr ArchInt))
   -- access the nth element of the array
   ptrn <- getElementPtr ptr (fromIntegral n :: ArchInt, ())
@@ -235,7 +235,7 @@ cexpr_to_llvm vals (CAccess n x y c) = do
 
 cexpr_to_llvm vals (CSwitch x clist) = do
   -- translate the value v, and check that it is indeed an integer
-  vx <- cvalue_to_int vals x
+  vx <- cvalue_to_int  vals x
   -- build the switch cases
   cases <- List.foldl (\rec c -> do
         blocks <- rec
@@ -249,13 +249,13 @@ cexpr_to_llvm vals (CSwitch x clist) = do
   switch vx dcase $ List.zip tags bcases
 
 cexpr_to_llvm vals (CSet x v) = do
-  vx <- cvalue_to_int vals (VVar x)
-  vv <- cvalue_to_int vals v
+  vx <- cvalue_to_int  vals (VVar x)
+  vv <- cvalue_to_int  vals v
   vx <- inttoptr vx
   store vv vx
 
 cexpr_to_llvm vals (CRet v) = do
-  vv <- cvalue_to_int vals v
+  vv <- cvalue_to_int  vals v
   ret vv
 
 

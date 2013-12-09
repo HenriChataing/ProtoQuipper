@@ -36,7 +36,7 @@ import qualified Data.Map as Map
 import Data.List as List
 import Data.Array as Array
 import qualified Data.Set as Set
-import Data.Sequence as Seq 
+import Data.Sequence as Seq
 
 
 
@@ -112,23 +112,23 @@ empty_circOps = CircOps {
 
 -- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
 -- from parsing to interpretation and type inference. We prefer using a single context to using
--- several module-specific contexts, to avoid having to convey information between different kinds of state. 
+-- several module-specific contexts, to avoid having to convey information between different kinds of state.
 -- This also means that all the data structures required by each module must be included in the context, which now
 -- contains:
--- 
+--
 -- *  A logfile, used for regular and debug printing.
--- 
+--
 -- *  Information relevant to the original expression (location in file, sample of the current expression).
--- 
+--
 -- *  A namespace to record the variables of the original expression.
--- 
+--
 -- *  The definition of the user types, recorded as a map mapping each data constructor to the argument type and the data type it is part of.
--- 
+--
 -- *  For the interpreter: an evaluation context, including the current circuit and mappings.
 
 data QContext = QCtx {
 
--- Log file  
+-- Log file
   logfile :: Logfile,                                 -- ^ Log file currently in use.
 
 -- Variable naming
@@ -142,7 +142,7 @@ data QContext = QCtx {
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
 
--- Helpers of the typing / interpretation 
+-- Helpers of the typing / interpretation
   algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
   synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
 
@@ -178,7 +178,7 @@ data QContext = QCtx {
   flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
   qubit_id :: Int,                                    -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
   ref_id :: Int,                                      -- ^ Used to generate new references.
-     
+
 -- Substitution from type variable to types
   mappings :: IntMap LinType                          -- ^ The result of the unification: a mapping from type variables to linear types.
 }
@@ -194,7 +194,7 @@ instance Monad QpState where
   return a = QpState { runS = (\ctx -> return (ctx, a)) }
   fail s = QpState { runS = (\ctx -> Q.throwNE $ ProgramError s) }
   st >>= action = QpState { runS = (\ctx -> do
-                                    (ctx', a) <- runS st ctx 
+                                    (ctx', a) <- runS st ctx
                                     st' <- return $ action a
                                     runS st' ctx') }
 
@@ -242,10 +242,10 @@ empty_context =  QCtx {
 -- No modules
   modules = [],
   dependencies = [],
- 
+
 -- No global variables
   globals = IMap.empty,
-  values = IMap.empty, 
+  values = IMap.empty,
 
 -- No builtins, added later
   builtins = Map.empty,
@@ -279,7 +279,7 @@ empty_context =  QCtx {
   type_id = 0,
   Monad.QpState.qubit_id = 0,
   ref_id = 1,
-      
+
   mappings = IMap.empty
 }
 
@@ -427,7 +427,7 @@ variable_name x = do
         return $ prevar "x" x
 
 
--- | Retrieve the reference the vairable was given at its declaration. 
+-- | Retrieve the reference the vairable was given at its declaration.
 variable_reference :: Variable -> QpState Ref
 variable_reference x = do
   ctx <- get_context
@@ -621,7 +621,7 @@ datacon_def id = do
   case IMap.lookup id $ datacons ctx of
     Just def ->
         return def
-  
+
     Nothing ->
         -- The sound definition of the data constructors has already been checked
         -- during the translation into the core syntax
@@ -671,7 +671,7 @@ constructors_tags typ = do
 assert :: Assertion -> Type -> ConstraintInfo -> QpState ()
 assert ast typ info = do
   ctx <- get_context
-  set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) } 
+  set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) }
 
 
 -- | Check the assertions, then remove them. If one assertion is not verified, an error is thrown.
@@ -720,7 +720,7 @@ set_flag ref info = do
         throw_NonDuplicableError info
     1 -> return ()
     _ -> do
-        ctx <- get_context 
+        ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just i -> do
               case f_value i of
@@ -750,7 +750,7 @@ unset_flag ref info = do
     1 -> do
         throw_NonDuplicableError info
     _ -> do
-        ctx <- get_context 
+        ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just i -> do
               case f_value i of
@@ -778,7 +778,7 @@ fresh_flag = do
   ctx <- get_context
   let id = flag_id ctx
   set_context $ ctx { flag_id = id + 1 }
-  return id 
+  return id
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
@@ -791,7 +791,7 @@ fresh_flag_with_value v = do
   id <- return $ flag_id ctx
   set_context ctx { flag_id = id + 1,
                       flags = IMap.insert id (FInfo { f_value = v }) $ flags ctx }
-  return id 
+  return id
 
 
 -- | Create a new flag reference, initialized with the information
@@ -902,7 +902,7 @@ rewrite_flags_in_lintype (TTensor tlist) = do
                           r <- rec
                           t' <- rewrite_flags t
                           return (t':r)) (return []) tlist
-  return (TTensor tlist')  
+  return (TTensor tlist')
 
 rewrite_flags_in_lintype (TCirc t u) = do
   t' <- rewrite_flags t
@@ -931,7 +931,7 @@ rewrite_flags (TBang n t) = do
   if n < 2 then
     return (TBang n t')
   else do
-    v <- flag_value n 
+    v <- flag_value n
     case v of
       One ->
           return (TBang 1 t')
@@ -1026,8 +1026,8 @@ throw_TypingError t u info = do
 
   -- Get the location / expression
   let ref = c_ref info
-  (ex, expr) <- ref_expression ref 
- 
+  (ex, expr) <- ref_expression ref
+
   -- Get the original type
   ori <- case c_type info of
            Just a -> do
@@ -1271,7 +1271,7 @@ display_ref ff = do
                   n | n >= 2 -> case IMap.lookup n refs of
                                   Just FInfo { f_value = One } -> "!"
                                   Just FInfo { f_value = Zero } -> ""
-                                  _ -> 
+                                  _ ->
                                       case List.lookup n attr of
                                         Just nm -> "(" ++ nm ++ ")"
                                         Nothing -> "(" ++ show n ++ ")"
@@ -1303,7 +1303,7 @@ pprint_pattern_noref :: Pattern -> QpState String
 pprint_pattern_noref p = do
   fvar <- display_var
   fdata <- display_datacon
-  
+
   return $ genprint Inf [fvar, fdata] p
 
 

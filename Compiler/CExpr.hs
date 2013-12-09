@@ -392,12 +392,10 @@ convert_to_wcps (iqlib, ibuiltins) vals c (S.EBuiltin s) =
 
 
 -- | Convert the toplevel declarations into CPS form.
--- By default, the evalution finishes by a call to @exit 0@.
-convert_declarations :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib and Builtins modules.
-                     -> Conversion                 -- ^ The translation method used.
-                     -> [S.Declaration]            -- ^ List of declarations.
-                     -> QpState CUnit              -- ^ Resulting compile unit.
-convert_declarations dict convert decls = do
+convert_declarations_to_cps :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib and Builtins modules.
+                            -> [S.Declaration]            -- ^ List of declarations.
+                            -> QpState CUnit              -- ^ Resulting compile unit.
+convert_declarations_to_cps dict decls = do
   -- build the list of imported variables
   let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
@@ -415,7 +413,7 @@ convert_declarations dict convert decls = do
           S.EFun x c -> do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
-              body <- convert dict vals (\z -> return $ CTailApp (VVar k) [z]) c
+              body <- convert_to_cps dict vals (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) },
                       IMap.insert f (VLabel f) vals)
@@ -424,19 +422,65 @@ convert_declarations dict convert decls = do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
-              body <- convert dict vals' (\z -> return $ CTailApp (VVar k) [z]) c
+              body <- convert_to_cps dict vals' (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) }, vals')
 
           _ -> do
               -- translate the computation of g
-              init <- convert dict vals (\z -> return $ CSet f z) e
+              init <- convert_to_cps dict vals (\z -> return $ CSet f z) e
               (funs,init) <- closure_conversion init >>= return . lift_functions
               -- return the extend compile unit
-              return (cu { vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
+              return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
     ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported}, ivals)) decls
   return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
+
+
+-- | Convert the toplevel declarations into wCPS form.
+convert_declarations_to_wcps :: (IQLib, IBuiltins)         -- ^ Interfaces to the QLib and Builtins modules.
+                            -> [S.Declaration]            -- ^ List of declarations.
+                            -> QpState CUnit              -- ^ Resulting compile unit.
+convert_declarations_to_wcps dict decls = do
+  -- build the list of imported variables
+  let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
+  (ivals, imported) <- List.foldl (\rec ix -> do
+        (ivals, imported) <- rec
+        tix <- type_of_global ix
+        if CS.is_fun tix then
+          return (IMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
+        else
+          return (IMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IMap.empty, [])) imported
+
+  -- translate the declarations
+  (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
+        (cu, vals) <- rec
+        case e of
+          S.EFun x c -> do
+              fc <- create_var "fc"     -- closure argument
+              body <- convert_to_wcps dict vals (\z -> return $ CRet z) c
+              (funs, body) <- closure_conversion body >>= return . lift_functions
+              return (cu { local = funs ++ local cu, extern = (f, [fc,x], body):(extern cu) },
+                      IMap.insert f (VLabel f) vals)
+
+          S.ERecFun _ x c -> do
+              fc <- create_var "fc"     -- closure argument
+              let vals' = IMap.insert f (VLabel f) vals
+              body <- convert_to_wcps dict vals' (\z -> return $ CRet z) c
+              (funs, body) <- closure_conversion body >>= return . lift_functions
+              return (cu { local = funs ++ local cu, extern = (f, [fc,x], body):(extern cu) }, vals')
+
+          _ -> do
+              -- translate the computation of g
+              init <- convert_to_wcps dict vals (\z -> return $ CSet f z) e
+              (funs,init) <- closure_conversion init >>= return . lift_functions
+              -- return the extend compile unit
+              return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
+
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported}, ivals)) decls
+  return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
+
+
 
 
 -- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
