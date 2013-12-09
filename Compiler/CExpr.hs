@@ -59,8 +59,8 @@ data CExpr =
   | CTuple [Value] Variable CExpr                  -- ^ Construction of a tuple: @(/t/1, .. , /t//n/)@.
   | CAccess Int Value Variable CExpr               -- ^ Access the nth element of a tuple.
   | CSwitch Value [CExpr]                          -- ^ Switch condition.
-  | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
   | CRet Value                                     -- ^ Return a value. This instruction is terminal.
+  | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
   deriving Show
 
 
@@ -122,6 +122,11 @@ convert_to_cps dict vals c (S.EVar x) =
         cf <- create_var "f"      -- function closure
         cx <- c (VVar cf)
         return $ CTuple [VLabel gx] cf cx
+    -- global variables when handled as objects must be unboxed
+    VGlobal gx -> do
+        ug <- create_var "ug"
+        cug <- c (VVar ug)
+        return $ CAccess 0 (VGlobal gx) ug cug
     v ->
         c v
 
@@ -249,7 +254,7 @@ convert_to_cps (iqlib, ibuiltins) vals c (S.EBuiltin s) =
 
 
 -- | Convert an expression from the simplified syntax to a weak form of the continuation passing style, where only branching conditions impose the use of continuations.
-convert_to_wcps :: (IQLib, IBuiltins)              -- ^ Interfaces to the QLib and Builtins modules.
+convert_to_wcps :: (IQLib, IBuiltins)             -- ^ Interfaces to the QLib and Builtins modules.
                -> CContext                        -- ^ Current context.
                -> (Value -> QpState CExpr)        -- ^ A continuation.
                -> S.Expr                          -- ^ Argument expression.
@@ -261,6 +266,11 @@ convert_to_wcps dict vals c (S.EVar x) =
         cf <- create_var "f"      -- function closure
         cx <- c (VVar cf)
         return $ CTuple [VLabel gx] cf cx
+    -- global variables when handled as objects must be unboxed
+    VGlobal gx -> do
+        ug <- create_var "ug"
+        cug <- c (VVar ug)
+        return $ CAccess 0 (VGlobal gx) ug cug
     v ->
         c v
 
@@ -611,7 +621,6 @@ print_cexpr _ fvar (CRet v) =
   text "ret" <+> print_value fvar v
 
 
-
 instance PPrint CExpr where
   -- Generic printing
   genprint lv [fvar] e =
@@ -650,3 +659,5 @@ instance PPrint CUnit where
     throwNE $ ProgramError "CPS:genprint(CUnit): illegal argument"
 
   sprintn lv e = genprint lv [prevar "%"] e
+
+

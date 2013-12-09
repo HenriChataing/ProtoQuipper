@@ -50,13 +50,16 @@ type LContext = IntMap LValue
 
 
 -- | Proceed to the declaration of the global variables.
-declare_globals :: [Variable] -> CodeGenModule LContext
+declare_globals :: [Variable] -> QpState (CodeGenModule LContext)
 declare_globals [] =
-  return IMap.empty
+  return $ return IMap.empty
 declare_globals (gx:gxs) = do
+  name <- variable_name gx
   vals <- declare_globals gxs
-  ngx <- createGlobal False InternalLinkage (constOf 0) :: TGlobal ArchInt
-  return $ IMap.insert gx (LVIntPtr ngx) vals
+  return $ do
+        ngx <- createNamedGlobal False ExternalLinkage name (constOf 0) :: TGlobal ArchInt
+        vals <- vals
+        return $ IMap.insert gx (LVIntPtr ngx) vals
 
 
 -- | Proceed to the declaration of the module fucntions.
@@ -116,13 +119,13 @@ define_module_functions vals ((f, arg, c):fs) = do
 -- | Convert a LLVM boxed value to an integer.
 lvalue_to_int :: LValue -> CodeGenFunction r (L.Value ArchInt)
 lvalue_to_int (LVInt v) = return v
-lvalue_to_int (LVIntPtr p) = load p
+lvalue_to_int (LVIntPtr p) = ptrtoint p
 lvalue_to_int (LVFun2 f) = ptrtoint f
 lvalue_to_int (LVFun3 f) = ptrtoint f
 lvalue_to_int _ = throwNE $ ProgramError "CPStoLLVM:lvalue_to_int: illegal argument"
 
 
--- | Convert a CPS value to an LLVM integer, using trcast __LINE__ as needed.
+-- | Convert a CPS value to an LLVM integer, using casts as needed.
 cvalue_to_int :: LContext -> C.Value -> CodeGenFunction r (L.Value ArchInt)
 cvalue_to_int _ (VInt n) =
   return $ valueOf $ fromIntegral n
@@ -144,8 +147,6 @@ cvalue_to_int vals (VVar x) =
   case IMap.lookup x vals of
     Just v -> lvalue_to_int v
     Nothing -> throwNE $ ProgramError "CPStoLLVM:vlookup: undefined variable"
-
-    where
 
 
 
@@ -250,7 +251,7 @@ cexpr_to_llvm vals (CSwitch x clist) = do
 cexpr_to_llvm vals (CSet x v) = do
   vx <- cvalue_to_int vals (VVar x)
   vv <- cvalue_to_int vals v
-  vx <- inttoptr vx :: CodeGenFunction r (L.Value (Ptr ArchInt))
+  vx <- inttoptr vx
   store vv vx
 
 cexpr_to_llvm vals (CRet v) = do
@@ -279,7 +280,7 @@ cunit_to_llvm mods cu = do
           _ -> return vals) (return IMap.empty) (imports cu)
 
   -- declare the global variables
-  let gvals = declare_globals (List.map fst $ vglobals cu)
+  gvals <- declare_globals (List.map fst $ vglobals cu)
   -- declare the functions
   efvals <- declare_module_functions ExternalLinkage (extern cu)
   lfvals <- declare_module_functions InternalLinkage (local cu)
@@ -292,11 +293,15 @@ cunit_to_llvm mods cu = do
         -- define the functions
         define_module_functions vals (extern cu ++ local cu)
         -- define the module initializer
-        createNamedFunction ExternalLinkage ("init" ++ mods) $
+        initm <- createNamedFunction ExternalLinkage ("init" ++ mods) $
               List.foldr (\(_,cinit) rec -> do
                     cexpr_to_llvm vals cinit
                     rec
                   ) (ret $ valueOf (fromIntegral 0 :: Int64)) (vglobals cu) :: CodeGenModule (Function (IO ArchInt))
+        main <- createNamedFunction ExternalLinkage "main" $ do
+              _ <- call initm
+              ret $ valueOf (fromIntegral 0 :: Int64)
+        let _ = main :: Function (IO ArchInt)
         return ()
 
   liftIO $ writeBitcodeToFile (mods ++ ".ir") mod
