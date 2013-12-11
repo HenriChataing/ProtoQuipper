@@ -19,7 +19,7 @@ new_with_inputs [] =
 new_with_inputs (w:wires) =
   let irdoc = List.foldl (\irdoc w -> irdoc ++ ", " ++ show w ++ ":Qbit") ("Inputs: " ++ show w ++ ":Qbit") wires in
   irdoc ++ "\n"
- 
+
 
 -- | Append a single gate to the specification.
 append_gate :: Gate -> IRDoc -> IRDoc
@@ -30,11 +30,11 @@ append_gate (Term b w) irdoc = irdoc ++ "QTerm" ++ show b ++ "(" ++ show w ++ ")
 -- Unary gates
 -- Some gates have a specific format in IR
 append_gate (Phase n w) irdoc =
-  irdoc ++ "QRot[\"R(2pi/%)\"," ++ show (fromIntegral (2*n) :: Float) ++ "](" ++ show w ++ ")\n" 
+  irdoc ++ "QRot[\"R(2pi/%)\"," ++ show (fromIntegral (2*n) :: Float) ++ "](" ++ show w ++ ")\n"
 -- And some don't
 append_gate (Unary g w) irdoc =
   let (prg, inv) = case g of
-                     "NOT" -> ("not", "")
+                     "GATE_NOT" -> ("not", "")
                      "GATE_H" -> ("H", "")
                      "GATE_X" -> ("X", "")
                      "GATE_Y" -> ("Y", "")
@@ -51,7 +51,7 @@ append_gate (Unary g w) irdoc =
                      "GATE_EITZ_INV" -> ("exp(-itZ)", "*")
                      s -> (s, "")
     in
-  irdoc ++ "QGate[\"" ++ prg ++ "\"]" ++ inv ++ "(" ++ show w ++ ")\n" 
+  irdoc ++ "QGate[\"" ++ prg ++ "\"]" ++ inv ++ "(" ++ show w ++ ")\n"
 
 -- Binary gates
 append_gate (Binary "CNOT" w0 w1) irdoc =
@@ -64,7 +64,7 @@ append_gate (Binary s w0 w1) irdoc =
   irdoc ++ "QGate[" ++ show s ++ "](" ++ show w0 ++ ", " ++ show w1 ++ ")\n"
 
 -- Controlled gates
-append_gate (Controlled g []) irdoc = 
+append_gate (Controlled g []) irdoc =
   append_gate g irdoc
 append_gate (Controlled g (c:rest)) irdoc =
   let prg = append_gate g "" in

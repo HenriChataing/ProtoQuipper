@@ -68,7 +68,7 @@ unary_value g =
                       gates = [ Unary g 0 ],
                       qOut = [0],
                       qubit_id = 1,
-                      unused_ids = [] }) (VQubit 0) 
+                      unused_ids = [] }) (VQubit 0)
 
 
 -- | Generic value of binary gates, parameterized over the name of the gate.
@@ -119,10 +119,10 @@ builtin_gates =
   let phase = [("PHASE", (TArrow TInt unary_type,
                           VBuiltin (\n -> VCirc (VQubit 0) (singleton_circuit $ Phase (unVInt n "PHASE") 0) (VQubit 0)))),
                ("CONTROL_PHASE", (TArrow TInt (TArrow TBool binary_type),
-                                  VBuiltin (\n -> 
-                                             VBuiltin (\sign -> 
+                                  VBuiltin (\n ->
+                                             VBuiltin (\sign ->
                                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                                              (singleton_circuit $ Controlled (Phase (unVInt n "CONTROL_PHASE") 0) [(1, unVBool sign "CONTROL_PHASE")]) 
+                                                              (singleton_circuit $ Controlled (Phase (unVInt n "CONTROL_PHASE") 0) [(1, unVBool sign "CONTROL_PHASE")])
                                                               (VTuple [VQubit 0, VQubit 1]))))) ] in
 
   let ceitz = [("CONTROL_GATE_EITZ", (TArrow TBool binary_type,
@@ -137,7 +137,7 @@ builtin_gates =
   let cnot = [("CNOT", (TArrow TBool (TCirc (TTensor [TQubit, TQubit]) (TTensor [TQubit, TQubit])),
                              VBuiltin (\sign ->
                                         VCirc (VTuple [VQubit 0, VQubit 1])
-                                              (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unVBool sign "CNOT")])
+                                              (singleton_circuit $ Controlled (Unary "GATE_NOT" 0) [(1, unVBool sign "CNOT")])
                                               (VTuple [VQubit 0, VQubit 1])))),
               ("TOFFOLI", (TArrow TBool (TArrow TBool (TCirc (TTensor [TQubit, TQubit, TQubit]) (TTensor [TQubit, TQubit, TQubit]))),
                              VBuiltin (\sign1 ->
@@ -184,7 +184,7 @@ builtin_operations =
               ("GT", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "GT" > unVInt n "GT"))))),
               ("EQ", (TArrow TInt (TArrow TInt TBool),
-                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "EQ" == unVInt n "EQ"))))), 
+                      VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "EQ" == unVInt n "EQ"))))),
               ("NE", (TArrow TInt (TArrow TInt TBool),
                       VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "NE" /= unVInt n "NE")))))
             ] in
@@ -195,8 +195,8 @@ builtin_operations =
 builtin_error :: Map String (Type, Value)
 builtin_error =
   Map.singleton "ERROR" (TForall "_a_" $ TArrow (TApp (TVar "list") (TVar "char")) (TVar "_a_"),
-                         VBuiltin (\msg -> 
-                                     let string_msg = unVString msg "ERROR" in 
+                         VBuiltin (\msg ->
+                                     let string_msg = unVString msg "ERROR" in
                                      throwNE (UserError string_msg)))
 
 

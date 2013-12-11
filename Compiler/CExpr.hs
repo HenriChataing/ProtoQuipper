@@ -24,10 +24,10 @@ import qualified Data.IntMap as IMap
 
 -- | The definition of values.
 data Value =
-    VVar Variable          -- ^ A local variable _ function or not.
-  | VInt Int               -- ^ An integer.
-  | VLabel Variable        -- ^ The label of an extern function.
-  | VGlobal Variable       -- ^ A reference to a global variable.
+    VVar Variable              -- ^ A local variable _ function or not.
+  | VInt Int                   -- ^ An integer.
+  | VLabel Variable            -- ^ The label of an extern function.
+  | VGlobal Variable           -- ^ A reference to a global variable.
   deriving (Show, Eq)
 
 
@@ -160,11 +160,6 @@ convert_to_cps dict vals c (S.EAccess n x) = do
   y <- create_var "x"
   cy <- c (VVar y)
   return $ CAccess n (value vals x) y cy
-  where
-    unVVar (VVar x) = x
-    unVVar (VLabel x) = x
-    unVVar (VGlobal x) = x
-    unVVar _ = throwNE $ ProgramError "CPS:unVVar: illegal argument"
 
 convert_to_cps dict vals c (S.EFun x e) = do
   f <- create_var "f"       -- function name
@@ -304,11 +299,6 @@ convert_to_wcps dict vals c (S.EAccess n x) = do
   y <- create_var "x"
   cy <- c (VVar y)
   return $ CAccess n (value vals x) y cy
-  where
-    unVVar (VVar x) = x
-    unVVar (VLabel x) = x
-    unVVar (VGlobal x) = x
-    unVVar _ = throwNE $ ProgramError "CPS:unVVar: illegal argument"
 
 convert_to_wcps dict vals c (S.EFun x e) = do
   f <- create_var "f"       -- function name
