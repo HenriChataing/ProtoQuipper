@@ -9,7 +9,7 @@
 -- type foo a b =
 --   Bar of a -> b
 -- @
--- 
+--
 -- Intuitively, a constraint {foo /a/ /b/ <: foo /a/' /b/'} is to be reduced as {/a/' <: /a/, /b/ <: /b/'}, which would
 -- correspond to the subtyping relation rule:
 --
@@ -34,7 +34,7 @@
 -- @
 --
 -- the relation is, as inferred:
--- 
+--
 -- @
 --    a <: a'          b <: b'
 --   --------------------------
@@ -43,7 +43,7 @@
 --
 -- and this corresponds to the natural definition. However, when the type is inductive,
 -- as is the case of list, this would give:
--- 
+--
 -- @
 --   a <: a'    list a <: list a'
 --   ---------------------------
@@ -57,7 +57,7 @@
 --
 -- * The number of possible constraints of this kind is limited: at most 2/n/ can exist, where /n/ is the number of type arguments.
 --
--- Thus the idea of the subtyping inference algorithm: to \'unfold\' the subtyping constraints on algebraic types base on the unfolded definition 
+-- Thus the idea of the subtyping inference algorithm: to \'unfold\' the subtyping constraints on algebraic types base on the unfolded definition
 -- of the types until the set of atomic constraints stabilizes. This would give for the type list:
 --
 -- @
@@ -67,7 +67,7 @@
 -- @
 --
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
-module Typing.TransSyntax (
+module Core.Translate (
   define_user_subtyping,
   define_user_properties,
   translate_type,
@@ -83,10 +83,10 @@ import Utils
 import Classes
 import Builtins
 
-import Typing.CoreSyntax
+import Core.Syntax
 import Typing.LabellingContext (LabellingContext, empty_label, LVariable (..))
 import qualified Typing.LabellingContext as L
-import Typing.CorePrinter
+import Core.Printer
 import Typing.Subtyping
 
 import Parsing.Location
@@ -213,13 +213,13 @@ choose_implementation typ = do
   ctx <- get_context
   case datas of
     -- Cases with one constructor:
-    -- The tag is omitted. No definition of the function gettag is needed. 
+    -- The tag is omitted. No definition of the function gettag is needed.
     [(dcon, Just _)] -> do
         update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
-        
+
     [(dcon, Nothing)] ->
         update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
-        
+
     -- Cases with several constrcutors
     _ -> do
         -- First thing : count the constructors taking an argument.
@@ -274,10 +274,10 @@ choose_implementation typ = do
 unfold_once :: Algebraic -> QpState ConstraintSet
 unfold_once name = do
   spec <- algebraic_def name
-  
+
   -- Unfolded constraints
   (a, a', current) <- return $ d_subtype spec
-  
+
   -- unfold the user type constraints
   cuser <- unfold_algebraic_constraints_in_set current
 
@@ -300,7 +300,7 @@ unfold_all :: [Algebraic] -> QpState ()
 unfold_all [] = return ()
 unfold_all names = do
   -- Get all the specifications
-  specs <- List.foldr (\n rec -> do 
+  specs <- List.foldr (\n rec -> do
         r <- rec
         s <- algebraic_def n
         return (s:r)) (return []) names
@@ -326,14 +326,14 @@ unfold_all names = do
         -- Check the stability of the non user constraints of before and after the unfolding
         if before `equals_set` cnuser then do
           -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
-          newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++ 
+          newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++
                            List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
                     pprint (TAlgebraic n a) ++ " <: " ++ pprint (TAlgebraic n a'))
 
           return (b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', before) } $ algebraics ctx })
         else do
           -- Continue the recursion, but update the subtyping of n
-          return (n:b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', after) } $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded) 
+          return (n:b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', after) } $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded)
 
   -- Continue or not with the recursion
   set_context ctx
@@ -343,7 +343,7 @@ unfold_all names = do
 
 -- | Infer the subtyping relation rules of all the user defined types.
 -- It uses the algorithm described above.
-define_user_subtyping :: [Algebraic] -> QpState () 
+define_user_subtyping :: [Algebraic] -> QpState ()
 define_user_subtyping dblock = do
   newlog 0 ">> User subtyping relations"
 
@@ -353,7 +353,7 @@ define_user_subtyping dblock = do
         spec <- algebraic_def n
         -- One version of the unfolded type
         let (a, ufold) = d_unfolded spec
-         
+
         -- Another version of the unfolded type, where a has been replaced by fresh types a'
         (a', ufold') <- List.foldr (\(TBang n t) rec -> do
               let x = unTVar t
@@ -398,7 +398,7 @@ import_typesyn typesyn label = do
   let margs = Map.fromList $ List.zip (S.s_args typesyn) as
 
   -- Translate the synonym type
-  syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label }) 
+  syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label })
 
   -- Is it a quantum data type ?
   qdata <- Q.is_qdata_type syn
@@ -454,7 +454,7 @@ is_qdata_lintype (TAlgebraic typename args) names = do
   else
     return (b, typename:deps)
 
-is_qdata_lintype _ _ = 
+is_qdata_lintype _ _ =
   return (False, [])
 
 
@@ -464,7 +464,7 @@ is_qdata_lintype _ _ =
 -- is delayed until later.
 is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
 is_qdata_type (TBang _ a) names =
-  is_qdata_lintype a names 
+  is_qdata_lintype a names
 
 
 -- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
@@ -475,7 +475,7 @@ propagate_prop [] graph =
 
 propagate_prop (n:rest) graph =
   case IMap.lookup n graph of
-    Just deps -> 
+    Just deps ->
         let (r', c, g') = propagate_prop (List.union rest deps) (IMap.delete n graph) in
         (n:r', True, g')
 
@@ -503,7 +503,7 @@ define_user_properties dblock = do
                          (mdata, mgraph) <- rec
                          spec <- algebraic_def n
                          -- Replace the arguments by qubit in the unfolded definition
-                        
+
                          let argtyps = List.foldl (\args (_, typ) -> do
                                 case typ of
                                   Nothing -> args
@@ -543,7 +543,7 @@ define_user_properties dblock = do
                     newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"
                     -- Since the default value is True, no need to set it here)
                     return ()) (return ()) dblock
-                
+
 
     newlog 0 "<<\n"
     where
@@ -717,34 +717,34 @@ translate_unbound_type t label = do
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.Pattern -> LabellingContext -> QpState (Pattern, Map String LVariable)
-translate_pattern S.PUnit label = do
+translate_pattern :: S.XExpr -> LabellingContext -> QpState (Pattern, Map String LVariable)
+translate_pattern S.EUnit label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PUnit ref })
   return (PUnit ref, L.variables label)
 
-translate_pattern (S.PBool b) label = do
+translate_pattern (S.EBool b) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PBool ref b })
   return (PBool ref b, L.variables label)
 
-translate_pattern (S.PInt n) label = do
+translate_pattern (S.EInt n) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PInt ref n })
   return (PInt ref n, L.variables label)
 
-translate_pattern S.PWildcard label = do
+translate_pattern S.EWildcard label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PWildcard ref })
   return (PWildcard ref, L.variables label)
 
-translate_pattern (S.PVar x) label = do
+translate_pattern (S.EVar x) label = do
   ref <- create_ref
   id <- register_var x ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
   return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
 
-translate_pattern (S.PTuple plist) label = do
+translate_pattern (S.ETuple plist) label = do
   ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
                                   (r, lbl) <- rec
@@ -753,7 +753,7 @@ translate_pattern (S.PTuple plist) label = do
   update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
-translate_pattern (S.PDatacon datacon p) label = do
+translate_pattern (S.EDatacon datacon p) label = do
   ref <- create_ref
   case Map.lookup datacon $ L.datacons label of
     Just id -> do
@@ -770,20 +770,21 @@ translate_pattern (S.PDatacon datacon p) label = do
     Nothing ->
         throw_UnboundDatacon datacon
 
-translate_pattern (S.PLocated p ex) label = do
+translate_pattern (S.ELocated p ex) label = do
   set_location ex
   translate_pattern p label
 
-translate_pattern (S.PConstraint p t) label = do
+translate_pattern (S.EConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
   return (PConstraint p' (t, L.types label), lbl)
 
+translate_pattern p _ = do
+  ref <- get_location
+  throwQ (ParsingError "") ref
 
 
 -- | Translate an expression, given a labelling map.
-translate_expression :: S.Expr -> LabellingContext -> QpState Expr
-translate_expression (S.EWildcard a) _ = S.absurd a
-
+translate_expression :: S.XExpr -> LabellingContext -> QpState Expr
 translate_expression S.EUnit _ = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { r_expression = Left $ EUnit ref })
@@ -952,6 +953,11 @@ translate_expression (S.EBuiltin s) label = do
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
   return $ EConstraint e' (t, L.types label)
+
+translate_expression e _ = do
+  ref <- get_location
+  throwQ (ParsingError "") ref
+
 
 
 

@@ -17,8 +17,8 @@ import Utils
 
 import Parsing.Location
 
-import Typing.CoreSyntax
-import Typing.CorePrinter
+import Core.Syntax
+import Core.Printer
 
 import Monad.QpState
 import Monad.QuipperError
@@ -100,7 +100,7 @@ merge_clusters c c' poset =
   if c == c' then
     -- If trying to merge the same cluster, do nothing
     poset
-  
+
   else
     -- Replace c' in the relations
     let poset' = poset { relations = IMap.map (List.map (\(d, cc) -> if d == c' then (c, cc) else (d, cc))) $ relations poset } in
@@ -109,7 +109,7 @@ merge_clusters c c' poset =
         r = cluster_relations c poset'
         cts' = cluster_contents c' poset'
         r' = cluster_relations c' poset' in
- 
+
     poset' { clusters = IMap.update (\_ -> Just $ cts ++ cts') c (IMap.delete c' $ clusters poset'),
              relations = IMap.update (\_ -> Just $ r ++ r') c (IMap.delete c' $ relations poset'),
              cmap = IMap.map (\d -> if d == c' then c else d) $ cmap poset' }
@@ -131,16 +131,16 @@ null_poset poset =
 
 -- $ All the following functions are used for the construction \/ definition of the poset and its relation.
 -- The relation is defined by the subtyping constraints:
--- 
+--
 -- * if the constraint is atomic /a/ <: /b/, then /a/ and /b/ must be of the same cluster, so merge the clusters of /a/ and /b/.
--- 
+--
 -- * if the constraint is /a/ \<: /T/ or /T/ \<: /a/, for every free variable /b/ of /T/, add the edge cluster(/b/) -\> cluster(/a/).
 
 
 -- | Register a constraint and its consequences in the poset.
--- 
+--
 -- * If the constraint is atomic, then the two clusters of the type variables are merged.
--- 
+--
 -- * Otherwise, it is of the form /a/ <: /T/ or /T/ <: /a/. Relations are added from the cluster of /a/ to the clusters of the free
 -- variables of /T/.
 register_constraint :: TypeConstraint -> Poset -> Poset
@@ -160,7 +160,7 @@ register_constraint cst poset =
         List.foldl (\poset y ->
                       let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvu
-        
+
     Sublintype t (TVar x) _ ->
         let (cx, poset') = cluster_of x poset
             fvt = free_typ_var t in
@@ -168,9 +168,9 @@ register_constraint cst poset =
                       let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvt
 
-    Sublintype _ _ _ -> 
+    Sublintype _ _ _ ->
         throwNE $ ProgramError "Ordering:register_constraint: illegal argument: unreduced constraint"
-        
+
     Subtype _ _ _ ->
         throwNE $ ProgramError "Ordering:register_constraint: illegal argument: unreduced constraint"
 
@@ -293,7 +293,7 @@ remove_cluster c poset =
                 relations = IMap.map (List.filter (\(c', _) -> c /= c')) $ IMap.delete c $ relations poset,
                 clusters = IMap.delete c $ clusters poset })
 
-                
+
 -- | Return the contents of a minimum cluster of a poset, after removing the said cluster definition from the poset.
 youngest_variables :: Poset -> QpState ([Variable], Poset)
 youngest_variables poset = do
@@ -345,7 +345,7 @@ merge_classes :: Int -> Int -> a -> Equiv a -> Equiv a
 merge_classes c c' a eqv =
   if c /= c' then
     let (cts, as) = class_contents c eqv
-        (cts', as') = class_contents c' eqv in 
+        (cts', as') = class_contents c' eqv in
     eqv { clmap = IMap.map (\d -> if d == c' then c else d) $ clmap eqv,
           classes = IMap.update (\_ -> Just (cts ++ cts', a:(as ++ as'))) c $ IMap.delete c' $ classes eqv }
   else

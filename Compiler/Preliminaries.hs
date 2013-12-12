@@ -22,7 +22,7 @@ import Utils
 import Monad.QpState
 import Monad.QuipperError
 
-import qualified Typing.CoreSyntax as C
+import qualified Core.Syntax as C
 
 import Compiler.SimplSyntax
 import Compiler.Circ
@@ -35,7 +35,7 @@ import qualified Data.IntMap as IMap
 
 
 
--- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'. 
+-- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'.
 convert_type :: C.Type -> QpState QType
 convert_type (C.TBang _ C.TUnit) =
   return QUnit
@@ -55,7 +55,7 @@ convert_type (C.TBang _ (C.TTensor alist)) = do
 
 convert_type typ =
   fail $ "Preliminaries:convert_type: illegal argument: " ++ pprint typ
-  
+
 
 -- | Convert a quantum data type to a type.
 convert_qtype :: QType -> C.Type
@@ -207,7 +207,7 @@ which_unbox a arg =
 disambiguate_unbox_calls :: [(C.Type, Variable)]                      -- ^ The unbox operators available in the current context.
                          -> IntMap (C.Type, [C.Type])                 -- ^ Each modified (local) function, along with its polymorphic type and the arguments it expects.
                          -> C.Expr                                    -- ^ The expression to disambiguate.
-                         -> QpState C.Expr                            -- ^ The disambiguated expression. 
+                         -> QpState C.Expr                            -- ^ The disambiguated expression.
 disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
   ri <- ref_info_err ref
   a <- map_type $ C.r_type ri
@@ -217,7 +217,7 @@ disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
         return (C.EUnbox ref)
     Right v ->
         return (C.EVar 0 v)
-  
+
 disambiguate_unbox_calls arg mod (C.EVar ref v) = do
   case IMap.lookup v mod of
     Nothing -> do
@@ -286,7 +286,7 @@ disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
 disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
   -- First disambiguate the calls from e
   e' <- disambiguate_unbox_calls arg mod e
-  
+
   -- Then pick up the remaining unbox calls
   need <- unbox_types e'
   need <- return $ List.filter (\a -> not $ C.is_concrete a) need
@@ -339,7 +339,7 @@ disambiguate_unbox_calls arg mod (C.ELet ref r p e f) = do
 
               -- Add the variable and its (new) arguments to the mod context
               let mod' = IMap.insert x (typ, need) mod
-                        
+
               -- Add new argument variables to the arg context
               nargs <- List.foldr (\a rec -> do
                     as <- rec
@@ -515,7 +515,7 @@ build_decision_tree plist = do
                     Map.insert test [(n,result)] tset
                 Just results ->
                     Map.insert test ((n, result):results) tset) tset tlist) (return Map.empty) (List.zip [0..(List.length plist)-1] plist)
-  
+
   -- Build the decision tree upon the patterns remaining after the test defined by the given prefix.
   let build_tree = \tests patterns -> do
         case (tests, patterns) of
@@ -617,7 +617,7 @@ build_decision_tree plist = do
                             (nsub, unmatched') <- build_tree relevant_tests' patterns_ok
                             -- Return the rest
                             return ((res, nsub):subtrees, unmatched'++unmatched)) (return ([], [])) results
-                        
+
               -- Assemble the final tree
               return (Test (fst $ next) subtrees, unmatched)
 
@@ -690,13 +690,13 @@ longest_prefix extracted test =
 
 
 -- | Complete the extraction of a piece of information. The argument should be the variable closest to the information we want to access.
--- The function then applies the operations necessary to go from this variable, to the information. 
+-- The function then applies the operations necessary to go from this variable, to the information.
 extract :: (TestLocation, Variable, TestLocation) -> QpState (Expr -> Expr, [(TestLocation, Variable)], Variable)
 extract (prefix, var, loc) =
   case loc of
     -- The variable 'var' already contains what we want
     [] -> return ((\e -> e), [], var)
-    -- Else 
+    -- Else
     l:ls -> do
       -- Build some intermediary variables
       var' <- create_var "x"
@@ -753,7 +753,7 @@ simplify_pattern_matching :: C.Expr -> [(C.Pattern, C.Expr)] -> QpState Expr
 simplify_pattern_matching e blist = do
   patterns <- return $ fst $ List.unzip blist
   e' <- remove_patterns e
-  dtree <- build_decision_tree patterns                         
+  dtree <- build_decision_tree patterns
 
   -- The 'extracted' argument associates locations in a pattern to variables.
   let unbuild = \dtree extracted ->
@@ -782,7 +782,7 @@ simplify_pattern_matching e blist = do
               extracted <- return $ updates ++ extracted
               -- Build the sequence of tests
               teste <- case rkind (fst $ List.unzip results) of
-                    RInt _ -> do 
+                    RInt _ -> do
                         -- Isolate the infinite case, and put it at the end of the list
                         ([(_, remains)], others) <- return $ List.partition (\(r, _) ->
                               case r of
@@ -884,7 +884,7 @@ remove_patterns (C.ELet _ Recursive (C.PVar _ v) e f) = do
   e' <- remove_patterns e
   f' <- remove_patterns f
   case e' of
-    EFun x e -> 
+    EFun x e ->
         return $ ELet v (ERecFun v x e') f'
     _ ->
         fail "Preliminaries:remove_patterns: unexpected recursive object"
@@ -961,7 +961,7 @@ remove_patterns (C.ERev _) = do
 
 remove_patterns (C.EBuiltin _ s) =
   return (EBuiltin s)
-  
+
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
 
@@ -977,12 +977,12 @@ transform_declarations decls = do
               ri <- ref_info_err (C.reference e)
               warnQ NakedExpressionToplevel (C.r_location ri)
               return (decls, mod)
-          
+
           C.DLet recflag x e -> do
-              -- DISAMBIGUATION  
+              -- DISAMBIGUATION
               -- First disambiguate the calls from e
               e' <- disambiguate_unbox_calls [] mod e
-  
+
               -- Then pick up the remaining unbox calls
               need <- unbox_types e'
               need <- return $ List.filter (\a -> not $ C.is_concrete a) need

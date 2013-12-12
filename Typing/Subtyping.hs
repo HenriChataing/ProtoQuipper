@@ -1,11 +1,11 @@
--- | This module provides functions that manipulate constraint sets, for the most part to reduce them. 
+-- | This module provides functions that manipulate constraint sets, for the most part to reduce them.
 module Typing.Subtyping where
 
 import Classes
 import Utils
 
-import Typing.CoreSyntax
-import Typing.CorePrinter
+import Core.Syntax
+import Core.Printer
 
 import Monad.QuipperError
 import Monad.QpState
@@ -114,7 +114,7 @@ break_composite bu ((Sublintype TQubit TQubit _):lc, fc) = do
 
 
 -- Arrow against arrow
-  -- T -> U <: T' -> U' 
+  -- T -> U <: T' -> U'
 -- Into
   -- T' <: T && U <: U'
 break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
@@ -125,7 +125,7 @@ break_composite bu ((Sublintype (TArrow t u) (TArrow t' u') info):lc, fc) = do
   break_composite bu ((Subtype t' t info { c_actual = not $ c_actual info,
                                            c_type = intype }):
                       (Subtype u u' info { c_type = intype }):lc, fc)
- 
+
 
 -- Tensor against tensor
   -- T * U <: T' * U'
@@ -147,7 +147,7 @@ break_composite bu ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) =
 -- With type synonyms
 break_composite bu ((Sublintype (TSynonym utyp arg) u info):lc, fc) = do
   spec <- synonym_def utyp
- 
+
   let (arg', typ) = s_unfolded spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
@@ -158,7 +158,7 @@ break_composite bu ((Sublintype (TSynonym utyp arg) u info):lc, fc) = do
 
 break_composite bu ((Sublintype t (TSynonym utyp arg) info):lc, fc) = do
   spec <- synonym_def utyp
- 
+
   let (arg', typ) = s_unfolded spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
@@ -174,7 +174,7 @@ break_composite bu ((Sublintype t (TSynonym utyp arg) info):lc, fc) = do
 break_composite bu ((Sublintype (TAlgebraic utyp arg) (TAlgebraic utyp' arg') info):lc, fc) = do
   -- If the two types are the same (either two type synonyms or two algebraic types)
   if utyp == utyp' then do
-    
+
     if bu then do
       intype <- case c_type info of
                   Just a -> return $ Just a
@@ -190,8 +190,8 @@ break_composite bu ((Sublintype (TAlgebraic utyp arg) (TAlgebraic utyp' arg') in
       return $ [Sublintype (TAlgebraic utyp arg) (TAlgebraic utyp' arg') info] <> cset
 
   else
-    throw_TypingError (TBang 0 $ TAlgebraic utyp arg) (TBang 0 $ TAlgebraic utyp' arg') info 
-  
+    throw_TypingError (TBang 0 $ TAlgebraic utyp arg) (TBang 0 $ TAlgebraic utyp' arg') info
+
 
 -- Circ against Circ
   -- circ (T, U) <: circ (T', U')

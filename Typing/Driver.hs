@@ -9,13 +9,12 @@ import Builtins
 
 import Parsing.Lexer
 import qualified Parsing.Parser as P
-import qualified Parsing.IParser as IP
 import Parsing.Location (clear_location, extent_unknown)
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 
-import Typing.CoreSyntax
-import Typing.TransSyntax
+import Core.Syntax
+import Core.Translate
 
 import Interpret.Interpret
 import Interpret.Values
@@ -28,7 +27,6 @@ import Typing.TypeInference
 import Typing.TypingContext
 import Typing.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
 import qualified Typing.LabellingContext as L
-import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CExpr as C
@@ -59,7 +57,7 @@ lex_and_parse_implementation file = do
   mod <- return $ module_of_file file
   return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
 
-
+{-
 -- | Lex and parse the interface file at the given filepath.
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
@@ -67,7 +65,7 @@ lex_and_parse_interface file = do
   tokens <- mylex file contents
   mod <- return $ module_of_file file
   return $ IP.parse tokens
-
+-}
 
 -- | Find the implementation of a module in a given directory.
 -- The name of the code file is expected to be /dir/\//module/./ext/,
@@ -168,8 +166,9 @@ explore_dependencies dirs prog explored sorted = do
               p <- lex_and_parse_implementation file
               p <- case inter of
                     Just f -> do
-                        interface <- lex_and_parse_interface f
-                        return $ p { S.interface = Just interface }
+              --          interface <- lex_and_parse_interface f
+              --          return $ p { S.interface = Just interface }
+                        return p
                     Nothing -> return p
 
               explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)

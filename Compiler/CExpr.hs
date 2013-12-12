@@ -10,7 +10,7 @@ import Classes hiding ((<+>))
 import Monad.QpState
 import Monad.QuipperError
 
-import qualified Typing.CoreSyntax as CS
+import qualified Core.Syntax as CS
 
 import qualified Compiler.SimplSyntax as S
 import Compiler.Circ

@@ -10,7 +10,7 @@
 -- inference. For greater efficiency, all term and type variables are
 -- labelled by a unique id, which serves as a lookup key in maps and
 -- other data structures.
-module Typing.CoreSyntax where
+module Core.Syntax where
 
 import Classes hiding ((\\))
 import Utils
@@ -46,7 +46,7 @@ one :: RefFlag
 one = 1
 
 -- | The flag 0.
-zero :: RefFlag 
+zero :: RefFlag
 zero = 0
 
 
@@ -71,7 +71,7 @@ data FlagValue =
 -- | Information relevant to a flag. This contains the flag value, and potentially some debug
 -- information used to raise detailed exceptions. Eventually, it will also contain
 -- various things such as reversibility, control, etc.
-data FlagInfo = FInfo { 
+data FlagInfo = FInfo {
   f_value :: FlagValue                              -- ^ The value of the flag.
 }
 
@@ -115,7 +115,7 @@ data LinType =
 data Type =
   TBang RefFlag LinType      -- ^ The type @!^n A@.
   deriving (Show, Eq)
-    
+
 
 -- | An alternate definition of the equality between types. This function, contrarily to the default equality,
 -- compares only the skeleton of the types, ignoring the flag variables.
@@ -140,7 +140,7 @@ is_concrete :: Type -> Bool
 is_concrete typ =
   free_typ_var typ == []
 
-           
+
 -- | The type of type schemes. A /type scheme/ is a type expression
 -- together with universally quantified type variables /a/1, ...,
 -- /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set of
@@ -190,7 +190,7 @@ class KType a where
 
   -- | Substitute a linear type for a type variable.
   subs_typ_var :: Int -> LinType -> a -> a
-  
+
   -- | Return the list of flag references.
   free_flag :: a -> [Int]
 
@@ -258,14 +258,14 @@ instance KType LinType where
   is_algebraic (TAlgebraic _ _) = True
   is_algebraic _ = False
 
- 
+
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
   free_flag (TBang n t) = List.insert n (free_flag t)
-  
+
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
     if n == p then
@@ -282,9 +282,17 @@ instance KType Type where
 -- ----------------------------------------------------------------------
 -- ** Data type definitions
 
+
+-- | Describe the variability of an argument.
+data Variance =
+    Covariant         -- ^ The argument is covariant.
+  | Contravariant     -- ^ The argument is contravariant.
+  | Equal             -- ^ The argument is both covariant and contravariant.
+
+
 -- | An algebraic data type definition.
 data Typedef = Typedef {
-  d_args :: Int,                                             -- ^ The number of type arguments required.
+  d_args :: [(Type, Variance)],                              -- ^ The list of type arguments, each associated with its variance.
 
   d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
                                                              -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
@@ -293,8 +301,6 @@ data Typedef = Typedef {
   d_unfolded :: ([Type], [(Datacon, Maybe Type)]),           -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
                                                              -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ the type of its optinal argument.
 
-  d_subtype :: ([Type], [Type], ConstraintSet),              -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
-                                                             -- is automatically inferred during the translation into the core syntax.
   d_gettag :: Variable -> C.Expr                             -- ^ The extraction of the tag is common to all the constructors of an algebraic type.
 }
 
@@ -358,7 +364,7 @@ data RefInfo = RInfo {
 -- keeping them as syntactic sugar reduces the number of variables,
 -- since the desugaring process produces new variables, one for each
 -- pair in the pattern. Here is how these patterns could be desugared:
--- 
+--
 -- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
 -- >
 -- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
@@ -381,7 +387,7 @@ data Pattern =
   | PTuple Ref [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Ref Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
   | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
-  deriving Show 
+  deriving Show
 
 
 instance Constraint Pattern where
@@ -471,10 +477,10 @@ reference (EConstraint e _) = reference e
 
 instance Param Expr where
   free_var (EVar _ x) = [x]
-  
+
   free_var (EGlobal _ x) = [x]
 
-  free_var (EFun _ p e) = 
+  free_var (EFun _ p e) =
     let fve = free_var e
         fvp = free_var p in
     fve \\ fvp
@@ -502,7 +508,7 @@ instance Param Expr where
                                List.union (free_var f \\ free_var p) fv) [] blist
         fve = free_var e in
     List.union fve fvlist
-  
+
   free_var (EConstraint e _) =
     free_var e
 
@@ -582,7 +588,7 @@ instance Eq TypeConstraint where
 
 -- | A useful operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
-t <: u = Subtype t u no_info                              
+t <: u = Subtype t u no_info
 
 
 -- | A useful operator for writing a set of constraints of the form @T1, ..., Tn <: U@.
@@ -758,7 +764,7 @@ chain_constraints l =
     Just c -> case c of
                 Sublintype _ (TVar y) _ -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
-  
+
     Nothing -> case List.find (\c -> case c of
                                        Sublintype _ (TVar _) _ -> False
                                        _ -> True) l of
@@ -841,7 +847,7 @@ instance KType ConstraintSet where
   free_flag (lc, fc) =
     let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
         fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
-    List.union ffl fff 
+    List.union ffl fff
 
   subs_flag n m (lc, fc) =
     let lc' = List.map (subs_flag n m) lc
@@ -858,7 +864,7 @@ instance KType ConstraintSet where
 
   -- Not implemented.
   is_algebraic _ = False
-  
+
   -- Not implemented.
   is_synonym _ = False
 

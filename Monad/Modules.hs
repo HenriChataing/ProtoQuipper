@@ -7,7 +7,7 @@ module Monad.Modules (
 
 import Parsing.Location
 
-import Typing.CoreSyntax
+import Core.Syntax
 import Typing.LabellingContext (LabellingContext, empty_label)
 
 import Data.IntMap (IntMap)

@@ -6,9 +6,10 @@ module Main where
 import Monad.QuipperError
 import qualified Monad.QpState as Q
 
-import Typing.CoreSyntax
+import Core.Syntax
+
 import Typing.Driver
-import Typing.TransSyntax
+import Core.Translate
 import Typing.LabellingContext
 
 import System.IO

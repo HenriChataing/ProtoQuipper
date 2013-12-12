@@ -1,12 +1,12 @@
 -- | This module defines the type of values, used by the interpreter to represent
 -- Proto-Quipper values. The definition is similar to that of expressions, except for a few differences,
 -- which are:
--- 
+--
 -- *   Applications, if-then-else, and match-with have been dropped, with the exception of unboxed circuits.
--- 
+--
 -- *   The function values include a closure in their definition, corresponding to the evaluation context at the time
 --    of the evaluation of the function.
--- 
+--
 -- *   Qubits and circuits, which were not included in the input syntax, are added.
 module Interpret.Values where
 
@@ -15,8 +15,8 @@ import Utils
 
 import Monad.QuipperError
 
-import Typing.CoreSyntax
-import Typing.CorePrinter
+import Core.Syntax
+import Core.Printer
 
 import Interpret.Circuits
 
@@ -82,7 +82,7 @@ instance PPrint Value where
                        Nothing -> ""
   genprint l opts (VDatacon datacon e) =
     throwNE $ ProgramError "Values:genprint: illegal argument"
-  genprint _ _ (VTuple []) = 
+  genprint _ _ (VTuple []) =
     throwNE $ ProgramError "Values:genprint: illegal tuple"
 
   sprintn lvl v = genprint lvl [(prevar "D")] v

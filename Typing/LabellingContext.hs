@@ -5,7 +5,7 @@ module Typing.LabellingContext where
 import Classes
 import Utils
 
-import Typing.CoreSyntax
+import Core.Syntax
 
 import Data.Map (Map)
 import qualified Data.Map as Map

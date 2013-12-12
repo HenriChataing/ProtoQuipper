@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 -- | This module contains the 'Classes.PPrint' instance declarations
--- for the types 'Type', 'Pattern', and 'Expr' of the /surface syntax/. 
+-- for the types 'Type', 'Pattern', and 'Expr' of the /surface syntax/.
 -- Please note that
 -- instance declarations do not generate any documentation, so there
 -- is almost nothing to document here. Please click on \"Source\" to
@@ -76,113 +76,85 @@ instance PPrint Type where
 
 
 
-instance PPrint Pattern where
-  genprint lv _ p =
-    sprintn lv p
-
-  -- Print unto Lvl = n
-  sprintn _ PWildcard = "_"
-  sprintn _ PUnit = "()"
-  sprintn lv (PBool b) = if b then "true" else "false"
-  sprintn lv (PInt n) = show n
-  sprintn _ (PVar x) = x
-  sprintn (Nth 0) _ = "..."
-
-  sprintn lv (PTuple plist) =
-    let dlv = decr lv in
-    case plist of
-      [] -> "()"
-      [p] -> "(" ++ sprintn dlv p ++ ")"
-      p:rest -> "(" ++ sprintn dlv p ++ List.foldl (\s q -> s ++ ", " ++ sprintn dlv q) "" rest ++ ")"
-
-  sprintn lv (PDatacon dcon Nothing) = dcon
-  sprintn lv (PDatacon dcon (Just p)) =
-    dcon ++ " (" ++ pprint p ++ ")"
-
-  sprintn lv (PConstraint p t) = "(" ++ sprintn (decr lv) p ++ " <: " ++ pprint t ++ ")"
-
-  sprintn lv (PLocated p _) = sprintn lv p
-
-
 -- * Auxiliary functions
 
 -- | Pretty-print an expression using Hughes's and Peyton Jones's
 -- pretty printer combinators. The type 'Doc' is defined in the
 -- library "Text.PrettyPrint.HughesPJ" and allows for nested
 -- documents.
-print_doc :: Expr -> Doc
+print_expr :: XExpr -> Doc
 
-print_doc (EWildcard a) = absurd a
-print_doc EUnit = text "()"
-print_doc (EVar x) = text x
-print_doc (EQualified m x) = text m <> text "." <> text x
-print_doc ERev = text "rev"
-print_doc EUnbox = text "unbox"
-print_doc (EBox a) = text "box" <> brackets (text $ pprint a)
-print_doc (EBool b) = if b then text "true" else text "false"
-print_doc (EInt n) = text $ show n
+print_expr EWildcard = text "_"
+print_expr EUnit = text "()"
+print_expr (EVar x) = text x
+print_expr (EQualified m x) = text m <> text "." <> text x
+print_expr ERev = text "rev"
+print_expr EUnbox = text "unbox"
+print_expr (EBox a) = text "box" <> brackets (text $ pprint a)
+print_expr (EBool b) = if b then text "true" else text "false"
+print_expr (EInt n) = text $ show n
 
-print_doc (ELet r p e f) =
-  let pf = print_doc f
+print_expr (ELet r p e f) =
+  let pf = print_expr f
       recflag = if r == Recursive then text "rec" else text "" in
-  text "let" <+> recflag <+> text (pprint p) <+> equals <+> print_doc e <+> text "in" $$
+  text "let" <+> recflag <+> text (pprint p) <+> equals <+> print_expr e <+> text "in" $$
   pf
 
-print_doc (ETuple elist) =
-  let plist = List.map print_doc elist in
+print_expr (ETuple elist) =
+  let plist = List.map print_expr elist in
   let slist = punctuate comma (List.init plist) ++ [List.last plist] in
   char '(' <> hsep plist <> char ')'
 
-print_doc (EIf e f g) =
-  text "if" <+> print_doc e <+> text "then" $$
-  nest 2 (print_doc f) $$
+print_expr (EIf e f g) =
+  text "if" <+> print_expr e <+> text "then" $$
+  nest 2 (print_expr f) $$
   text "else" $$
-  nest 2 (print_doc g)
+  nest 2 (print_expr g)
 
-print_doc (EApp e f) =
-  let pe = print_doc e
-      pf = print_doc f in
+print_expr (EApp e f) =
+  let pe = print_expr e
+      pf = print_expr f in
   (case e of
      EIf _ _ _ -> parens pe
      EFun _ _ -> parens pe
-     _ -> pe) <+> 
+     _ -> pe) <+>
   (case f of
-     EIf _ _ _ -> parens pe 
+     EIf _ _ _ -> parens pe
      EFun _ _ -> parens pe
      EApp _ _ -> parens pe
      _ -> pe)
 
-print_doc (EFun p e) =
+print_expr (EFun p e) =
   text "fun" <+> text (pprint p) <+> text "->" $$
-  nest 4 (print_doc e)
+  nest 4 (print_expr e)
 
-print_doc (EDatacon datacon Nothing) =
+print_expr (EDatacon datacon Nothing) =
   text datacon
 
-print_doc (EDatacon datacon (Just e)) =
-  let pe = print_doc e in
+print_expr (EDatacon datacon (Just e)) =
+  let pe = print_expr e in
   text datacon <+> (case e of
                       EVar _ -> pe
                       EBool _ -> pe
                       EUnit -> pe
                       _ -> parens pe)
 
-print_doc (EMatch e plist) =
-  text "match" <+> print_doc e <+> text "with" $$
+print_expr (EMatch e plist) =
+  text "match" <+> print_expr e <+> text "with" $$
     nest 2 (List.foldl (\doc (p, f) ->
-                          let pmatch = char '|' <+> text (pprint p) <+> text "->" <+> print_doc f in
+                          let pmatch = char '|' <+> text (pprint p) <+> text "->" <+> print_expr f in
                           if isEmpty doc then
                             pmatch
                           else
                             doc $$ pmatch) PP.empty plist)
 
 
-print_doc (EConstraint e t) = print_doc e
-print_doc (EBuiltin s) = text "#builin" <+> text s
-print_doc (ELocated e _) = print_doc e
- 
-instance PPrint Expr where
+print_expr (EConstraint e t) = print_expr e
+print_expr (EBuiltin s) = text "#builin" <+> text s
+print_expr (ELocated e _) = print_expr e
+
+instance PPrint XExpr where
   genprint lv _ e = sprintn lv e
-  sprintn lv e = PP.render $ print_doc e
+  sprintn lv e = PP.render $ print_expr e
 
 

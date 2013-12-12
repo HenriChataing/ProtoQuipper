@@ -15,8 +15,8 @@ import qualified Monad.QuipperError as Q (throw, throwNE, throwWE)
 import Monad.Namespace (Namespace)
 import qualified Monad.Namespace as N
 
-import Typing.CoreSyntax
-import Typing.CorePrinter
+import Core.Syntax
+import Core.Printer
 import Typing.LabellingContext (LabellingContext, LVariable (..))
 import qualified Typing.LabellingContext as L
 

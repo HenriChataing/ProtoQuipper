@@ -9,11 +9,12 @@ import Utils
 import Parsing.Location
 import qualified Parsing.Syntax as S
 
-import Typing.CoreSyntax
+import Core.Syntax
+import Core.Translate
+
 import Typing.TypingContext
 import Typing.Ordering
 import Typing.Subtyping
-import Typing.TransSyntax
 import Typing.LabellingContext as L
 
 import Monad.QuipperError
@@ -30,7 +31,7 @@ import qualified Data.Set as Set
 import qualified Data.IntMap as IMap
 
 
--- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/), (-1 <= /n/), (/n/ <= -1), and 
+-- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/), (-1 <= /n/), (/n/ <= -1), and
 -- applies the constraints 1 <= /n/ (resp. /n/ <= 0) by setting the flag /n/ to 1 (resp. 0).
 filter :: [FlagConstraint] -> QpState [FlagConstraint]
 filter fc = do
@@ -64,7 +65,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
   let (ff, fv) = (free_flag typ, free_typ_var typ)
   -- A variable / flag is to be kept (in the constraints) if it is from the context, or if it is in the final type.
   let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv)
-     
+
   -- Walk starting from one point, stopping on the other important vertices
   -- origin : origin of the walk
   -- next : the set of vertices to visit next
@@ -120,23 +121,23 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
   let fc' = List.map (\(n,m) -> Le n m no_info) cs
 
   -- Types
-  let g = List.foldl (\g c -> 
+  let g = List.foldl (\g c ->
         case c of
           Sublintype (TVar x) (TVar y) _ ->
               case IMap.lookup x g of
                 Just c -> IMap.insert x (y:c) g
                 Nothing -> IMap.insert x [y] g
           _ -> throwNE $ ProgramError "TypeInference:make_polymorphic_type: unexpected unreduced constraint") IMap.empty lc
- 
+
   let initv = List.filter keepvar $ IMap.keys g
   cs' <- walk_all initv g keepvar (\a b ->
-        mapsto a (TVar $ List.head fv)) 
+        mapsto a (TVar $ List.head fv))
   let lc' = List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
 
   -- Build the polymorphic type
   genfv <- return $ List.filter isvar fv
   genff <- return $ List.filter isref ff
-  
+
   return $ TForall genff genfv (lc',fc') typ
 
 
@@ -161,7 +162,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
 -- @
 --
 -- @
---    Gt |- t : !0(!n a -> T)   [L]            
+--    Gt |- t : !0(!n a -> T)   [L]
 --    Gu |- u : !n a            [L']        G \\ (t+u) = !I D
 --   -------------------------------------------------------- (app)
 --           G |- t u : T     [L u L' u {1 <= I}]
@@ -202,13 +203,13 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
 --
 -- @
 --    Gt |- t : !0 bool   [L]
---    Gu,v |- u : T       [L']          
+--    Gu,v |- u : T       [L']
 --    Gu,v |- v : T       [L'']            G \\ (t+(u,v)) = !I D
 --   ------------------------------------------------------------ (if)
 --     G |- if t then u else v : T     [L u L' u L'' u {1 <= I}]
 -- @
 --
--- Circuit constructors: 
+-- Circuit constructors:
 --
 -- @
 --   ----------------------------------------------------------------------------- (box)
@@ -247,7 +248,7 @@ constraint_typing gamma (EBuiltin ref s) cst = do
 constraint_typing gamma (EUnit ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
-  
+
   -- Generates a referenced flag of the actual type of EUnit
   info <- return $ no_info { c_ref = ref }
   update_ref ref (\ri -> Just ri { r_type = TBang 1 TUnit })
@@ -259,7 +260,7 @@ constraint_typing gamma (EUnit ref) cst = do
 --
 -- --------------------------------
 --  !I G |- True / False : !n bool  [{1 <= I}]
--- 
+--
 
 constraint_typing gamma (EBool ref b) cst = do
   -- The context must be duplicable
@@ -276,7 +277,7 @@ constraint_typing gamma (EBool ref b) cst = do
 --
 -- --------------------------------
 --  !I G |- Int : !n int  [{1 <= I}]
--- 
+--
 
 constraint_typing gamma (EInt ref p) cst = do
   -- The context must be duplicable
@@ -284,7 +285,7 @@ constraint_typing gamma (EInt ref p) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ no_info { c_ref = ref }
-  update_ref ref (\ri -> Just ri { r_type = TBang 1 TInt })  
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TInt })
 
   return $ ((TBang 1 TInt <:: cst) & info, [])
 
@@ -334,7 +335,7 @@ constraint_typing gamma (EGlobal ref x) cst = do
 --
 
 constraint_typing gamma (EBox ref a) cst = do
-  -- The context must be duplicable 
+  -- The context must be duplicable
   duplicable_context gamma
 
   -- Information
@@ -348,7 +349,7 @@ constraint_typing gamma (EBox ref a) cst = do
   update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow arw cir) })
 
   return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
-  
+
 
 -- | Rev typing rule
 --
@@ -375,7 +376,7 @@ constraint_typing gamma (ERev ref) cst = do
 
 
 -- | Unbox typing rule
---    
+--
 -- ------------------------------------------------
 --  G |- unbox : !1 (!n circ(T, U) -> !1 (T -> U))  [L]
 --
@@ -400,7 +401,7 @@ constraint_typing gamma (EUnbox ref) cst = do
 
 -- App typing rule
 --
---  G1, !ID |- t : a -> T   [L] 
+--  G1, !ID |- t : a -> T   [L]
 --     G2, !ID |- u : a     [L']
 -- ------------------------
 --  G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
@@ -428,7 +429,7 @@ constraint_typing gamma (EApp _ t u) cst = do
   disunion <- return $ linear_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
- 
+
   return $ csetu <> csett
 
 
@@ -440,13 +441,13 @@ constraint_typing gamma (EApp _ t u) cst = do
 --
 
 constraint_typing gamma (EFun ref p e) cst = do
-  -- Detailed information on the type of the function 
+  -- Detailed information on the type of the function
   n <- fresh_flag
   info <- return $ no_info { c_ref = ref }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
-  
+
   -- Bind p in the current context - this returns the type a of the argument of the abstraction
   (a, gamma_p, csetp) <- bind_pattern p
   b <- new_type
@@ -503,7 +504,7 @@ constraint_typing gamma (ETuple ref elist) cst = do
   duplicable_context delta
 
   update_ref ref (\ri -> Just ri { r_type = TBang p (TTensor tlist) })
-  
+
   return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
 
@@ -593,24 +594,24 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
 
     -- Type u - The constraints on the type of the let are transfered to the type of u
     csetu <- constraint_typing (gamma_p <+> gamma_u) u cst
-    
+
     -- Generate the flag constraints for the intersection
     disunion <- return $ linear_union [fvt, fvu]
     (_, delta) <- sub_context disunion gamma
     duplicable_context delta
-    
+
     return csetu
 
   -- If it is not a VALUE (for example a function application), it is given a simple type
   else do
     -- Type u - The constraints on the type of the let are transfered to the type of u
     csetu <- constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_u) u cst
-    
+
     -- Generate the flag constraints for the intersection
     disunion <- return $ linear_union [fvt, fvu]
     (_, delta) <- sub_context disunion gamma
     duplicable_context delta
-    
+
     return $ csetu <> csett
 
 
@@ -698,7 +699,7 @@ constraint_typing gamma (EMatch _ e blist) cst = do
   disunion <- return $ linear_union [fve, fvlist]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
-  
+
   return $ csete <> csetlist
 
 
@@ -716,7 +717,7 @@ constraint_typing gamma (EIf _ e f g) cst = do
   -- Extract the free variables of e, f and g
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
-  
+
   -- Filter on the free variables of e and type e: e must have the type bool
   -- The expected type !0 bool makes the least assumption about the type of e
   (gamma_e, _) <- sub_context fve gamma
@@ -732,7 +733,7 @@ constraint_typing gamma (EIf _ e f g) cst = do
   disunion <- return $ linear_union [fve, fvfg]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
-  
+
   return $ csete <> csetf <> csetg
 
 
@@ -815,16 +816,16 @@ unify_with_poset :: Bool -> Poset -> ConstraintSet -> QpState ConstraintSet
 unify_with_poset exact poset (lc, fc) = do
   -- Recursive check
   stop <- return $ null_poset poset
-  
+
   if stop then
     return (lc, fc)
-  
+
   else do
     -- Ask the poset for its youngest variables
     (cx, poset) <- youngest_variables poset
 
     -- Filter the constraints which have an element of cx as right or left hand side
-    (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
+    (lcx, non_lcx) <- return $ List.partition (\c -> case c of
                                                        Sublintype (TVar x) _ _ -> List.elem x cx
                                                        Sublintype _ (TVar y) _ -> List.elem y cx
                                                        Sublintype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
@@ -835,7 +836,7 @@ unify_with_poset exact poset (lc, fc) = do
     lognonx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" non_lcx
     newlog 1 logx
     newlog 1 lognonx
-                                           
+
     -- Filter the atomic constraints
     (atomx, natomx) <- return $ List.partition is_atomic lcx
 
@@ -850,7 +851,7 @@ unify_with_poset exact poset (lc, fc) = do
             -- APPROXIMATION :
             -- Of all the variables, keep only one and replace the rest
             (xh:rest) <- return cx
-            List.foldl (\rec x -> do 
+            List.foldl (\rec x -> do
                           rec
                           mapsto x $ TVar xh) (return ()) rest
             unify_with_poset exact poset (non_lcx, fc)
@@ -864,7 +865,7 @@ unify_with_poset exact poset (lc, fc) = do
 
       -- Semi-composite constraints :
       (atomx, cset) -> do
-          
+
           (ischain, sorted) <- return $ chain_constraints lcx
           if not exact && ischain then do
 
@@ -890,7 +891,7 @@ unify_with_poset exact poset (lc, fc) = do
 
                   -- Unify the rest
                   unify_with_poset False poset (non_lcx, fc)
-                  
+
               (_, TVar x) -> do
                   -- Map everything to the left end
                   List.foldl (\rec x -> do
@@ -923,7 +924,7 @@ unify_with_poset exact poset (lc, fc) = do
                        Sublintype t (TVar _) _ -> return t
                        Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
                        Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
-                        
+
 
             -- Map the youngest variables each to a new specimen of the model
             List.foldl (\rec x -> do
@@ -969,10 +970,10 @@ unify_with_poset exact poset (lc, fc) = do
 
 
             {-
-            
-            else do           
+
+            else do
               newlog 0 "UNCHAINED"
-              
+
               onesided <- return $ is_one_sided cset
               -- If all the constraints are one-sided, make the approximation: x1 = .. = xn
               cset <- if onesided then do
@@ -1040,7 +1041,7 @@ apply_flag_constraints (c:cc) = do
               unset_flag m info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
- 
+
           (One, Unknown) -> do
               set_flag n info
               (_, cc') <- apply_flag_constraints cc

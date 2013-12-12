@@ -14,7 +14,7 @@ import Monad.Modules
 
 import Parsing.Location
 
-import Typing.CoreSyntax
+import Core.Syntax
 
 import Interpret.Circuits (Circuit, Binding, create_circuit)
 import qualified Interpret.Circuits as C
@@ -110,7 +110,7 @@ close_box = do
         return top
 
 
--- | Append a circuit, using the specified binding. 
+-- | Append a circuit, using the specified binding.
 -- The action is done on the top circuit. If the circuit list is empty, throw
 -- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
 -- addresses done by the circuit constructor.
@@ -151,14 +151,14 @@ bind_pattern (PUnit _) VUnit env = do
   return env
 
 bind_pattern (PBool _ b) (VBool b') env = do
-  if b == b' then 
-    return env 
+  if b == b' then
+    return env
     else
     throwNE $ MatchingError (sprint $ PBool 0 b) (sprint $ VBool b')
 
 bind_pattern (PInt _ n) (VInt n') env = do
-  if n == n' then 
-    return env 
+  if n == n' then
+    return env
     else
     throwNE $ MatchingError (sprint $ PInt 0 n) (sprint $ VInt n')
 
@@ -193,7 +193,7 @@ match_value (PWildcard _) _ =
 match_value (PVar _ _) _  =
   True
 
-match_value (PTuple _ plist) (VTuple vlist) = 
+match_value (PTuple _ plist) (VTuple vlist) =
   let match_list = (\plist vlist ->
                       case (plist, vlist) of
                         ([], []) ->
@@ -241,7 +241,7 @@ bind (VTuple vlist) (VTuple vlist') = do
   case (vlist, vlist') of
     ([], []) ->
         return []
- 
+
     (v:rest, v':rest') -> do
         b <- bind v v'
         brest <- bind (VTuple rest) (VTuple rest')
@@ -310,7 +310,7 @@ extract v = do
 -- * @unbox c@. Returns the unboxed circuit (i.e., VUnboxed c).
 --
 -- * @box[T] t@. See the operational semantics for more information about this case.
--- 
+--
 -- * @rev c@. Reverses the circuit.
 --
 -- A dedicated function was needed to reduce the function applications, because the 'Interpret.Interpret.interpret' function only reduces
@@ -354,7 +354,7 @@ do_application env f x =
         qinit <- last_qubit
         reset_qubits
         s <- spec typ
-        
+
         -- Open a new circuit, initialized with the quantum addresses of the specimen
         ql <- extract s
         open_box ql
@@ -362,7 +362,7 @@ do_application env f x =
         s' <- do_application env x s
         -- Close the box, and return the corresponding circuit
         c <- close_box
-        
+
         -- Reset the counter for qubit values
         set_qubits qinit
         return (VCirc s c s')
@@ -376,7 +376,7 @@ do_application env f x =
 
 
 
--- | Evaluate an expression. 
+-- | Evaluate an expression.
 -- Knowing that the monad 'QpState' encloses a circuit stack, this function closely follows the theoretical semantics describing the
 -- reduction of a closure [/C/, /t/]. The main difference is that the substitutions done during the beta reduction are delayed via
 -- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
@@ -434,7 +434,7 @@ interpret env (EFun _ p e) = do
 interpret env (ELet _ r p e1 e2) = do
   -- Reduce the argument e1
   v1 <- interpret env e1
-  
+
   -- Recursive function ?
   case (r, v1, drop_constraints p) of
     (Recursive, VFun ev arg body, PVar _ x) ->

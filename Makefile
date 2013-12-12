@@ -13,18 +13,16 @@ ALEX = alex
 
 MAIN = ProtoQuipper
 
-PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/ConstraintParser.y	\
-  Parsing/IParser.y Parsing/Lexer.x
-GENERATED_MODULES = Parsing/ConstraintParser.hs Parsing/IParser.hs	\
-  Parsing/Lexer.hs Parsing/Parser.hs
+PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x	\
+GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
   Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
   Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
-  ProtoQuipper.hs Typing/CorePrinter.hs Typing/CoreSyntax.hs		\
+  ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs		\
   Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
-  Typing/TransSyntax.hs Typing/TypeInference.hs	\
+  Typing/TypeInference.hs	\
   Typing/TypingContext.hs Utils.hs Typing/LabellingContext.hs \
   Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/Interfaces.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
@@ -36,12 +34,6 @@ $(MAIN) : $(MODULES)
 
 Parsing/Parser.hs : Parsing/Parser.y
 	$(HAPPY) Parsing/Parser.y
-
-Parsing/ConstraintParser.hs : Parsing/ConstraintParser.y
-	$(HAPPY) Parsing/ConstraintParser.y
-
-Parsing/IParser.hs : Parsing/IParser.y
-	$(HAPPY) Parsing/IParser.y
 
 Parsing/Lexer.hs : Parsing/Lexer.x
 	$(ALEX) Parsing/Lexer.x
