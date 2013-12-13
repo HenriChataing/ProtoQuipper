@@ -55,7 +55,7 @@ lex_and_parse_implementation file = do
   contents <- liftIO $ B.readFile file
   tokens <- mylex file contents
   mod <- return $ module_of_file file
-  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
+  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file }
 
 {-
 -- | Lex and parse the interface file at the given filepath.
@@ -211,6 +211,9 @@ build_set_dependencies dirs progs = do
 
 
 
+
+
+
 -- | The type of /extensive contexts/, which are used during the processing of top-level declarations.
 data ExtensiveContext = Context {
   labelling :: LabellingContext,        -- ^ A labelling context.
@@ -341,9 +344,6 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           Just (DLet recflag (unPVar p') e')
         else
           Nothing
-
-  -- Export the variables of the pattern
-  p' <- with_interface prog (labelling ctx) p'
 
   -- Give the corresponding sub contexts
   gamma <- return $ typing ctx

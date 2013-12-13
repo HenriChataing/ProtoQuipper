@@ -41,12 +41,12 @@ import Data.Sequence as Seq
 
 
 -- | A data type to implement a logger. Logs can be given different priorities, depending on their importance.
--- The verbose control then discards any log whose priority is lower than the control. The logs are printed
+-- Any log whose priority is lower than the verbose control is discarded. The logs are printed
 -- to a channel, which can be, for example, 'stdout', 'stderr', or any file writing channel.
 data Logfile = Logfile {
   channel :: Handle,          -- ^ The output channel, by default stdout.
   verbose :: Int,             -- ^ The verbose level, by default nul.
-  warnings :: String          -- ^ Should warnings be turned into errors ?
+  warnings :: String          -- ^ Handling of warnings (error, print, ignore).
 }
 
 
@@ -82,12 +82,13 @@ write_warning logfile warn ex = do
 
 
 
--- | The different kind of assertions.
+-- | A list of assertions on types, that allows for control over the form of a type used in a construction.
 data Assertion =
     IsDuplicable
   | IsNonduplicable
   | IsNotfun
   deriving (Show, Eq)
+
 
 
 -- | The context of implemented quantum operations. If a module uses different instances of the box, unbox, rev operators, their
@@ -96,7 +97,7 @@ data CircOps = CircOps {
   boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
   unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
   rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
-  code :: [C.Declaration]                  -- ^ The body of the QLib module.
+  code :: [C.Declaration]                   -- ^ The body of the QLib module.
 }
 
 -- | Empty quantum library: no operation defined.
@@ -146,8 +147,6 @@ data QContext = QCtx {
   algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
   synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
 
-  builtins :: Map String (Type, Value),               -- ^ A certain number of predefined and pre-typed functions \/ values are put
-                                                      -- in the 'builtins' field, where they are available to both the type checker and the interpreter.
   datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
@@ -246,9 +245,6 @@ empty_context =  QCtx {
 -- No global variables
   globals = IMap.empty,
   values = IMap.empty,
-
--- No builtins, added later
-  builtins = Map.empty,
 
 -- The initial location is unknown, as well as the name of the code file
   filename = file_unknown,
@@ -362,6 +358,7 @@ get_file =
 
 ------------------------------------------------
 -- ** Type and variable manipulation.
+
 
 
 -- | Register a variable in the namespace. A new id is generated, bound to
@@ -536,41 +533,6 @@ lookup_qualified_type (mod, n) = do
 
   else do
     throw_UndefinedType (mod ++ "." ++ n)
-
-
-
--- | Look up the type of a built-in object.
-builtin_type :: String -> QpState Type
-builtin_type s = do
-  ctx <- get_context
-  case Map.lookup s $ builtins ctx of
-    Just (t, _) -> do
-        (ff, fv) <- return (free_flag t, free_typ_var t)
-        -- Replace the flags
-        t <- List.foldl (\rec f -> do
-                           typ <- rec
-                           f' <- fresh_flag
-                           return $ subs_flag f f' typ) (return t) ff
-        -- Replace the type variables
-        t <- List.foldl (\rec v -> do
-                           typ <- rec
-                           v' <- fresh_type
-                           return $ subs_typ_var v (TVar v') typ) (return t) fv
-        return t
-    Nothing ->
-        fail $ "QpState:builtin_type: undefined builtin operation: " ++ s
-
-
-
--- | Look up the value of a built-in object.
-builtin_value :: String -> QpState Value
-builtin_value s = do
-  ctx <- get_context
-  case Map.lookup s $ builtins ctx of
-    Just (_, v) ->
-        return v
-    Nothing ->
-        fail $ "QpState:builtin_value: undefined builtin operation: " ++ s
 
 
 

@@ -506,7 +506,7 @@ interpret env (EIf _ e1 e2 e3) = do
 interpret env (EConstraint e _) = do
   interpret env e
 
-interpret _ (EBuiltin _ s) =
-  builtin_value s
+interpret _ _ =
+  fail "Interpret:interpret: unexpected expression"
 
 

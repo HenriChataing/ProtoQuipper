@@ -226,19 +226,6 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
 --    !I G |- rev : U   [{1 \<= I, !1(!0 circ (!n a, !m b) -> !1 circ (!m b, !n a)) <: U}]
 -- @
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
-
--- For builtins, get the type registered in the builtins map.
-constraint_typing gamma (EBuiltin ref s) cst = do
-  -- The context must be duplicable
-  duplicable_context gamma
-
-  info <- return $ no_info { c_ref = ref }
-  acts <- builtin_type s
-  update_ref ref (\ri -> Just ri { r_type = acts })
-
-  return $ ((acts <:: cst) & info, [])
-
-
 -- | Unit typing rule
 --
 -- -------------------
@@ -746,7 +733,8 @@ constraint_typing gamma (EConstraint e (t, typs)) cst = do
   csete <- constraint_typing gamma e (t':cst)
   return csete
 
-
+constraint_typing _ _ _ = do
+  fail "TypeInference:contraint_typing: unexpected expression"
 
 
 

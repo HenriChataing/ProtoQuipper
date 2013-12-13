@@ -74,7 +74,6 @@ module Core.Translate (
   translate_unbound_type,
   translate_expression,
   translate_pattern,
-  with_interface,
   import_typedefs,
   import_typesyn) where
 
@@ -902,20 +901,26 @@ translate_expression (S.ELocated e ex) label = do
 
 translate_expression (S.EBuiltin s) label = do
   ref <- create_ref
-  -- Check the existence of the built-in value before translating it
-  ctx <- get_context
-  case Map.lookup s builtin_all of
-    Just (typ, val) -> do
-        -- Translate the type
-        typ' <- translate_bound_type typ label
-        set_context $ ctx { builtins = Map.insert s (typ',val) (builtins ctx) }
-        update_ref ref (\ri -> Just ri { r_expression = Left $ EBuiltin ref s })
-        return $ EBuiltin ref s
-
-    Nothing -> do
-        -- Wrong, no built-in of name s has been defined
-        ex <- get_location
-        throwQ (UndefinedBuiltin s) ex
+  -- Check whether the builtin value has already been imported.
+  e <- case Map.lookup s (L.variables label) of
+    Just (LGlobal g) ->
+        -- Use the old definition.
+        return (EGlobal ref g)
+    _ -> do
+        -- Import the builtin operation.
+        ctx <- get_context
+        case Map.lookup s builtin_all of
+          Just (typ, val) -> do
+              typ' <- translate_bound_type typ label
+              g <- register_var s ref
+              set_context $ ctx { globals = IMap.insert g (TForall [] [] emptyset typ') (globals ctx), values = IMap.insert g val (values ctx) }
+              return (EGlobal ref g)
+          Nothing -> do
+              -- Wrong, no builtin operation of name s has been defined
+              ex <- get_location
+              throwQ (UndefinedBuiltin s) ex
+  update_ref ref (\ri -> Just ri { r_expression = Left e })
+  return e
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
@@ -926,38 +931,3 @@ translate_expression e _ = do
   throwQ (ParsingError (pprint e)) ref
 
 
-
-
--- | If an interface file is provided, modify the pattern by adding type constraints corresponding to the types
--- written in the interface.
-with_interface :: S.Program -> LabellingContext -> Pattern -> QpState Pattern
-with_interface prog label (PVar ref x) = do
-  case S.interface prog of
-    Just inter -> do
-        -- If an interface file is present, check the presence of the variable x
-        n <- variable_name x
-        case List.lookup n inter of
-          Just typ -> do
-              return $ PConstraint (PVar ref x) (typ, L.types label)
-          Nothing -> do
-              return $ PVar ref x
-    Nothing -> do
-        return $ PVar ref x
-
-with_interface prog label (PDatacon ref dcon (Just p)) = do
-  p' <- with_interface prog label  p
-  return $ PDatacon ref dcon $ Just p'
-
-with_interface prog label (PTuple ref plist) = do
-  plist' <- List.foldr (\p rec -> do
-                          r <- rec
-                          p' <- with_interface prog label p
-                          return (p':r)) (return []) plist
-  return $ PTuple ref plist
-
-with_interface prog label (PConstraint p t) = do
-  p' <- with_interface prog label  p
-  return (PConstraint p' t)
-
-with_interface _ _ p =
-  return p

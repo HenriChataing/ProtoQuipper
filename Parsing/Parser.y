@@ -94,8 +94,8 @@ import Data.List as List
 -}
 
 Program :
-     Import_list Decl_list                       { Prog { imports = $1, body = $2, module_name = "", filepath = "", interface = Nothing } }
-   | Import_list ";;" Decl_list                  { Prog { imports = $1, body = $3, module_name = "", filepath = "", interface = Nothing } }
+     Import_list Decl_list                       { Prog { imports = $1, body = $2, module_name = "", filepath = "" } }
+   | Import_list ";;" Decl_list                  { Prog { imports = $1, body = $3, module_name = "", filepath = "" } }
 
 
 {- List of imported modules

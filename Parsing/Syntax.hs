@@ -44,7 +44,7 @@ data Typesyn = Typesyn {
 --
 -- * a top-level expression;
 --
--- * a type definition;
+-- * a block of algebraic type definitions;
 --
 -- * a type synonym.
 --
@@ -54,6 +54,7 @@ data Declaration =
   | DExpr XExpr                              -- ^ A simple expression: @e;;@
   | DTypes [Typedef]                         -- ^ A list of type definitions. The types are mutually recursive.
   | DSyn Typesyn                             -- ^ A type synonym definition.
+
 
 -- ----------------------------------------------------------------------
 -- ** Programs
@@ -68,10 +69,7 @@ data Program = Prog {
   imports :: [String],                       -- ^ List of imported modules.
 
 -- The body of the module
-  body :: [Declaration],                     -- ^ Body of the module, which contains the type and term declarations.
-
--- Optional interface
-  interface :: Maybe Interface               -- ^ Optional interface file.
+  body :: [Declaration]                      -- ^ Body of the module, which contains the type and term declarations.
 }
 
 
@@ -81,8 +79,7 @@ dummy_program = Prog {
   module_name = "Dummy",
   filepath = file_unknown,
   imports = [],
-  body = [],
-  interface = Nothing
+  body = []
 }
 
 -- | Modules are compared based on their name.
@@ -286,7 +283,9 @@ flatten e =
         let (p,es) = aux e in
         (p,f:es)
       aux (ELocated e ex) =
-        aux e
+        case aux e of
+          (e, []) -> (ELocated e ex, [])
+          (e,arg) -> (e,arg)
       aux e =
         (e,[])
 
