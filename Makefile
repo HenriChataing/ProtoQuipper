@@ -13,7 +13,7 @@ ALEX = alex
 
 MAIN = ProtoQuipper
 
-PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x	\
+PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
@@ -49,7 +49,7 @@ clean :
 	rm -f bwt.circ
 
 count : clean
-	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y Parsing/IParser.y Parsing/ConstraintParser.y
+	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y
 
 # ----------------------------------------------------------------------
 # Building documentation with source code links. This requires a

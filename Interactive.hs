@@ -212,7 +212,7 @@ run_interactive opts ctx buffer = do
                               -- Type e. The constraints from the context are added for the unification.
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
                               inferred <- map_type a >>= pprint_type_noref
 
@@ -283,7 +283,7 @@ run_interactive opts ctx buffer = do
 
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
                               inferred <- map_type a
 

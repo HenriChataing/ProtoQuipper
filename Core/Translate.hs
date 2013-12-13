@@ -68,7 +68,6 @@
 --
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Core.Translate (
-  define_user_subtyping,
   define_user_properties,
   translate_type,
   translate_bound_type,
@@ -111,6 +110,54 @@ import qualified Data.IntMap as IMap
 
 
 
+-- | From a given type written in the parsing syntax, produce a map that associates each free
+-- variable with its variance.
+variance :: Variance                        -- ^ The variance of the current type.
+         -> S.Type                          -- ^ The type to check.
+         -> [S.Type]                        -- ^ The type arguments.
+         -> Map String Type                 -- ^ A partial labelling context.
+         -> QpState (Map String Variance)   -- ^ The resulting map.
+variance var (S.TVar a) [] typs =
+  return $ Map.singleton a var
+variance var (S.TVar a) arg typs = do
+  case Map.lookup a typs of
+    Just (TBang _ (TAlgebraic id _)) -> do
+        typedef <- algebraic_def id
+        List.foldl (\rec (vara, a) -> do
+              m <- rec
+              let var' = case vara of
+                    Unrelated -> Unrelated
+                    Equal -> Equal
+                    Covariant -> var
+                    Contravariant -> opposite var
+              va <- variance var' a [] typs
+              return $ Map.unionWith join va m
+            ) (return Map.empty) $ List.zip (d_args typedef) arg
+    _ -> fail "Translate:variance: undefined algebraic type"
+variance var (S.TTensor tlist) [] typs =
+  List.foldl (\rec a -> do
+        m <- rec
+        va <- variance var a [] typs
+        return $ Map.unionWith join va m) (return Map.empty) tlist
+variance var (S.TBang t) [] typs =
+  variance var t [] typs
+variance var (S.TCirc t u) [] typs = do
+  vt <- variance (opposite var) t [] typs
+  vu <- variance var u [] typs
+  return $ Map.unionWith join vt vu
+variance var (S.TArrow t u) [] typs = do
+  vt <- variance (opposite var) t [] typs
+  vu <- variance var u [] typs
+  return $ Map.unionWith join vt vu
+variance var (S.TApp t u) arg typs =
+  variance var t (u:arg) typs
+variance var (S.TLocated t _) arg typs =
+  variance var t arg typs
+variance var _ _ _ =
+  return Map.empty
+
+
+
 
 -- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
@@ -118,26 +165,24 @@ import_typedefs :: [S.Typedef]                -- ^ A block of co-inductive type 
                 -> LabellingContext           -- ^ The current labelling context.
                 -> QpState LabellingContext   -- ^ The updated labelling context.
 import_typedefs dblock label = do
-  -- Import the type definitions.
+  -- Initialize the type definitions.
   -- At first, the definition is empty, it will be elaborated later.
-  -- The types of the block are added to the labelling map: this is what allows for co-inductive types
-  (typs, names) <- List.foldl (\rec def@(S.Typedef typename args _) -> do
-        (typs, names) <- rec
-        spec <- return $ Typedef {
-              d_args = List.length args,
-              d_qdatatype = True,            -- qdata type by default
+  typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
+        typs <- rec
+        let spec = Typedef {
+              d_args = List.map (const Unrelated) args,     -- all type arguments are by default unrelated.
+              d_qdatatype = True,                           -- qdata type by default
               d_unfolded = ([], []),
-              d_subtype = ([], [], emptyset),
               d_gettag = \x -> CS.EVar x
             }
 
         -- Register the type in the current context
         id <- register_typedef typename spec
         -- Add the type in the map
-        return (Map.insert typename (TBang 0 $ TAlgebraic id []) typs, id:names)) (return (L.types label, [])) dblock
+        return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
+      ) (return (L.types label)) dblock
 
-  -- Transcribe the rest of the type definitions.
-  -- Type definitions include: the name of the type, generic variables, the list of constructors
+  -- Build the unfolded type definition.
   datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
         lbl <- rec
         -- Type id needed for udpates.
@@ -152,7 +197,7 @@ import_typedefs dblock label = do
               ta <- new_type
               return (ta:args, Map.insert a ta m)) (return ([], typs)) args
 
-        -- Define the type of the data constructors
+        -- Translate the type of the data constructors.
         (dtypes', m) <- List.foldl (\rec (no, (dcon, dtype)) -> do
               (dt, lbl) <- rec
               (dtype, argtyp, cset) <- case dtype of
@@ -168,11 +213,11 @@ import_typedefs dblock label = do
                         return (TBang one (TArrow dt' (TBang m $ TAlgebraic typeid args')), Just dt', ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
-              -- Those variables must also respect the constraints from the construction of the type
-              (fv, ff) <- return (free_typ_var dtype, free_flag dtype)
+              -- Those variables must also respect the constraints from the construction of the type.
+              let (fv, ff) = (free_typ_var dtype, free_flag dtype)
               dtype <- return $ TForall ff fv cset dtype
 
-              -- Register the datacon
+              -- Register the datacon.
               id <- register_datacon dcon $ Datacondef {
                     d_type = dtype,
                     d_datatype = typeid,
@@ -183,7 +228,7 @@ import_typedefs dblock label = do
                   }
               return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
-        -- Update the specification of the type
+        -- Update the specification of the type.
         spec <- algebraic_def typeid
         ctx <- get_context
         set_context $ ctx { algebraics = IMap.insert typeid spec { d_unfolded = (args', dtypes') } $ algebraics ctx }
@@ -194,10 +239,42 @@ import_typedefs dblock label = do
         return m) (return $ L.datacons label) dblock
 
 
+  -- Update the variance of the type arguments of a single type.
+  let update_variance typ = do
+        let id = case Map.lookup (S.d_typename typ) typs of
+              Just (TBang _ (TAlgebraic id _)) -> id
+              _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
+        algdef <- algebraic_def id
+        let old = d_args algdef
+        upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.d_constructors typ)) [] typs
+        let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.d_args typ
+        update_algebraic id $ \alg -> Just $ alg { d_args = new }
+        return $ old == new
 
-  -- Infer the properties of the user types
-  define_user_subtyping names
-  define_user_properties names
+  -- Apply the function update_variance to a group of type definitions.
+  let update_variances dblock = do
+        end <- List.foldl (\rec typ -> do
+              end <- rec
+              upd <- update_variance typ
+              return $ end && upd) (return True) dblock
+        if end then
+          return ()
+        else
+          update_variances dblock
+
+  -- Print the inferred variance.
+  let print_variance typ = do
+        let id = case Map.lookup (S.d_typename typ) typs of
+              Just (TBang _ (TAlgebraic id _)) -> id
+              _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
+        algdef <- algebraic_def id
+        newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) (S.d_typename typ) $ List.zip (d_args algdef) (S.d_args typ))
+
+  -- Apply the function update_variances
+  update_variances dblock
+
+  -- Print some information about the inferred variance
+  List.foldl (\rec typ -> rec >> print_variance typ) (return ()) dblock
 
   -- Return the updated labelling map for types, and the map for dataconstructors.
   return $ label { L.datacons = datas,
@@ -265,123 +342,6 @@ choose_implementation typ = do
           -- The tag is the first element of the tuple.
           update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EAccess 0 v })
 
-
-
--- | Unfold the definitions of the types in the subtyping constraints
--- products of the reduction of user a <: user a'
--- Takes the name of the type as input, and returns the resulting set.
--- No modification is made to the specification of the type.
-unfold_once :: Algebraic -> QpState ConstraintSet
-unfold_once name = do
-  spec <- algebraic_def name
-
-  -- Unfolded constraints
-  (a, a', current) <- return $ d_subtype spec
-
-  -- unfold the user type constraints
-  cuser <- unfold_algebraic_constraints_in_set current
-
-  -- Break the composite constraints, although without touching
-  -- the user type constraints, thus the false flag in the call to break_composite
-  cuser <- break_composite False cuser
-
-  -- Add them one by one to the non user constraints, checking
-  -- for duplicates
-  lcuser <- return $ List.nub (fst cuser)
-  fcuser <- return $ List.nub (snd cuser)
-  return (lcuser, fcuser)
-
-
--- | Unfold the definitions of the types in the subtyping constraints untils the
--- resulting constraint set becomes stable. The input is a list of co-inductive
--- types. It doesn't output anything, but updates the constraint set in the specification
--- of the input types
-unfold_all :: [Algebraic] -> QpState ()
-unfold_all [] = return ()
-unfold_all names = do
-  -- Get all the specifications
-  specs <- List.foldr (\n rec -> do
-        r <- rec
-        s <- algebraic_def n
-        return (s:r)) (return []) names
-
-  -- Unfold all
-  unfolded <- List.foldr (\n rec -> do
-        r <- rec
-        uf <- unfold_once n
-        return (uf:r)) (return []) names
-
-  -- Compare the set after unfolding to before unfolding
-  -- If any has been changed, go for another round, else
-  -- end
-  ctx <- get_context
-  (finish, ctx) <- List.foldl (\rec (n, spec, after) -> do
-        (b, ctx) <- rec
-        let (a, a', subt) = d_subtype spec
-        let before = (List.filter (not . is_algebraic) (fst subt), snd subt)
-        let (cuser, cnuser) =
-              let (lc, lc') = List.partition is_algebraic (fst after) in
-              (lc, (lc', snd after))
-
-        -- Check the stability of the non user constraints of before and after the unfolding
-        if before `equals_set` cnuser then do
-          -- Terminate the recursion, and retain in the subtyping of n only the non user constraints
-          newlog 0 ("[" ++ List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (fst before) ++
-                           List.foldl (\rec c -> " " ++ pprint c ++ rec) "" (snd before) ++ " ] => " ++
-                    pprint (TAlgebraic n a) ++ " <: " ++ pprint (TAlgebraic n a'))
-
-          return (b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', before) } $ algebraics ctx })
-        else do
-          -- Continue the recursion, but update the subtyping of n
-          return (n:b, ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', after) } $ algebraics ctx })) (return ([], ctx)) (List.zip3 names specs unfolded)
-
-  -- Continue or not with the recursion
-  set_context ctx
-  unfold_all finish
-
-
-
--- | Infer the subtyping relation rules of all the user defined types.
--- It uses the algorithm described above.
-define_user_subtyping :: [Algebraic] -> QpState ()
-define_user_subtyping dblock = do
-  newlog 0 ">> User subtyping relations"
-
-  -- Initialize the constraint set of each user type
-  List.foldl (\rec n -> do
-        rec
-        spec <- algebraic_def n
-        -- One version of the unfolded type
-        let (a, ufold) = d_unfolded spec
-
-        -- Another version of the unfolded type, where a has been replaced by fresh types a'
-        (a', ufold') <- List.foldr (\(TBang n t) rec -> do
-              let x = unTVar t
-              (a', ufold') <- rec
-              b@(TBang m (TVar y)) <- new_type
-              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_typ_var x (TVar y) t))) ufold'
-              ufold' <- return $ List.map (\(dcon, typ) -> (dcon, typ >>= (\t -> Just $ subs_flag n m t))) ufold'
-              return (b:a', ufold')) (return ([], ufold)) a
-
-        -- Generate the constraints ufold <: ufold'
-        constraints <- List.foldl (\rec ((_, t), (_, u)) -> do
-              r <- rec
-              case (t, u) of
-                (Just t, Just u) -> do
-                    cset <- break_composite False ([t <: u], [])    -- We don't want the user type constraints to be replaced yet
-                    return $ cset <> r
-                _ ->
-                    return r) (return emptyset) (List.zip ufold ufold')
-
-        ctx <- get_context
-        set_context $ ctx { algebraics = IMap.insert n spec { d_subtype = (a, a', constraints) } $ algebraics ctx }) (return ()) dblock
-
-  -- Unfold until the constraint set is stable
-  unfold_all dblock
-  newlog 0 "<<\n"
-    where
-      unTVar (TVar x) = x
-      unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_subtyping: unexpected non-atomic constraint"
 
 
 
@@ -581,7 +541,7 @@ translate_type (S.TVar x) arg (label, bound) = do
     -- The variable is an algebraic type.
     Just (TBang _ (TAlgebraic id as)) -> do
         spec <- algebraic_def id
-        let nexp = d_args spec
+        let nexp = List.length $ d_args spec
         nact <- return $ (List.length as) + (List.length arg)
 
         if nexp == nact then do
@@ -632,7 +592,7 @@ translate_type (S.TQualified m x) arg lbl = do
   nexp <- case typ of
         TBang _ (TAlgebraic alg _) -> do
           dalg <- algebraic_def alg
-          return $ d_args dalg
+          return $ List.length $ d_args dalg
         TBang _ (TSynonym syn _) -> do
           dsyn <- synonym_def syn
           return $ s_args dsyn

@@ -555,7 +555,7 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
   if is_value t then do
 
     -- Unify the constraints produced by the typing of t (exact unification)
-    cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
+    cs <- break_composite (csetp <> csett)       -- Break the composite constraints
     csett <- unify True cs                       -- Unify
 
     -- Apply the substitution produced by the unification of csett to the context gamma_u
@@ -908,7 +908,7 @@ unify_with_poset exact poset (lc, fc) = do
                                 mapsto x leftend) (return ()) cx
 
                   -- Add the constraint  leftend <: rightend
-                  cset' <- break_composite True ([Sublintype leftend rightend no_info], [])
+                  cset' <- break_composite ([Sublintype leftend rightend no_info], [])
                   poset <- return $ register_constraints (fst cset') poset
 
                   -- Unify the rest
@@ -939,7 +939,7 @@ unify_with_poset exact poset (lc, fc) = do
                                         atom <- rec
                                         xt <- appmap x
                                         yt <- appmap y
-                                        atom' <- break_composite True ([Sublintype xt yt info], [])
+                                        atom' <- break_composite ([Sublintype xt yt info], [])
                                         return $ atom' <> atom
                                       _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                                  ) (return emptyset) atomx
@@ -950,12 +950,12 @@ unify_with_poset exact poset (lc, fc) = do
                                    case c of
                                      Sublintype (TVar x) u info -> do
                                          xt <- appmap x
-                                         cs' <- break_composite True ([Sublintype xt u info], [])
+                                         cs' <- break_composite ([Sublintype xt u info], [])
                                          return $ cs' <> cs
 
                                      Sublintype t (TVar y) info -> do
                                          yt <- appmap y
-                                         cs' <- break_composite True ([Sublintype t yt info], [])
+                                         cs' <- break_composite ([Sublintype t yt info], [])
                                          return $ cs' <> cs
 
                                      Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
@@ -1099,7 +1099,7 @@ unify exact (lc, fc) = do
                             u' <- map_type u
                             return $ (Subtype t' u' info):lc) (return []) lc
 
-  cset <- break_composite True (lc, fc)
+  cset <- break_composite (lc, fc)
 
   -- Type unification
   (lc', fc') <- unify_types exact cset

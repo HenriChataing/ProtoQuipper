@@ -89,24 +89,24 @@ data FlagInfo = FInfo {
 -- duplicable.
 data LinType =
 -- Basic types
-    TVar Variable              -- ^ Type variable: /a/.
-  | TArrow Type Type           -- ^ Function type: @T -> U@.
+    TVar Variable                -- ^ Type variable: /a/.
+  | TArrow Type Type             -- ^ Function type: @T -> U@.
 
 -- Tensor types
-  | TUnit                      -- ^ Unit type: @()@.
-  | TTensor [Type]             -- ^ Tensor product: @(T1 * .. * T/n/)@.
+  | TUnit                        -- ^ Unit type: @()@.
+  | TTensor [Type]               -- ^ Tensor product: @(T1 * .. * T/n/)@.
 
 -- Sum types
-  | TBool                      -- ^ The basic type /bool/.
-  | TInt                       -- ^ The basic type /int/.
-  | TAlgebraic Variable [Type]      -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
+  | TBool                        -- ^ The basic type /bool/.
+  | TInt                         -- ^ The basic type /int/.
+  | TAlgebraic Algebraic [Type]  -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
 
 -- Quantum related types
-  | TQubit                     -- ^ The basic type /qubit/.
-  | TCirc Type Type            -- ^ The type @circ (T, U)@.
+  | TQubit                       -- ^ The basic type /qubit/.
+  | TCirc Type Type              -- ^ The type @circ (T, U)@.
 
 -- Others
-  | TSynonym Synonym [Type]    -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
+  | TSynonym Synonym [Type]      -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
   deriving (Show, Eq)
 
 
@@ -285,14 +285,44 @@ instance KType Type where
 
 -- | Describe the variability of an argument.
 data Variance =
-    Covariant         -- ^ The argument is covariant.
+    Unrelated         -- ^ No clue.
+  | Covariant         -- ^ The argument is covariant.
   | Contravariant     -- ^ The argument is contravariant.
   | Equal             -- ^ The argument is both covariant and contravariant.
+  deriving Eq
+
+
+instance Show Variance where
+  show Unrelated = ""
+  show Equal = "="
+  show Covariant = "+"
+  show Contravariant = "-"
+
+
+-- | Return the least precise indication of the two arguments.
+join :: Variance -> Variance -> Variance
+join Unrelated v = v
+join v Unrelated = v
+join Covariant Contravariant = Equal
+join Contravariant Covariant = Equal
+join Covariant _ = Covariant
+join _ Covariant = Covariant
+join Contravariant _ = Contravariant
+join _ Contravariant = Contravariant
+join _ _ = Equal
+
+
+-- Return the opposite variance.
+opposite :: Variance -> Variance
+opposite Covariant = Contravariant
+opposite Contravariant = Covariant
+opposite var = var
+
 
 
 -- | An algebraic data type definition.
 data Typedef = Typedef {
-  d_args :: [(Type, Variance)],                              -- ^ The list of type arguments, each associated with its variance.
+  d_args :: [Variance],                                      -- ^ The variance of each type argument.
 
   d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
                                                              -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.

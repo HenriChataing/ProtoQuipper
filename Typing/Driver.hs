@@ -272,7 +272,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
-  cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+  cset <- constraint_typing gamma_e e' [a] >>= break_composite
   cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 
@@ -364,7 +364,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
             constraint_typing gamma_e e' [a]
 
   -- Unify the constraints produced by the typing of e (exact unification)
-  cs <- break_composite True (csetp <> csete)  -- Break the composite constraints
+  cs <- break_composite (csetp <> csete)       -- Break the composite constraints
   csete <- unify True cs                       -- Unify
 
   -- Apply the substitution produced by the unification of csett to the context gamma
