@@ -118,8 +118,10 @@ variance :: Variance                        -- ^ The variance of the current typ
          -> Map String Type                 -- ^ A partial labelling context.
          -> QpState (Map String Variance)   -- ^ The resulting map.
 variance var (S.TVar a) [] typs =
+  -- The variance of a variance is the global variance.
   return $ Map.singleton a var
 variance var (S.TVar a) arg typs = do
+  -- The variance of each of the type arguments depends upon the variance imposed by the type.
   case Map.lookup a typs of
     Just (TBang _ (TAlgebraic id _)) -> do
         typedef <- algebraic_def id
@@ -135,25 +137,32 @@ variance var (S.TVar a) arg typs = do
             ) (return Map.empty) $ List.zip (d_args typedef) arg
     _ -> fail "Translate:variance: undefined algebraic type"
 variance var (S.TTensor tlist) [] typs =
+  -- The variance is unchanged.
   List.foldl (\rec a -> do
         m <- rec
         va <- variance var a [] typs
         return $ Map.unionWith join va m) (return Map.empty) tlist
 variance var (S.TBang t) [] typs =
+  -- The variance is unchanged.
   variance var t [] typs
 variance var (S.TCirc t u) [] typs = do
+  -- The argument has its variance reversed, the other has the same variance.
   vt <- variance (opposite var) t [] typs
   vu <- variance var u [] typs
   return $ Map.unionWith join vt vu
 variance var (S.TArrow t u) [] typs = do
+  -- The argument has its variance reversed, the other has the same variance.
   vt <- variance (opposite var) t [] typs
   vu <- variance var u [] typs
   return $ Map.unionWith join vt vu
 variance var (S.TApp t u) arg typs =
+  -- Nothing to do.
   variance var t (u:arg) typs
 variance var (S.TLocated t _) arg typs =
+  -- Nothing to do.
   variance var t arg typs
 variance var _ _ _ =
+  -- Other types, with no type variables.
   return Map.empty
 
 
@@ -166,24 +175,23 @@ import_typedefs :: [S.Typedef]                -- ^ A block of co-inductive type 
                 -> QpState LabellingContext   -- ^ The updated labelling context.
 import_typedefs dblock label = do
   -- Initialize the type definitions.
-  -- At first, the definition is empty, it will be elaborated later.
   typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
         typs <- rec
         let spec = Typedef {
-              d_args = List.map (const Unrelated) args,     -- all type arguments are by default unrelated.
-              d_qdatatype = True,                           -- qdata type by default
+              d_args = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
+              d_qdatatype = True,                           -- The type is a qdata type until proven otherwise.
               d_unfolded = ([], []),
               d_gettag = \x -> CS.EVar x
             }
 
-        -- Register the type in the current context
+        -- Register the type in the current context.
         id <- register_typedef typename spec
         -- Add the type in the map
         return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
       ) (return (L.types label)) dblock
 
   -- Build the unfolded type definition.
-  datas <- List.foldl (\rec (S.Typedef typename args dlist) -> do
+  constructors <- List.foldl (\rec (S.Typedef typename args dlist) -> do
         lbl <- rec
         -- Type id needed for udpates.
         typeid <- case Map.lookup typename typs of
@@ -229,10 +237,7 @@ import_typedefs dblock label = do
               return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type.
-        spec <- algebraic_def typeid
-        ctx <- get_context
-        set_context $ ctx { algebraics = IMap.insert typeid spec { d_unfolded = (args', dtypes') } $ algebraics ctx }
-
+        update_algebraic typeid $ \algdef -> Just $ algdef { d_unfolded = (args', dtypes') }
         -- Specify the implementation of this type
         choose_implementation typeid
 
@@ -277,7 +282,7 @@ import_typedefs dblock label = do
   List.foldl (\rec typ -> rec >> print_variance typ) (return ()) dblock
 
   -- Return the updated labelling map for types, and the map for dataconstructors.
-  return $ label { L.datacons = datas,
+  return $ label { L.datacons = constructors,
                    L.types = typs }
 
 
@@ -740,7 +745,7 @@ translate_pattern (S.EConstraint p t) label = do
 
 translate_pattern p _ = do
   ref <- get_location
-  throwQ (ParsingError "") ref
+  throwQ (ParsingError (pprint p)) ref
 
 
 -- | Translate an expression, given a labelling map.
@@ -789,6 +794,8 @@ translate_expression (S.EFun p e) label = do
 
 translate_expression (S.ELet r p e f) label = do
   ref <- create_ref
+  -- At his point, p may be an applicative pattern,
+  -- The arguments should be passed to the expression e.
   (p', lbl) <- translate_pattern p label
   e' <- case r of
         Recursive -> do
@@ -916,7 +923,7 @@ translate_expression (S.EConstraint e t) label = do
 
 translate_expression e _ = do
   ref <- get_location
-  throwQ (ParsingError "") ref
+  throwQ (ParsingError (pprint e)) ref
 
 
 

@@ -322,7 +322,7 @@ opposite var = var
 
 -- | An algebraic data type definition.
 data Typedef = Typedef {
-  d_args :: [Variance],                                      -- ^ The variance of each type argument.
+  d_args :: [Variance],                                      -- ^ The variance of each of the type argument.
 
   d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
                                                              -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
@@ -340,9 +340,7 @@ data Typedef = Typedef {
 -- | A type synonym definition, e.g., @intlist@ = @list int@.
 data Typesyn = Typesyn {
   s_args :: Int,                                             -- ^ The number of type arguments.
-
   s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
-
   s_unfolded :: ([Type], Type)                               -- ^ The unfolded type (given some argument types).
 
   -- No subtyping relation is required, since the synonyms are automatically replaced.

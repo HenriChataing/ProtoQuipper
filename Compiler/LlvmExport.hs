@@ -19,9 +19,7 @@ import Data.Word (Word32, Word64)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-import System.IO.Unsafe
 import System.IO (hFlush, stdout)
-
 
 import Debug.Trace
 

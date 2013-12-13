@@ -155,8 +155,8 @@ Decl :
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
     | Typesyn ";;"                                         { DSyn $1 }
-    | LET XExpr '=' XExpr ";;"                             { DLet Nonrecursive $2 $4 }
-    | LET REC XExpr '=' XExpr ";;"                         { DLet Recursive $3 $5 }
+    | LET XExpr '=' XExpr ";;"                             { build_dlet Nonrecursive $2 $4 }
+    | LET REC XExpr '=' XExpr ";;"                         { build_dlet Recursive $3 $5 }
     | XExpr ";;"                                           { DExpr $1 }
 
 
@@ -175,9 +175,9 @@ XExpr :
     | IF XExpr THEN XExpr ELSE XExpr             { locate_opt (EIf $2 $4 $6) (fromto_opt (Just $1) (location $6)) }
     | MATCH XExpr WITH Matching_list             { locate_opt (EMatch $2 $4) (fromto_opt (Just $1) (location $ snd $ List.last $4)) }
     | LET XExpr '=' XExpr IN XExpr               { flip locate_opt (fromto_opt (Just $1) (location $6)) $
-                                                     ELet Nonrecursive $2 $4 $6 }
+                                                     build_let Nonrecursive $2 $4 $6 }
     | LET REC XExpr '=' XExpr IN XExpr           { flip locate_opt (fromto_opt (Just $1) (location $7)) $
-                                                     ELet Recursive $3 $5 $7 }
+                                                     build_let Recursive $3 $5 $7 }
     | Seq_XExpr                                  { $1 }
 
 

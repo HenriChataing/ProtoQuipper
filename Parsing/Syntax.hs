@@ -15,7 +15,6 @@ import Data.Char
 import Data.Map
 import Data.List as List
 
-
 -- ----------------------------------------------------------------------
 -- * Syntax
 
@@ -242,9 +241,9 @@ data XExpr =
 -- | A version of the 'EFun' constructor that constructs an /n/-ary
 -- function. We assume /n/ >= 1.
 multi_EFun :: [XExpr] -> XExpr -> XExpr
-multi_EFun [p] e = EFun p e
+multi_EFun [] e = e
 multi_EFun (p:ps) e = EFun p (multi_EFun ps e)
-multi_EFun [] e = throwNE $ ProgramError "Syntax:multi_EFun: empty pattern list"
+
 
 
 -- | X-expressions are located objects.
@@ -274,5 +273,38 @@ instance Located XExpr where
   clear_location (EDatacon dcon (Just e)) = EDatacon dcon (Just $ clear_location e)
   clear_location (EMatch e plist) = EMatch (clear_location e) $ List.map (\(p, f) -> (clear_location p, clear_location f)) plist
   clear_location e = e
+
+
+-- | Flatten an application of XExpr.
+flatten :: XExpr -> (XExpr, [XExpr])
+flatten e =
+  let (p, arg) = aux e in
+  (p, List.reverse arg)
+    where
+      -- Return the flattened expression, where the arguments list is reversed.
+      aux (EApp e f) =
+        let (p,es) = aux e in
+        (p,f:es)
+      aux (ELocated e ex) =
+        aux e
+      aux e =
+        (e,[])
+
+
+-- | Build a let-expression.
+build_let :: RecFlag -> XExpr -> XExpr -> XExpr -> XExpr
+build_let r e f g =
+  let (p,arg) = flatten e
+      f' = multi_EFun arg f in
+  ELet r p f' g
+
+
+-- | Build a let-declaration.
+build_dlet :: RecFlag -> XExpr -> XExpr -> Declaration
+build_dlet r e f =
+  let (p,arg) = flatten e
+      f' = multi_EFun arg f in
+  DLet r p f'
+
 
 
