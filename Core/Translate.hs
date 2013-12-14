@@ -913,7 +913,10 @@ translate_expression (S.EBuiltin s) label = do
           Just (typ, val) -> do
               typ' <- translate_bound_type typ label
               g <- register_var s ref
-              set_context $ ctx { globals = IMap.insert g (TForall [] [] emptyset typ') (globals ctx), values = IMap.insert g val (values ctx) }
+              set_context $ ctx {
+                  globals = IMap.insert g (TForall [] [] emptyset typ') $ globals ctx,
+                  values = IMap.insert g val $ values ctx,
+                  ofmodule = IMap.insert g "Builtins" $ ofmodule ctx }
               return (EGlobal ref g)
           Nothing -> do
               -- Wrong, no builtin operation of name s has been defined

@@ -53,9 +53,10 @@ declare_globals [] =
   return $ return IMap.empty
 declare_globals (gx:gxs) = do
   name <- variable_name gx
+  mod <- variable_module gx
   vals <- declare_globals gxs
   return $ do
-        ngx <- createNamedGlobal False ExternalLinkage name (constOf 0) :: TGlobal ArchInt
+        ngx <- createNamedGlobal False ExternalLinkage ("_" ++ mod ++ "_" ++ name) (constOf 0) :: TGlobal ArchInt
         vals <- vals
         return $ IMap.insert gx (LVIntPtr ngx) vals
 
@@ -66,11 +67,12 @@ declare_module_functions linkage [] =
   return $ return IMap.empty
 declare_module_functions linkage ((f, [_,_], _):fs) = do
   nf <- variable_name f
+  mod <- variable_module f
   vals <- declare_module_functions linkage fs
   return (do
         vf <- case linkage of
               ExternalLinkage ->
-                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+                  newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
               _ ->
                   newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
@@ -78,11 +80,12 @@ declare_module_functions linkage ((f, [_,_], _):fs) = do
       )
 declare_module_functions linkage ((f, [_,_,_], _):fs) = do
   nf <- variable_name f
+  mod <- variable_module f
   vals <- declare_module_functions linkage fs
   return (do
         vf <- case linkage of
               ExternalLinkage ->
-                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt-> IO ArchInt))
+                  newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt-> IO ArchInt))
               _ ->
                   newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
@@ -271,10 +274,12 @@ cunit_to_llvm mods cu = do
         case v of
           VGlobal x -> do
               n <- variable_name x
-              return $ IMap.insert x (LVExtern n) vals
+              mod <- variable_module x
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
           VLabel x -> do
               n <- variable_name x
-              return $ IMap.insert x (LVExtern n) vals
+              mod <- variable_module x
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
           _ -> return vals) (return IMap.empty) (imports cu)
 
   -- declare the global variables

@@ -847,7 +847,7 @@ remove_patterns :: C.Expr -> QpState Expr
 remove_patterns (C.EVar _ x) =
   return $ EVar x
 
-remove_patterns (C.EGlobal _ x) =
+remove_patterns (C.EGlobal _ x) = do
   return $ EGlobal x
 
 remove_patterns (C.EFun ref p e) = do
@@ -959,7 +959,7 @@ remove_patterns (C.ERev _) = do
   x <- request_rev
   return (EVar x)
 
-remove_patterns (C.EBuiltin _ s) =
+remove_patterns (C.EBuiltin _ s) = do
   return (EBuiltin s)
 
 remove_patterns (C.EConstraint e t) =

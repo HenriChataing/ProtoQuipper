@@ -546,7 +546,8 @@ process_module opts prog = do
   -- Import everything to the qstate fields
   qst <- get_context
   set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
-                      values = IMap.union (environment ctx) $ values qst }
+                      values = IMap.union (environment ctx) $ values qst,
+                      ofmodule = IMap.union (IMap.map (const $ S.module_name prog) $ typing ctx) $ ofmodule qst }
 
   -- Push the definition of the new module to the stack
   let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.

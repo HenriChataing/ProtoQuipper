@@ -143,7 +143,7 @@ data QContext = QCtx {
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
 
--- Helpers of the typing / interpretation
+-- Global variables
   algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
   synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
 
@@ -152,6 +152,8 @@ data QContext = QCtx {
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
   values :: IntMap Value,                             -- ^ The values of the global variables.
+
+  ofmodule :: IntMap String,                          -- ^ The module of definition of the variable.
 
   assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
                                                       -- function values are prohibited (even type constructors).
@@ -243,6 +245,7 @@ empty_context =  QCtx {
   dependencies = [],
 
 -- No global variables
+  ofmodule = IMap.empty,
   globals = IMap.empty,
   values = IMap.empty,
 
@@ -431,6 +434,15 @@ variable_reference x = do
   case IMap.lookup x $ N.varref (namespace ctx) of
     Just ref -> return ref
     Nothing -> return 0
+
+
+-- | Retrieve the module of definition of a global variable.
+variable_module :: Variable -> QpState String
+variable_module x = do
+  ctx <- get_context
+  case IMap.lookup x $ ofmodule ctx of
+    Just mod -> return mod
+    Nothing -> fail "QpState:variable_module: undefined module"
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
