@@ -759,7 +759,8 @@ simplify_pattern_matching e blist = do
   let unbuild = \dtree extracted ->
         case dtree of
           Result (-1) -> do
-              return $ EBuiltin "PATTERN_ERROR"
+              vpattern <- lookup_qualified_var ("Builtins", "PATTERN_ERROR")
+              return $ EGlobal vpattern
 
           Result n -> do
               -- Get the list of the variables declared in the pattern
@@ -795,14 +796,15 @@ simplify_pattern_matching e blist = do
                                 Result (-1) -> False
                                 _ -> True) others
 
-                        -- Build the if conditions
-                        List.foldl (\rec (rint, subtree) -> do
+                        -- Build the conditions.
+                        cases <- List.foldl (\rec (rint, subtree) -> do
                               n <- return $ case rint of {RInt n -> n; _ -> 0}
                               tests <- rec
                               testn <- unbuild subtree extracted
-                              return $ EIf (EApp (EApp (EBuiltin "EQ") (EVar var')) (EInt n))
-                                           testn
-                                           tests) (return lastcase) others
+                              return $ (n, testn):tests) (return []) others
+
+                        -- Build the completed expression.
+                        return $ EMatch (EVar var') cases lastcase
 
                     RBool _ -> do
                         rtrue <- case List.lookup (RBool True) results of
@@ -813,7 +815,7 @@ simplify_pattern_matching e blist = do
                               Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case False"
                         casetrue <- unbuild rtrue extracted
                         casefalse <- unbuild rfalse extracted
-                        return $ EIf (EVar var') casetrue casefalse
+                        return $ EMatch (EVar var') [(1,casetrue)] casefalse
 
                     RDatacon _ -> do
                         cases <- List.foldl (\rec (rdcon, subtree) -> do
@@ -823,7 +825,7 @@ simplify_pattern_matching e blist = do
                                     _ -> return (-1)
                               e <- unbuild subtree extracted
                               return $ (tag, e):cases) (return []) results
-                        return $ EMatch (EVar var') cases
+                        return $ EMatch (EVar var') (List.init cases) $ snd $ List.last cases
 
                     ROtherInt _ ->
                         fail "Preliminaries:simplify_pattern_matching: unexpected result 'RRemainInt'"
@@ -915,7 +917,7 @@ remove_patterns (C.EIf _ e f g) = do
   e' <- remove_patterns e
   f' <- remove_patterns f
   g' <- remove_patterns g
-  return $ EIf e' f' g'
+  return $ EMatch e' [(1,f')] g'
 
 remove_patterns (C.EDatacon _ dcon Nothing) = do
   ddef <- datacon_def dcon
@@ -959,12 +961,11 @@ remove_patterns (C.ERev _) = do
   x <- request_rev
   return (EVar x)
 
-remove_patterns (C.EBuiltin _ s) = do
-  return (EBuiltin s)
-
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
 
+remove_patterns _ =
+  fail "Preliminaries:remove_patterns: unexpected builtin"
 
 
 -- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern' to all the top-level declarations.
@@ -1027,6 +1028,5 @@ transform_declarations decls = do
   set_context ctx { circOps = empty_circOps }
 
   return $ qops ++ List.reverse decls
-
 
 

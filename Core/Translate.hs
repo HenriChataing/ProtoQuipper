@@ -324,9 +324,10 @@ choose_implementation typ = do
             [] -> update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EVar v })
             -- There is a reference: need to check
             [(dcon, _)] -> do
+                visref <- lookup_qualified_var ("Builtins","ISREF")
                 tag <- datacon_def dcon >>= return . d_tag
-                update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EIf (CS.EApp (CS.EBuiltin "ISREF") (CS.EVar v))
-                                                                       (CS.EInt tag)
+                update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EMatch (CS.EApp (CS.EGlobal visref) (CS.EVar v))
+                                                                       [(1,CS.EInt tag)]
                                                                        (CS.EVar v) })
             _ ->
                 fail "TransSyntax:choose_implementation: unexpected case"

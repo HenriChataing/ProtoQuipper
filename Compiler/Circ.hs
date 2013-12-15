@@ -32,6 +32,8 @@ import qualified Data.Map as Map
 implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
                 -> QpState Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
 implement_unbox (t, u) = do
+  vunencap <- lookup_qualified_var ("Builtins", "UNENCAP")
+
   -- Creation of auxiliary variables
   x0 <- create_var "cc"
   x1 <- create_var "q"
@@ -53,7 +55,7 @@ implement_unbox (t, u) = do
         -- Build the binding
         elet $ ELet xb b $
         -- Call the unencap function
-        ELet xb' (EApp (EApp (EBuiltin "UNENCAP") (EVar xb)) (EVar xc)) $
+        ELet xb' (EApp (EApp (EGlobal vunencap) (EVar xb)) (EVar xc)) $
         -- Finally, apply the binding to the output value
         elet' $ v
 
@@ -62,6 +64,9 @@ implement_unbox (t, u) = do
 implement_box :: QType                   -- ^ The type of the input value.
               -> QpState Expr            -- ^ The code (function) implementation of the box[T] operator.
 implement_box typ = do
+  vopenbox <- lookup_qualified_var ("Builtins", "OPENBOX")
+  vclosebox <- lookup_qualified_var ("Builtins", "CLOSEBOX")
+
   -- The code used to generate the specimen
   (spec, n) <- implement_spec typ
 
@@ -74,9 +79,9 @@ implement_box typ = do
   -- Implementation of box[T]
   return $ EFun x0 $
         ELet x1 spec $                                -- Create the specimen
-        ESeq (EApp (EBuiltin "OPENBOX") (EInt n)) $   -- Open a new box
+        ESeq (EApp (EGlobal vopenbox) (EInt n)) $     -- Open a new box
         ELet x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
-        ELet x3 (EBuiltin "CLOSEBOX") $               -- Close the box
+        ELet x3 (EGlobal vclosebox) $                 -- Close the box
         ETuple [EVar x1, EVar x3, EVar x2]            -- Build the resulting circuit
 
 
@@ -84,6 +89,8 @@ implement_box typ = do
 -- The function implemented takes in a circuit of the form @(t, c, u)@ and returns @(u, c-1, t)@
 implement_rev :: QpState Expr
 implement_rev = do
+  vrev <- lookup_qualified_var ("Builtins", "REV")
+
   -- Creation of the variables needed to define the function
   x0 <- create_var "cc"
   x1 <- create_var "t"
@@ -95,7 +102,7 @@ implement_rev = do
         ELet x1 (EAccess 0 x0) $
         ELet x2 (EAccess 1 x0) $
         ELet x3 (EAccess 2 x0)
-        (ETuple [EVar x3, EApp (EBuiltin "REV") (EVar x2), EVar x1])
+        (ETuple [EVar x3, EApp (EGlobal vrev) (EVar x2), EVar x1])
 
 
 -- | Generate the code of the @spec[T]@ value. Be aware that @spec[T]@ is not a function, but instead a pair @(v, n)@
@@ -104,7 +111,7 @@ implement_rev = do
 implement_spec :: QType -> QpState (Expr, Int)
 implement_spec typ = do
   return $ spec_n typ 0
-  where  
+  where
     spec_n QQubit n = (EInt n, n+1)
     spec_n QUnit n = (EUnit, n)
     spec_n (QTensor qlist) n =
@@ -132,7 +139,7 @@ implement_bind typ x y = do
   let elet' = List.foldr (\(x, ex) e ->
         \f -> e (ELet x ex f)) (\f -> f) elet
   return (elet', b')
- 
+
   where
     -- The bind function returns a pairs (elet, b) where elet contains the variable creations, and b the bindings
     bind QQubit x y =
@@ -169,7 +176,7 @@ implement_appbind typ b x = do
   where
     -- In the following, b is expected of the form : EApp (EBuiltin "APPBIND") b where is a binding
     appbind QUnit _ = return ([], EUnit)
-    appbind QQubit x = return ([], EApp (EApp (EBuiltin "APPBIND") (EVar b)) (EVar x))
+    appbind QQubit x = lookup_qualified_var ("Builtins","APPBIND") >>= \v -> return ([], EApp (EApp (EGlobal v) (EVar b)) (EVar x))
     appbind (QTensor qlist) x = do
       (elet, elist) <- List.foldl (\rec (n, q) -> do
             (elet, elist) <- rec

@@ -234,20 +234,22 @@ cexpr_to_llvm vals (CAccess n x y c) = do
   -- translate the continuation
   cexpr_to_llvm (IMap.insert y (LVInt vy) vals) c
 
-cexpr_to_llvm vals (CSwitch x clist) = do
+cexpr_to_llvm vals (CSwitch x clist def) = do
   -- translate the value v, and check that it is indeed an integer
   vx <- cvalue_to_int  vals x
-  -- build the switch cases
-  cases <- List.foldl (\rec c -> do
+  -- Build the switch cases.
+  cases <- List.foldl (\rec (n, c) -> do
+        let tag = constOf $ fromIntegral n
         blocks <- rec
         block <- createBasicBlock
         cexpr_to_llvm vals c
-        return $ block:blocks) (return []) clist
-  let tags = List.map (constOf . fromIntegral) [0..List.length clist - 2]    -- the last case is omited for it will be the default jump target
+        return $ (tag, block):blocks) (return []) clist
+  -- Build he default block.
+  bdef <- createBasicBlock
+  cexpr_to_llvm vals def
 
-  let (bcases, dcase) = (List.init cases, List.last cases)
-
-  switch vx dcase $ List.zip tags bcases
+  -- Build the final expression.
+  switch vx bdef cases
 
 cexpr_to_llvm vals (CSet x v) = do
   vx <- cvalue_to_int  vals (VVar x)

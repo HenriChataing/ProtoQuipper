@@ -31,7 +31,6 @@ import qualified Typing.LabellingContext as L
 import Compiler.Preliminaries
 import qualified Compiler.CExpr as C
 import Compiler.LlvmExport
-import Compiler.Interfaces
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -589,8 +588,7 @@ do_everything opts files = do
   deps <- build_set_dependencies (includes opts) progs
 
   -- Build the builtin / qlib interfaces
-  iqlib <- build_iqlib
-  ibuiltins <- build_ibuiltins
+  import_builtins
 
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec p -> do
@@ -602,8 +600,8 @@ do_everything opts files = do
         decls <- transform_declarations (M.declarations nm)
 
         cunit <- case conversionFormat opts of
-              "cps" -> C.convert_declarations_to_cps (iqlib, ibuiltins) decls
-              "wcps" -> C.convert_declarations_to_wcps (iqlib, ibuiltins) decls
+              "cps" -> C.convert_declarations_to_cps decls
+              "wcps" -> C.convert_declarations_to_wcps decls
               _ -> fail "Driver:do_everything: illegal format"
 
         newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"

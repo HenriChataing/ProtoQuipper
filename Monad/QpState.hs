@@ -111,6 +111,8 @@ empty_circOps = CircOps {
 
 
 
+
+
 -- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
 -- from parsing to interpretation and type inference. We prefer using a single context to using
 -- several module-specific contexts, to avoid having to convey information between different kinds of state.
@@ -976,6 +978,27 @@ call_convention :: Variable -> QpState (Maybe [Type])
 call_convention v = do
   ctx <- get_context
   return $ IMap.lookup v $ call_conventions ctx
+
+
+-- | Build the interface of the Builtins module.
+import_builtins :: QpState ()
+import_builtins = do
+  (lbl, ofmod) <- List.foldl (\rec b -> do
+        (lbl, ofmod) <- rec
+        vb <- register_var b 0
+        return (Map.insert b (LGlobal vb) lbl, IMap.insert vb "Builtins" ofmod)
+      ) (return (Map.empty,IMap.empty)) ["UNENCAP", "OPENBOX", "CLOSEBOX", "REV", "APPBIND", "ISREF", "PATTERN_ERROR"]
+
+  let builtins = M.Mod {
+    M.labelling = L.empty_label { L.variables = lbl },
+    M.declarations = []
+  }
+
+  ctx <- get_context
+  set_context ctx {
+    ofmodule = IMap.union ofmod $ ofmodule ctx,
+    modules = ("Builtins", builtins):(modules ctx)
+  }
 
 
 -- | Profile information.
