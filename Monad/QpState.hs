@@ -442,9 +442,10 @@ variable_reference x = do
 variable_module :: Variable -> QpState String
 variable_module x = do
   ctx <- get_context
+  n <- variable_name x
   case IMap.lookup x $ ofmodule ctx of
     Just mod -> return mod
-    Nothing -> fail "QpState:variable_module: undefined module"
+    Nothing -> fail $ "QpState:variable_module: undefined module (" ++ n ++ ")"
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
@@ -522,10 +523,10 @@ lookup_qualified_var (mod, n) = do
                 throw_UnboundVariable (mod ++ "." ++ n)
 
       Nothing -> do
-          throw_UnboundVariable (mod ++ "." ++ n)
+          throw_UnboundModule mod
 
   else do
-    throw_UnboundVariable (mod ++ "." ++ n)
+    throw_UnboundModule mod
 
 
 
@@ -1046,6 +1047,12 @@ throw_UnboundValue :: QError a => String -> (String -> a) -> QpState b
 throw_UnboundValue v err = do
   ex <- get_location
   throwQ (err v) ex
+
+
+-- | Throw an unbound module error.
+throw_UnboundModule :: String -> QpState a
+throw_UnboundModule mod =
+  throw_UnboundValue mod UnboundModule
 
 
 -- | Throw an unbound variable error.

@@ -523,7 +523,10 @@ process_module opts prog = do
   -- Save and reset the circuit stack
   ctx <- get_context
   old_stack <- return $ circuits ctx
-  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
+  set_context $ ctx {
+    circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
+    dependencies = "Builtins":(S.imports prog)
+  }
 
   -- Interpret all the declarations
   (ctx, decls) <- List.foldl (\rec decl -> do
@@ -597,20 +600,23 @@ do_everything opts files = do
         nm <- process_module (opts, mopts) p
 
         -- Compilation
-        decls <- transform_declarations (M.declarations nm)
+        if runCompiler opts then do
+          decls <- transform_declarations (M.declarations nm)
 
-        cunit <- case conversionFormat opts of
-              "cps" -> C.convert_declarations_to_cps decls
-              "wcps" -> C.convert_declarations_to_wcps decls
-              _ -> fail "Driver:do_everything: illegal format"
+          cunit <- case conversionFormat opts of
+                "cps" -> C.convert_declarations_to_cps decls
+                "wcps" -> C.convert_declarations_to_wcps decls
+                _ -> fail "Driver:do_everything: illegal format"
 
-        newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
-        fvar <- display_var
---        newlog (-2) $ genprint Inf [fvar] decls
-        newlog (-2) $ genprint Inf [fvar] cunit
+          newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
+          fvar <- display_var
+  --        newlog (-2) $ genprint Inf [fvar] decls
+          newlog (-2) $ genprint Inf [fvar] cunit
 
 
-        cunit_to_llvm (S.module_name p) cunit
+          cunit_to_llvm (S.module_name p) cunit
+        else
+          return ()
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.
