@@ -303,13 +303,12 @@ instance Show Variance where
 join :: Variance -> Variance -> Variance
 join Unrelated v = v
 join v Unrelated = v
+join Equal _ = Equal
+join _ Equal = Equal
 join Covariant Contravariant = Equal
 join Contravariant Covariant = Equal
-join Covariant _ = Covariant
-join _ Covariant = Covariant
-join Contravariant _ = Contravariant
-join _ Contravariant = Contravariant
-join _ _ = Equal
+join Covariant Covariant = Covariant
+join Contravariant Contravariant = Contravariant
 
 
 -- Return the opposite variance.
@@ -320,35 +319,28 @@ opposite var = var
 
 
 
--- | An algebraic data type definition.
-data Typedef = Typedef {
-  d_args :: [Variance],                                      -- ^ The variance of each of the type argument.
-
-  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
-                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
-                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
-
-  d_unfolded :: ([Type], [(Datacon, Maybe Type)]),           -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
-                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ the type of its optinal argument.
-
-  d_gettag :: Variable -> C.Expr                             -- ^ The extraction of the tag is common to all the constructors of an algebraic type.
-}
 
 -- ----------------------------------------------------------------------
--- ** Type synonyms
+-- ** Type definitions.
 
--- | A type synonym definition, e.g., @intlist@ = @list int@.
-data Typesyn = Typesyn {
-  s_args :: Int,                                             -- ^ The number of type arguments.
-  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
-  s_unfolded :: ([Type], Type)                               -- ^ The unfolded type (given some argument types).
 
-  -- No subtyping relation is required, since the synonyms are automatically replaced.
+-- | A generic type definition.
+data Typedef a = Typedef {
+  arguments :: [Variance],                 -- ^ The list of type arguments, each described by its variance.
+  definition :: ([Type], a)                -- ^ The type of the definition depends upon the kind of definition (algebraic / synonym).
 }
 
 
+-- | Algebraic type definition.
+type Algdef = Typedef [(Datacon, Maybe Type)]
+
+-- ̀| Synonym type definition.
+type Syndef = Typedef Type
+
+
+
 -- ----------------------------------------------------------------------
--- ** Data constructors
+-- ** Data constructors.
 
 
 

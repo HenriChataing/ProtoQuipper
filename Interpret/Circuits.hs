@@ -45,7 +45,7 @@ unary_gates =
     ("GATE_E_INV", ("GATE_E", "-E*")),
     ("GATE_OMEGA", ("GATE_OMEGA", "-W-")),
     ("GATE_V", ("GATE_V_INV", "-V-")),
-    ("GATE_V_INV", ("GATE_V", "-V*")), 
+    ("GATE_V_INV", ("GATE_V", "-V*")),
     ("GATE_EITZ", ("GATE_EITZ_INV", "-R-")),
     ("GATE_EITZ_INV", ("GATE_EITZ", "-R*"))
     ]
@@ -115,7 +115,7 @@ data Gate =
     Init Bit Int            -- ^ The initialization gates  @0|-@  and  @1|-@.
   | Term Bit Int            -- ^ The assertive termination gates  @-|0@  and  @-|1@.
   | Phase Int Int           -- ^ The phase gate, represented by the matrix:
-                            -- 
+                            --
                             -- @
                             --               | 1        0     |
                             --        R(n) = |                |
@@ -180,7 +180,7 @@ instance Reversible Gate where
 
 -- | Gates can be unencapsulated. The wires of the gate are renamed to match the wires to which the gate is
 -- to be appended, and then the gate is added to the list of gates of the circuit.
--- The input and output wires of the circuit may be modified by appending /init/ or /term/ gates. 
+-- The input and output wires of the circuit may be modified by appending /init/ or /term/ gates.
 instance Caps Gate where
   -- Normal gates
   unencap c g@(Phase _ _) b = (c { gates = (gates c) ++ [readdress g b] }, b)
@@ -211,13 +211,13 @@ instance Caps Gate where
 --  1   |
 --  2  -*-
 -- @
--- 
+--
 -- and the return value is
--- 
+--
 -- @
 --   (0, \"(+)\"), (1, \" | \"), (2, \"-*-\")
 -- @
--- 
+--
 -- Note that the wire identifiers are multiplied by two, as intermediate lines are added to lighten the display.
 model :: Gate -> [(Qubit, String)]
 model (Binary s qa qb) =
@@ -273,6 +273,12 @@ data Circuit = Circ {
 } deriving Show
 
 
+-- | The empty circuit.
+empty_circ :: Circuit
+empty_circ =
+  Circ { qIn = [], gates = [], qOut = [], qubit_id = 0, unused_ids = [] }
+
+
 -- | A circuit is reversed by reversing the gates and the order of application of the gates.
 instance Reversible Circuit where
   rev c =
@@ -300,7 +306,7 @@ unused_addresses qubits =
              [] -> 0
              _ -> List.maximum qubits in
   let all = [0..qm] in
-  (qm+1,all List.\\ qubits) 
+  (qm+1,all List.\\ qubits)
 
 
 -- | Create a circuit based on a list of input wires.
@@ -346,7 +352,7 @@ data Column = Col {
 -- By default, it is set to 80 (to be divided by the actual width of a column, i.e., 3). It would be possible to use
 -- the library "System.Console.ANSI" to get the actual width of the screen; however, this would mean another library to install.
 maxColumns :: Int
-maxColumns = 80 
+maxColumns = 80
 
 
 -- | A type to hold the whole grid on which a circuit is drawn.
@@ -366,7 +372,7 @@ free_depth l (c:cl) = case Map.lookup l $ chars c of
                        Nothing -> 1 + (free_depth l cl)
                        Just _ -> -1
 
- 
+
 -- | Like 'free_depth', but instead of moving only on one line, move
 -- synchronously on a set of lines, and stop as soon as one of the lines is blocked.
 free_common_depth :: [Int] -> [Column] -> Int
@@ -399,7 +405,7 @@ print_at l n s = do
   gr <- get_grid
   cols' <- return $ at n $ columns gr
   set_grid $ gr { columns = cols' }
-  where 
+  where
     at _ [] = []
     at 0 (c:cs) = c { chars = Map.insert l s $ chars c, width = max (width c) (List.length s) }:cs
     at n (c:cs) = c:(at (n-1) cs)
@@ -460,8 +466,8 @@ output_line input l = do
             return ("--- q" ++ show (l `quot` 2), True)
           else
             return ("   ", False)
-  
-  -- s is the line being printed, alloc indicates whether the line is currently allocated   
+
+  -- s is the line being printed, alloc indicates whether the line is currently allocated
   (s, alloc) <- List.foldr (\c rec -> do
                            (s, alloc) <- rec
                            (s, alloc) <- case Map.lookup l $ chars c of
@@ -485,7 +491,7 @@ output_line input l = do
                                                  return (ndashes (width c) ++ s, alloc)
                                                else
                                                  return (nspaces (width c) ++ s, alloc)
-      
+
                            -- Printing wires
                            if alloc then
                              return ("---" ++ s, alloc)

@@ -11,11 +11,11 @@ import qualified Parsing.Syntax as S
 
 import Core.Syntax
 import Core.Translate
+import Core.LabellingContext as L
 
 import Typing.TypingContext
 import Typing.Ordering
 import Typing.Subtyping
-import Typing.LabellingContext as L
 
 import Monad.QuipperError
 import Monad.QpState
@@ -301,7 +301,7 @@ constraint_typing gamma (EVar ref x) cst = do
 
 constraint_typing gamma (EGlobal ref x) cst = do
   -- Retrieve the type of x from the typing context
-  sa <- type_of_global x
+  sa <- global_type x
   (a, csetx) <- instantiate sa -- In case a is a typing scheme
 
   -- Have the rest of the context be duplicable
@@ -521,8 +521,8 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
   (gamma_u, _) <- sub_context fvu gamma
 
   -- Mark the limit free variables / bound variables used in the typing of t
-  limtype <- get_context >>= return . type_id
-  limflag <- get_context >>= return . flag_id
+  limtype <- fresh_type
+  limflag <- fresh_flag
 
   -- Create the type of the pattern
   (a, gamma_p, csetp) <- bind_pattern p
@@ -563,8 +563,8 @@ constraint_typing gamma (ELet _ rec p t u) cst = do
 
     -- Last of the free variables of t - to be place after the unification, since
     -- the algorithm produces new variables that also have to be generic.
-    endtype <- get_context >>= return . type_id
-    endflag <- get_context >>= return . flag_id
+    endtype <- fresh_type
+    endflag <- fresh_flag
 
 
     -- Generalize the types of the pattern (= polymorphism)

@@ -8,7 +8,7 @@ module Monad.Modules (
 import Parsing.Location
 
 import Core.Syntax
-import Typing.LabellingContext (LabellingContext, empty_label)
+import Core.LabellingContext (LabellingContext, empty_label)
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap

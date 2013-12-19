@@ -293,9 +293,13 @@ flatten e =
 -- | Build a let-expression.
 build_let :: RecFlag -> XExpr -> XExpr -> XExpr -> XExpr
 build_let r e f g =
-  let (p,arg) = flatten e
-      f' = multi_EFun arg f in
-  ELet r p f' g
+  case flatten e of
+    (p, []) -> ELet r p f g
+    (ELocated (EDatacon dcon Nothing) ex, [e]) ->
+        ELet r (ELocated (EDatacon dcon $ Just e) ex) f g
+    (p, arg) ->
+        let f' = multi_EFun arg f in
+        ELet r p f' g
 
 
 -- | Build a let-declaration.

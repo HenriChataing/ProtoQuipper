@@ -68,7 +68,6 @@
 --
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Core.Translate (
-  define_user_properties,
   translate_type,
   translate_bound_type,
   translate_unbound_type,
@@ -82,10 +81,9 @@ import Classes
 import Builtins
 
 import Core.Syntax
-import Typing.LabellingContext (LabellingContext, empty_label, LVariable (..))
-import qualified Typing.LabellingContext as L
+import Core.LabellingContext (LabellingContext, empty_label, LVariable (..))
+import qualified Core.LabellingContext as L
 import Core.Printer
-import Typing.Subtyping
 
 import Parsing.Location
 import qualified Parsing.Syntax as S
@@ -97,8 +95,7 @@ import Interpret.Circuits as C
 import qualified Compiler.SimplSyntax as CS
 
 import Monad.QuipperError
-import Monad.QpState hiding (is_qdata_lintype, is_qdata_type)
-import qualified Monad.QpState as Q (is_qdata_lintype, is_qdata_type)
+import Monad.QpState
 import Monad.Modules (Module)
 import qualified Monad.Modules as M
 
@@ -116,25 +113,28 @@ variance :: Variance                        -- ^ The variance of the current typ
          -> [S.Type]                        -- ^ The type arguments.
          -> Map String Type                 -- ^ A partial labelling context.
          -> QpState (Map String Variance)   -- ^ The resulting map.
-variance var (S.TVar a) [] typs =
+variance var (S.TVar a) [] typs = do
   -- The variance of a variance is the global variance.
   return $ Map.singleton a var
 variance var (S.TVar a) arg typs = do
   -- The variance of each of the type arguments depends upon the variance imposed by the type.
-  case Map.lookup a typs of
-    Just (TBang _ (TAlgebraic id _)) -> do
-        typedef <- algebraic_def id
-        List.foldl (\rec (vara, a) -> do
-              m <- rec
-              let var' = case vara of
-                    Unrelated -> Unrelated
-                    Equal -> Equal
-                    Covariant -> var
-                    Contravariant -> opposite var
-              va <- variance var' a [] typs
-              return $ Map.unionWith join va m
-            ) (return Map.empty) $ List.zip (d_args typedef) arg
-    _ -> fail "Translate:variance: undefined algebraic type"
+  vars <- case Map.lookup a typs of
+        Just (TBang _ (TAlgebraic id _)) ->
+            algebraic_def id >>= return . arguments
+        Just (TBang _ (TSynonym id _)) ->
+            synonym_def id >>= return . arguments
+        _ ->
+            fail "Translate:variance: undefined type"
+  List.foldl (\rec (vara, a) -> do
+        m <- rec
+        let var' = case vara of
+              Unrelated -> Unrelated
+              Equal -> Equal
+              Covariant -> var
+              Contravariant -> opposite var
+        va <- variance var' a [] typs
+        return $ Map.unionWith join va m
+      ) (return Map.empty) $ List.zip vars arg
 variance var (S.TTensor tlist) [] typs =
   -- The variance is unchanged.
   List.foldl (\rec a -> do
@@ -160,7 +160,7 @@ variance var (S.TApp t u) arg typs =
 variance var (S.TLocated t _) arg typs =
   -- Nothing to do.
   variance var t arg typs
-variance var _ _ _ =
+variance _ _ _ _ = do
   -- Other types, with no type variables.
   return Map.empty
 
@@ -177,14 +177,12 @@ import_typedefs dblock label = do
   typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
         typs <- rec
         let spec = Typedef {
-              d_args = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
-              d_qdatatype = True,                           -- The type is a qdata type until proven otherwise.
-              d_unfolded = ([], []),
-              d_gettag = \x -> CS.EVar x
+              arguments = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
+              definition = ([], [])
             }
 
         -- Register the type in the current context.
-        id <- register_typedef typename spec
+        id <- register_algebraic typename spec
         -- Add the type in the map
         return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
       ) (return (L.types label)) dblock
@@ -236,9 +234,7 @@ import_typedefs dblock label = do
               return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type.
-        update_algebraic typeid $ \algdef -> Just $ algdef { d_unfolded = (args', dtypes') }
-        -- Specify the implementation of this type
-        choose_implementation typeid
+        update_algebraic typeid $ \algdef -> Just $ algdef { definition = (args', dtypes') }
 
         return m) (return $ L.datacons label) dblock
 
@@ -249,10 +245,10 @@ import_typedefs dblock label = do
               Just (TBang _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
-        let old = d_args algdef
+        let old = arguments algdef
         upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.d_constructors typ)) [] typs
         let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.d_args typ
-        update_algebraic id $ \alg -> Just $ alg { d_args = new }
+        update_algebraic id $ \alg -> Just $ alg { arguments = new }
         return $ old == new
 
   -- Apply the function update_variance to a group of type definitions.
@@ -272,7 +268,7 @@ import_typedefs dblock label = do
               Just (TBang _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
-        newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) (S.d_typename typ) $ List.zip (d_args algdef) (S.d_args typ))
+        newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.d_typename typ) $ List.zip (arguments algdef) (S.d_args typ))
 
   -- Apply the function update_variances
   update_variances dblock
@@ -286,68 +282,6 @@ import_typedefs dblock label = do
 
 
 
--- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
-choose_implementation :: Algebraic -> QpState ()
-choose_implementation typ = do
-  dtyp <- algebraic_def typ
-  let datas = snd $ d_unfolded dtyp
-  ctx <- get_context
-  case datas of
-    -- Cases with one constructor:
-    -- The tag is omitted. No definition of the function gettag is needed.
-    [(dcon, Just _)] -> do
-        update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> e), d_deconstruct = \v -> CS.EVar v })
-
-    [(dcon, Nothing)] ->
-        update_datacon dcon (\def -> Just def { d_construct = Left $ CS.EInt 0, d_deconstruct = \v -> CS.EInt 0 })
-
-    -- Cases with several constrcutors
-    _ -> do
-        -- First thing : count the constructors taking an argument.
-        let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
-
-        -- In case at most one takes an argument, the remaining can be represented by just their tag.
-        if List.length with_args <= 1 then do
-          -- The constructor with one argument can forget its tag
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [e]), d_deconstruct = \v -> CS.EAccess 0 v })
-              ) (return ()) with_args
-          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.EInt (d_tag ddef) })
-              ) (return ()) no_args
-          -- The tag is obtained by checking for references.
-          case with_args of
-            -- Since there isn't any reference in the lot, no need to check
-            [] -> update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EVar v })
-            -- There is a reference: need to check
-            [(dcon, _)] -> do
-                visref <- lookup_qualified_var ("Builtins","ISREF")
-                tag <- datacon_def dcon >>= return . d_tag
-                update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EMatch (CS.EApp (CS.EGlobal visref) (CS.EVar v))
-                                                                       [(1,CS.EInt tag)]
-                                                                       (CS.EVar v) })
-            _ ->
-                fail "TransSyntax:choose_implementation: unexpected case"
-
-        -- If not, just give the default implementation.
-        else do
-          -- The constructor with one argument can forget its tag
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { d_construct = Right (\e -> CS.ETuple [CS.EInt (d_tag ddef),e]), d_deconstruct = \v -> CS.EAccess 1 v })
-              ) (return ()) with_args
-          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { d_construct = Left $ CS.ETuple [CS.EInt (d_tag ddef)] })
-              ) (return ()) no_args
-          -- The tag is the first element of the tuple.
-          update_algebraic typ (\tdef -> Just tdef { d_gettag = \v -> CS.EAccess 0 v })
-
-
 
 
 -- | Translate and import a type synonym.
@@ -355,165 +289,32 @@ import_typesyn :: S.Typesyn                   -- ^ A type synonym.
                -> LabellingContext            -- ^ The current labelling context.
                -> QpState LabellingContext    -- ^ The updated labelling context.
 import_typesyn typesyn label = do
-  -- Count the arguments
-  let nargs = List.length $ S.s_args typesyn
-
-  -- map the arguments to core types
-  as <- new_types nargs
+  -- Bind the arguments to core types.
+  as <- new_types $ List.length (S.s_args typesyn)
   let margs = Map.fromList $ List.zip (S.s_args typesyn) as
 
-  -- Translate the synonym type
+  -- Translate the synonym type.
   syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label })
 
-  -- Is it a quantum data type ?
-  qdata <- Q.is_qdata_type syn
+  -- Determine the variance of each argument.
+  var <- variance Covariant (S.s_synonym typesyn) [] (L.types label)
+  let arg = List.map (\a -> case Map.lookup a var of { Nothing -> Unrelated ; Just v -> v }) $ S.s_args typesyn
+
+  -- Print it.
+  newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("syn: " ++ S.s_typename typesyn) $ List.zip arg (S.s_args typesyn))
 
   -- Build the type specification
-  spec <- return $ Typesyn {
-        s_args = nargs,
-        s_qdatatype = qdata,
-        s_unfolded = (snd $ List.unzip $ Map.assocs margs, syn) }
+  spec <- return $ Typedef {
+        arguments = arg,
+        definition = (as, syn) }
 
   -- Register the type synonym
-  id <- register_typesyn (S.s_typename typesyn) spec
+  id <- register_synonym (S.s_typename typesyn) spec
 
   -- Add the type to the labelling context and return
   return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TSynonym id []) $ L.types label }
 
 
-
-
--- | An auxiliary function used by 'define_user_properties' to check quantum data types. The list of names corresponds to the list
--- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
--- is delayed until later.
-is_qdata_lintype :: LinType -> [Variable] -> QpState (Bool, [Variable])
-is_qdata_lintype TQubit _ =
-  return (True, [])
-
-is_qdata_lintype TUnit _ =
-  return (True, [])
-
-is_qdata_lintype (TTensor tlist) names =
-  List.foldl (\rec t -> do
-      (b, deps) <- rec
-      if b then do
-        (b', deps') <- is_qdata_type t names
-        return (b', List.union deps deps')
-      else
-        return (False, [])) (return (True, [])) tlist
-
--- We stil check whether the arguments are of qdata type
-is_qdata_lintype (TAlgebraic typename args) names = do
-  -- Check the type of the arguments
-  (b, deps) <- List.foldl (\rec t -> do
-                             (b, deps) <- rec
-                             if b then do
-                               (b', deps') <- is_qdata_type t names
-                               return (b', List.union deps deps')
-                             else
-                               return (False, [])) (return (True, [])) args
-  -- If the arguments are ok, check the type (iff it is not in the list)
-  if b && (not $ List.elem typename names) then do
-    spec <- algebraic_def typename
-    return (d_qdatatype spec, deps)
-  else
-    return (b, typename:deps)
-
-is_qdata_lintype _ _ =
-  return (False, [])
-
-
-
--- | An auxiliary function used by 'define_user_properties' to check quantum data types. The list of names corresponds to the list
--- of unsolved types. When a user type of this list is encountered, it is added to the list of dependencies, and the data check
--- is delayed until later.
-is_qdata_type :: Type -> [Variable] -> QpState (Bool, [Variable])
-is_qdata_type (TBang _ a) names =
-  is_qdata_lintype a names
-
-
--- | Input a list of types that satisfy a property, and a graph of consequences. Then the function propagates the
--- property to the dependencies in the graph, modifying the graph in so doing.
-propagate_prop :: [Variable] -> IntMap [Variable] -> ([Variable], Bool, IntMap [Variable])
-propagate_prop [] graph =
-  ([], False, graph)
-
-propagate_prop (n:rest) graph =
-  case IMap.lookup n graph of
-    Just deps ->
-        let (r', c, g') = propagate_prop (List.union rest deps) (IMap.delete n graph) in
-        (n:r', True, g')
-
-    Nothing ->
-        let (r', c, g') = propagate_prop rest graph in
-        if c then
-          propagate_prop (n:r') g'
-        else
-          (n:r', False, g')
-
-
--- | Define the user property: quantum data type. This property can only be defined for all the types taken at the same time.
--- This function first builds a graph of dependencies indicating which type uses which type in the type of the data
--- constructors. Some types are clearly marked as being non quantum data types. In the graph of dependencies, all the types
--- using these non-quantum types cannot in turn be quantum data types; and so on. After all the non quantum data types have been eliminated,
--- all that remain are quantum data types.
-define_user_properties :: [Variable] -> QpState ()
-define_user_properties dblock = do
-  -- A specific function is needed to check quantum data types
-    newlog 0 ">> User type properties"
-
-    -- Creates the map of dependencies of quantum data type properties
-    -- The edges are oriented so that if one of the types doesn't have a property, then neither should the dependencies.
-    (mdata, mgraph) <- List.foldl (\rec n -> do
-                         (mdata, mgraph) <- rec
-                         spec <- algebraic_def n
-                         -- Replace the arguments by qubit in the unfolded definition
-
-                         let argtyps = List.foldl (\args (_, typ) -> do
-                                case typ of
-                                  Nothing -> args
-                                  Just t ->
-                                    let t' = List.foldl (\t a -> subs_typ_var (unTVar a) TQubit t) t (fst $ d_unfolded spec) in
-                                    t':args) [] (snd $ d_unfolded spec)
-                         -- Check each of the types for quantum data types
-                         (b, deps) <- List.foldl (\rec a -> do
-                                                    (b, deps) <- rec
-                                                    if b then do
-                                                      (b', deps') <- is_qdata_type a dblock
-                                                      return (b', List.union deps' deps)
-                                                    else
-                                                      return (False, [])) (return (True, [])) argtyps
-
-                         -- Increase the map
-                         if b then do
-                           return (mdata, List.foldl (\m d ->
-                                                        case IMap.lookup d m of
-                                                          Just l -> IMap.insert d (n:l) m
-                                                          Nothing -> IMap.insert d [n] m) mgraph deps)
-                         else do
-                           return (n:mdata, mgraph)) (return ([], IMap.empty)) dblock
-
-    -- Solve the map, and set the quantum data properties
-    (mdata', _, _) <- return $ propagate_prop mdata mgraph
-    List.foldl (\rec n -> do
-                  rec
-                  if List.elem n mdata' then do
-                    -- Not a quantum data type
-                    newlog 0 $ "-- " ++ show n ++ " is not a quantum data type"
-                    ctx <- get_context
-                    spec <- algebraic_def n
-                    set_context $ ctx { algebraics = IMap.insert n spec { d_qdatatype = False } $ algebraics ctx }
-                  else do
-                    -- Quantum data type
-                    newlog 0 $ "-- " ++ show n ++ " may be a quantum data type"
-                    -- Since the default value is True, no need to set it here)
-                    return ()) (return ()) dblock
-
-
-    newlog 0 "<<\n"
-    where
-      unTVar (TBang _ (TVar x)) = x
-      unTVar _ = throwNE $ ProgramError "TransSyntax:define_user_properties: unexpected non-variable argument"
 
 
 
@@ -546,7 +347,7 @@ translate_type (S.TVar x) arg (label, bound) = do
     -- The variable is an algebraic type.
     Just (TBang _ (TAlgebraic id as)) -> do
         spec <- algebraic_def id
-        let nexp = List.length $ d_args spec
+        let nexp = List.length $ arguments spec
         nact <- return $ (List.length as) + (List.length arg)
 
         if nexp == nact then do
@@ -559,7 +360,7 @@ translate_type (S.TVar x) arg (label, bound) = do
     -- The variable is a type synonym.
     Just (TBang _ (TSynonym id as)) -> do
         spec <- synonym_def id
-        let nexp = s_args spec
+        let nexp = List.length $ arguments spec
         nact <- return $ (List.length as) + (List.length arg)
 
         if nexp == nact then do
@@ -597,10 +398,10 @@ translate_type (S.TQualified m x) arg lbl = do
   nexp <- case typ of
         TBang _ (TAlgebraic alg _) -> do
           dalg <- algebraic_def alg
-          return $ List.length $ d_args dalg
+          return $ List.length $ arguments dalg
         TBang _ (TSynonym syn _) -> do
           dsyn <- synonym_def syn
-          return $ s_args dsyn
+          return $ List.length $ arguments dsyn
         _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
 
   -- Actual number
@@ -705,16 +506,16 @@ translate_pattern S.EWildcard label = do
 
 translate_pattern (S.EVar x) label = do
   ref <- create_ref
-  id <- register_var x ref
+  id <- register_var Nothing x ref
   update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
   return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
 
 translate_pattern (S.ETuple plist) label = do
   ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
-                                  (r, lbl) <- rec
-                                  (p', lbl') <- translate_pattern p label { L.variables = lbl }
-                                  return ((p':r), lbl')) (return ([], L.variables label)) plist
+        (ps, lbl) <- rec
+        (p', lbl') <- translate_pattern p label { L.variables = lbl }
+        return ((p':ps), lbl')) (return ([], L.variables label)) plist
   update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
@@ -797,6 +598,7 @@ translate_expression (S.ELet r p e f) label = do
   -- At his point, p may be an applicative pattern,
   -- The arguments should be passed to the expression e.
   (p', lbl) <- translate_pattern p label
+
   e' <- case r of
         Recursive -> do
             translate_expression e $ label { L.variables = lbl }
@@ -874,8 +676,7 @@ translate_expression (S.EBox t) label = do
   ref <- create_ref
   t' <- translate_bound_type t label
   -- Check that the type of the box is a quantum data type
-  qdata <- Q.is_qdata_type t'
-  if not qdata then do
+  if not (is_qdata t') then do
     prt <- pprint_type_noref t'
     throwQ (BadBoxType prt) ex
 
@@ -909,15 +710,11 @@ translate_expression (S.EBuiltin s) label = do
         return (EGlobal ref g)
     _ -> do
         -- Import the builtin operation.
-        ctx <- get_context
         case Map.lookup s builtin_all of
           Just (typ, val) -> do
               typ' <- translate_bound_type typ label
-              g <- register_var s ref
-              set_context $ ctx {
-                  globals = IMap.insert g (TForall [] [] emptyset typ') $ globals ctx,
-                  values = IMap.insert g val $ values ctx,
-                  ofmodule = IMap.insert g "Builtins" $ ofmodule ctx }
+              g <- register_var (Just "Builtins") s ref
+              insert_global g (TForall [] [] emptyset typ') (Just val)
               return (EGlobal ref g)
           Nothing -> do
               -- Wrong, no builtin operation of name s has been defined

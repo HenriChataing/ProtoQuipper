@@ -17,12 +17,12 @@ import qualified Monad.Namespace as N
 
 import Core.Syntax
 import Core.Printer
-import Typing.LabellingContext (LabellingContext, LVariable (..))
-import qualified Typing.LabellingContext as L
+import Core.LabellingContext (LabellingContext, LVariable (..))
+import qualified Core.LabellingContext as L
 
 import qualified Compiler.SimplSyntax as C
 
-import Interpret.Circuits hiding (rev)
+import Interpret.Circuits hiding (rev, qubit_id)
 import Interpret.Values
 
 import System.IO
@@ -35,8 +35,6 @@ import qualified Data.Map as Map
 
 import Data.List as List
 import Data.Array as Array
-import qualified Data.Set as Set
-import Data.Sequence as Seq
 
 
 
@@ -138,24 +136,23 @@ data QContext = QCtx {
   namespace :: Namespace,                             -- ^ Remembers the original names of the term variables (replaced by unique ids during the translation to the core syntax).
 
 -- Location
-  filename :: String,                                 -- ^ Path to the implementation of the module being processed.
   location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
 
 -- Module related fields
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
 
--- Global variables
-  algebraics :: IntMap Typedef,                       -- ^ The definitions of algebraic types.
-  synonyms :: IntMap Typesyn,                         -- ^ The defintion of type synonyms.
+-- Type definitions
+  algebraics :: IntMap Algdef,                        -- ^ The definitions of algebraic types.
+  synonyms :: IntMap Syndef,                          -- ^ The defintion of type synonyms.
+  tagaccess :: IntMap (Variable -> C.Expr),           -- ^ Initialized as needed, indicates how to access the tag of a value of the given type.
 
+-- Global variables
   datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
   values :: IntMap Value,                             -- ^ The values of the global variables.
-
-  ofmodule :: IntMap String,                          -- ^ The module of definition of the variable.
 
   assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
                                                       -- function values are prohibited (even type constructors).
@@ -236,28 +233,32 @@ liftIO x = QpState { runS = (\ctx -> do
 -- everything else is set to empty \/ 0 \/ [].
 empty_context :: QContext
 empty_context =  QCtx {
--- The logfile is initialized to print on the standard output, with the lowest verbose level possible
+-- Default logfile : verbose level 0, standard output, print warnings.
   logfile = Logfile { channel = stdout, verbose = 0, warnings = "display" },
 
--- The namespace is initially empty
+-- Namespace.
   namespace = N.new_namespace,
+
+-- Location.
+  location = extent_unknown,
 
 -- No modules
   modules = [],
   dependencies = [],
 
 -- No global variables
-  ofmodule = IMap.empty,
   globals = IMap.empty,
   values = IMap.empty,
 
 -- The initial location is unknown, as well as the name of the code file
-  filename = file_unknown,
-  location = extent_unknown,
 
--- No predefined types, datacons or flags
+
+-- Types.
   algebraics = IMap.empty,
   synonyms = IMap.empty,
+  tagaccess = IMap.empty,
+
+-- No predefined types, datacons or flags
   datacons = IMap.empty,
 
 -- No assertions
@@ -274,7 +275,7 @@ empty_context =  QCtx {
   references = IMap.empty,
 
 -- Circuit stack initialized with a void circuit.
-  circuits = [ Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] } ],
+  circuits = [  ],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
@@ -336,28 +337,13 @@ flush_logs = do
 -- | Set the location marker.
 set_location :: Extent -> QpState ()
 set_location ex = do
-  ctx <- get_context
-  set_context $ ctx { location = ex }
+  get_context >>= \c -> set_context c { location = ex }
 
 
 -- | Return the current location marker.
 get_location :: QpState Extent
 get_location =
   get_context >>= return . location
-
-
--- | Change the input file.
-set_file :: String -> QpState ()
-set_file fname = do
-  ctx <- get_context
-  set_context $ ctx { filename = fname }
-
-
--- | Return the current input file.
-get_file :: QpState String
-get_file =
-  get_context >>= return . filename
-
 
 
 
@@ -368,10 +354,13 @@ get_file =
 
 -- | Register a variable in the namespace. A new id is generated, bound to
 -- the given variable, and returned.
-register_var :: String -> Ref -> QpState Int
-register_var x ref = do
+register_var :: Maybe String     -- ^ Optional module.
+             -> String           -- ^ Variable name.
+             -> Ref              -- ^ Reference.
+             -> QpState Variable
+register_var mod x ref = do
   ctx <- get_context
-  (id, nspace) <- return $ N.register_var x ref (namespace ctx)
+  (id, nspace) <- return $ N.register_var mod x ref (namespace ctx)
   set_context $ ctx { namespace = nspace }
   return id
 
@@ -388,20 +377,20 @@ register_datacon dcon ddef = do
 
 
 -- | Register a data type definition. A unique id is attributed to the type name and returned.
-register_typedef :: String -> Typedef -> QpState Int
-register_typedef typename def = do
+register_algebraic :: String -> Algdef -> QpState Algebraic
+register_algebraic name alg = do
   ctx <- get_context
-  (id, nspace) <- return $ N.register_type typename (namespace ctx)
-  set_context $ ctx { namespace = nspace,
-                      algebraics = IMap.insert id def $ algebraics ctx }
+  let (id, nspace) = N.register_type name $ namespace ctx
+  set_context ctx { namespace = nspace,
+                    algebraics = IMap.insert id alg $ algebraics ctx }
   return id
 
 
 -- | Register a type synonym.
-register_typesyn :: String -> Typesyn -> QpState Synonym
-register_typesyn typename syn = do
+register_synonym :: String -> Syndef -> QpState Synonym
+register_synonym name syn = do
   ctx <- get_context
-  (id, nspace) <- return $ N.register_type typename (namespace ctx)
+  let (id, nspace) = N.register_type name $ namespace ctx
   set_context $ ctx { namespace = nspace,
                       synonyms = IMap.insert id syn $ synonyms ctx }
   return id
@@ -441,11 +430,10 @@ variable_reference x = do
 -- | Retrieve the module of definition of a global variable.
 variable_module :: Variable -> QpState String
 variable_module x = do
-  ctx <- get_context
-  n <- variable_name x
-  case IMap.lookup x $ ofmodule ctx of
+  nspace <- get_context >>= return . namespace
+  case IMap.lookup x $ N.varmod nspace of
     Just mod -> return mod
-    Nothing -> fail $ "QpState:variable_module: undefined module (" ++ n ++ ")"
+    Nothing -> fail $ "QpState:variable_module: undefined module"
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
@@ -489,8 +477,8 @@ global_namespace deps = do
 
 
 -- | Look up the type of a global variable.
-type_of_global :: Variable -> QpState TypeScheme
-type_of_global x = do
+global_type :: Variable -> QpState TypeScheme
+global_type x = do
   ctx <- get_context
   case IMap.lookup x $ globals ctx of
     Just t ->
@@ -498,6 +486,21 @@ type_of_global x = do
     Nothing -> do
         n <- variable_name x
         fail $ "QpState:type_of_global: undefined global variable " ++ n
+
+
+-- | Return the value of a global variable.
+global_value ::  Variable -> QpState Value
+global_value x = do
+  vals <- get_context >>= return . values
+  case IMap.lookup x vals of
+    Just v ->
+        return v
+    Nothing -> do
+        -- This kind of errors should have been eliminated during the translation to the internal syntax
+        ref <- variable_reference x
+        (ex, expr) <- ref_expression ref
+        throwWE (UnboundVariable expr) ex
+
 
 
 -- | Check whether a given variable is global or not.
@@ -550,9 +553,31 @@ lookup_qualified_type (mod, n) = do
     throw_UndefinedType (mod ++ "." ++ n)
 
 
+-- | Add the definition of a new global variable.
+insert_global :: Variable -> TypeScheme -> Maybe Value -> QpState ()
+insert_global x t v = do
+  ctx <- get_context
+  case v of
+    Just v ->
+        set_context ctx { globals = IMap.insert x t $ globals ctx, values = IMap.insert x v $ values ctx }
+    Nothing ->
+        set_context ctx { globals = IMap.insert x t $ globals ctx }
+
+
+
+-- | Add the definitions of a set of variables.
+insert_globals :: IntMap TypeScheme -> Maybe (IntMap Value) -> QpState ()
+insert_globals ts vs = do
+  ctx <- get_context
+  case vs of
+    Just vs ->
+        set_context ctx { globals = IMap.union ts $ globals ctx, values = IMap.union vs $ values ctx }
+    Nothing ->
+        set_context ctx { globals = IMap.union ts $ globals ctx }
+
 
 -- | Retrieve the definition of a type.
-algebraic_def :: Algebraic -> QpState Typedef
+algebraic_def :: Algebraic -> QpState Algdef
 algebraic_def typ = do
   ctx <- get_context
   case IMap.lookup typ $ algebraics ctx of
@@ -564,7 +589,7 @@ algebraic_def typ = do
 
 
 -- | Update the definiton of a type.
-update_algebraic :: Algebraic -> (Typedef -> Maybe Typedef) -> QpState ()
+update_algebraic :: Algebraic -> (Algdef -> Maybe Algdef) -> QpState ()
 update_algebraic typ update = do
   ctx <- get_context
   set_context ctx { algebraics = IMap.update (\tdef -> update tdef) typ $ algebraics ctx }
@@ -572,7 +597,7 @@ update_algebraic typ update = do
 
 
 -- | Retrieve the definition of a type.
-synonym_def :: Synonym -> QpState Typesyn
+synonym_def :: Synonym -> QpState Syndef
 synonym_def typ = do
   ctx <- get_context
   case IMap.lookup typ $ synonyms ctx of
@@ -584,7 +609,7 @@ synonym_def typ = do
 
 
 -- | Update the definiton of a type.
-update_synonym :: Synonym -> (Typesyn -> Maybe Typesyn) -> QpState ()
+update_synonym :: Synonym -> (Syndef -> Maybe Syndef) -> QpState ()
 update_synonym typ update = do
   ctx <- get_context
   set_context ctx { synonyms = IMap.update (\tdef -> update tdef) typ $ synonyms ctx }
@@ -634,14 +659,14 @@ update_datacon dcon update = do
 all_data_constructors :: Algebraic -> QpState [Datacon]
 all_data_constructors typ = do
   def <- algebraic_def typ
-  return $ fst $ List.unzip $ snd $ d_unfolded def
+  return $ fst $ List.unzip $ snd $ definition def
 
 
 -- | Return the list of the constructors' labels of a type definition.
 constructors_tags :: Algebraic -> QpState [Int]
 constructors_tags typ = do
-  def <- algebraic_def typ
-  return $ [0 .. (List.length $ snd $ d_unfolded def) -1]
+  alg <- algebraic_def typ
+  return $ [0 .. (List.length $ snd $ definition alg) -1]
 
 
 -- | Add an assertion on a type.
@@ -748,6 +773,8 @@ unset_flag ref info = do
               set_context ctx { flags = IMap.insert ref FInfo { f_value = Zero } $ flags ctx }
 
 
+
+
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
 -- The flag is not immediatly added to the state, as its value is initially unknown.
 fresh_flag :: QpState RefFlag
@@ -790,6 +817,8 @@ duplicate_flag ref = do
           Nothing ->
               set_context ctx { flag_id = id + 1 }
         return id
+
+
 
 
 -- | Create a new reference, with the current location.
@@ -918,6 +947,19 @@ rewrite_flags (TBang n t) = do
           return (TBang (-2) t')
 
 
+-- | Return without modifying it the value of the flag counter.
+last_flag :: QpState RefFlag
+last_flag =
+  get_context >>= return . flag_id
+
+
+-- | Return without modifying it the value of the type counter.
+last_type :: QpState Variable
+last_type =
+  get_context >>= return . type_id
+
+
+
 -- | Generate a fresh type variable.
 fresh_type :: QpState Variable
 fresh_type = do
@@ -981,14 +1023,36 @@ call_convention v = do
   return $ IMap.lookup v $ call_conventions ctx
 
 
+-- | Return the set of implemented circuit operators.
+circuit_ops :: QpState CircOps
+circuit_ops =
+  get_context >>= return . circOps
+
+
+-- | Update the set of circuit operators.
+update_circuit_ops :: (CircOps -> CircOps) -> QpState ()
+update_circuit_ops upd = do
+  ctx <- get_context
+  set_context ctx { circOps = upd $ circOps ctx }
+
+
+-- | Empty the set of circuit operators, and return the previous code.
+clear_circuit_ops :: QpState [C.Declaration]
+clear_circuit_ops = do
+  ctx <- get_context
+  let c = code $ circOps ctx
+  set_context ctx { circOps = empty_circOps }
+  return c
+
+
 -- | Build the interface of the Builtins module.
 import_builtins :: QpState ()
 import_builtins = do
-  (lbl, ofmod) <- List.foldl (\rec b -> do
-        (lbl, ofmod) <- rec
-        vb <- register_var b 0
-        return (Map.insert b (LGlobal vb) lbl, IMap.insert vb "Builtins" ofmod)
-      ) (return (Map.empty,IMap.empty)) ["UNENCAP", "OPENBOX", "CLOSEBOX", "REV", "APPBIND", "ISREF", "PATTERN_ERROR"]
+  lbl <- List.foldl (\rec b -> do
+        lbl <- rec
+        vb <- register_var (Just "Builtins") b 0
+        return $ Map.insert b (LGlobal vb) lbl
+      ) (return Map.empty) ["UNENCAP", "OPENBOX", "CLOSEBOX", "REV", "APPBIND", "ISREF", "PATTERN_ERROR"]
 
   let builtins = M.Mod {
     M.labelling = L.empty_label { L.variables = lbl },
@@ -997,7 +1061,6 @@ import_builtins = do
 
   ctx <- get_context
   set_context ctx {
-    ofmodule = IMap.union ofmod $ ofmodule ctx,
     modules = ("Builtins", builtins):(modules ctx)
   }
 
@@ -1162,57 +1225,6 @@ map_typescheme :: TypeScheme -> QpState TypeScheme
 map_typescheme (TForall fv ff cset typ) = do
   typ' <- map_type typ
   return $ TForall fv ff cset typ'
-
-
--- | Check whether a linear type is a quantum data type or not.
-is_qdata_lintype :: LinType -> QpState Bool
-is_qdata_lintype TQubit =
-  return True
-
-is_qdata_lintype TUnit =
-  return True
-
-is_qdata_lintype (TTensor tlist) =
-  List.foldl (\rec t -> do
-                b <- rec
-                if b then
-                  is_qdata_type t
-                else
-                  return False) (return True) tlist
-
-is_qdata_lintype (TAlgebraic typeid args) = do
-  spec <- algebraic_def typeid
-  if d_qdatatype spec then
-    List.foldl (\rec t -> do
-                  b <- rec
-                  if b then
-                    is_qdata_type t
-                  else
-                    return False) (return True) args
-  else
-    return False
-
-is_qdata_lintype (TSynonym typeid args) = do
-  spec <- synonym_def typeid
-  if s_qdatatype spec then
-    List.foldl (\rec t -> do
-                  b <- rec
-                  if b then
-                    is_qdata_type t
-                  else
-                    return False) (return True) args
-  else
-    return False
-
-
-is_qdata_lintype _ =
-  return False
-
-
--- | Check whether a type is a quantum data type or not.
-is_qdata_type :: Type -> QpState Bool
-is_qdata_type (TBang _ a) =
-  is_qdata_lintype a
 
 
 

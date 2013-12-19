@@ -353,7 +353,7 @@ convert_declarations_to_cps decls = do
   let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
         (ivals, imported) <- rec
-        tix <- type_of_global ix
+        tix <- global_type ix
         if CS.is_fun tix then
           return (IMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else
@@ -398,7 +398,7 @@ convert_declarations_to_wcps decls = do
   let imported = List.foldl (\imp (S.DLet _ e) -> List.union (S.imports e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
         (ivals, imported) <- rec
-        tix <- type_of_global ix
+        tix <- global_type ix
         if CS.is_fun tix then
           return (IMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else

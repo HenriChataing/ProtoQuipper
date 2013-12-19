@@ -143,7 +143,7 @@ builtin_gates =
                              VBuiltin (\sign1 ->
                                         VBuiltin (\sign2 ->
                                                    VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
-                                                         (singleton_circuit $ Controlled (Unary "NOT" 0) [(1, unVBool sign1 "TOFFOLI"),(2, unVBool sign2 "TOFFOLI")])
+                                                         (singleton_circuit $ Controlled (Unary "GATE_NOT" 0) [(1, unVBool sign1 "TOFFOLI"),(2, unVBool sign2 "TOFFOLI")])
                                                          (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ] in
 
   Map.fromList (cnot ++ init ++ term ++ unary ++ phase ++ ceitz ++ binary)

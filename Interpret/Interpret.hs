@@ -25,42 +25,80 @@ import qualified Data.IntMap as IMap
 import qualified Data.List as List
 
 
--- | The type of the evaluation context.
-type Environment = IntMap Value
-
-
-
--- | Generate a fresh quantum address. This is done by incrementing an id in the 'QpState' monad. Note that nothing is done to recycle used and discarded identifiers.
--- However, the index is reinitialized back to 0 at each box creation.
+-- | Generate a fresh quantum address.
+-- The index should be reinitialized back to 0 at each box creation.
 -- Thus, the inputs of a box will always be numbered 0../n/.
 fresh_qubit :: QpState Int
 fresh_qubit = do
   ctx <- get_context
-  q <- return $ qubit_id ctx
+  let q = qubit_id ctx
   set_context $ ctx { qubit_id = q + 1 }
   return q
 
 
+-- | Return without modifying it the value of the qubit counter.
+last_qubit :: QpState Variable
+last_qubit =
+  get_context >>= return . qubit_id
+
+
 -- | Reset the counter of qubit values.
 -- Since the quantum addresses are bound in a circuit (/t/, /C/, /u/), we can reset the counter for each box creation.
-reset_qubits :: QpState ()
-reset_qubits = do
-  ctx <- get_context
-  set_context $ ctx { qubit_id = 0 }
-
-
--- | Return, without incrementing it, the value of the quantum address counter.
-last_qubit :: QpState Int
-last_qubit = do
-  ctx <- get_context
-  return $ qubit_id ctx
+reset_qubit :: QpState ()
+reset_qubit =
+  set_qubit 0
 
 
 -- | Set the counter of qubit values.
-set_qubits :: Int -> QpState ()
-set_qubits q = do
+set_qubit :: Int -> QpState ()
+set_qubit q = do
   ctx <- get_context
   set_context $ ctx { qubit_id = q }
+
+
+-- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
+-- of the circuit stack.
+open_box :: [Int] -> QpState ()
+open_box ql = do
+  ctx <- get_context
+  newc <- return $ create_circuit ql
+  set_context $ ctx { circuits = newc:(circuits ctx) }
+
+
+-- | Unstack and return the top circuit from the circuit stack.
+-- The stack must be non empty. An empty circuit stack causes a runtime error.
+close_box :: QpState Circuit
+close_box = do
+  ctx <- get_context
+  case circuits ctx of
+    [] ->
+        fail "Interpret:close_box: empty circuit stack"
+
+    (top:rest) -> do
+        set_context $ ctx { circuits = rest }
+        return top
+
+-- | Append a circuit, using the specified binding.
+-- The action is done on the top circuit. If the circuit list is empty, throw
+-- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
+-- addresses done by the circuit constructor.
+unencap :: Circuit -> Binding -> QpState Binding
+unencap c b = do
+  ctx <- get_context
+  case circuits ctx of
+    [] -> do
+        ex <- get_location
+        fail "Interpret:unencap: empty circuit stack"
+
+    (top:rest) -> do
+        (c', b') <- return $ C.unencap top c b
+        set_context $ ctx { circuits = (c':rest) }
+        return b'
+
+
+
+-- | The type of the evaluation context.
+type Environment = IntMap Value
 
 
 
@@ -87,45 +125,7 @@ linspec _ = fail "Interpret:linspec: illegal argument"
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
 
--- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
--- of the circuit stack.
-open_box :: [Int] -> QpState ()
-open_box ql = do
-  ctx <- get_context
-  newc <- return $ create_circuit ql
-  set_context $ ctx { circuits = newc:(circuits ctx) }
 
-
--- | Unstack and return the top circuit from the circuit stack.
--- The stack must be non empty. An empty circuit stack causes a runtime error.
-close_box :: QpState Circuit
-close_box = do
-  ctx <- get_context
-  case circuits ctx of
-    [] ->
-        fail "Interpret:close_box: empty circuit stack"
-
-    (top:rest) -> do
-        set_context $ ctx { circuits = rest }
-        return top
-
-
--- | Append a circuit, using the specified binding.
--- The action is done on the top circuit. If the circuit list is empty, throw
--- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
--- addresses done by the circuit constructor.
-unencap :: Circuit -> Binding -> QpState Binding
-unencap c b = do
-  ctx <- get_context
-  case circuits ctx of
-    [] -> do
-        ex <- get_location
-        fail "Interpret:unencap: empty circuit stack"
-
-    (top:rest) -> do
-        (c', b') <- return $ C.unencap top c b
-        set_context $ ctx { circuits = (c':rest) }
-        return b'
 
 
 -- | Extract a list of bindings x |-> v by matching a pattern and a value (supposedly of
@@ -352,7 +352,7 @@ do_application env f x =
         -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
         -- n the number of qubits in the type typ
         qinit <- last_qubit
-        reset_qubits
+        reset_qubit
         s <- spec typ
 
         -- Open a new circuit, initialized with the quantum addresses of the specimen
@@ -364,7 +364,7 @@ do_application env f x =
         c <- close_box
 
         -- Reset the counter for qubit values
-        set_qubits qinit
+        set_qubit qinit
         return (VCirc s c s')
 
     (VDatacon dcon Nothing, _) ->
@@ -415,15 +415,8 @@ interpret env (EVar ref x) = do
         throwWE (UnboundVariable expr) ex
 
 -- Global variables
-interpret env (EGlobal ref x) = do
-  vals <- get_context >>= return . values
-  case IMap.lookup x vals of
-    Just v ->
-        return v
-    Nothing -> do
-        -- This kind of errors should have been eliminated during the translation to the internal syntax
-        (ex, expr) <- ref_expression ref
-        throwWE (UnboundVariable expr) ex
+interpret env (EGlobal ref x) =
+  global_value x
 
 
 -- Functions : The current context is enclosed in the function value

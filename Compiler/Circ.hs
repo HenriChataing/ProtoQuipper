@@ -198,63 +198,45 @@ implement_appbind typ b x = do
 -- | Request for an implementation of the unbox operator of type T, U. A reference to the implementation is passed as argument.
 request_unbox :: CircType -> QpState Variable
 request_unbox c = do
-  ctx <- get_context
-  let ql = circOps ctx
-  case Map.lookup c $ unboxes ql of
+  ops <- circuit_ops
+  case Map.lookup c $ unboxes ops of
     Just x ->
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "unbox"
         eunbox <- implement_unbox c
-        let ql' = ql {
-              unboxes = Map.insert c x $ unboxes ql,
-              code = (DLet x eunbox):(code ql)
-            }
-        ctx <- get_context
-        set_context ctx { circOps = ql' }
+        update_circuit_ops (\ops -> ops { unboxes = Map.insert c x $ unboxes ops, code = (DLet x eunbox):(code ops) })
         return x
 
 
 -- | Request for an implementation of the box operator of type T. A reference to the implementation is passed as argument.
 request_box :: QType -> QpState Variable
 request_box t = do
-  ctx <- get_context
-  let ql = circOps ctx
-  case Map.lookup t $ boxes ql of
+  ops <- circuit_ops
+  case Map.lookup t $ boxes ops of
     Just x ->
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "box"
         ebox <- implement_box t
-        let ql' = ql {
-              boxes = Map.insert t x $ boxes ql,
-              code = (DLet x ebox):(code ql)
-            }
-        ctx <- get_context
-        set_context ctx { circOps = ql' }
+        update_circuit_ops (\ops -> ops { boxes = Map.insert t x $ boxes ops, code = (DLet x ebox):(code ops) })
         return x
 
 
 -- | Request for an implementation of the rev operator.
 request_rev :: QpState Variable
 request_rev = do
-  ctx <- get_context
-  let ql = circOps ctx
-  case rev ql of
+  ops <- circuit_ops
+  case rev ops of
     Just x ->
         return x
     Nothing -> do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "rev"
         erev <- implement_rev
-        let ql' = ql {
-              rev = Just x,
-              code = (DLet x erev):(code ql)
-            }
-        ctx <- get_context
-        set_context ctx { circOps = ql' }
+        update_circuit_ops (\ops -> ops { rev = Just x, code = (DLet x erev):(code ops) })
         return x
 
 

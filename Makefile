@@ -15,15 +15,14 @@ MAIN = ProtoQuipper
 
 PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
-SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
+SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
   Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
   Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
   Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
-  ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs		\
-  Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
-  Typing/TypeInference.hs	\
-  Typing/TypingContext.hs Utils.hs Typing/LabellingContext.hs \
+  ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/LabellingContext.hs	\
+  Typing/Ordering.hs Typing/Subtyping.hs Typing/TypeInference.hs	\
+  Typing/TypingContext.hs Utils.hs \
   Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 

@@ -5,6 +5,7 @@ import Options
 import Classes
 import Console
 import Utils
+import Driver
 
 import Parsing.Lexer
 import Parsing.Parser
@@ -13,11 +14,10 @@ import qualified Parsing.Syntax as S
 
 import Core.Syntax
 import Core.Translate
+import Core.LabellingContext as L
 
 import Typing.TypingContext
-import Typing.Driver
 import Typing.Subtyping
-import Typing.LabellingContext as L
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
 
@@ -79,7 +79,6 @@ import_modules opts mnames ctx = do
                 _ <- process_module (opts, mopts) p
                 return ()
           return ctx) (return ctx) deps
-  set_file file_unknown
   return ctx
 
 

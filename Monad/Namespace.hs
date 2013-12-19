@@ -25,6 +25,7 @@ import qualified Data.Map as Map
 -- In the case of variables, a reference is recorded that keeps informaton about the type and place of declaration.
 data Namespace = NSpace {
   varcons :: IntMap String,      -- ^ Stores the variable names.
+  varmod :: IntMap String,       -- ^ Stores the variable module of definition.
   varref :: IntMap Int,          -- ^ Stores the variable references.
 
   datacons :: IntMap String,     -- ^ Stores the data constructor names.
@@ -42,6 +43,7 @@ data Namespace = NSpace {
 new_namespace :: Namespace
 new_namespace = NSpace {
   varcons = IMap.empty,
+  varmod = IMap.empty,
   datacons = IMap.empty,
   typecons = IMap.empty,
   varref = IMap.empty,
@@ -54,12 +56,13 @@ new_namespace = NSpace {
 }
 
 
--- | Register a new variable, and return a newly assigned variable id.
-register_var :: String -> Int -> Namespace -> (Int, Namespace)
-register_var s ref namespace =
+-- | Register a new variable (with an optional module), and return a newly assigned variable id.
+register_var :: Maybe String -> String -> Int -> Namespace -> (Int, Namespace)
+register_var mod s ref namespace =
   let id = vargen namespace in
   (id, namespace {
         varcons = IMap.insert id s $ varcons namespace,
+        varmod = case mod of { Nothing -> varmod namespace ; Just mod -> IMap.insert id mod $ varmod namespace },
         varref = IMap.insert id ref $ varref namespace,
         vargen = id+1 })
 

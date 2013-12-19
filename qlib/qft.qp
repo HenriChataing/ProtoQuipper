@@ -31,10 +31,10 @@ let rec qft qreg =
 
 
 -- Test on three qubits
-box [ qubit * qubit * qubit ] (
-  fun (q0, q1, q2) ->
-     let l = [q0,q1,q2] in
+box [ qubit * qubit * qubit * qubit * qubit] (
+  fun (q0, q1, q2, q3, q4) ->
+     let l = [q0,q1,q2,q3,q4] in
      match qft l with
-       [q0,q1,q2] -> (q0, q1, q2)
+       [q0,q1,q2,q3,q4] -> (q0, q1, q2, q3, q4)
 ) ;;
 

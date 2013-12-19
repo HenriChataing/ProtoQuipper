@@ -8,9 +8,10 @@ import qualified Monad.QpState as Q
 
 import Core.Syntax
 
-import Typing.Driver
+import Driver
+
 import Core.Translate
-import Typing.LabellingContext
+import Core.LabellingContext
 
 import System.IO
 import System.Environment

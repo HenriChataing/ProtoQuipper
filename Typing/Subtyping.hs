@@ -36,7 +36,7 @@ unfold_algebraic_constraint utyp arg arg' = do
           Contravariant -> [a' <: a] <> cset
           Equal -> [a <: a', a' <: a] <> cset
           Unrelated -> cset
-        ) emptyset $ List.zip3 (d_args typedef) arg arg'
+        ) emptyset $ List.zip3 (arguments typedef) arg arg'
 
   -- Return the complete set
   return cset
@@ -128,7 +128,7 @@ break_composite ((Sublintype (TTensor tlist) (TTensor tlist') info):lc, fc) = do
 break_composite ((Sublintype (TSynonym utyp arg) u info):lc, fc) = do
   spec <- synonym_def utyp
 
-  let (arg', typ) = s_unfolded spec
+  let (arg', typ) = definition spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
           (TBang n (TVar a), TBang n' a') -> subs_typ_var a a' (subs_flag n n' typ)
@@ -139,7 +139,7 @@ break_composite ((Sublintype (TSynonym utyp arg) u info):lc, fc) = do
 break_composite ((Sublintype t (TSynonym utyp arg) info):lc, fc) = do
   spec <- synonym_def utyp
 
-  let (arg', typ) = s_unfolded spec
+  let (arg', typ) = definition spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
           (TBang n (TVar a), TBang n' a') -> subs_typ_var a a' (subs_flag n n' typ)

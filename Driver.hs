@@ -1,6 +1,6 @@
 -- | This module provides an interface to the type inference and unification algorithms. It introduces functions to
 -- parse and process modules, and to deal with module dependencies.
-module Typing.Driver where
+module Driver where
 
 import Classes
 import Utils
@@ -15,6 +15,8 @@ import Parsing.Printer
 
 import Core.Syntax
 import Core.Translate
+import Core.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
+import qualified Core.LabellingContext as L
 
 import Interpret.Interpret
 import Interpret.Values
@@ -25,8 +27,6 @@ import Typing.Ordering
 import Typing.Subtyping
 import Typing.TypeInference
 import Typing.TypingContext
-import Typing.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
-import qualified Typing.LabellingContext as L
 
 import Compiler.Preliminaries
 import qualified Compiler.CExpr as C
@@ -511,12 +511,6 @@ process_module :: (Options, MOptions)  -- ^ Command line options and module opti
                -> QpState Module       -- ^ Return the module contents (variables, data constructors, types).
 process_module opts prog = do
 
-  -- Get the module name
-  mod <- return $ S.module_name prog
-  f <- return $ S.filepath prog
-
-  set_file f
-
   -- Import the global variables from the dependencies
   lctx <- global_namespace (S.imports prog)
 
@@ -548,8 +542,7 @@ process_module opts prog = do
   -- Import everything to the qstate fields
   qst <- get_context
   set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
-                      values = IMap.union (environment ctx) $ values qst,
-                      ofmodule = IMap.union (IMap.map (const $ S.module_name prog) $ typing ctx) $ ofmodule qst }
+                      values = IMap.union (environment ctx) $ values qst }
 
   -- Push the definition of the new module to the stack
   let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.

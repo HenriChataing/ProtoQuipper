@@ -245,11 +245,8 @@ check_cyclic c explored poset = do
                                 Just c -> prevar "a" c
                                 Nothing -> prevar "x" x)
         -- Printing type names
-        nspace <- get_context >>= return . namespace
-        fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
-                                 Just n -> n
-                                 Nothing -> prevar "T" n)
-        ploop <- return $ List.map (genprint Inf [fflag, fvar, fuser]) cloop
+        falg <- display_algebraic
+        ploop <- return $ List.map (genprint Inf [fflag, fvar, falg]) cloop
         prt <- return $ fvar infinite
 
         -- See what information we have
@@ -277,9 +274,9 @@ minimum_cluster poset = do
   cts <- return $ cluster_contents cm poset
 
   -- Log the contents of the youngest cluster
-  lastflag <- get_context >>= return . flag_id
-  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" (lastflag:cts)
-  newlog 1 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
+--  lastflag <- get_context >>= return . flag_id
+--  log_cts <- return $ List.foldl (\s x -> show x ++ " " ++ s) "" (lastflag:cts)
+--  newlog 1 $ "\x1b[1m" ++ log_cts ++ "\x1b[0m"
 
   -- Return the youngest cluster
   return cm

@@ -102,7 +102,7 @@ print_expr (ELet r p e f) =
 
 print_expr (ETuple elist) =
   let plist = List.map print_expr elist in
-  let slist = punctuate comma (List.init plist) ++ [List.last plist] in
+  let slist = punctuate comma plist in
   char '(' <> hsep plist <> char ')'
 
 print_expr (EIf e f g) =
@@ -119,10 +119,10 @@ print_expr (EApp e f) =
      EFun _ _ -> parens pe
      _ -> pe) <+>
   (case f of
-     EIf _ _ _ -> parens pe
-     EFun _ _ -> parens pe
-     EApp _ _ -> parens pe
-     _ -> pe)
+     EIf _ _ _ -> parens pf
+     EFun _ _ -> parens pf
+     EApp _ _ -> parens pf
+     _ -> pf)
 
 print_expr (EFun p e) =
   text "fun" <+> text (pprint p) <+> text "->" $$

@@ -13,8 +13,7 @@ import Classes
 
 import Core.Syntax
 import Core.Translate
-
-import Typing.LabellingContext as L
+import Core.LabellingContext as L
 
 import Monad.QpState
 import Monad.QuipperError
@@ -49,7 +48,6 @@ type_of x ctx = do
     Just t ->
         return t
     Nothing -> do
-        c <- get_context
         ex <- get_location
         name <- variable_name x
         fail $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex

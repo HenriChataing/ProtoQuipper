@@ -34,6 +34,87 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
 
+-- | Update the tag access function of a type.
+set_tagaccess :: Algebraic -> (Variable -> Expr) -> QpState ()
+set_tagaccess id gettag = do
+  ctx <- get_context
+  set_context ctx { tagaccess = IMap.insert id gettag $ tagaccess ctx }
+
+
+-- | Return the tag accessor of an algebraic type.
+get_tagaccess :: Algebraic -> QpState (Variable -> Expr)
+get_tagaccess id = do
+  ctx <- get_context
+  case IMap.lookup id $ tagaccess ctx of
+    Just gettag -> return gettag
+    Nothing -> fail "Preliminaries:get_tagaccess: undefined accessor"
+
+
+
+-- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
+choose_implementation :: Algebraic -> QpState ()
+choose_implementation id = do
+  alg <- algebraic_def id
+  let (_, datas) = C.definition alg
+  case datas of
+    -- Cases with one constructor:
+    -- The tag is omitted. No definition of the function gettag is needed.
+    [(dcon, Just _)] -> do
+        update_datacon dcon (\ddef -> Just ddef { C.d_construct = Right (\e -> e), C.d_deconstruct = \v -> EVar v })
+
+    [(dcon, Nothing)] ->
+        update_datacon dcon (\def -> Just def { C.d_construct = Left $ EInt 0, C.d_deconstruct = \v -> EInt 0 })
+
+    -- Cases with several constrcutors
+    _ -> do
+        -- First thing : count the constructors taking an argument.
+        let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
+
+        -- In case at most one takes an argument, the remaining can be represented by just their tag.
+        if List.length with_args <= 1 then do
+          -- The constructor with one argument can forget its tag
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { C.d_construct = Right (\e -> ETuple [e]), C.d_deconstruct = \v -> EAccess 0 v })
+              ) (return ()) with_args
+          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { C.d_construct = Left $ EInt (C.d_tag ddef) })
+              ) (return ()) no_args
+          -- The tag is obtained by checking for references.
+          case with_args of
+            -- Since there isn't any reference in the lot, no need to check
+            [] -> set_tagaccess id $ \v -> EVar v
+            -- There is a reference: need to check
+            [(dcon, _)] -> do
+                visref <- lookup_qualified_var ("Builtins","ISREF")
+                tag <- datacon_def dcon >>= return . C.d_tag
+                set_tagaccess id $ \v -> EMatch (EApp (EGlobal visref) (EVar v))
+                                         [(1,EInt tag)]
+                                         (EVar v)
+            _ ->
+                fail "TransSyntax:choose_implementation: unexpected case"
+
+        -- If not, just give the default implementation.
+        else do
+          -- The constructor with one argument can forget its tag
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { C.d_construct = Right (\e -> ETuple [EInt (C.d_tag ddef),e]), C.d_deconstruct = \v -> EAccess 1 v })
+              ) (return ()) with_args
+          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+          List.foldl (\rec (dcon, _) -> do
+                rec
+                update_datacon dcon (\ddef -> Just ddef { C.d_construct = Left $ ETuple [EInt (C.d_tag ddef)] })
+              ) (return ()) no_args
+          -- The tag is the first element of the tuple.
+          set_tagaccess id $ \v -> EAccess 0 v
+
+
+
+
+
 
 -- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'.
 convert_type :: C.Type -> QpState QType
@@ -255,7 +336,7 @@ disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
         return (C.EGlobal ref v)
 
     Just args -> do
-        t <- type_of_global v
+        t <- global_type v
         let typ = C.type_of_typescheme t
         -- If the type of the variable is concrete (no leftover type variables), then
         -- the unbox operators to apply can easily be derived.
@@ -707,8 +788,7 @@ extract (prefix, var, loc) =
                 deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
                 return $ deconstruct var
             InTag typ -> do
-                tdef <- algebraic_def typ
-                let gettag = C.d_gettag tdef
+                gettag <- get_tagaccess typ
                 return $ gettag var
 
       let nprefix = prefix ++ [l]
@@ -739,8 +819,7 @@ extract_var (prefix, var, loc) endvar =
                 deconstruct <- datacon_def dcon >>= return . C.d_deconstruct
                 return $ deconstruct var
             InTag typ -> do
-                tdef <- algebraic_def typ
-                let gettag = C.d_gettag tdef
+                gettag <- get_tagaccess typ
                 return $ gettag var
 
         nprefix <- return $ prefix ++ [l]
@@ -990,7 +1069,7 @@ transform_declarations decls = do
 
               -- Unresolved unbox operators
               if need /= [] then do
-                typ <- type_of_global x >>= return . C.type_of_typescheme
+                typ <- global_type x >>= return . C.type_of_typescheme
 
                 -- Specify the calling convention for x
                 set_call_convention x need
@@ -1023,9 +1102,7 @@ transform_declarations decls = do
       ) (return ([], IMap.empty)) decls
 
   -- Retrieve the declaration of quantum operations
-  ctx <- get_context
-  let qops = code $ circOps ctx
-  set_context ctx { circOps = empty_circOps }
+  qops <- clear_circuit_ops
 
   return $ qops ++ List.reverse decls
 
