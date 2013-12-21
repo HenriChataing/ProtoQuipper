@@ -91,7 +91,7 @@ haddock-simple : $(MODULES)
 # Distribution
 
 
-VERSION = 0.3
+VERSION = 0.2.1
 DISTDIR = proto-quipper-$(VERSION)
 DISTZIP = $(DISTDIR).zip
 DISTTAR = $(DISTDIR).tgz
@@ -104,7 +104,7 @@ QP_MODULES = qlib/core.qp qlib/function.qp qlib/qft.qp qlib/list.qp	\
 
 OTHER_DIST = emacs/proto-quipper-mode.el
 
-PUBLIC = README COPYRIGHT prologue.txt NEWS
+PUBLIC = README COPYRIGHT prologue.txt NEWS ChangeLog
 #            LICENSE
 
 $(DISTZIP) $(DISTTAR): dist

@@ -1,0 +1,11 @@
+ChangeLog
+
+v0.2.1 2013/12/21
+	Include missing file function.qp in distribution.
+	Use non-zero return code when existing with an error.
+
+v0.2 2013/09/08
+	Added an implementation of the Binary Welded Tree algorithm.
+
+v0.1 2013/08/30
+	Initial release.
