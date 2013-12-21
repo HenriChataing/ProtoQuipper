@@ -91,7 +91,7 @@ haddock-simple : $(MODULES)
 # Distribution
 
 
-VERSION = 0.2
+VERSION = 0.2x
 DISTDIR = proto-quipper-$(VERSION)
 DISTZIP = $(DISTDIR).zip
 DISTTAR = $(DISTDIR).tgz
@@ -99,8 +99,9 @@ DISTTAR = $(DISTDIR).tgz
 MAKEFILES_DIST = Makefile
 MAKEFILES_PUBLIC = $(MAKEFILEs_DIST:%=%-public)
 
-QP_MODULES = qlib/core.qp qlib/qft.qp qlib/list.qp qlib/gates.qp \
- bwt/definitions.qp bwt/bwt.qp bwt/definitions_imp.qp bwt/bwt_imp.qp
+QP_MODULES = qlib/core.qp qlib/function.qp qlib/qft.qp qlib/list.qp	\
+ qlib/gates.qp bwt/definitions.qp bwt/bwt.qp bwt/definitions_imp.qp	\
+ bwt/bwt_imp.qp
 
 OTHER_DIST = emacs/proto-quipper-mode.el
 
