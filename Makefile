@@ -104,7 +104,7 @@ QP_MODULES = qlib/core.qp qlib/function.qp qlib/qft.qp qlib/list.qp	\
 
 OTHER_DIST = emacs/proto-quipper-mode.el
 
-PUBLIC = README COPYRIGHT prologue.txt NEWS ChangeLog
+PUBLIC = README COPYRIGHT prologue.txt NEWS
 #            LICENSE
 
 $(DISTZIP) $(DISTTAR): dist
