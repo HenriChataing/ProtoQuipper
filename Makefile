@@ -5,8 +5,9 @@ HADDOCK := haddock
 BUILD_DIR = _build
 
 GHC_OPTS:=-fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -Werror
+GHC_PROF:=
 
-GHC = ghc $(GHC_OPTS) --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
+GHC = ghc $(GHC_OPTS) $(GHC_PROF) --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
 HAPPY = happy --ghc --info
 ALEX = alex
 
@@ -23,15 +24,15 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	\
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
   ProtoQuipper.hs Typing/CorePrinter.hs Typing/CoreSyntax.hs		\
   Typing/Driver.hs Typing/Ordering.hs Typing/Subtyping.hs		\
-  Typing/TransSyntax.hs Typing/TypeInference.hs				\
-  Typing/TypingContext.hs Utils.hs \
-  Compiler/PatternRemoval.hs
+  Typing/TransSyntax.hs Typing/TypeInference.hs	\
+  Typing/TypingContext.hs Utils.hs Typing/LabellingContext.hs \
+  Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/Interfaces.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
 all : $(MAIN)
 
 $(MAIN) : $(MODULES)
-	$(GHC) -cpp $(INCLUDE) $(MAIN).hs -o $(MAIN)
+	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
 
 Parsing/Parser.hs : Parsing/Parser.y
 	$(HAPPY) Parsing/Parser.y
@@ -51,7 +52,7 @@ bwt.circ : $(MAIN)
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
-	rm -f $(MAIN) $(MAIN).exe
+	rm -f $(MAIN) $(MAIN).exe $(MAIN).prof $(MAIN).aux
 	rm -rf $(BUILD_DIR)/*
 	rm -f bwt.circ
 

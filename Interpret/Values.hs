@@ -12,6 +12,7 @@ module Interpret.Values where
 
 import Classes
 import Utils
+
 import Monad.QuipperError
 
 import Typing.CoreSyntax
@@ -19,11 +20,10 @@ import Typing.CorePrinter
 
 import Interpret.Circuits
 
-import Control.Exception
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-import Data.Char
+
 
 -- | The type of values.
 data Value =
@@ -32,8 +32,6 @@ data Value =
                                          -- values.
   | VTuple [Value]                       -- ^ (v1, .. , vn)
   | VCirc Value Circuit Value            -- ^ (t, c, u)
-  | VSumCirc Value                       -- ^ When the type of a circuit uses user types, a general specimen can't be inferred. A new circuit is produced for
-                                         -- all new uses of the box.
   | VBool Bool                           -- ^ True and false.
   | VInt Int                             -- ^ Integers.
   | VBox Type                            -- ^ @box [T]@
@@ -47,44 +45,47 @@ data Value =
 
 
 instance PPrint Value where
-  genprint l VUnit opts = "()"
-  genprint l VRev opts = "rev"
-  genprint l VUnbox opts = "unbox"
-  genprint l (VBuiltin _) opts = "<fun>"
-  genprint l (VQubit q) opts = subvar 'q' q
-  genprint l (VBool b) opts = if b then "true" else "false"
-  genprint l (VInt n) opts = show n
-  genprint l (VTuple (v:rest)) opts = "(" ++ genprint l v opts ++ List.foldl (\s w -> s ++ ", " ++ genprint l w opts) "" rest ++ ")"
-  genprint l (VTuple []) opts = 
-    throw $ ProgramError "Value:genprint: illegal tuple"
-  genprint l (VCirc _ c _) opts = pprint c
-  genprint l (VSumCirc _) opts = "<circ>"
-  genprint l (VFun _ _ _) opts = "<fun>"
-  genprint l (VDatacon datacon e) [f] =
-    case (f datacon, e) of
+  genprint _ _ VUnit = "()"
+  genprint _ _ VRev = "rev"
+  genprint _ _ VUnbox = "unbox"
+  genprint _ _ (VBuiltin _) = "<fun>"
+  genprint _ _ (VQubit q) = prevar "q" q
+  genprint _ _ (VBool b)  = if b then "true" else "false"
+  genprint _ _ (VUnboxed _) = "<fun>"
+  genprint _ _ (VBox t) = "<fun>"
+  genprint _ _ (VInt n) = show n
+  genprint _ _ (VFun _ _ _) = "<fun>"
+  genprint _ _ (VCirc _ c _) = pprint c
+
+  genprint (Nth 0) _ _ = "..."
+
+  genprint lvl opts (VTuple (v:rest)) =
+    let dlv = decr lvl in
+    "(" ++ genprint dlv opts v ++ List.foldl (\s w -> s ++ ", " ++ genprint dlv opts w) "" rest ++ ")"
+  genprint lvl [fdata] (VDatacon datacon e) =
+    let dlv = decr lvl in
+    case (fdata datacon, e) of
       -- List constructors
       ("Nil", Nothing) ->
           "[]"
       ("Cons", Just (VTuple [a, b])) ->
-          let pa = genprint l a [f] in
-          case genprint l b [f] of
+          let pa = genprint dlv [fdata] a in
+          case genprint dlv [fdata] b of
             "[]" -> "[" ++ pa ++ "]"
             '[':rest -> "[" ++ pa ++ ", " ++ rest
             nope -> "Cons " ++ "(" ++ pa ++ "," ++ nope ++ ")"
 
       -- Others
       _ ->
-        f datacon ++ case e of
-                       Just e -> " " ++ genprint l e [f]
+        fdata datacon ++ case e of
+                       Just e -> " " ++ genprint dlv [fdata] e
                        Nothing -> ""
-  genprint l (VDatacon datacon e) opts =
-    throw $ ProgramError "Value:genprint: illegal argument"
-  genprint l (VUnboxed _) opts = "<fun>"
-  genprint l (VBox t) opts = "<fun>"
+  genprint l opts (VDatacon datacon e) =
+    throwNE $ ProgramError "Values:genprint: illegal argument"
+  genprint _ _ (VTuple []) = 
+    throwNE $ ProgramError "Values:genprint: illegal tuple"
 
-  sprint v = pprint v
-  sprintn _ v = pprint v
-  pprint v = genprint Inf v [(subvar 'D')]
+  sprintn lvl v = genprint lvl [(prevar "D")] v
 
 
 -- | Equality between values is only about the skeleton. It is only to be used to compare quantum values, and
@@ -98,14 +99,6 @@ instance Eq Value where
     else
       False
   (==) (VDatacon dcon v) (VDatacon dcon' v') = (dcon == dcon') && (v == v')
-  (==) _ _ = throw $ ProgramError "Value:==: illegal argument"
+  (==) _ _ = throwNE $ ProgramError "Values:==: illegal argument"
 
-
--- | Return the string corresponding to a value (supposedly a string).
-string_of_value :: Value -> String
-string_of_value (VDatacon _ Nothing) = ""
-string_of_value (VDatacon _ (Just (VTuple [VDatacon _ (Just (VInt c)), rest]))) =
-  (chr c):(string_of_value rest)
-string_of_value v =
-  throw $ RunTimeError $ "value is not a string: " ++ pprint v 
 

@@ -24,7 +24,6 @@ import Monad.QpState
 import Monad.QuipperError
 import qualified Monad.Namespace as N
 
-import Control.Exception
 import Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -80,7 +79,7 @@ cluster_contents c poset =
         cts
 
     Nothing ->
-        fail $ "Cluster " ++ show c ++ " lacks an accompying definition"
+        fail $ "Ordering:cluster_contents: undfined cluster: " ++ show c
 
 
 -- | Return the list of younger clusters, according to the partial relation.
@@ -170,10 +169,10 @@ register_constraint cst poset =
                       new_relation cy cx cst poset') poset' fvt
 
     Sublintype _ _ _ -> 
-        throw $ ProgramError "register_constraint: illegal argument"
+        throwNE $ ProgramError "Ordering:register_constraint: illegal argument: unreduced constraint"
         
     Subtype _ _ _ ->
-        throw $ ProgramError "register_constraint: illegal argument"
+        throwNE $ ProgramError "Ordering:register_constraint: illegal argument: unreduced constraint"
 
 -- | Register a list of constraints.
 register_constraints :: [TypeConstraint] -> Poset -> Poset
@@ -191,7 +190,7 @@ some_cluster :: Poset -> Cluster
 some_cluster poset =
   case IMap.keys $ clusters poset of
     [] ->
-        error "empty cluster list"
+        throwNE $ ProgramError "Ordering:some_cluster: illegal argument: []"
 
     (c: _) ->
         c
@@ -237,34 +236,34 @@ check_cyclic c explored poset = do
         (infinite, info) <- case cst of
                               Sublintype (TVar x) _ info -> return (x, info)
                               Sublintype _ (TVar x) info -> return (x, info)
-                              _ -> throw $ ProgramError "check_cyclic: unexpected case"
+                              _ -> throwNE $ ProgramError "Ordering:check_cyclic: unexpected unreduced constraint"
         -- Printing flags
         fflag <- return (\f -> "")
 
         -- Printing variables : print the cluster instead
         fvar <- return (\x -> case IMap.lookup x $ cmap poset of
-                                Just c -> subvar 'a' c
-                                Nothing -> subvar 'x' x)
+                                Just c -> prevar "a" c
+                                Nothing -> prevar "x" x)
         -- Printing type names
         nspace <- get_context >>= return . namespace
         fuser <- return (\n -> case IMap.lookup n $ N.typecons nspace of
                                  Just n -> n
-                                 Nothing -> subvar 'T' n)
-        ploop <- return $ List.map (\c -> genprint Inf c [fflag, fvar, fuser]) cloop
+                                 Nothing -> prevar "T" n)
+        ploop <- return $ List.map (genprint Inf [fflag, fvar, fuser]) cloop
         prt <- return $ fvar infinite
 
         -- See what information we have
         -- Print the expression
-        pre <- pprint_expr_noref $ expression info
+        (ex, expr) <- ref_expression $ c_ref info
         -- Print the original type
-        mprt <- case in_type info of
+        mprt <- case c_type info of
                   Just a -> do
                       p <- pprint_type_noref a
                       return $ Just p
                   Nothing ->
                       return Nothing
 
-        throwQ $ LocatedError (InfiniteTypeError prt ploop mprt pre) (loc info)
+        throwQ (InfiniteTypeError prt ploop mprt expr) ex
 
 
 
@@ -320,7 +319,8 @@ new_with_class c@(a:_) =
   Eqv { clmap = IMap.fromList $ List.map (\b -> (b, a)) c,
         classes = IMap.singleton a (c, []) }
 new_with_class [] =
-  throw $ ProgramError "new_with_class: empty list"
+  throwNE $ ProgramError "Ordering:new_with_class: illegal argument: []"
+
 
 -- | Return the equivalence class of a variable, or create one if it
 -- does not exist.
@@ -383,7 +383,7 @@ clean_constraint_set a (lc, fc) =
                                                        case c of
                                                          Sublintype (TVar x) (TVar y) _ ->
                                                            insert_constraint x y c eqv
-                                                         _ -> throw $ ProgramError "clean_constraint_set: non-atomic constraint"
+                                                         _ -> throwNE $ ProgramError "Ordering:clean_constraint_set: unexpected non-atomic constraint"
                                                      ) eqvl lc in
                               let (cl, _) = in_class x eqvl' in
                               class_contents cl eqvl' in

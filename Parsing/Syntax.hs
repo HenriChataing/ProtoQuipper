@@ -5,11 +5,12 @@
 module Parsing.Syntax where
 
 import Classes
+import Utils
 
 import Parsing.Location
+
 import Monad.QuipperError
 
-import Control.Exception
 import Data.Char
 import Data.Map
 import Data.List as List
@@ -33,15 +34,12 @@ instance Show Empty where
 -- ----------------------------------------------------------------------
 -- ** Declarations
 
--- | A data constructor. A data constructor is uniquely determined by its name.
-type Datacon = String
-
 
 -- | An algebraic data type definition.
 data Typedef = Typedef {
   d_typename :: String,                        -- ^ Name of the defined type.
   d_args :: [String],                          -- ^ List of bound type arguments.
-  d_constructors :: [(Datacon, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
+  d_constructors :: [(String, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
 }
 
 
@@ -214,7 +212,7 @@ data Pattern =
   | PInt Int                             -- ^ Integer pattern.
   | PVar String                          -- ^ Variable pattern: /x/.
   | PTuple [Pattern]                     -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Datacon (Maybe Pattern)     -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PDatacon String (Maybe Pattern)     -- ^ Data constructor pattern: \"@String@\" or \"@String /pattern/@\".
   | PConstraint Pattern Type             -- ^ Constraint pattern: @(x <: A)@.
   | PLocated Pattern Extent              -- ^ A located pattern.
   deriving Show
@@ -252,14 +250,6 @@ type AppPattern = (Pattern, [Pattern])
 -- wildcards. X-expressions are used by the parser before they are
 -- converted either to expressions or to patterns.
 
--- | A recursive flag. This is used in the expression 'ELet' to indicate
--- whether the function is recursive or not. The parser only allows functions (and not arbitrary values)
--- to be declared recursive.
-data RecFlag =
-    Nonrecursive   -- ^ Non recursive binding.
-  | Recursive      -- ^ Recursive binding.
-  deriving (Show, Eq)
-
 
 -- | The type of X-expressions. The type argument /a/ determines
 -- whether wildcards are permitted or not. If /a/ is non-empty, then
@@ -285,7 +275,7 @@ data XExpr a =
   | EUnit                          -- ^ Unit term: @()@.
 
 -- Addition of sum types
-  | EDatacon String (Maybe (XExpr a)) -- ^ Data constructor: @Datacon e@.
+  | EDatacon String (Maybe (XExpr a)) -- ^ Data constructor: @String e@.
   | EMatch Expr [(Pattern, Expr)]  -- ^ Case distinction: @match e with (p1 -> f1 | p2 -> f2 | ... | pn -> fn)@.
   | EIf Expr Expr Expr             -- ^ Conditional: @if e then f else g@
   | EBool Bool                     -- ^ Boolean constant: @true@ or @false@.
@@ -307,7 +297,7 @@ data XExpr a =
 multi_EFun :: [Pattern] -> Expr -> XExpr a
 multi_EFun [p] e = EFun p e
 multi_EFun (p:ps) e = EFun p (multi_EFun ps e)
-multi_EFun [] e = throw $ ProgramError "multi_EFun: empty pattern list"
+multi_EFun [] e = throwNE $ ProgramError "Syntax:multi_EFun: empty pattern list"
 
 
 -- | X-expressions are located objects.
@@ -368,7 +358,7 @@ isPVar _ = False
 -- located), and therefore appropriate as the head of a data
 -- constructor pattern. If yes, return the data constructor; if no,
 -- return 'Nothing'.
-isPDatacon :: Pattern -> Maybe Datacon
+isPDatacon :: Pattern -> Maybe String
 isPDatacon (PDatacon d Nothing) = Just d
 isPDatacon (PLocated p ex) = isPDatacon p
 isPDatacon _ = Nothing
@@ -423,10 +413,10 @@ gen_pattern_of_xexpr_loc ex (EApp e1 e2) =
       if isPVar p then AppPattern (p, [p2])
       else case isPDatacon p of
         Just d -> SimplePattern (PDatacon d (Just p2))
-        Nothing -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
+        Nothing -> throw (ParsingOtherError "bad pattern") ex
   where
     p2 = pattern_of_xexpr_loc ex e2
-gen_pattern_of_xexpr_loc ex _ = throw $ locate_opt (ParsingOtherError "bad pattern") ex
+gen_pattern_of_xexpr_loc ex _ = throw (ParsingOtherError "bad pattern") ex
 
 -- | Auxiliary function for 'pattern_of_xexpr'. The first argument
 -- is the location of the surrounding expression, if known.
@@ -434,7 +424,7 @@ pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> Pattern
 pattern_of_xexpr_loc ex e = 
   case gen_pattern_of_xexpr_loc ex e of
     SimplePattern p -> p
-    _ -> throw $ locate_opt (ParsingOtherError "bad pattern") ex
+    _ -> throw (ParsingOtherError "bad pattern") ex
 
 -- | Auxiliary function for 'app_pattern_of_xexpr'. The first argument
 -- is the location of the surrounding expression, if known.
@@ -442,7 +432,7 @@ app_pattern_of_xexpr_loc :: Maybe Extent -> XExpr a -> AppPattern
 app_pattern_of_xexpr_loc ex e = 
   case gen_pattern_of_xexpr_loc ex e of
     AppPattern ap -> ap
-    _ -> throw $ locate_opt (ParsingOtherError "bad pattern: defined function needs at least one parameter") ex
+    _ -> throw (ParsingOtherError "defined function needs at least one parameter") ex
 
 -- ----------------------------------------------------------------------
 -- * Converting x-expressions to expressions.
@@ -456,7 +446,7 @@ expr_of_xexpr = expr_of_xexpr_loc Nothing
 -- | Auxiliary function for 'expr_of_xexpr'. The first argument is the
 -- location of the surrounding expression, if known.
 expr_of_xexpr_loc :: Maybe Extent -> XExpr a -> Expr
-expr_of_xexpr_loc ex (EWildcard a) = throw $ locate_opt (ParsingError "_") ex
+expr_of_xexpr_loc ex (EWildcard a) = throw (ParsingError "_") ex
 expr_of_xexpr_loc ex (EVar x) = EVar x
 expr_of_xexpr_loc ex (EQualified x y) = EQualified x y
 expr_of_xexpr_loc ex (EFun p e) = EFun p e

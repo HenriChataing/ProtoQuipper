@@ -9,9 +9,9 @@ import Interpret.Values
 
 import Monad.QuipperError
 
-import Control.Exception
 import Data.Map as Map
 import Data.List as List
+import Data.Char
 
 
 -- | Extract an integer from a value, or throw a 'BuiltinError'
@@ -19,7 +19,7 @@ import Data.List as List
 -- operation that should appear in the error message.
 unVInt :: Value -> String -> Int
 unVInt (VInt n) _ = n
-unVInt _ s = throw $ BuiltinError s "an integer"
+unVInt _ s = throwNE (BuiltinError s "an integer")
 
 
 -- | Extract a boolean from a value, or throw a 'BuiltinError'
@@ -27,7 +27,18 @@ unVInt _ s = throw $ BuiltinError s "an integer"
 -- operation that should appear in the error message.
 unVBool :: Value -> String -> Bool
 unVBool (VBool b) _ = b
-unVBool _ s = throw $ BuiltinError s "a boolean"
+unVBool _ s = throwNE (BuiltinError s "a boolean")
+
+
+-- | Extract a string from a value, or throw a 'BuiltinError'
+-- otherwise. The second argument is the name of the built-in
+-- operation that should appear in the error message.
+unVString :: Value -> String -> String
+unVString (VDatacon _ Nothing) _ = ""
+unVString (VDatacon _ (Just (VTuple [VDatacon _ (Just (VInt c)), rest]))) s =
+  (chr c):(unVString rest s)
+unVString v s =  throwNE (BuiltinError s "a string")
+
 
 
 -- | The type of all unary gates, i.e., @circ (qubit, qubit)@.
@@ -185,8 +196,8 @@ builtin_error :: Map String (Type, Value)
 builtin_error =
   Map.singleton "ERROR" (TForall "_a_" $ TArrow (TApp (TVar "list") (TVar "char")) (TVar "_a_"),
                          VBuiltin (\msg -> 
-                                     let string_msg = string_of_value msg in 
-                                     throw $ UserError string_msg))
+                                     let string_msg = unVString msg "ERROR" in 
+                                     throwNE (UserError string_msg)))
 
 
 -- | The collection of all built-in operations.

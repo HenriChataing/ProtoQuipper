@@ -10,12 +10,10 @@ import Monad.QuipperError
 import Monad.QpState
 
 import qualified Data.List as List
-import Data.Char
-
-import Control.Exception
+import Data.Char as Char
 }
 
-%wrapper "posn"
+%wrapper "posn-bytestring"
 
 $low_alpha = [a-z]
 $up_alpha = [A-Z]
@@ -58,8 +56,8 @@ tokens :-
   "{"                                 { locate_token TkLCurlyBracket }
   "}"                                 { locate_token TkRCurlyBracket }
 
-  \" ($printable_char | \\ $escape_char)* \"   { \p s -> TkString (posn_to_extent p s, read_string $ List.init $ List.tail s) }
-  \' ($printable_char | \\ $escape_char) \'    { \p s -> TkChar (posn_to_extent p s, read_char $ List.init $ List.tail s) }
+  \" ($printable_char | \\ $escape_char)* \"   { \p bs -> TkString (posn_to_extent p bs, read_string $ List.init $ List.tail (convet_bs_to_s bs)) }
+  \' ($printable_char | \\ $escape_char) \'    { \p bs -> TkChar (posn_to_extent p bs, read_char $ List.init $ List.tail (convet_bs_to_s bs)) }
 
 
   and                                 { locate_token TkAnd }
@@ -103,11 +101,19 @@ tokens :-
 {
 
 -- | Convert Alex's positions to extents.
-posn_to_extent :: AlexPosn -> String -> Extent
-posn_to_extent (AlexPn p l c) s =
+posn_to_extent :: AlexPosn
+               -> ByteString.ByteString
+               -> Extent
+posn_to_extent (AlexPn p l c) bs =
+  let n = fromIntegral (toInteger $ ByteString.length bs) in
   Ext { lbegin = Loc { line = l, column = c-1 },
-        lend = Loc { line = l, column = c+length s-1 },
+        lend = Loc { line = l, column = c+n-1 },
         file = file_unknown }
+
+-- | Convert a ByteString string to standard String format.
+convet_bs_to_s :: ByteString.ByteString -> String
+convet_bs_to_s bs =
+  List.map (toEnum . fromEnum) $ ByteString.unpack bs
 
 
 -- | Return the string value of a string token. In particular, escape characters are read and replaced by their char counterpart.
@@ -116,7 +122,7 @@ read_string "" = ""
 read_string s =
   case readLitChar s of
     [(c, s')] -> c:(read_string s')
-    _ -> throw $ ProgramError "Lexer:unexpected branching"
+    _ -> throwNE $ ProgramError $ "Lexer:read_string: illegal argument: " ++ s
 
 
 -- | Return the integer value of a character (that can be an escape character).
@@ -124,7 +130,7 @@ read_char :: String -> Char
 read_char s =
   case readLitChar s of
     [(c, "")] -> c
-    _ -> throw $ ProgramError $ "Undefined escape character " ++ s
+    _ -> throwNE $ ProgramError $ "Lexer:read_char: illegal argument: " ++ s
 
 
 -- | The type of lexical tokens. 
@@ -273,12 +279,14 @@ instance Show Token where
   show (TkInfix3 (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
 -- | Locate a token. The type signatures matches the one expected of lexing actions.
-locate_token :: (Extent -> Token) -> AlexPosn -> String -> Token
-locate_token tk p s = tk (posn_to_extent p s)
+locate_token :: (Extent -> Token) -> AlexPosn -> ByteString.ByteString -> Token
+locate_token tk p bs = tk (posn_to_extent p bs)
 
 -- | Same as locate_token, except that the string of the token is also included in the object.
-locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> String -> Token
-locate_named_token tk p s = tk (posn_to_extent p s, s)
+locate_named_token :: ((Extent, String) -> Token) -> AlexPosn -> ByteString.ByteString -> Token
+locate_named_token tk p bs =
+  let s = convet_bs_to_s bs in
+  tk (posn_to_extent p bs, s)
 
 -- | Change the location file of a token.
 locate_token_in_file :: String -> Token -> Token
@@ -349,13 +357,13 @@ locate_token_in_file f (TkInfix3 (ex, s)) = TkInfix3 (ex { file = f }, s)
 
 -- | Turn an unparsed string into a list of lexical tokens. This is the main lexing function.
 -- If the lexer encounters an unrecognized token, it fails with a 'LexicalError' exception.
-mylex :: String -> String -> QpState [Token]
+mylex :: String -> ByteString.ByteString -> QpState [Token]
 mylex filename contents = do
   tokens <- return $ alexScanTokens contents
   tokens <- return $ List.map (locate_token_in_file filename) tokens
   case List.find (\tk -> case tk of
                            TkUnknownToken _ -> True
                            _ -> False) tokens of
-    Just (TkUnknownToken (ex, s)) -> throwQ $ LexicalError s ex
+    Just (TkUnknownToken (ex, s)) -> throwQ (LexicalError s) ex
     _ -> return tokens 
 }

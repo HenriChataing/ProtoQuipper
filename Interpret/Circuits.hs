@@ -20,6 +20,12 @@ import Classes
 type Qubit = Int
 
 
+-- | A type class for things that can be reversed.
+class Reversible a where
+  -- | Reverse.
+  rev :: a -> a
+
+
 
 -- | The list of unary gates.
 -- Unary gates are defined by: their name, the name of the reversed gate, and the symbol used to represent it in
@@ -27,7 +33,7 @@ type Qubit = Int
 unary_gates :: [(String, (String, String))]
 unary_gates =
   [ ("GATE_H", ("GATE_H", "-H-")),
-    ("NOT", ("NOT", "(+)")),
+    ("GATE_NOT", ("GATE_NOT", "(+)")),
     ("GATE_X", ("GATE_X", "-X-")),
     ("GATE_Y", ("GATE_Y", "-Y-")),
     ("GATE_Z", ("GATE_Z", "-Z-")),
@@ -50,7 +56,7 @@ unary_gates =
 -- representation, which now takes two characters, one for each wire.
 binary_gates :: [(String, (String, (String, String)))]
 binary_gates =
-  [ ("SWAP", ("SWAP", ("-x-", "-x-"))),
+  [ ("GATE_SWAP", ("GATE_SWAP", ("-x-", "-x-"))),
     ("GATE_W", ("GATE_W", ("-W1", "-W2"))) ]
 
 
@@ -529,4 +535,4 @@ instance PPrint Circuit where
 
   sprintn _ c = pprint c
   sprint c = pprint c
-  genprint _ c _ = pprint c
+  genprint _ _ c = pprint c

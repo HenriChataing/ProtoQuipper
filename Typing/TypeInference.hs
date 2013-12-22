@@ -3,11 +3,10 @@ module Typing.TypeInference where
 
 import Prelude hiding (filter)
 
-import Classes
+import Classes hiding ((\\))
 import Utils
 
 import Parsing.Location
-import Parsing.Syntax (RecFlag (..))
 import qualified Parsing.Syntax as S
 
 import Typing.CoreSyntax
@@ -15,12 +14,11 @@ import Typing.TypingContext
 import Typing.Ordering
 import Typing.Subtyping
 import Typing.TransSyntax
+import Typing.LabellingContext as L
 
 import Monad.QuipperError
 import Monad.QpState
 import Monad.Modules
-
-import Control.Exception as E
 
 import Data.List ((\\))
 import qualified Data.List as List
@@ -62,64 +60,83 @@ make_polymorphic_type :: Type                                  -- ^ Generic type
                       -> ConstraintSet                         -- ^ Unreduced constraint set.
                       -> (RefFlag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
                       -> QpState TypeScheme
-make_polymorphic_type typ (lc, fc) (isref, isvar) =
-  let (ff, fv) = (free_flag typ, free_typ_var typ) in
+make_polymorphic_type typ (lc, fc) (isref, isvar) = do
+  let (ff, fv) = (free_flag typ, free_typ_var typ)
   -- A variable / flag is to be kept (in the constraints) if it is from the context, or if it is in the final type.
-  let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv) in
+  let (keepref, keepvar) = (\f -> (not $ isref f) || List.elem f ff, \v -> (not $ isvar v) || List.elem v fv)
      
-  -- Walk starting from one point, and stopping on the other import vertices 
-  let walk = \origin next g visited keep ->
+  -- Walk starting from one point, stopping on the other important vertices
+  -- origin : origin of the walk
+  -- next : the set of vertices to visit next
+  -- g : the graph
+  -- visited : the set of vertices that have already been visited
+  -- keep : function that says whether a vertice is important or not
+  -- map : action to do when a non important vertex is being visited
+  let walk = \origin next g visited keep map -> do
         case next of
-          [] -> []
-          node:rest ->
+          [] -> return []
+          node:rest -> do
+              -- If the node is not important, map to the origin
+              if not $ keep node then
+                map node origin
+              else
+                return ()
+
               let next = case IMap.lookup node g of
                     Nothing -> []
-                    Just s -> s in
-              let (nx, nc) = List.foldl (\(nx, nc) n ->
-                               if List.elem n visited then
-                                 (nx,nc)
-                               else if keep n then
-                                 (nx, (origin,n):nc)
-                               else
-                                 (n:nx, nc)) ([],[]) next in
-              nc ++ walk origin (nx ++ rest) g (node:visited) keep
-  in
+                    Just s -> s
+              (nx, nc) <- List.foldl (\rec n -> do
+                    (nx, nc) <- rec
+                    -- Already treated, omit
+                    if List.elem n visited then
+                      return (nx,nc)
+                    -- The vertex is important, write down the new constraint (origin, n)
+                    else if keep n then
+                      return (nx, (origin,n):nc)
+                    -- The vertex is not important, map it to the origin
+                    else do
+                      return (n:nx, nc)) (return ([],[])) next
+              wnc <- walk origin (nx ++ rest) g (node:visited) keep map
+              return $ nc ++ wnc
 
   -- Apply the walk function to all the important vertices
-  let walk_all = \vertices g keep ->
-        List.foldl (\nc ori ->
-                     case IMap.lookup ori g of
-                       Nothing -> nc
-                       Just s -> (walk ori s g [ori] keep) ++ nc) [] vertices
-  in do
+  let walk_all = \vertices g keep map ->
+        List.foldl (\rec ori -> do
+              nc <- rec
+              case IMap.lookup ori g of
+                Nothing -> return nc
+                Just s -> do
+                    wnc <- walk ori s g [ori] keep map
+                    return $ wnc ++ nc) (return []) vertices
 
    -- Flags
-  g <- return $ List.foldl (\g (Le x y _) ->
-            case IMap.lookup x g of
-              Just c -> IMap.insert x (y:c) g
-              Nothing -> IMap.insert x [y] g) IMap.empty fc
+  let g = List.foldl (\g (Le x y _) ->
+        case IMap.lookup x g of
+          Just c -> IMap.insert x (y:c) g
+          Nothing -> IMap.insert x [y] g) IMap.empty fc
 
-  initf <- return $ List.filter keepref $ IMap.keys g
-  cs <- return $ walk_all initf g keepref
-  fc' <- return $ List.map (\(n,m) -> Le n m no_info) cs
+  let initf = List.filter keepref $ IMap.keys g
+  cs <- walk_all initf g keepref (\_ _ -> return ())
+  let fc' = List.map (\(n,m) -> Le n m no_info) cs
 
   -- Types
-  g <- return $ List.foldl (\g c -> 
-            case c of
-              (Sublintype (TVar x) (TVar y) _) ->
-                  case IMap.lookup x g of
-                    Just c -> IMap.insert x (y:c) g
-                    Nothing -> IMap.insert x [y] g
-              _ -> throw $ ProgramError "Unexpected unreduced constraint in function make_polymorphic_type") IMap.empty lc
+  let g = List.foldl (\g c -> 
+        case c of
+          Sublintype (TVar x) (TVar y) _ ->
+              case IMap.lookup x g of
+                Just c -> IMap.insert x (y:c) g
+                Nothing -> IMap.insert x [y] g
+          _ -> throwNE $ ProgramError "TypeInference:make_polymorphic_type: unexpected unreduced constraint") IMap.empty lc
  
-  initv <- return $ List.filter keepvar $ IMap.keys g
-  cs' <- return $ walk_all initv g keepvar
-  lc' <- return $ List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
+  let initv = List.filter keepvar $ IMap.keys g
+  cs' <- walk_all initv g keepvar (\a b ->
+        mapsto a (TVar $ List.head fv)) 
+  let lc' = List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
 
   -- Build the polymorphic type
   genfv <- return $ List.filter isvar fv
   genff <- return $ List.filter isref ff
-
+  
   return $ TForall genff genfv (lc',fc') typ
 
 
@@ -209,22 +226,14 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) =
 -- @
 constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
--- Located things:
--- Change the location and resume.
-constraint_typing gamma (ELocated e ex) cst = do
-  set_location ex
-  constraint_typing gamma e cst
-
-
 -- For builtins, get the type registered in the builtins map.
-constraint_typing gamma (EBuiltin s) cst = do
+constraint_typing gamma (EBuiltin ref s) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
-  ex <- get_location
-  info <- return $ no_info { expression = EBuiltin s,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
   acts <- builtin_type s
+  update_ref ref (\ri -> Just ri { r_type = acts })
 
   return $ ((acts <:: cst) & info, [])
 
@@ -235,14 +244,13 @@ constraint_typing gamma (EBuiltin s) cst = do
 --  !I G  |- * : !n T  [{1 <= I}]
 --
 
-constraint_typing gamma EUnit cst = do
+constraint_typing gamma (EUnit ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
   
   -- Generates a referenced flag of the actual type of EUnit
-  ex <- get_location
-  info <- return $ no_info { expression = EUnit,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TUnit })
 
   return $ ((TBang 1 TUnit <:: cst) & info, [])
 
@@ -253,14 +261,13 @@ constraint_typing gamma EUnit cst = do
 --  !I G |- True / False : !n bool  [{1 <= I}]
 -- 
 
-constraint_typing gamma (EBool b) cst = do
+constraint_typing gamma (EBool ref b) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  ex <- get_location
-  info <- return $ no_info { expression = EBool b,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TBool })
 
   return $ ((TBang 1 TBool <:: cst) & info, [])
 
@@ -271,14 +278,13 @@ constraint_typing gamma (EBool b) cst = do
 --  !I G |- Int : !n int  [{1 <= I}]
 -- 
 
-constraint_typing gamma (EInt p) cst = do
+constraint_typing gamma (EInt ref p) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  ex <- get_location
-  info <- return $ no_info { expression = EInt p,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 TInt })  
 
   return $ ((TBang 1 TInt <:: cst) & info, [])
 
@@ -289,41 +295,35 @@ constraint_typing gamma (EInt p) cst = do
 --  !IG, t : T |- t : U  [{T <: U, 1 <= I}]
 --
 
-constraint_typing gamma (EVar x) cst = do
+constraint_typing gamma (EVar ref x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of x gamma
   (a, csetx) <- instantiate sa
-
-  -- Get the location
-  ex <- get_location
 
   -- Have the rest of the context be duplicable
   (_, gamma_nx) <- sub_context [x] gamma
   duplicable_context gamma_nx
 
   -- Information
-  info <- return $ no_info { expression = EVar x,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = a })
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
+  return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
 
-constraint_typing gamma (EGlobal x) cst = do
+constraint_typing gamma (EGlobal ref x) cst = do
   -- Retrieve the type of x from the typing context
   sa <- type_of_global x
   (a, csetx) <- instantiate sa -- In case a is a typing scheme
-
-  -- Get the location
-  ex <- get_location
 
   -- Have the rest of the context be duplicable
   duplicable_context gamma
 
   -- Information
-  info <- return $ no_info { expression = EGlobal x,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
+  update_ref ref (\ri -> Just ri { r_type = a })
 
-  return $ ((a <:: cst) & info) <> (csetx & info { in_type = Just a })
+  return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
 
 
@@ -333,19 +333,19 @@ constraint_typing gamma (EGlobal x) cst = do
 --  !I G |- box[T] :  !n (!1 (T -> U) -> !n Circ (T, U))  [L u {1 <= I}]
 --
 
-constraint_typing gamma (EBox a) cst = do
+constraint_typing gamma (EBox ref a) cst = do
   -- The context must be duplicable 
   duplicable_context gamma
 
   -- Information
-  ex <- get_location
-  info <- return $ no_info { expression = EBox a,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of box
   b <- new_type
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 1 (TCirc a b)
+
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow arw cir) })
 
   return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
   
@@ -356,20 +356,20 @@ constraint_typing gamma (EBox a) cst = do
 --  G |- rev : !n (!n Circ (T, U) -> !n Circ (U, T))  [L]
 --
 
-constraint_typing gamma ERev cst = do
+constraint_typing gamma (ERev ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Information
-  ex <- get_location
-  info <- return $ no_info { expression = ERev,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of rev
   a <- new_type
   b <- new_type
   cirab <- return $ TBang 0 (TCirc a b)
   cirba <- return $ TBang 1 (TCirc b a)
+
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow cirab cirba) })
 
   return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info, [])
 
@@ -380,20 +380,20 @@ constraint_typing gamma ERev cst = do
 --  G |- unbox : !1 (!n circ(T, U) -> !1 (T -> U))  [L]
 --
 
-constraint_typing gamma EUnbox cst = do
+constraint_typing gamma (EUnbox ref) cst = do
   -- The context must be duplicable
   duplicable_context gamma
 
   -- Flag reference
-  ex <- get_location
-  info <- return $ no_info { expression = EUnbox,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Build the type of unbox
   a <- new_type
   b <- new_type
   arw <- return $ TBang 1 (TArrow a b)
   cir <- return $ TBang 0 (TCirc a b)
+
+  update_ref ref (\ri -> Just ri { r_type = TBang 1 (TArrow cir arw) })
 
   return $ ((TBang 1 (TArrow cir arw) <:: cst) & info, [])
 
@@ -406,7 +406,7 @@ constraint_typing gamma EUnbox cst = do
 --  G1, G2, !ID |- t u : T  [L u L' u {1 <= I}]
 --
 
-constraint_typing gamma (EApp t u) cst = do
+constraint_typing gamma (EApp _ t u) cst = do
   -- Create the type of the argument
   a <- new_type
 
@@ -428,8 +428,8 @@ constraint_typing gamma (EApp t u) cst = do
   disunion <- return $ linear_union [fvt, fvu]
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
-  
-  return $ csett <> csetu
+ 
+  return $ csetu <> csett
 
 
 -- Lambda typing rule
@@ -439,12 +439,10 @@ constraint_typing gamma (EApp t u) cst = do
 --  !IG |- \x.t : !n(a -> b)  [L u {n <= Ii}]
 --
 
-constraint_typing gamma (EFun p e) cst = do
+constraint_typing gamma (EFun ref p e) cst = do
   -- Detailed information on the type of the function 
-  ex <- get_location
   n <- fresh_flag
-  info <- return $ no_info { expression = EFun p e,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
@@ -459,6 +457,8 @@ constraint_typing gamma (EFun p e) cst = do
   -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
 
+  update_ref ref (\ri -> Just ri { r_type = TBang n (TArrow a b) })
+
   return $ (csetp & info) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
@@ -470,12 +470,10 @@ constraint_typing gamma (EFun p e) cst = do
 --  G1, G2, !ID |- <t, u> : T  [L u L' u {1 <= I} u {!n (a * b) <: T}]
 --
 
-constraint_typing gamma (ETuple elist) cst = do
+constraint_typing gamma (ETuple ref elist) cst = do
   -- Detailed information of the type of the tuple
-  ex <- get_location
   p <- fresh_flag
-  info <- return $ no_info { expression = ETuple elist,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Create n new types
   tlist <- List.foldr (\_ rec -> do
@@ -503,6 +501,8 @@ constraint_typing gamma (ETuple elist) cst = do
   disunion <- return $ linear_union fvlist
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
+
+  update_ref ref (\ri -> Just ri { r_type = TBang p (TTensor tlist) })
   
   return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
 
@@ -523,7 +523,7 @@ constraint_typing gamma (ETuple elist) cst = do
 --  where A = free variables of T \\ free_variables of G1, !ID
 --
 
-constraint_typing gamma (ELet rec p t u) cst = do
+constraint_typing gamma (ELet _ rec p t u) cst = do
   -- Extract the free variables of t and u
   fvt <- return $ free_var t
   fvu <- return $ free_var u
@@ -552,6 +552,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
   -- -- POLYMORPHISM -- --
   -- If the expression is a VALUE, then the type can be generic.
   if is_value t then do
+
     -- Unify the constraints produced by the typing of t (exact unification)
     cs <- break_composite True (csetp <> csett)  -- Break the composite constraints
     csett <- unify True cs                       -- Unify
@@ -586,7 +587,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
                                     -- Build the polymorphic type
                                     gena <- make_polymorphic_type a' csett (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
-                                    
+
                                     -- Update the typing context of u
                                     return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
 
@@ -628,11 +629,9 @@ constraint_typing gamma (ELet rec p t u) cst = do
 --  G |- datacon t : !p UserT  [L u {p <= n}]
 --
 
-constraint_typing gamma (EDatacon dcon e) cst = do
+constraint_typing gamma (EDatacon ref dcon e) cst = do
   -- Extent of the expression
-  ex <- get_location
-  info <- return $ no_info { expression = EDatacon dcon e,
-                             loc = ex }
+  info <- return $ no_info { c_ref = ref }
 
   -- Retrieve the definition of the data constructor, and instantiate its typing scheme
   dtype <- datacon_type dcon
@@ -643,18 +642,18 @@ constraint_typing gamma (EDatacon dcon e) cst = do
     (TBang n _, Nothing) -> do
         -- The context must be duplicable
         duplicable_context gamma
-
+        update_ref ref (\ri -> Just ri { r_type = dtype' })
         return $ ((dtype' <:: cst) & info) <> (csetd & info)
 
     -- One argument given, and the constructor requires one
     (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
-
+        update_ref ref (\ri -> Just ri { r_type = u })
         return $ ((u <:: cst) & info) <> csete <> (csetd & info)
 
     (TBang _ _, Just _) ->
-        throw $ ProgramError "constraint_typing: ill-typed data constructor"
+        fail "TypeInference:constraint_typing: ill-typed data constructor"
 
 -- Match typing rule
 --
@@ -665,7 +664,7 @@ constraint_typing gamma (EDatacon dcon e) cst = do
 --  G1, G2, !ID |- match t with (x -> u | y -> v) : V  [L1 u L2 u L3 u {1 <= I, p <= n, p <= m}]
 --
 
-constraint_typing gamma (EMatch e blist) cst = do
+constraint_typing gamma (EMatch _ e blist) cst = do
   -- Extract the free type variables of e and of the bindings
   fve <- return $ free_var e
   fvlist <- List.foldl (\rec (p, f) -> do
@@ -682,7 +681,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 
                                      -- p must have a non functional type
                                      ext <- get_location
-                                     Monad.QpState.assert IsNotfun a (no_info { expression = e, loc = ext })
+                                     Monad.QpState.assert IsNotfun a no_info { c_ref = reference e }
 
                                      -- Type the associated expression, with the same constraints cst as the original expression
                                      -- Refer to the case of 'if' for more clarity.
@@ -713,7 +712,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 --
 -- Same as pattern matchings (since it is only a special case with the type bool = True | False
 
-constraint_typing gamma (EIf e f g) cst = do
+constraint_typing gamma (EIf _ e f g) cst = do
   -- Extract the free variables of e, f and g
   fve <- return $ free_var e
   fvfg <- return $ List.union (free_var f) (free_var g)
@@ -742,7 +741,7 @@ constraint_typing gamma (EIf e f g) cst = do
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
 constraint_typing gamma (EConstraint e (t, typs)) cst = do
-  t' <- translate_unbound_type t $ empty_label { l_types = typs }
+  t' <- translate_unbound_type t $ empty_label { L.types = typs }
   csete <- constraint_typing gamma e (t':cst)
   return csete
 
@@ -770,12 +769,12 @@ duplicate_lintype (TTensor tlist) = do
                           return (t':rc)) (return []) tlist
   return (TTensor tlist')
 
-duplicate_lintype (TUser n args) = do
+duplicate_lintype (TAlgebraic n args) = do
   args' <- List.foldr (\a rec -> do
                          rc <- rec
                          a' <- duplicate_type a
                          return (a':rc)) (return []) args
-  return (TUser n args')
+  return (TAlgebraic n args')
 
 duplicate_lintype (TVar _) = do
   x <- fresh_type
@@ -828,8 +827,8 @@ unify_with_poset exact poset (lc, fc) = do
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of 
                                                        Sublintype (TVar x) _ _ -> List.elem x cx
                                                        Sublintype _ (TVar y) _ -> List.elem y cx
-                                                       Sublintype _ _ _ -> throw $ ProgramError "unify_with_poset: non-atomic constraint"
-                                                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                                                       Sublintype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
+                                                       Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
         ) lc
     -- Log
     logx <- return $ List.foldl (\s c -> "(" ++ pprint c ++ ") " ++ s) "" lcx
@@ -876,10 +875,10 @@ unify_with_poset exact poset (lc, fc) = do
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
                          Sublintype t _ _ -> return $ t
-                         Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                         Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
             rightend <- case List.last sorted of
                           Sublintype _ t _ -> return t
-                          Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                          Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
 
             -- One of the ends must be composite
             case (leftend, rightend) of
@@ -922,8 +921,8 @@ unify_with_poset exact poset (lc, fc) = do
             model <- case List.head cset of
                        Sublintype (TVar _) t _ -> return t
                        Sublintype t (TVar _) _ -> return t
-                       Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
-                       Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                       Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                       Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                         
 
             -- Map the youngest variables each to a new specimen of the model
@@ -941,7 +940,7 @@ unify_with_poset exact poset (lc, fc) = do
                                         yt <- appmap y
                                         atom' <- break_composite True ([Sublintype xt yt info], [])
                                         return $ atom' <> atom
-                                      _ -> throw $ ProgramError "unify_with_poset: bad constraint"
+                                      _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                                  ) (return emptyset) atomx
 
             -- Rewrite and reduce the semi composite constraints
@@ -958,8 +957,8 @@ unify_with_poset exact poset (lc, fc) = do
                                          cs' <- break_composite True ([Sublintype t yt info], [])
                                          return $ cs' <> cs
 
-                                     Sublintype _ _ _ -> throw $ ProgramError "non-atomic contraint"
-                                     Subtype _ _ _ -> throw $ ProgramError "unify_with_poset: Subtype"
+                                     Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                                     Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non_atomic constraint"
                                 )  (return emptyset) cset
 
             -- Register the relations defined by those new constraints
@@ -1028,11 +1027,11 @@ apply_flag_constraints (c:cc) = do
         vn <- flag_value n
         case (vm, vn) of
           (One, Zero) -> do
-              case in_type info of
+              case c_type info of
                 Just a -> do
                     a0 <- return $ subs_flag m 0 a
                     a1 <- return $ subs_flag n 1 a
-                    throw_TypingError a0 a1 info { actual = False, in_type = Nothing }
+                    throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
 
                 Nothing ->
                     throw_NonDuplicableError info

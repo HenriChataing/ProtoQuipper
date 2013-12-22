@@ -10,17 +10,21 @@ import System.Directory
 import qualified Control.Exception as E
 import qualified Data.List as List
 
--- | A data structure to hold command line options. 
+-- | A data structure to hold command line options.
 data Options = Options {
   verbose :: Int,                  -- ^ The verbosity level (default: -1).
+
+  warningAction :: String,         -- ^ How should warnings be handled (default: \"display\").
 
   approximations :: Bool,          -- ^ Permit approximations in the unification? (default: no).
 
   includes :: [FilePath],          -- ^ List of include directories (default: empty).
- 
+
   runInterpret :: Bool,            -- ^ Interpret the code? (default: yes).
 
   runCompiler :: Bool,             -- ^ Compile the code? (default: no).
+
+  conversionFormat :: String,      -- ^ Select the conversion to apply (e.g.: "cps", "wcps") (default: "wcps").
 
   circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
 } deriving Show
@@ -31,7 +35,8 @@ default_options :: Options
 default_options = Options {
   -- General options
   verbose = -1,
-  
+  warningAction = "display",
+
   -- Include directories
   includes = [],
 
@@ -41,6 +46,7 @@ default_options = Options {
   -- Actions
   runInterpret = True,
   runCompiler = False,
+  conversionFormat = "wcps",
 
   -- Others
   circuitFormat = "ir"
@@ -48,7 +54,7 @@ default_options = Options {
 
 
 -- | Link the actual command line options to modifications of
--- the option state. 
+-- the option state.
 options :: [OptDescr (Options -> IO Options)]
 options =
   [ Option ['h'] ["help"] (NoArg show_help)
@@ -57,7 +63,9 @@ options =
       "show version info and exit",
     Option ['v'] ["verbose"] (OptArg read_verbose "LEVEL")
       "enable verbose output",
-    Option ['i'] ["include"] (ReqArg include_directory "DIR")
+    Option ['W'] [] (ReqArg read_warning "ATTR")
+      "specify the handling of warnings. Possible actions are 'error', 'hide', 'display' (default).",
+    Option ['I'] ["include"] (ReqArg include_directory "DIR")
       "add a directory to the module path",
     Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
       "run the interpreter (default)",
@@ -67,9 +75,15 @@ options =
       "permit approximations in type inference",
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
       "set the output format for circuits. Valid formats are 'ir' (default), 'visual'.",
-    Option ['c'] ["compile"] (NoArg (\opts -> return opts { runCompiler = True }))
-      "run the compiler"
+    Option ['c'] ["compile"] (OptArg read_conversion "CONV")
+      "run the compiler, with a specified conversion. Possible conversions are 'cps' and 'wcps'"
   ]
+
+
+-- | Return True if and only if the @runInterpret@ flag is set, and @runCompiler@ is not.
+run_interpret :: Options -> Bool
+run_interpret opts =
+  runInterpret opts && not (runCompiler opts)
 
 
 -- | Display the help screen, and exit.
@@ -125,6 +139,33 @@ read_format f opts =
     _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
 
 
+
+-- | Read the warning handler.
+-- The action must be supported, and supported actions are \"error\", \"hide\" and \"display\".
+-- All other cases cause the parsing to fail.
+read_warning :: String -> Options -> IO Options
+read_warning f opts =
+  let actions = ["error", "hide", "display"] in
+  case prefix_of f actions of
+    [] -> optFail $ "-W: Invalid action '" ++ f ++ "'"
+    [action] -> return $ opts { warningAction = action }
+    _ -> optFail $ "-W: Ambiguous action '" ++ f ++ "'"
+
+
+-- | Read the conversion format.
+read_conversion :: Maybe String -> Options -> IO Options
+read_conversion Nothing opts =
+  return opts { runCompiler = True }
+read_conversion (Just f) opts =
+  let formats = ["cps", "wcps"] in
+  case prefix_of f formats of
+    [] -> optFail $ "-c: Invalid conversion '" ++ f ++ "'"
+    [format] -> return $ opts { runCompiler = True, conversionFormat = format }
+    _ -> optFail $ "-c: Ambiguous conversion '" ++ f ++ "'"
+
+
+
+
 -- | Add a directory to the list of include directories. This first checks the existence of the directory,
 -- and fails if it doesn't exist.
 include_directory :: String -> Options -> IO Options
@@ -150,7 +191,7 @@ version = "Proto Quipper - v0.1"
 -- | Parse a list of string options, and return the resulting option state.
 -- Initially, the options are set to the 'Options.default_option' state.
 parseOpts :: [String] -> IO (Options, [String])
-parseOpts argv = 
+parseOpts argv =
   case getOpt Permute options argv of
     (o, n, []) -> do
         opts <- List.foldl (\rec o -> do
@@ -158,4 +199,5 @@ parseOpts argv =
                               flip id opts o) (return default_options) o
         return (opts, n)
     (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
+
 

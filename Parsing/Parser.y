@@ -4,14 +4,13 @@
 module Parsing.Parser (parseError, parse) where
 
 import Classes
+import Utils
 
 import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 
 import Monad.QuipperError
-
-import Control.Exception
 
 import Data.Char
 import Data.List as List
@@ -139,7 +138,7 @@ Var_list :
     | LID Var_list                              { if List.length (snd $1) == 1 then
                                                     (snd $1):$2
                                                   else
-                                                    throw $ ParsingError (show $1) }
+                                                    throwNE $ ParsingError (show $1) }
 
 
 {- Body of the program : list
@@ -157,10 +156,12 @@ Decl :
     | Typesyn                                              { DSyn $1 }
     | Typesyn ";;"                                         { DSyn $1 }
     | LET GenPattern '=' Expr ";;"                         { case $2 of
-                                                                SimplePattern p ->
-                                                                  DLet Nonrecursive p $4
+                                                                SimplePattern p | isPVar p ->
+                                                                      DLet Nonrecursive p $4
+                                                                                | otherwise ->
+                                                                      throwNE $ ParsingError (show $1)
                                                                 AppPattern (p, ps) ->
-                                                                  DLet Nonrecursive p (multi_EFun ps $4) }
+                                                                      DLet Nonrecursive p (multi_EFun ps $4) }
     | LET REC AppPattern '=' Expr ";;"                     { let (p, ps) = $3 in
                                                               DLet Recursive p (multi_EFun ps $5) }
     | Expr ";;"                                            { DExpr $1 }
@@ -382,6 +383,6 @@ parse :: [Token] -> Program
 -- is \'Unexpected end of file\'; this occurs when the parser encounters an incomplete expression. Otherwise, the head corresponds to the location where
 -- the parsing failed.
 parseError :: [Token] -> a
-parseError [] = throw $ ErrorEndOfFile
-parseError tokens = throw $ ParsingError (show $ head tokens)
+parseError [] = throwNE EndOfFileError
+parseError tokens = throwNE $ ParsingError (show $ head tokens)
 } 

@@ -9,6 +9,7 @@ import qualified Monad.QpState as Q
 import Typing.CoreSyntax
 import Typing.Driver
 import Typing.TransSyntax
+import Typing.LabellingContext
 
 import System.IO
 import System.Environment
@@ -19,7 +20,7 @@ import Options
 
 import Interactive
 
-import Compiler.PatternRemoval
+import Compiler.Circ
 
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
@@ -44,7 +45,7 @@ main = do
     [] -> do
         putStrLn "### Proto-Quipper -- Interactive Mode ###"
         _ <- Q.runS (do
-            run_interactive opts (Context { labelling = LblCtx { l_variables = Map.empty, l_datacons = Map.empty, l_types = Map.empty },
+            run_interactive opts (Context { labelling = empty_label,
                                             typing = IMap.empty,
                                             environment = IMap.empty, constraints = emptyset }) []
             return ()) Q.empty_context
@@ -57,8 +58,9 @@ main = do
         (do
            _ <- Q.runS (do
                Q.set_verbose (verbose opts)
+               Q.set_warning_action (warningAction opts)
                do_everything opts files) Q.empty_context
-           return ()) `E.catch` (\(e :: QError) -> die e)
+           return ()) `E.catch` (\(e :: QuipperError) -> die e)
   where
     die e = do
       hPutStrLn stderr $ show e
