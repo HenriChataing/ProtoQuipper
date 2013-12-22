@@ -4,15 +4,7 @@
 
 import Core
 
--- The type of lists.
-type list a =
-    Nil
-  | Cons of a * list a
 
--- A synonym for the empty list. It can also be denoted [].
--- 
--- nil :: list a
-let nil = Nil ;;
 
 -- ----------------------------------------------------------------------
 -- Irreversible list operations
@@ -22,7 +14,7 @@ let nil = Nil ;;
 -- lists of duplicable elements.
 
 -- Check whether the given list is empty.
--- 
+--
 -- null :: list a -> bool
 let null l =
   match l with
@@ -31,17 +23,17 @@ let null l =
 ;;
 
 -- Return the head of a non-empty list.
--- 
+--
 -- head :: list a -> a
 let head (x:_) = x ;;
 
 -- Return the tail of a non-empty list.
--- 
+--
 -- tail :: list a -> list a
 let tail (_:xs) = xs ;;
 
 -- Return the last element of a non-empty list.
--- 
+--
 -- last :: list a -> a
 let rec last l =
   match l with
@@ -50,7 +42,7 @@ let rec last l =
 ;;
 
 -- Return the length of a list.
--- 
+--
 -- length :: list a -> int
 let rec length l =
   match l with
@@ -60,7 +52,7 @@ let rec length l =
 
 -- Return the first n element of the given list (or the whole list,
 -- if it has fewer than n elements).
--- 
+--
 -- take :: int -> list a -> list a
 let rec take n l =
   match l with
@@ -68,8 +60,8 @@ let rec take n l =
   | h:t -> if n <= 0 then [] else h : take (n-1) t
 ;;
 
--- Drop the first n elements (if any) from the given list. 
--- 
+-- Drop the first n elements (if any) from the given list.
+--
 -- drop :: int -> list a -> list a
 let rec drop n l =
   if n <= 0 then l else
@@ -80,7 +72,7 @@ let rec drop n l =
 
 -- Return the nth element of l (counting from 0). It is an error for n
 -- to be out of range.
--- 
+--
 -- list_index :: list a -> int -> a
 let rec list_index l n =
   match l with
@@ -89,13 +81,13 @@ let rec list_index l n =
 ;;
 
 -- An infix notation for list_index.
--- 
+--
 -- (@) :: list a -> int -> a
 let (@) = list_index ;;
 
 -- Extract elements n..m from a list.  Elements are counted from 0,
 -- and the range n..m is inclusive.
--- 
+--
 -- list_range :: int -> int -> [a] -> [a]
 let list_range n m xs =
   drop n (take (m+1) xs)
@@ -108,7 +100,7 @@ let list_range n m xs =
 -- reversible, and can be applied, for example, to lists of qubits.
 
 -- Check whether a list is non-empty, and also return the unmodified list.
--- 
+--
 -- sf_null :: list a -> bool * list a
 let sf_null l =
   match l with
@@ -117,13 +109,13 @@ let sf_null l =
 ;;
 
 -- Split a non-empty list into a head and a tail.
--- 
+--
 -- sf_head :: list a -> a * list a
 let sf_head (x:xs) = (x, xs) ;;
 
 -- Return the last element of a non-empty list, and also the list of
 -- remaining elements.
--- 
+--
 -- sf_last :: list a -> a * list a
 let rec sf_last l =
   match l with
@@ -141,7 +133,7 @@ let rec sf_length l =
 ;;
 
 -- Append two lists.
--- 
+--
 -- (++) :: list a -> list a -> list a
 let rec (++) l0 l1 =
   match (l0, l1) with
@@ -152,7 +144,7 @@ let rec (++) l0 l1 =
 ;;
 
 -- Reverse a list.
--- 
+--
 -- reverse :: list a -> list a
 let reverse l =
   let rec reverse_acc acc l =
@@ -167,19 +159,19 @@ let reverse l =
 -- Return the nth element of l (counting from 0). To make this
 -- reversible, we also return the list of elements "before" and
 -- "after". It is an error for n to be out of range.
--- 
+--
 -- sf_list_index :: int -> list a -> list a * a * list a
 let rec sf_list_index n as =
   match as with
-    h:t -> 
+    h:t ->
       if n <= 0 then ([], h, t) else
       let (before, a, after) = sf_list_index (n-1) t in
       (h:before, a, after)
     -- other case is an error
 ;;
 
--- The inverse of sf_list_index: re-assemble the elements in their original order. 
--- 
+-- The inverse of sf_list_index: re-assemble the elements in their original order.
+--
 -- sf_list_unindex :: list a * a * list a -> list a
 let rec sf_list_unindex (before, a, after) =
   before ++ [a] ++ after
@@ -187,7 +179,7 @@ let rec sf_list_unindex (before, a, after) =
 
 -- Insert an element at position n in the given list. It is an error
 -- if the list has fewer than n elements.
--- 
+--
 -- sf_insert :: a -> list a -> int -> list a
 let rec sf_insert a as n =
   if n <= 0 then a:as else
@@ -196,29 +188,29 @@ let rec sf_insert a as n =
 ;;
 
 -- Split a list after the nth element.
--- 
+--
 -- list_split :: int -> [a] -> [a] * [a]
 let rec list_split n xs =
   if n <= 0 then ([], xs) else
   match xs with
     [] -> ([], [])
-  | h:t -> 
+  | h:t ->
       let (as, bs) = list_split (n-1) t in
       (h:as, bs)
 ;;
 
 -- The inverse of list_split. Re-assemble the elements in the original
 -- order.
--- 
+--
 -- list_unsplit :: [a] * [a] -> [a]
-let list_unsplit (xs, rest) = 
-  xs ++ rest 
+let list_unsplit (xs, rest) =
+  xs ++ rest
 ;;
 
 -- Extract elements n..m from a list, splitting the list into a
 -- "before" part, the requested elements, and an "after" part.
 -- Elements are counted from 0, and the range n..m is inclusive.
--- 
+--
 -- sf_list_range :: int -> int -> [a] -> [a] * [a] * [a]
 let sf_list_range n m xs =
   let (as, after) = list_split (m+1) xs in
@@ -228,7 +220,7 @@ let sf_list_range n m xs =
 
 -- The inverse of sf_list_range: re-assemble the elements in the
 -- original order.
--- 
+--
 -- sf_list_unrange :: [a] * [a] * [a] -> [a]
 let sf_list_unrange (before, range, after) =
   before ++ range ++ after
@@ -237,44 +229,44 @@ let sf_list_unrange (before, range, after) =
 -- ----------------------------------------------------------------------
 -- Maps, zips, folds, etc
 
--- Map a function over all the elements of a list. 
--- 
+-- Map a function over all the elements of a list.
+--
 -- Example:
--- 
+--
 -- map f [1,2,3] = [f 1, f 2, f 3].
--- 
+--
 -- map :: (a -> b) -> list a -> list b
 let rec map f l =
   match l with
     [] -> []
-  | x:xs -> 
-      let y = f x in 
+  | x:xs ->
+      let y = f x in
       let ys = map f xs in
       y:ys
 ;;
 
 -- Like map, but traverse the list in right-to-left order.
--- 
+--
 -- mapr :: (a -> b) -> list a -> list b
 let rec mapr f l =
   match l with
     [] -> []
   | x:xs ->
       let ys = mapr f xs in
-      let y = f x in 
+      let y = f x in
       y:ys
 ;;
 
 -- Fold a state over the elements of a list, left-to-right.
--- 
+--
 -- Example:
--- 
+--
 -- foldl f s0 [x,y,z] = s3
 -- where
 --   s1 = f s0 x
 --   s2 = f s1 y
 --   s3 = f s2 z
--- 
+--
 -- foldl :: (a -> b -> a) -> a -> list b -> a
 let rec foldl f y l =
   match l with
@@ -283,15 +275,15 @@ let rec foldl f y l =
 ;;
 
 -- Fold a state over the elements of a list, right-to-left.
--- 
+--
 -- Example:
--- 
+--
 -- foldr f [x,y,z] s0 = s3
 -- where
 --   s1 = f z s0
 --   s2 = f y s1
 --   s3 = f x s2
--- 
+--
 -- foldr :: (b -> a -> a) -> list b -> a -> a
 let rec foldr f l y =
   match l with
@@ -302,18 +294,18 @@ let rec foldr f l y =
 
 -- Like map, but also thread a state along the list, from left to
 -- right. Example:
--- 
+--
 -- map_foldl f s0 [x,y,z] = (s3, [a,b,c])
 -- where
 --   f s0 x = (s1, a)
 --   f s1 y = (s2, b)
 --   f s2 z = (s3, c)
--- 
+--
 -- map_foldl :: (s -> a -> s * b) -> s -> list a -> s * list b
 let rec map_foldl f s l =
-  match l with 
+  match l with
     [] -> (s, [])
-  | x:xs -> 
+  | x:xs ->
       let (s1, a) = f s x in
       let (s2, as) = map_foldl f s1 xs in
       (s2, a:as)
@@ -321,34 +313,34 @@ let rec map_foldl f s l =
 
 -- Like map, but also thread a state along the list, from right to
 -- left. Example:
--- 
+--
 -- map_foldr f s0 [x,y,z] = (s3, [a,b,c])
 -- where
 --   f s0 z = (s1, c)
 --   f s1 y = (s2, b)
 --   f s2 x = (s3, a)
--- 
+--
 -- map_foldr :: (s -> a -> s * b) -> s -> list a -> s * list b
 let rec map_foldr f s l =
-  match l with 
+  match l with
     [] -> (s, [])
-  | x:xs -> 
+  | x:xs ->
       let (s1, as) = map_foldr f s xs in
       let (s2, a) = f s1 x in
       (s2, a:as)
 ;;
 
 -- Map a function over a pair of lists. Example:
--- 
+--
 -- map2 f [x1,x2] [y1,y2] = ([a1,a2], [b1,b2])
 --    where
 -- f x1 y1 = (a1,b1)
 -- f x2 y2 = (a2,b2)
--- 
+--
 -- It is an error if the lists are not of equal length.
--- 
+--
 -- map2 :: (a -> b -> c * d) -> list a -> list b -> list c * list d
-let rec map2 f as bs = 
+let rec map2 f as bs =
   match (as,bs) with
     ([],[]) -> ([],[])
   | (a:as, b:bs) ->
@@ -360,7 +352,7 @@ let rec map2 f as bs =
 
 -- Like map2, but traverse the lists in right-to-left order.
 -- It is an error if the lists are not of equal length.
--- 
+--
 -- map2r :: (a -> b -> c * d) -> list a -> list b -> list c * list d
 let rec map2r f as bs =
   match (as,bs) with
@@ -373,16 +365,16 @@ let rec map2r f as bs =
 ;;
 
 -- Like map2, but also thread a state along the list. Example:
--- 
+--
 -- map2_foldl f s1 [x1,x2] [y1,y2] = (s3, [a1,a2], [b1,b2])
 --    where
 -- f s1 x1 y1 = (s2, a1, b1)
 -- f s1 x2 y2 = (s3, a2, b2)
--- 
+--
 -- It is an error if the lists are not of equal length.
--- 
+--
 -- map2_foldl :: (s -> a -> b -> s * c * d) -> s -> list a -> list b -> s * list c * list d
-let rec map2_foldl f s as bs = 
+let rec map2_foldl f s as bs =
   match (s, as, bs) with
     (s, [], []) -> (s, [], [])
   | (s, a:as, b:bs) ->
@@ -393,9 +385,9 @@ let rec map2_foldl f s as bs =
 
 -- Like map2_foldl, but traverse the lists in right-to-left order.
 -- It is an error if the lists are not of equal length.
--- 
+--
 -- map2_foldr :: (s -> a -> b -> s * c * d) -> s -> list a -> list b -> s * list c * list d
-let rec map2_foldr f s as bs = 
+let rec map2_foldr f s as bs =
   match (s, as, bs) with
     (s, [], []) -> (s, [], [])
   | (s, a:as, b:bs) ->
@@ -406,11 +398,11 @@ let rec map2_foldr f s as bs =
 
 -- Turn two equal length lists into a single list of pairs. It is an
 -- error if the lists have unequal length.
--- 
+--
 -- Example:
--- 
+--
 -- zip [1,2,3] [a,b,c] = [(1,a), (2,b), (3,c)]
--- 
+--
 -- zip :: list a -> list b -> list (a * b)
 let rec zip l1 l2 =
   match (l1,l2) with
@@ -419,17 +411,17 @@ let rec zip l1 l2 =
   -- other cases give an error
 ;;
 
--- Turn a list of pairs into a pair of lists. 
--- 
--- Example: 
--- 
+-- Turn a list of pairs into a pair of lists.
+--
+-- Example:
+--
 -- unzip [(1,a), (2,b), (3,c)] = ([1,2,3], [a,b,c])
--- 
+--
 -- unzip :: list (a * b) -> list a * list b
 let rec unzip l =
   match l with
     [] -> ([],[])
-  | (a,b):t -> 
+  | (a,b):t ->
       let (as,bs) = unzip t in
       (a:as, b:bs)
 ;;
@@ -438,16 +430,16 @@ let rec unzip l =
 -- Other list constructors
 
 -- Return a list of n identical elements.
--- 
+--
 -- replicate :: int -> a -> list a
 let rec replicate n a =
   if n <= 0 then [] else a:(replicate (n-1) a)
 ;;
 
 -- Construct a list of length n, by repeatedly cycling the given list.
--- 
+--
 -- Example: cycle 8 [1,2,3] = [1,2,3,1,2,3,1,2].
--- 
+--
 -- cycle :: int -> list a -> list a
 let cycle n l =
   let len = length l in

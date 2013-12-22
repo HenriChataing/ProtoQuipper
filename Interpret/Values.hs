@@ -66,9 +66,9 @@ instance PPrint Value where
     let dlv = decr lvl in
     case (fdata datacon, e) of
       -- List constructors
-      ("Nil", Nothing) ->
+      ("_Nil", Nothing) ->
           "[]"
-      ("Cons", Just (VTuple [a, b])) ->
+      ("_Cons", Just (VTuple [a, b])) ->
           let pa = genprint dlv [fdata] a in
           case genprint dlv [fdata] b of
             "[]" -> "[" ++ pa ++ "]"

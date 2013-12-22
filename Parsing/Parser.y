@@ -50,7 +50,6 @@ import Data.List as List
   AND { TkAnd $$ }
   BOOL { TkBool $$ }
   BOX { TkBox $$ }
-  BUILTIN { TkBuiltin $$ }
   CIRC { TkCirc $$ }
   ELSE { TkElse $$ }
   FALSE { TkFalse $$ }
@@ -192,7 +191,7 @@ Op_XExpr :
     | Op_XExpr INFIX1 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr INFIX2 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr INFIX3 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_XExpr ':' Op_XExpr                      { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr ':' Op_XExpr                      { locate_opt (EDatacon "_Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr '*' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr '-' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "-") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Apply_XExpr                                { $1 }
@@ -209,8 +208,8 @@ Infix_op :
 
 Apply_XExpr :
       Apply_XExpr Atom_XExpr                     { locate_opt (EApp $1 $2) (fromto_opt (location $1) (location $2)) }
-    | '-' Atom_XExpr                             { let negation_symbol = locate (EVar "negation_symbol") (fromto $1 $1) in
-                                                   locate_opt (EApp negation_symbol $2) (fromto_opt (Just $1) (location $2)) }
+    | '-' Atom_XExpr                             { let negation = locate (EVar "neg") (fromto $1 $1) in
+                                                   locate_opt (EApp negation $2) (fromto_opt (Just $1) (location $2)) }
     | Atom_XExpr                                 { $1 }
 
 
@@ -228,8 +227,6 @@ Atom_XExpr :
                                                                         EDatacon "Cons"
                                                                                  (Just $ ETuple [EDatacon "Char" (Just $ EInt $ ord c), l])) (EDatacon "Nil" Nothing) (snd $1)) (fst $1) }
 
-    | BUILTIN LID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
-    | BUILTIN UID                               { locate (EBuiltin (snd $2)) (fromto $1 $ fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }
@@ -239,9 +236,9 @@ Atom_XExpr :
     | '(' XExpr_sep_list ')'                    { case $2 of
                                                     [x] -> x
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
-    | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
+    | '[' ']'                                   { locate (EDatacon "_Nil" Nothing) (fromto $1 $2) }
     | '[' XExpr_sep_list ']'                    { flip locate (fromto $1 $3) $
-                                                  List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
+                                                  List.foldr (\e rest -> EDatacon "_Cons" (Just $ ETuple [e,rest])) (EDatacon "_Nil" Nothing) $2 }
     | '(' XExpr "<:" Type ')'                   { locate (EConstraint $2 $4) (fromto $1 $5) }
 
 XExpr_sep_list :

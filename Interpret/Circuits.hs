@@ -32,22 +32,22 @@ class Reversible a where
 -- the display of the circuit (three characters).
 unary_gates :: [(String, (String, String))]
 unary_gates =
-  [ ("GATE_H", ("GATE_H", "-H-")),
-    ("GATE_NOT", ("GATE_NOT", "(+)")),
-    ("GATE_X", ("GATE_X", "-X-")),
-    ("GATE_Y", ("GATE_Y", "-Y-")),
-    ("GATE_Z", ("GATE_Z", "-Z-")),
-    ("GATE_S", ("GATE_S_INV", "-S-")),
-    ("GATE_S_INV", ("GATE_S", "-S*")),
-    ("GATE_T", ("GATE_T_INV", "-T-")),
-    ("GATE_T_INV", ("GATE_T", "-T*")),
-    ("GATE_E", ("GATE_E_INV", "-E-")),
-    ("GATE_E_INV", ("GATE_E", "-E*")),
-    ("GATE_OMEGA", ("GATE_OMEGA", "-W-")),
-    ("GATE_V", ("GATE_V_INV", "-V-")),
-    ("GATE_V_INV", ("GATE_V", "-V*")),
-    ("GATE_EITZ", ("GATE_EITZ_INV", "-R-")),
-    ("GATE_EITZ_INV", ("GATE_EITZ", "-R*"))
+  [ ("G_HADAMARD", ("G_HADAMARD", "-H-")),
+    ("G_NOT", ("G_NOT", "(+)")),
+    ("G_X", ("G_X", "-X-")),
+    ("G_Y", ("G_Y", "-Y-")),
+    ("G_Z", ("G_Z", "-Z-")),
+    ("G_S", ("G_S_INV", "-S-")),
+    ("G_S_INV", ("G_S", "-S*")),
+    ("G_T", ("G_T_INV", "-T-")),
+    ("G_T_INV", ("G_T", "-T*")),
+    ("G_E", ("G_E_INV", "-E-")),
+    ("G_E_INV", ("G_E", "-E*")),
+    ("G_OMEGA", ("G_OMEGA", "-W-")),
+    ("G_V", ("G_V_INV", "-V-")),
+    ("G_V_INV", ("G_V", "-V*")),
+    ("G_EITZ", ("G_EITZ_INV", "-R-")),
+    ("G_EITZ_INV", ("G_EITZ", "-R*"))
     ]
 
 
@@ -56,8 +56,8 @@ unary_gates =
 -- representation, which now takes two characters, one for each wire.
 binary_gates :: [(String, (String, (String, String)))]
 binary_gates =
-  [ ("GATE_SWAP", ("GATE_SWAP", ("-x-", "-x-"))),
-    ("GATE_W", ("GATE_W", ("-W1", "-W2"))) ]
+  [ ("G_SWAP", ("G_SWAP", ("-x-", "-x-"))),
+    ("G_W", ("G_W", ("-W1", "-W2"))) ]
 
 
 

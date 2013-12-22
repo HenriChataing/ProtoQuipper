@@ -195,13 +195,10 @@ print_doc _ (ERev _) _ _ =
 print_doc _ (EDatacon _ datacon Nothing) _ fdata =
   text $ fdata datacon
 
-print_doc _ (EBuiltin _ s) _ _=
-  text "#builtin" <+> text s
-
 print_doc (Nth 0) _ _ _ =
   text "..."
 
-print_doc lv (ELet _ r p e f) fvar fdata =
+print_doc lv (ELet r p e f) fvar fdata =
   let dlv = decr lv in
   let recflag = if r == Recursive then text "rec" else empty in
   text "let" <+> recflag <+> text (genprint dlv [fvar, fdata] p) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
@@ -213,7 +210,7 @@ print_doc lv (ETuple _ elist) fvar fdata =
   let slist = punctuate comma plist in
   char '(' <> hsep slist <> char ')'
 
-print_doc lv (EApp _ e f) fvar fdata =
+print_doc lv (EApp e f) fvar fdata =
   let dlv = decr lv in
   let pe = print_doc dlv e fvar fdata
       pf = print_doc dlv f fvar fdata in
@@ -222,7 +219,7 @@ print_doc lv (EApp _ e f) fvar fdata =
      _ -> pe) <+>
   (case f of
      EFun _ _ _ -> parens pf
-     EApp _ _ _ -> parens pf
+     EApp _ _ -> parens pf
      _ -> pf)
 
 print_doc lv (EFun _ p e) fvar fdata =
@@ -230,7 +227,7 @@ print_doc lv (EFun _ p e) fvar fdata =
   text "fun" <+> text (genprint dlv [fvar, fdata] p) <+> text "->" $$
   nest 2 (print_doc dlv e fvar fdata)
 
-print_doc lv (EIf _ e f g) fvar fdata =
+print_doc lv (EIf e f g) fvar fdata =
   let dlv = decr lv in
   text "if" <+> print_doc dlv e fvar fdata <+> text "then" $$
   nest 2 (print_doc dlv f fvar fdata) $$
@@ -245,7 +242,7 @@ print_doc lv (EDatacon _ datacon (Just e)) fvar fdata =
                               EVar _ _ -> pe
                               _ -> parens pe)
 
-print_doc lv (EMatch _ e blist) fvar fdata =
+print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->

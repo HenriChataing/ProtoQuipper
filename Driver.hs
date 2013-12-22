@@ -476,23 +476,22 @@ explicit_datacons mod = do
   Map.foldl (\rec dcon -> do
         mod <- rec
         ddef <- datacon_def dcon
-        case type_of_typescheme $ d_type ddef of
+        if is_fun $ dtype ddef then do
           -- Takes an argument -> write an implementation
-          TBang _ (TArrow _ _) -> do
-              x <- create_var "x"
-              y <- create_var "d"
-              let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
+          x <- create_var "x"
+          y <- create_var "d"
+          let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
 
-              -- Update the definition of dcon
-              ctx <- get_context
-              set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
+          -- Update the definition of dcon
+          ctx <- get_context
+          set_context ctx { datacons = IMap.insert dcon ddef { implementation = y } $ datacons ctx }
 
-              -- Update the module definition
-              return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
+          -- Update the module definition
+          return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
 
+        else
           -- Takes no argument -> do nothing
-          _ ->
-              return mod
+          return mod
         ) (return mod) (L.datacons $ M.labelling mod)
 
 
@@ -519,7 +518,7 @@ process_module opts prog = do
   old_stack <- return $ circuits ctx
   set_context $ ctx {
     circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
-    dependencies = "Builtins":(S.imports prog)
+    dependencies = S.imports prog
   }
 
   -- Interpret all the declarations
@@ -584,7 +583,7 @@ do_everything opts files = do
   deps <- build_set_dependencies (includes opts) progs
 
   -- Build the builtin / qlib interfaces
-  import_builtins
+  define_builtins
 
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec p -> do

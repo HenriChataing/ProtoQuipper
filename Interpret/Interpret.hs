@@ -424,7 +424,7 @@ interpret env (EFun _ p e) = do
   return (VFun env p e)
 
 -- Let .. in ..
-interpret env (ELet _ r p e1 e2) = do
+interpret env (ELet r p e1 e2) = do
   -- Reduce the argument e1
   v1 <- interpret env e1
 
@@ -443,7 +443,7 @@ interpret env (ELet _ r p e1 e2) = do
         interpret ev e2
 
 -- Function application
-interpret env (EApp _ ef arg) = do
+interpret env (EApp ef arg) = do
   f <- interpret env ef
   x <- interpret env arg
 
@@ -459,7 +459,7 @@ interpret env (EDatacon _ datacon e) = do
     Nothing ->
         return (VDatacon datacon Nothing)
 
-interpret env (EMatch _ e blist) = do
+interpret env (EMatch e blist) = do
   let match = (\ex v blist ->
                  case blist of
                    [] ->
@@ -483,7 +483,7 @@ interpret env (ETuple _ elist) = do
   return (VTuple vlist)
 
 -- If .. then .. else ..
-interpret env (EIf _ e1 e2 e3) = do
+interpret env (EIf e1 e2 e3) = do
   v1 <- interpret env e1
   case v1 of
     VBool True -> do
@@ -499,7 +499,5 @@ interpret env (EIf _ e1 e2 e3) = do
 interpret env (EConstraint e _) = do
   interpret env e
 
-interpret _ _ =
-  fail "Interpret:interpret: unexpected expression"
 
 

@@ -37,4 +37,3 @@ box [ qubit * qubit * qubit * qubit * qubit] (
      match qft l with
        [q0,q1,q2,q3,q4] -> (q0, q1, q2, q3, q4)
 ) ;;
-

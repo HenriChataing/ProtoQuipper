@@ -1,5 +1,5 @@
--- | This module gives the definition of a labelling context, used to represent
--- the variables, data constructors and type names currently in scope.
+-- | This module contains the definition of labelling contexts, used to respesent
+-- the scope of variables, data constructors and types.
 module Core.LabellingContext where
 
 import Classes
@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 
 
 -- ----------------------------------------------------------------------
--- * Labelling context
+-- * Labelling context.
 
 
 -- | The type of variables in a labelling context; these can be either

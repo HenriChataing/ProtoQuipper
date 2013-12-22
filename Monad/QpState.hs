@@ -4,7 +4,6 @@ module Monad.QpState where
 
 import Utils
 import Classes
-import Builtins
 
 import Parsing.Location (Extent, extent_unknown, file_unknown)
 
@@ -23,6 +22,7 @@ import qualified Core.LabellingContext as L
 import qualified Compiler.SimplSyntax as C
 
 import Interpret.Circuits hiding (rev, qubit_id)
+import qualified Interpret.Circuits as QC (qubit_id)
 import Interpret.Values
 
 import System.IO
@@ -275,7 +275,7 @@ empty_context =  QCtx {
   references = IMap.empty,
 
 -- Circuit stack initialized with a void circuit.
-  circuits = [  ],
+  circuits = [Circ { qIn = [], gates = [], qOut = [], QC.qubit_id = 0, unused_ids = [] }],
 
   flag_id = 2,   -- Flag ids 0 and 1 are reserved
   type_id = 0,
@@ -472,7 +472,7 @@ global_namespace deps = do
   return $ List.foldl (\lctx m ->
         case List.lookup m mods of
           Just mod -> M.labelling mod <+> lctx
-          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty_label deps
+          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty_label ("Builtins":deps)
 
 
 
@@ -633,19 +633,19 @@ datacon_def id = do
 -- | Retrieve the reference of the algebraic type of a data constructor.
 datacon_datatype :: Datacon -> QpState Variable
 datacon_datatype dcon =
-  datacon_def dcon >>= return . d_datatype
+  datacon_def dcon >>= return . datatype
 
 
 -- | Retrieve the reference of the algebraic type of a data constructor.
 datacon_type :: Datacon -> QpState TypeScheme
 datacon_type dcon =
-  datacon_def dcon >>= return . d_type
+  datacon_def dcon >>= return . dtype
 
 
 -- | Return the local identifier of a data constructor.
 datacon_tag :: Datacon -> QpState Int
 datacon_tag dcon =
-  datacon_def dcon >>= return . d_tag
+  datacon_def dcon >>= return . tag
 
 
 -- | Update the definition of a data contructor.
@@ -827,9 +827,9 @@ create_ref = do
   ctx <- get_context
   ex <- get_location
   let id = ref_id ctx
-  set_context ctx { ref_id = id + 1, references = IMap.insert id RInfo { r_location = ex,
-                                                                         r_expression = Left (EUnit 0),
-                                                                         r_type = TBang 0 TUnit } $ references ctx }
+  set_context ctx { ref_id = id + 1, references = IMap.insert id RInfo { extent = ex,
+                                                                         expression = Left (EUnit 0),
+                                                                         rtype = TBang 0 TUnit } $ references ctx }
   return id
 
 
@@ -998,13 +998,13 @@ ref_expression ref = do
   rinfo <- ref_info ref
   case rinfo of
     Just i ->
-        case r_expression i of
+        case expression i of
           Left e -> do
               pe <- pprint_expr_noref e
-              return (r_location i, pe)
+              return (extent i, pe)
           Right p -> do
               pp <- pprint_pattern_noref p
-              return (r_location i, pp)
+              return (extent i, pp)
     Nothing ->
         return (extent_unknown, "?")
 
@@ -1045,24 +1045,6 @@ clear_circuit_ops = do
   return c
 
 
--- | Build the interface of the Builtins module.
-import_builtins :: QpState ()
-import_builtins = do
-  lbl <- List.foldl (\rec b -> do
-        lbl <- rec
-        vb <- register_var (Just "Builtins") b 0
-        return $ Map.insert b (LGlobal vb) lbl
-      ) (return Map.empty) ["UNENCAP", "OPENBOX", "CLOSEBOX", "REV", "APPBIND", "ISREF", "PATTERN_ERROR"]
-
-  let builtins = M.Mod {
-    M.labelling = L.empty_label { L.variables = lbl },
-    M.declarations = []
-  }
-
-  ctx <- get_context
-  set_context ctx {
-    modules = ("Builtins", builtins):(modules ctx)
-  }
 
 
 -- | Profile information.

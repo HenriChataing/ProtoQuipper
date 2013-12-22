@@ -224,12 +224,12 @@ import_typedefs dblock label = do
 
               -- Register the datacon.
               id <- register_datacon dcon $ Datacondef {
-                    d_type = dtype,
-                    d_datatype = typeid,
-                    d_tag = no,
-                    d_ref = -1,
-                    d_construct = Left CS.EUnit,
-                    d_deconstruct = \x -> CS.EVar x
+                    dtype = dtype,
+                    datatype = typeid,
+                    tag = no,
+                    implementation = -1,
+                    construct = Left CS.EUnit,
+                    deconstruct = \x -> CS.EVar x
                   }
               return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
@@ -348,7 +348,7 @@ translate_type (S.TVar x) arg (label, bound) = do
     Just (TBang _ (TAlgebraic id as)) -> do
         spec <- algebraic_def id
         let nexp = List.length $ arguments spec
-        nact <- return $ (List.length as) + (List.length arg)
+            nact = List.length as + List.length arg
 
         if nexp == nact then do
           n <- fresh_flag
@@ -361,11 +361,11 @@ translate_type (S.TVar x) arg (label, bound) = do
     Just (TBang _ (TSynonym id as)) -> do
         spec <- synonym_def id
         let nexp = List.length $ arguments spec
-        nact <- return $ (List.length as) + (List.length arg)
+        let nact = List.length as + List.length arg
 
         if nexp == nact then do
           n <- fresh_flag
-          return (TBang n $ TAlgebraic id (as ++ arg), label)
+          return (TBang n $ TSynonym id (as ++ arg), label)
         else do
           ex <- get_location
           throwQ (WrongTypeArguments x nexp nact) ex
@@ -486,28 +486,28 @@ translate_unbound_type t label = do
 translate_pattern :: S.XExpr -> LabellingContext -> QpState (Pattern, Map String LVariable)
 translate_pattern S.EUnit label = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PUnit ref })
+  update_ref ref (\ri -> Just ri { expression = Right $ PUnit ref })
   return (PUnit ref, L.variables label)
 
 translate_pattern (S.EBool b) label = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PBool ref b })
+  update_ref ref (\ri -> Just ri { expression = Right $ PBool ref b })
   return (PBool ref b, L.variables label)
 
 translate_pattern (S.EInt n) label = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PInt ref n })
+  update_ref ref (\ri -> Just ri { expression = Right $ PInt ref n })
   return (PInt ref n, L.variables label)
 
 translate_pattern S.EWildcard label = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PWildcard ref })
+  update_ref ref (\ri -> Just ri { expression = Right $ PWildcard ref })
   return (PWildcard ref, L.variables label)
 
 translate_pattern (S.EVar x) label = do
   ref <- create_ref
   id <- register_var Nothing x ref
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PVar ref id })
+  update_ref ref (\ri -> Just ri { expression = Right $ PVar ref id })
   return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
 
 translate_pattern (S.ETuple plist) label = do
@@ -516,7 +516,7 @@ translate_pattern (S.ETuple plist) label = do
         (ps, lbl) <- rec
         (p', lbl') <- translate_pattern p label { L.variables = lbl }
         return ((p':ps), lbl')) (return ([], L.variables label)) plist
-  update_ref ref (\ri -> Just ri { r_expression = Right $ PTuple ref plist' })
+  update_ref ref (\ri -> Just ri { expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
 translate_pattern (S.EDatacon datacon p) label = do
@@ -526,11 +526,11 @@ translate_pattern (S.EDatacon datacon p) label = do
         case p of
           Just p -> do
               (p', lbl) <- translate_pattern p label
-              update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id (Just p') })
+              update_ref ref (\ri -> Just ri { expression = Right $ PDatacon ref id (Just p') })
               return (PDatacon ref id (Just p'), lbl)
 
           Nothing -> do
-              update_ref ref (\ri -> Just ri { r_expression = Right $ PDatacon ref id Nothing })
+              update_ref ref (\ri -> Just ri { expression = Right $ PDatacon ref id Nothing })
               return (PDatacon ref id Nothing, L.variables label)
 
     Nothing ->
@@ -553,28 +553,28 @@ translate_pattern p _ = do
 translate_expression :: S.XExpr -> LabellingContext -> QpState Expr
 translate_expression S.EUnit _ = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EUnit ref })
+  update_ref ref (\ri -> Just ri { expression = Left $ EUnit ref })
   return (EUnit ref)
 
 translate_expression (S.EBool b) _ = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EBool ref b })
+  update_ref ref (\ri -> Just ri { expression = Left $ EBool ref b })
   return (EBool ref b)
 
 translate_expression (S.EInt n) _ = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EInt ref n })
+  update_ref ref (\ri -> Just ri { expression = Left $ EInt ref n })
   return (EInt ref n)
 
 translate_expression (S.EVar x) label = do
   ref <- create_ref
   case Map.lookup x $ L.variables label of
     Just (LVar v) -> do
-        update_ref ref (\ri -> Just ri { r_expression = Left $ EVar ref v })
+        update_ref ref (\ri -> Just ri { expression = Left $ EVar ref v })
         return (EVar ref v)
 
     Just (LGlobal v) -> do
-        update_ref ref (\ri -> Just ri { r_expression = Left $ EGlobal ref v })
+        update_ref ref (\ri -> Just ri { expression = Left $ EGlobal ref v })
         return (EGlobal ref v)
 
     Nothing -> do
@@ -583,18 +583,17 @@ translate_expression (S.EVar x) label = do
 translate_expression (S.EQualified m x) _ = do
   ref <- create_ref
   id <- lookup_qualified_var (m, x)
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EGlobal ref id })
+  update_ref ref (\ri -> Just ri { expression = Left $ EGlobal ref id })
   return $ EGlobal ref id
 
 translate_expression (S.EFun p e) label = do
   ref <- create_ref
   (p', lbl) <- translate_pattern p label
   e' <- translate_expression e $ label { L.variables = lbl }
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EFun ref p' e' })
+  update_ref ref (\ri -> Just ri { expression = Left $ EFun ref p' e' })
   return (EFun ref p' e')
 
 translate_expression (S.ELet r p e f) label = do
-  ref <- create_ref
   -- At his point, p may be an applicative pattern,
   -- The arguments should be passed to the expression e.
   (p', lbl) <- translate_pattern p label
@@ -605,8 +604,7 @@ translate_expression (S.ELet r p e f) label = do
         Nonrecursive -> do
             translate_expression e $ label
   f' <- translate_expression f $ label { L.variables = lbl }
-  update_ref ref (\ri -> Just ri { r_expression = Left $ ELet ref r p' e' f' })
-  return (ELet ref r p' e' f')
+  return (ELet r p' e' f')
 
 translate_expression (S.EDatacon datacon e) label = do
   ref <- create_ref
@@ -615,26 +613,24 @@ translate_expression (S.EDatacon datacon e) label = do
         case e of
           Just e -> do
               e' <- translate_expression e label
-              update_ref ref (\ri -> Just ri { r_expression = Left $ EDatacon ref id $ Just e' })
+              update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id $ Just e' })
               return (EDatacon ref id $ Just e')
 
           Nothing -> do
-              update_ref ref (\ri -> Just ri { r_expression = Left $ EDatacon ref id Nothing })
+              update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id Nothing })
               return (EDatacon ref id Nothing)
 
     Nothing -> do
         throw_UnboundDatacon datacon
 
 translate_expression (S.EMatch e blist) label = do
-  ref <- create_ref
   e' <- translate_expression e label
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
                           (p', lbl) <- translate_pattern p label
                           f' <- translate_expression f $ label { L.variables = lbl }
                           return ((p', f'):r)) (return []) blist
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EMatch ref e' blist' })
-  return (EMatch ref e' blist')
+  return (EMatch e' blist')
 
 -- Convert the application of a data constructor to a data constrcutor with an argument.
 translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label = do
@@ -642,17 +638,15 @@ translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label =
   e' <- translate_expression e label
   case Map.lookup dcon $ L.datacons label of
     Just id -> do
-        update_ref ref (\ri -> Just ri { r_expression = Left $ EDatacon ref id $ Just e' })
+        update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id $ Just e' })
         return (EDatacon ref id $ Just e')
     Nothing -> do
         throw_UnboundDatacon dcon
 
 translate_expression (S.EApp e f) label = do
-  ref <- create_ref
   e' <- translate_expression e label
   f' <- translate_expression f label
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EApp ref e' f' })
-  return (EApp ref e' f')
+  return (EApp e' f')
 
 translate_expression (S.ETuple elist) label = do
   ref <- create_ref
@@ -660,16 +654,14 @@ translate_expression (S.ETuple elist) label = do
                           r <- rec
                           e' <- translate_expression e label
                           return (e':r)) (return []) elist
-  update_ref ref (\ri -> Just ri { r_expression = Left $ ETuple ref elist' })
+  update_ref ref (\ri -> Just ri { expression = Left $ ETuple ref elist' })
   return (ETuple ref elist')
 
 translate_expression (S.EIf e f g) label = do
-  ref <- create_ref
   e' <- translate_expression e label
   f' <- translate_expression f label
   g' <- translate_expression g label
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EIf ref e' f' g' })
-  return (EIf ref e' f' g')
+  return (EIf e' f' g')
 
 translate_expression (S.EBox t) label = do
   ex <- get_location
@@ -684,44 +676,22 @@ translate_expression (S.EBox t) label = do
     -- The translation of the type of the box in the core syntax produces
     -- some constraints that needs to be conveyed to the type inference
     -- Using a scheme is a way of doing it
-    update_ref ref (\ri -> Just ri { r_expression = Left $ EBox ref t' })
+    update_ref ref (\ri -> Just ri { expression = Left $ EBox ref t' })
     return (EBox ref t')
 
 translate_expression S.EUnbox _ = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Left $ EUnbox ref })
+  update_ref ref (\ri -> Just ri { expression = Left $ EUnbox ref })
   return (EUnbox ref)
 
 translate_expression S.ERev _ = do
   ref <- create_ref
-  update_ref ref (\ri -> Just ri { r_expression = Left $ ERev ref })
+  update_ref ref (\ri -> Just ri { expression = Left $ ERev ref })
   return (ERev ref)
 
 translate_expression (S.ELocated e ex) label = do
   set_location ex
   translate_expression e label
-
-translate_expression (S.EBuiltin s) label = do
-  ref <- create_ref
-  -- Check whether the builtin value has already been imported.
-  e <- case Map.lookup s (L.variables label) of
-    Just (LGlobal g) ->
-        -- Use the old definition.
-        return (EGlobal ref g)
-    _ -> do
-        -- Import the builtin operation.
-        case Map.lookup s builtin_all of
-          Just (typ, val) -> do
-              typ' <- translate_bound_type typ label
-              g <- register_var (Just "Builtins") s ref
-              insert_global g (TForall [] [] emptyset typ') (Just val)
-              return (EGlobal ref g)
-          Nothing -> do
-              -- Wrong, no builtin operation of name s has been defined
-              ex <- get_location
-              throwQ (UndefinedBuiltin s) ex
-  update_ref ref (\ri -> Just ri { r_expression = Left e })
-  return e
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
