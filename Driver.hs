@@ -604,9 +604,7 @@ do_everything opts files = do
 
           newlog 2 $ "======   " ++ S.module_name p ++ "   ======"
           fvar <- display_var
-  --        newlog (-2) $ genprint Inf [fvar] decls
           newlog 2 $ genprint Inf [fvar] cunit
-
 
           cunit_to_llvm (S.module_name p) cunit
         else

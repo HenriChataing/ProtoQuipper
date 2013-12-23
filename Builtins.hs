@@ -275,7 +275,8 @@ define_builtins = do
         ("REV", (arrow int int, VUnit)),
         ("APPBIND", (arrow int int, VUnit)),
         ("ISREF", (arrow int int, VUnit)),
-        ("PATTERN_ERROR", (arrow int int, VUnit))
+        ("PATTERN_ERROR", (arrow int int, VUnit)),
+        ("PRINT", (arrow int int, VUnit))
         ]
 
   -- Import the preceding definitions.
