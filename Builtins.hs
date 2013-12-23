@@ -17,6 +17,7 @@ import Core.Syntax
 import Core.LabellingContext as L
 
 import qualified Compiler.SimplSyntax as C
+import Compiler.Preliminaries (choose_implementation)
 
 import Data.Map as Map
 import Data.List as List
@@ -265,25 +266,30 @@ define_builtins = do
                            VBuiltin (\msg -> let string_msg = unVString msg "ERROR" in throwNE (UserError string_msg)))) ]
 
 
+  -- Compilation specifics.
+  -- Note that the variables are all given a dummy type and value.
+  let compile = [
+        ("UNENCAP", (arrow int int, VUnit)),
+        ("OPENBOX", (arrow int int, VUnit)),
+        ("CLOSEBOX", (arrow int int, VUnit)),
+        ("REV", (arrow int int, VUnit)),
+        ("APPBIND", (arrow int int, VUnit)),
+        ("ISREF", (arrow int int, VUnit)),
+        ("PATTERN_ERROR", (arrow int int, VUnit))
+        ]
+
   -- Import the preceding definitions.
   lbl <- List.foldl (\rec (b, (typ, val)) -> do
         lbl <- rec
         vb <- register_var (Just "Builtins") b 0
         insert_global vb (typescheme_of_type typ) (Just val)
         return $ Map.insert b (LGlobal vb) lbl
-      ) (return Map.empty) $ ops ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others
-
-  -- Compilation stuff (with no type nor value).
-  lbl' <- List.foldl (\rec b -> do
-        lbl <- rec
-        vb <- register_var (Just "Builtins") b 0
-        return $ Map.insert b (LGlobal vb) lbl
-      ) (return Map.empty) ["UNENCAP", "OPENBOX", "CLOSEBOX", "REV", "APPBIND", "ISREF", "PATTERN_ERROR"]
+      ) (return Map.empty) $ ops ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
 
   -- Build the module.
   let builtins = Mod {
     labelling = LblCtx {
-      variables = Map.union lbl lbl',
+      variables = lbl,
       types = Map.fromList [("list", TBang 1 $ TAlgebraic list []), ("char", TBang 1 $ TAlgebraic char [])],
       L.datacons = Map.fromList [("_Cons", cons), ("_Nil", nil), ("_Char", dchar)] },
     declarations = []
@@ -293,5 +299,9 @@ define_builtins = do
   set_context ctx {
     modules = ("Builtins", builtins):(modules ctx)
   }
+
+  -- Compiler specifics.
+  choose_implementation list
+  choose_implementation char
 
 

@@ -22,20 +22,18 @@ import Data.List as List
 -- ** Declarations
 
 
--- | An algebraic data type definition.
-data Typedef = Typedef {
-  d_typename :: String,                        -- ^ Name of the defined type.
-  d_args :: [String],                          -- ^ List of bound type arguments.
-  d_constructors :: [(String, Maybe Type)]    -- ^ List of data constructors, each given by the name of the constructor and the type of the optional argument.
+-- | A generic description of type definition (algberaic and synonym).
+data Typedef a = Typedef {
+  name :: String,              -- ^ The name of the type.
+  arguments :: [String],       -- ^ The list of type arguments.
+  definition :: a              -- ^ The definition of the type.
 }
 
+-- | An algebraic data type definition.
+type Algdef = Typedef [(String, Maybe Type)]
 
 -- | A type synonym definition, e.g., @intlist@ = @list int@.
-data Typesyn = Typesyn {
-  s_typename :: String,                        -- ^ Name of the defined type.
-  s_args :: [String],                          -- ^ List of bound type arguments.
-  s_synonym :: Type                            -- ^ The type it is a synonym of.
-}
+type Syndef = Typedef Type
 
 
 -- | A top-level declaration. A top-level declaration can be of four kinds:
@@ -52,8 +50,8 @@ data Typesyn = Typesyn {
 data Declaration =
     DLet RecFlag XExpr XExpr                 -- ^ A variable declaration: @let p = e;;@.
   | DExpr XExpr                              -- ^ A simple expression: @e;;@
-  | DTypes [Typedef]                         -- ^ A list of type definitions. The types are mutually recursive.
-  | DSyn Typesyn                             -- ^ A type synonym definition.
+  | DTypes [Algdef]                          -- ^ A list of type definitions. The types are mutually recursive.
+  | DSyn Syndef                              -- ^ A type synonym definition.
 
 
 -- ----------------------------------------------------------------------
@@ -61,14 +59,9 @@ data Declaration =
 
 -- | A program (or equivalently, a module).
 data Program = Prog {
--- Module name and file
   module_name :: String,                     -- ^ Name of the module.
   filepath :: FilePath,                      -- ^ Path to the implementation of the module.
-
--- Import declarations
   imports :: [String],                       -- ^ List of imported modules.
-
--- The body of the module
   body :: [Declaration]                      -- ^ Body of the module, which contains the type and term declarations.
 }
 
@@ -87,14 +80,6 @@ dummy_program = Prog {
 instance Eq Program where
   (==) p1 p2 = module_name p1 == module_name p2
 
--- ----------------------------------------------------------------------
--- ** Interface files
-
-
--- | An interface file. This consists of a list of type declarations,
--- which must be a subset of the global variables of the module
--- implementation.
-type Interface = [(String, Type)]
 
 -- ----------------------------------------------------------------------
 -- ** Types

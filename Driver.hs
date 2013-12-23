@@ -473,13 +473,14 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 -- | Explicit the implementation of functional data constructors.
 explicit_datacons :: Module -> QpState Module
 explicit_datacons mod = do
-  Map.foldl (\rec dcon -> do
+  Map.foldWithKey (\nm dcon rec -> do
         mod <- rec
         ddef <- datacon_def dcon
+        cur <- current_module
         if is_fun $ dtype ddef then do
           -- Takes an argument -> write an implementation
           x <- create_var "x"
-          y <- create_var "d"
+          y <- register_var cur nm 0
           let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
 
           -- Update the definition of dcon
@@ -518,7 +519,8 @@ process_module opts prog = do
   old_stack <- return $ circuits ctx
   set_context $ ctx {
     circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
-    dependencies = S.imports prog
+    dependencies = S.imports prog,
+    current = Just $ S.module_name prog
   }
 
   -- Interpret all the declarations
@@ -600,10 +602,10 @@ do_everything opts files = do
                 "wcps" -> C.convert_declarations_to_wcps decls
                 _ -> fail "Driver:do_everything: illegal format"
 
-          newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
+          newlog 2 $ "======   " ++ S.module_name p ++ "   ======"
           fvar <- display_var
   --        newlog (-2) $ genprint Inf [fvar] decls
-          newlog (-2) $ genprint Inf [fvar] cunit
+          newlog 2 $ genprint Inf [fvar] cunit
 
 
           cunit_to_llvm (S.module_name p) cunit

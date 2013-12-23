@@ -141,6 +141,7 @@ data QContext = QCtx {
 -- Module related fields
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
+  current :: Maybe String,                            -- ^ The name of the current module.
 
 -- Type definitions
   algebraics :: IntMap Algdef,                        -- ^ The definitions of algebraic types.
@@ -245,6 +246,7 @@ empty_context =  QCtx {
 -- No modules
   modules = [],
   dependencies = [],
+  current = Nothing,
 
 -- No global variables
   globals = IMap.empty,
@@ -346,6 +348,10 @@ get_location =
   get_context >>= return . location
 
 
+current_module :: QpState (Maybe String)
+current_module =
+  get_context >>= return . current
+
 
 ------------------------------------------------
 -- ** Type and variable manipulation.
@@ -431,9 +437,10 @@ variable_reference x = do
 variable_module :: Variable -> QpState String
 variable_module x = do
   nspace <- get_context >>= return . namespace
+  n <- variable_name x
   case IMap.lookup x $ N.varmod nspace of
     Just mod -> return mod
-    Nothing -> fail $ "QpState:variable_module: undefined module"
+    Nothing -> fail $ "QpState:variable_module: undefined module " ++ n
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
@@ -485,7 +492,7 @@ global_type x = do
         return t
     Nothing -> do
         n <- variable_name x
-        fail $ "QpState:type_of_global: undefined global variable " ++ n
+        fail $ "QpState:global_type: undefined global variable " ++ n
 
 
 -- | Return the value of a global variable.
@@ -516,7 +523,7 @@ lookup_qualified_var :: (String, String) -> QpState Variable
 lookup_qualified_var (mod, n) = do
   ctx <- get_context
   -- Check that the module is part of the M.dependencies
-  if List.elem mod $ dependencies ctx then do
+  if List.elem mod $ "Builtins":(dependencies ctx) then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
           case Map.lookup n $ L.variables $ M.labelling modi of
@@ -539,7 +546,7 @@ lookup_qualified_type :: (String, String) -> QpState Type
 lookup_qualified_type (mod, n) = do
   ctx <- get_context
   -- Check that the module is part of the M.dependencies
-  if List.elem mod $ dependencies ctx then do
+  if List.elem mod $ "Builtins":(dependencies ctx) then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
           case Map.lookup n $ L.types $ M.labelling modi of

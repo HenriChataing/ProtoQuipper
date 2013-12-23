@@ -376,7 +376,7 @@ data Datacondef = Datacondef {
   implementation :: Variable,                          -- ^ Data constructors with one argument must define a function representing
                                                        -- the constructor when not applied to an element.
                                                        -- For example, take the constructor \'Just\': a function is defined with the body
-                                                       -- @ fun x -> Just x @
+                                                      -- @ fun x -> Just x @
                                                        -- This variable records this precise definition.
   construct :: Either C.Expr (C.Expr -> C.Expr),       -- ^ The implementation of a data constructor.
   deconstruct :: Variable -> C.Expr                    -- ^ The deconstructor associated with a data constrcuctor.

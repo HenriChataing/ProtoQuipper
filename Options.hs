@@ -34,7 +34,7 @@ data Options = Options {
 default_options :: Options
 default_options = Options {
   -- General options
-  verbose = -1,
+  verbose = 0,
   warningAction = "display",
 
   -- Include directories

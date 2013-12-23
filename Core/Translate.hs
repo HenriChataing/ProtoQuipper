@@ -93,6 +93,7 @@ import Interpret.Values
 import Interpret.Circuits as C
 
 import qualified Compiler.SimplSyntax as CS
+import Compiler.Preliminaries (choose_implementation)
 
 import Monad.QuipperError
 import Monad.QpState
@@ -169,7 +170,7 @@ variance _ _ _ _ = do
 
 -- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.Typedef]                -- ^ A block of co-inductive type definitions.
+import_typedefs :: [S.Algdef]                 -- ^ A block of co-inductive type definitions.
                 -> LabellingContext           -- ^ The current labelling context.
                 -> QpState LabellingContext   -- ^ The updated labelling context.
 import_typedefs dblock label = do
@@ -177,77 +178,75 @@ import_typedefs dblock label = do
   typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
         typs <- rec
         let spec = Typedef {
-              arguments = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
-              definition = ([], [])
-            }
+          arguments = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
+          definition = ([], [])
+        }
 
         -- Register the type in the current context.
         id <- register_algebraic typename spec
-        -- Add the type in the map
+        -- Add the type to the labelling context.
         return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
       ) (return (L.types label)) dblock
 
   -- Build the unfolded type definition.
   constructors <- List.foldl (\rec (S.Typedef typename args dlist) -> do
         lbl <- rec
-        -- Type id needed for udpates.
-        typeid <- case Map.lookup typename typs of
+        -- Type id needed for updates.
+        id <- case Map.lookup typename typs of
             Just (TBang _ (TAlgebraic id _)) -> return id
             _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
 
         -- Bind the arguments of the type.
         -- For each string argument a, a type !n a is created and bound in the map mapargs.
-        (args', mapargs) <- List.foldr (\a rec -> do
-              (args, m) <- rec
-              ta <- new_type
-              return (ta:args, Map.insert a ta m)) (return ([], typs)) args
+        (args, mapargs) <- List.foldr (\x rec -> do
+              (as, map) <- rec
+              a <- new_type
+              return (a:as, Map.insert x a map)) (return ([], typs)) args
 
         -- Translate the type of the data constructors.
-        (dtypes', m) <- List.foldl (\rec (no, (dcon, dtype)) -> do
-              (dt, lbl) <- rec
-              (dtype, argtyp, cset) <- case dtype of
+        (dtypes, lbl) <- List.foldl (\rec (tag, (dcon, dtype)) -> do
+              (dtyps, lbl) <- rec
+              m <- fresh_flag
+              (dtyp, argtyp, cset) <- case dtype of
                     -- If the constructor takes no argument
                     Nothing -> do
-                        m <- fresh_flag
-                        return (TBang m (TAlgebraic typeid args'), Nothing, emptyset)
-
-                    -- If the constructor takes an argument
+                        return (TBang m (TAlgebraic id args), Nothing, emptyset)
+                    -- If the constructor takes one argument
                     Just dt -> do
-                        dt'@(TBang n _) <- translate_bound_type dt $ empty_label { L.types = mapargs }
-                        m <- fresh_flag
-                        return (TBang one (TArrow dt' (TBang m $ TAlgebraic typeid args')), Just dt', ([], [Le m n no_info]))
+                        dt@(TBang n _) <- translate_bound_type dt empty_label { L.types = mapargs }
+                        return (TBang one $ TArrow dt $ TBang m $ TAlgebraic id args, Just dt, ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
               -- Those variables must also respect the constraints from the construction of the type.
-              let (fv, ff) = (free_typ_var dtype, free_flag dtype)
-              dtype <- return $ TForall ff fv cset dtype
+              let (fv, ff) = (free_typ_var dtyp, free_flag dtyp)
+              dtyp <- return $ TForall ff fv cset dtyp
 
               -- Register the datacon.
-              id <- register_datacon dcon $ Datacondef {
-                    dtype = dtype,
-                    datatype = typeid,
-                    tag = no,
-                    implementation = -1,
-                    construct = Left CS.EUnit,
-                    deconstruct = \x -> CS.EVar x
-                  }
-              return $ ((id, argtyp):dt, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
+              id <- register_datacon dcon Datacondef {
+                dtype = dtyp,
+                datatype = id,
+                tag = tag,
+                implementation = -1,
+                construct = Left CS.EUnit,
+                deconstruct = \x -> CS.EVar x
+              }
+              return $ ((id, argtyp):dtyps, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type.
-        update_algebraic typeid $ \algdef -> Just $ algdef { definition = (args', dtypes') }
+        update_algebraic id $ \algdef -> Just $ algdef { definition = (args, dtypes) }
 
-        return m) (return $ L.datacons label) dblock
+        return lbl) (return $ L.datacons label) dblock
 
 
   -- Update the variance of the type arguments of a single type.
   let update_variance typ = do
-        let id = case Map.lookup (S.d_typename typ) typs of
+        let id = case Map.lookup (S.name typ) typs of
               Just (TBang _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
         let old = arguments algdef
-        upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.d_constructors typ)) [] typs
-        let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.d_args typ
+        upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.definition typ)) [] typs
+        let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.arguments typ
         update_algebraic id $ \alg -> Just $ alg { arguments = new }
         return $ old == new
 
@@ -262,19 +261,27 @@ import_typedefs dblock label = do
         else
           update_variances dblock
 
-  -- Print the inferred variance.
-  let print_variance typ = do
-        let id = case Map.lookup (S.d_typename typ) typs of
+  -- Print the information relevant to a type (constructors, ...).
+  let print_info typ = do
+        let id = case Map.lookup (S.name typ) typs of
               Just (TBang _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
-        newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.d_typename typ) $ List.zip (arguments algdef) (S.d_args typ))
+        newlog 0 $ List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.name typ) $ List.zip (arguments algdef) (S.arguments typ)
+
+  -- Compilation specifics.
+  List.foldl (\rec alg -> do
+        rec
+        case Map.lookup (S.name alg) typs of
+          Just (TBang _ (TAlgebraic id _)) -> choose_implementation id
+          _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
+      ) (return ()) dblock
 
   -- Apply the function update_variances
   update_variances dblock
 
   -- Print some information about the inferred variance
-  List.foldl (\rec typ -> rec >> print_variance typ) (return ()) dblock
+  List.foldl (\rec typ -> rec >> print_info typ) (return ()) dblock
 
   -- Return the updated labelling map for types, and the map for dataconstructors.
   return $ label { L.datacons = constructors,
@@ -285,23 +292,23 @@ import_typedefs dblock label = do
 
 
 -- | Translate and import a type synonym.
-import_typesyn :: S.Typesyn                   -- ^ A type synonym.
+import_typesyn :: S.Syndef                    -- ^ A type synonym.
                -> LabellingContext            -- ^ The current labelling context.
                -> QpState LabellingContext    -- ^ The updated labelling context.
 import_typesyn typesyn label = do
   -- Bind the arguments to core types.
-  as <- new_types $ List.length (S.s_args typesyn)
-  let margs = Map.fromList $ List.zip (S.s_args typesyn) as
+  as <- new_types $ List.length (S.arguments typesyn)
+  let margs = Map.fromList $ List.zip (S.arguments typesyn) as
 
   -- Translate the synonym type.
-  syn <- translate_bound_type (S.s_synonym typesyn) (label { L.types = Map.union margs $ L.types label })
+  syn <- translate_bound_type (S.definition typesyn) (label { L.types = Map.union margs $ L.types label })
 
   -- Determine the variance of each argument.
-  var <- variance Covariant (S.s_synonym typesyn) [] (L.types label)
-  let arg = List.map (\a -> case Map.lookup a var of { Nothing -> Unrelated ; Just v -> v }) $ S.s_args typesyn
+  var <- variance Covariant (S.definition typesyn) [] (L.types label)
+  let arg = List.map (\a -> case Map.lookup a var of { Nothing -> Unrelated ; Just v -> v }) $ S.arguments typesyn
 
   -- Print it.
-  newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("syn: " ++ S.s_typename typesyn) $ List.zip arg (S.s_args typesyn))
+  newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("syn: " ++ S.name typesyn) $ List.zip arg (S.arguments typesyn))
 
   -- Build the type specification
   spec <- return $ Typedef {
@@ -309,10 +316,10 @@ import_typesyn typesyn label = do
         definition = (as, syn) }
 
   -- Register the type synonym
-  id <- register_synonym (S.s_typename typesyn) spec
+  id <- register_synonym (S.name typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { L.types = Map.insert (S.s_typename typesyn) (TBang 0 $ TSynonym id []) $ L.types label }
+  return label { L.types = Map.insert (S.name typesyn) (TBang 0 $ TSynonym id []) $ L.types label }
 
 
 
@@ -506,7 +513,8 @@ translate_pattern S.EWildcard label = do
 
 translate_pattern (S.EVar x) label = do
   ref <- create_ref
-  id <- register_var Nothing x ref
+  mod <- current_module
+  id <- register_var mod x ref
   update_ref ref (\ri -> Just ri { expression = Right $ PVar ref id })
   return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
 
@@ -543,6 +551,9 @@ translate_pattern (S.ELocated p ex) label = do
 translate_pattern (S.EConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
   return (PConstraint p' (t, L.types label), lbl)
+
+translate_pattern (S.EApp (S.ELocated (S.EDatacon e Nothing) ex) f) label =
+  translate_pattern (S.ELocated (S.EDatacon e $ Just f) ex) label
 
 translate_pattern p _ = do
   ref <- get_location

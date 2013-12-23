@@ -65,16 +65,20 @@ declare_globals (gx:gxs) = do
 declare_module_functions :: Linkage -> [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
 declare_module_functions linkage [] =
   return $ return IMap.empty
-declare_module_functions linkage ((f, [_,_], _):fs) = do
+declare_module_functions ExternalLinkage ((f, [_,_], _):fs) = do
   nf <- variable_name f
   mod <- variable_module f
+  vals <- declare_module_functions ExternalLinkage fs
+  return (do
+        vf <- newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        m <- vals
+        return $ IMap.insert f (LVFun2 vf) m
+      )
+declare_module_functions linkage ((f, [_,_], _):fs) = do
+  nf <- variable_name f
   vals <- declare_module_functions linkage fs
   return (do
-        vf <- case linkage of
-              ExternalLinkage ->
-                  newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
-              _ ->
-                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+        vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
         m <- vals
         return $ IMap.insert f (LVFun2 vf) m
       )

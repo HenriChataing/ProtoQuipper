@@ -19,6 +19,8 @@ module Compiler.Preliminaries where
 import Classes
 import Utils
 
+import Parsing.Location (extent_unknown)
+
 import Monad.QpState
 import Monad.QuipperError
 
@@ -41,7 +43,8 @@ set_tagaccess id gettag = do
   set_context ctx { tagaccess = IMap.insert id gettag $ tagaccess ctx }
 
 
--- | Return the tag accessor of an algebraic type.
+-- | Return the tag accessor of an algebraic type. If the tag access is undefined,
+-- then the function \choose_implementation\ is called to implement it.
 get_tagaccess :: Algebraic -> QpState (Variable -> Expr)
 get_tagaccess id = do
   ctx <- get_context
@@ -1051,8 +1054,7 @@ transform_declarations decls = do
         (decls, mod) <- rec
         case d of
           C.DExpr e -> do
-              ri <- ref_info_err (C.reference e)
-              warnQ NakedExpressionToplevel (C.extent ri)
+              warnQ NakedExpressionToplevel extent_unknown
               return (decls, mod)
 
           C.DLet recflag x e -> do

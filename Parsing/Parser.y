@@ -122,7 +122,7 @@ Typeblock :
 
 
 Typesyn :
-      TYPE LID Var_list '=' Type                { Typesyn (snd $2) $3 $5 }
+      TYPE LID Var_list '=' Type                { Typedef (snd $2) $3 $5 }
 
 
 Data_intro_list :
