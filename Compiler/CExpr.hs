@@ -91,9 +91,10 @@ instance Param CExpr where
 -- | Compilation unit.
 data CUnit = CUnit {
   imports :: [Value],                      -- ^ The list of functions and variables imported from extern modules.
-  local :: [FunctionDef],
-  extern :: [FunctionDef],
-  vglobals :: [GlobalDef]                  -- ^ Contains the list of global variables, along with the code initializing these variables.
+  local :: [FunctionDef],                  -- ^ The list of local functions.
+  extern :: [FunctionDef],                 -- ^ The list of functions accessible outside of the module.
+  vglobals :: [GlobalDef],                 -- ^ Contains the list of global variables, along with the code initializing these variables.
+  main :: Maybe CExpr                      -- ^ The definition of the main function, if the module is \'Main\'.
 }
 
 
@@ -362,22 +363,31 @@ convert_declarations_to_cps decls = do
   -- translate the declarations
   (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
         (cu, vals) <- rec
-        case e of
-          S.EFun x c -> do
+        n <- variable_name f
+        -- TODO XXX Check the type of the main function.
+        case (n,e) of
+          ("main", S.EFun _ c) -> do
+              body <- convert_to_cps vals (\z -> return $ CRet z) c
+              (funs, body) <- closure_conversion body >>= return . lift_functions
+              return (cu { main = Just body, local = funs ++ local cu }, vals)
+
+          (_, S.EFun x c) -> do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_cps vals (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) },
+              let fdef = (f, [fc,x,k], body)
+              return (cu { local = funs ++ local cu, extern = fdef:(extern cu) },
                       IMap.insert f (VLabel f) vals)
 
-          S.ERecFun _ x c -> do
+          (_, S.ERecFun _ x c) -> do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_cps vals' (\z -> return $ CTailApp (VVar k) [z]) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { local = funs ++ local cu, extern = (f, [fc,x,k], body):(extern cu) }, vals')
+              let fdef = (f, [fc,x,k], body)
+              return (cu { local = funs ++ local cu, extern = fdef:(extern cu) }, vals')
 
           _ -> do
               -- translate the computation of g
@@ -386,7 +396,7 @@ convert_declarations_to_cps decls = do
               -- return the extend compile unit
               return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported}, ivals)) decls
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, main = Nothing }, ivals)) decls
   return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
 
 
@@ -407,20 +417,28 @@ convert_declarations_to_wcps decls = do
   -- translate the declarations
   (cu, _) <- List.foldl (\rec (S.DLet f e) -> do
         (cu, vals) <- rec
-        case e of
-          S.EFun x c -> do
+        n <- variable_name f
+        case (n, e) of
+          ("main", S.EFun _ c) -> do
+              body <- convert_to_wcps vals (\z -> return $ CRet z) c
+              (funs, body) <- closure_conversion body >>= return . lift_functions
+              return (cu { main = Just body, local = funs ++ local cu }, vals)
+
+          (_, S.EFun x c) -> do
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_wcps vals (\z -> return $ CRet z) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { local = funs ++ local cu, extern = (f, [fc,x], body):(extern cu) },
+              let fdef = if n == "main" then (f, [x], body) else (f, [fc,x], body)
+              return (cu { local = funs ++ local cu, extern = fdef:(extern cu) },
                       IMap.insert f (VLabel f) vals)
 
-          S.ERecFun _ x c -> do
+          (_, S.ERecFun _ x c) -> do
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_wcps vals' (\z -> return $ CRet z) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { local = funs ++ local cu, extern = (f, [fc,x], body):(extern cu) }, vals')
+              let fdef = if n == "main" then (f, [x], body) else (f, [fc,x], body)
+              return (cu { local = funs ++ local cu, extern = fdef:(extern cu) }, vals')
 
           _ -> do
               -- translate the computation of g
@@ -429,7 +447,7 @@ convert_declarations_to_wcps decls = do
               -- return the extend compile unit
               return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported}, ivals)) decls
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, main = Nothing }, ivals)) decls
   return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
 
 

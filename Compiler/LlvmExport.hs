@@ -65,38 +65,42 @@ declare_globals (gx:gxs) = do
 declare_module_functions :: Linkage -> [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
 declare_module_functions linkage [] =
   return $ return IMap.empty
-declare_module_functions ExternalLinkage ((f, [_,_], _):fs) = do
+declare_module_functions ExternalLinkage ((f, arg, _):fs) = do
   nf <- variable_name f
   mod <- variable_module f
   vals <- declare_module_functions ExternalLinkage fs
-  return (do
-        vf <- newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun2 vf) m
-      )
-declare_module_functions linkage ((f, [_,_], _):fs) = do
+  let fname = "_" ++ mod ++ "_" ++ nf
+  case arg of
+    [_,_] ->
+        return (do
+          vf <- newNamedFunction ExternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun2 vf) m
+        )
+    [_,_,_] ->
+        return (do
+          vf <- newNamedFunction ExternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun3 vf) m
+        )
+    _ -> fail "LlvmExport:declare_module_functions: illegal argument"
+declare_module_functions _ ((f, arg, _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions linkage fs
-  return (do
-        vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun2 vf) m
-      )
-declare_module_functions linkage ((f, [_,_,_], _):fs) = do
-  nf <- variable_name f
-  mod <- variable_module f
-  vals <- declare_module_functions linkage fs
-  return (do
-        vf <- case linkage of
-              ExternalLinkage ->
-                  newNamedFunction ExternalLinkage ("_" ++ mod ++ "_" ++ nf) :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt-> IO ArchInt))
-              _ ->
-                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun3 vf) m
-      )
-declare_module_functions _ _ = do
-  fail "CPStpLLVM:declare_module_functions: illegal argument"
+  vals <- declare_module_functions InternalLinkage fs
+  case arg of
+    [_,_] ->
+        return (do
+          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun2 vf) m
+        )
+    [_,_,_] ->
+        return (do
+          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun3 vf) m
+        )
+    _ -> fail "LlvmExport:declare_module_functions: illegal argument"
 
 
 -- | Proceed to the definition of the module functions.
@@ -307,11 +311,16 @@ cunit_to_llvm mods cu = do
                     cexpr_to_llvm vals cinit
                     rec
                   ) (ret $ valueOf (fromIntegral 0 :: Int64)) (vglobals cu) :: CodeGenModule (Function (IO ArchInt))
-        main <- createNamedFunction ExternalLinkage "main" $ do
-              _ <- call initm
-              ret $ valueOf (fromIntegral 0 :: Int64)
-        let _ = main :: Function (IO ArchInt)
-        return ()
+        -- Define the main function, if need be.
+        case main cu of
+          Just body -> do
+              main <- createNamedFunction ExternalLinkage "main" $ do
+                    _ <- call initm
+                    cexpr_to_llvm vals body
+              let _ = main :: Function (IO ArchInt)
+              return ()
+          Nothing ->
+              return ()
 
   liftIO $ writeBitcodeToFile (mods ++ ".ir") mod
 
