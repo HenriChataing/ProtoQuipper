@@ -322,6 +322,6 @@ cunit_to_llvm mods cu = do
           Nothing ->
               return ()
 
-  liftIO $ writeBitcodeToFile (mods ++ ".ir") mod
+  liftIO $ writeBitcodeToFile (mods ++ ".bc") mod
 
 
