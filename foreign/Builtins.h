@@ -31,6 +31,7 @@ class Circ {
   public:
     Circ() {};
     Circ(Circ& cpy): _controls(cpy._controls) {};
+    virtual ~Circ() {};
     // Unencap the current gate/circuit on the given circuit,
     // not the converse.
     virtual perm* unencap(Circuit*, perm*) =0;
