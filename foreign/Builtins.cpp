@@ -90,6 +90,12 @@ perm* Init::unencap(Circuit* c, perm* p) {
   return pp;
 }
 
+Circ* Init::rev() {
+  Term *rev = new Term(_val, _output);
+  delete this;
+  return rev;
+}
+
 string Term::print() {
   if (_val)
     return "QTerm1(" + inttostr(_input) + ")" + controls();
@@ -106,6 +112,12 @@ perm* Term::unencap(Circuit* c, perm* p) {
   c->term(q);
   c->append(cpy);
   return pp;
+}
+
+Circ* Term::rev() {
+  Init *rev = new Init(_val, _input);
+  delete this;
+  return rev;
 }
 
 string UGate::print() {
@@ -234,6 +246,13 @@ perm* Circuit::unencap(Circuit* c, perm* p) {
   return pp;
 }
 
+Circuit* Circuit::rev() {
+  list<Circ*> reversed;
+  for (list<Circ*>::iterator it=_gates.begin(); it!=_gates.end(); it++)
+    reversed.push_front((*it)->rev());
+  _gates = reversed;
+  return this;
+}
 
 // Circuit stack.
 list<Circuit*> circuits;
@@ -264,11 +283,19 @@ Circuit* _Builtins_CLOSEBOX() {
 }
 
 Circuit* _Builtins_REV(Circuit* c) {
-  return c;
+  return c->rev();
 }
 
 void _Builtins_PRINT(Circ *c) {
   cout << c->print() << endl;
+}
+
+int _Builtins_PATTERN_ERROR(int x) {
+  return 0;
+}
+
+int _Builtins_ISREF(int p) {
+  return 0;
 }
 
 // Builtin gates.
@@ -315,10 +342,11 @@ int main () {
   perm *p = _Builtins_UNENCAP(_Builtins_g_hadamard, NULL);
   p = _Builtins_UNENCAP(_Builtins_g_eitz, p);
   p = _Builtins_UNENCAP(_Builtins_g_term0, p);
-  p = _Builtins_UNENCAP(_Builtins_g_phase(4), p);
+  p = _Builtins_UNENCAP(_Builtins_g_phase(0, 4), p);
   p = _Builtins_UNENCAP(_Builtins_g_swap, p);
   Circuit *c = _Builtins_CLOSEBOX();
-
+  cout << c->print() << "\n" << endl;
+  c = c->rev();
   cout << c->print() << endl;
   return 0;
 }

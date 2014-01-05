@@ -36,6 +36,7 @@ class Circ {
     virtual perm* unencap(Circuit*, perm*) =0;
     virtual string print() =0;
     virtual Circ* clone() { return this; };
+    virtual Circ* rev() =0;
     virtual void withcontrol(int, bool);
     string controls();
   protected:
@@ -43,15 +44,18 @@ class Circ {
     void app_perm_to_controls(perm*);
 };
 
+
+
 // Implementation of some gates.
 class Init: public Circ {
   public:
-    Init(bool b): _val(b), _output(0) {};
+    Init(bool b, int w=0): _val(b), _output(w) {};
     Init(Init& cpy): Circ(cpy), _val(cpy._val), _output(cpy._output) {};
     ~Init() {};
     perm* unencap(Circuit*, perm*);
     string print();
     Init* clone() { return (new Init(*this)); };
+    Circ* rev();
   private:
     bool _val;
     int _output;
@@ -59,12 +63,13 @@ class Init: public Circ {
 
 class Term: public Circ {
   public:
-    Term(bool b): _val(b), _input(0) {};
+    Term(bool b, int w=0): _val(b), _input(w) {};
     Term(Term& cpy): Circ(cpy), _val(cpy._val), _input(cpy._input) {};
     ~Term() {};
     perm* unencap(Circuit*, perm*);
     string print();
     Term* clone() { return (new Term(*this)); };
+    Circ* rev();
   private:
     bool _val;
     int _input;
@@ -78,6 +83,7 @@ class UGate: public Circ {
     perm* unencap(Circuit*, perm*);
     string print();
     UGate* clone() { return (new UGate(*this)); };
+    UGate* rev() { _inv=not _inv; return this; };
   private:
     string _name;
     int _wire;
@@ -94,6 +100,7 @@ class BGate: public Circ {
     string symbol() { return ""; };
     string print();
     BGate* clone() { return (new BGate(*this)); };
+    BGate* rev() { _inv=not _inv; return this; };
   private:
     string _name;
     int _wire0;
@@ -109,6 +116,7 @@ class Phase: public Circ {
     perm* unencap(Circuit*, perm*);
     string print();
     Phase* clone() { return (new Phase(*this)); };
+    Phase* rev() { return this; }
   private:
     int _wire;
     int _val;
@@ -128,6 +136,7 @@ class Circuit: public Circ {
     void term(int);      // Delete a qubit.
     string print();
     Circuit* clone() { return (new Circuit(*this)); };
+    Circuit* rev();
   private:
     list<int> _input;
     list<int> _output;
