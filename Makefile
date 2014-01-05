@@ -26,7 +26,9 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
   Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
-all : $(MAIN)
+BUILTINS = foreign/Builtins.ll
+
+all : $(MAIN) $(BUILTINS)
 
 $(MAIN) : $(MODULES)
 	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
@@ -40,15 +42,19 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 bwt.circ : $(MAIN)
 	./$(MAIN) -iqlib -ibwt bwt > bwt.circ
 
+foreign/Builtins.ll : foreign/Builtins.cpp
+	clang++ -S foreign/Builtins.cpp -emit-llvm -o foreign/Builtins.ll
+
 clean :
 	rm -f $(GENERATED_MODULES)
 	rm -f $(GENERATED_MODULES:%.hs=%.info)
 	rm -f $(MAIN) $(MAIN).exe $(MAIN).prof $(MAIN).aux
 	rm -rf $(BUILD_DIR)/*
 	rm -f bwt.circ
+	rm -f foreign/Builtins.ll
 
 count : clean
-	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y
+	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y foreign/*
 
 # ----------------------------------------------------------------------
 # Building documentation with source code links. This requires a
