@@ -150,7 +150,6 @@ print_expr (EMatch e plist) =
 
 
 print_expr (EConstraint e t) = print_expr e
-print_expr (EBuiltin s) = text "#builin" <+> text s
 print_expr (ELocated e _) = print_expr e
 
 instance PPrint XExpr where
