@@ -1,6 +1,6 @@
 -- | This module provides an interface to the type inference and unification algorithms. It introduces functions to
 -- parse and process modules, and to deal with module dependencies.
-module Typing.Driver where
+module Driver where
 
 import Classes
 import Utils
@@ -9,13 +9,14 @@ import Builtins
 
 import Parsing.Lexer
 import qualified Parsing.Parser as P
-import qualified Parsing.IParser as IP
 import Parsing.Location (clear_location, extent_unknown)
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 
-import Typing.CoreSyntax
-import Typing.TransSyntax
+import Core.Syntax
+import Core.Translate
+import Core.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
+import qualified Core.LabellingContext as L
 
 import Interpret.Interpret
 import Interpret.Values
@@ -26,14 +27,10 @@ import Typing.Ordering
 import Typing.Subtyping
 import Typing.TypeInference
 import Typing.TypingContext
-import Typing.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
-import qualified Typing.LabellingContext as L
-import Typing.TransSyntax
 
 import Compiler.Preliminaries
 import qualified Compiler.CExpr as C
 import Compiler.LlvmExport
-import Compiler.Interfaces
 
 import Monad.QpState
 import Monad.Modules (Module (Mod))
@@ -57,9 +54,9 @@ lex_and_parse_implementation file = do
   contents <- liftIO $ B.readFile file
   tokens <- mylex file contents
   mod <- return $ module_of_file file
-  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file, S.interface = Nothing }
+  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file }
 
-
+{-
 -- | Lex and parse the interface file at the given filepath.
 lex_and_parse_interface :: FilePath -> QpState S.Interface
 lex_and_parse_interface file = do
@@ -67,7 +64,7 @@ lex_and_parse_interface file = do
   tokens <- mylex file contents
   mod <- return $ module_of_file file
   return $ IP.parse tokens
-
+-}
 
 -- | Find the implementation of a module in a given directory.
 -- The name of the code file is expected to be /dir/\//module/./ext/,
@@ -168,8 +165,9 @@ explore_dependencies dirs prog explored sorted = do
               p <- lex_and_parse_implementation file
               p <- case inter of
                     Just f -> do
-                        interface <- lex_and_parse_interface f
-                        return $ p { S.interface = Just interface }
+              --          interface <- lex_and_parse_interface f
+              --          return $ p { S.interface = Just interface }
+                        return p
                     Nothing -> return p
 
               explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)
@@ -209,6 +207,9 @@ build_set_dependencies :: [FilePath]          -- ^ List of directories.
 build_set_dependencies dirs progs = do
   deps <- build_dependencies dirs S.dummy_program { S.imports = progs }
   return $ List.init deps
+
+
+
 
 
 
@@ -273,7 +274,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
-  cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+  cset <- constraint_typing gamma_e e' [a] >>= break_composite
   cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 
@@ -343,9 +344,6 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
         else
           Nothing
 
-  -- Export the variables of the pattern
-  p' <- with_interface prog (labelling ctx) p'
-
   -- Give the corresponding sub contexts
   gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
@@ -365,7 +363,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
             constraint_typing gamma_e e' [a]
 
   -- Unify the constraints produced by the typing of e (exact unification)
-  cs <- break_composite True (csetp <> csete)  -- Break the composite constraints
+  cs <- break_composite (csetp <> csete)       -- Break the composite constraints
   csete <- unify True cs                       -- Unify
 
   -- Apply the substitution produced by the unification of csett to the context gamma
@@ -475,26 +473,26 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 -- | Explicit the implementation of functional data constructors.
 explicit_datacons :: Module -> QpState Module
 explicit_datacons mod = do
-  Map.foldl (\rec dcon -> do
+  Map.foldWithKey (\nm dcon rec -> do
         mod <- rec
         ddef <- datacon_def dcon
-        case type_of_typescheme $ d_type ddef of
+        cur <- current_module
+        if is_fun $ dtype ddef then do
           -- Takes an argument -> write an implementation
-          TBang _ (TArrow _ _) -> do
-              x <- create_var "x"
-              y <- create_var "d"
-              let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
+          x <- create_var "x"
+          y <- register_var cur nm 0
+          let e = EFun 0 (PVar 0 x) (EDatacon 0 dcon $ Just (EVar 0 x))
 
-              -- Update the definition of dcon
-              ctx <- get_context
-              set_context ctx { datacons = IMap.insert dcon ddef { d_ref = y } $ datacons ctx }
+          -- Update the definition of dcon
+          ctx <- get_context
+          set_context ctx { datacons = IMap.insert dcon ddef { implementation = y } $ datacons ctx }
 
-              -- Update the module definition
-              return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
+          -- Update the module definition
+          return mod { M.declarations = (DLet Nonrecursive y e):(M.declarations mod) }
 
+        else
           -- Takes no argument -> do nothing
-          _ ->
-              return mod
+          return mod
         ) (return mod) (L.datacons $ M.labelling mod)
 
 
@@ -513,19 +511,17 @@ process_module :: (Options, MOptions)  -- ^ Command line options and module opti
                -> QpState Module       -- ^ Return the module contents (variables, data constructors, types).
 process_module opts prog = do
 
-  -- Get the module name
-  mod <- return $ S.module_name prog
-  f <- return $ S.filepath prog
-
-  set_file f
-
   -- Import the global variables from the dependencies
   lctx <- global_namespace (S.imports prog)
 
   -- Save and reset the circuit stack
   ctx <- get_context
   old_stack <- return $ circuits ctx
-  set_context $ ctx { circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }] }
+  set_context $ ctx {
+    circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
+    dependencies = S.imports prog,
+    current = Just $ S.module_name prog
+  }
 
   -- Interpret all the declarations
   (ctx, decls) <- List.foldl (\rec decl -> do
@@ -589,8 +585,7 @@ do_everything opts files = do
   deps <- build_set_dependencies (includes opts) progs
 
   -- Build the builtin / qlib interfaces
-  iqlib <- build_iqlib
-  ibuiltins <- build_ibuiltins
+  define_builtins
 
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec p -> do
@@ -599,20 +594,21 @@ do_everything opts files = do
         nm <- process_module (opts, mopts) p
 
         -- Compilation
-        decls <- transform_declarations (M.declarations nm)
+        if runCompiler opts then do
+          decls <- transform_declarations (M.declarations nm)
 
-        cunit <- case conversionFormat opts of
-              "cps" -> C.convert_declarations_to_cps (iqlib, ibuiltins) decls
-              "wcps" -> C.convert_declarations_to_wcps (iqlib, ibuiltins) decls
-              _ -> fail "Driver:do_everything: illegal format"
+          cunit <- case conversionFormat opts of
+                "cps" -> C.convert_declarations_to_cps decls
+                "wcps" -> C.convert_declarations_to_wcps decls
+                _ -> fail "Driver:do_everything: illegal format"
 
-        newlog (-2) $ "======   " ++ S.module_name p ++ "   ======"
-        fvar <- display_var
---        newlog (-2) $ genprint Inf [fvar] decls
-        newlog (-2) $ genprint Inf [fvar] cunit
+          newlog 2 $ "======   " ++ S.module_name p ++ "   ======"
+          fvar <- display_var
+          newlog 2 $ genprint Inf [fvar] cunit
 
-
-        cunit_to_llvm (S.module_name p) cunit
+          cunit_to_llvm (S.module_name p) cunit
+        else
+          return ()
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.

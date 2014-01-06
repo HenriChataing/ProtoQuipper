@@ -10,7 +10,7 @@
 -- inference. For greater efficiency, all term and type variables are
 -- labelled by a unique id, which serves as a lookup key in maps and
 -- other data structures.
-module Typing.CoreSyntax where
+module Core.Syntax where
 
 import Classes hiding ((\\))
 import Utils
@@ -21,9 +21,9 @@ import Monad.QuipperError
 
 import qualified Compiler.SimplSyntax as C
 
-import Control.Exception
 import Data.List as List
 import Data.Map (Map)
+
 
 -- ----------------------------------------------------------------------
 -- * Types
@@ -31,13 +31,14 @@ import Data.Map (Map)
 -- ----------------------------------------------------------------------
 -- ** Flags
 
--- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three values are reserved:
+-- | The type of referenced flags. A referenced flag represents a numbered
+-- flag variable. Three values are reserved:
 --
 -- *    0: the flag equal to zero (meaning not duplicable);
 --
 -- *    1: the flag equal to one (meaning duplicable);
 --
--- *    Any other value refers to a flag variable. For example, 2 means \"the second flag variable\".
+-- *    Any other value refers to a flag variable.
 type RefFlag = Int
 
 
@@ -46,7 +47,7 @@ one :: RefFlag
 one = 1
 
 -- | The flag 0.
-zero :: RefFlag 
+zero :: RefFlag
 zero = 0
 
 
@@ -59,8 +60,8 @@ instance PPrint RefFlag where
 
 
 
--- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except
--- for some that are imposed to 'Zero' or 'One' by the typing rules.
+-- | The type of values a flag can take. Initially, all flags are set to 'Unknown',
+-- except for some that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
     Unknown   -- ^ The value of the flag has not been decided yet.
   | One       -- ^ The value 1.
@@ -68,12 +69,12 @@ data FlagValue =
   deriving Show
 
 
--- | Information relevant to a flag. This contains the flag value, and potentially some debug
--- information used to raise detailed exceptions. Eventually, it will also contain
--- various things such as reversibility, control, etc.
-data FlagInfo = FInfo { 
+-- | Information relevant to a flag. This contains the flag value.
+-- Eventually, it will also contain various things such as reversibility, control, etc.
+data FlagInfo = FInfo {
   f_value :: FlagValue                              -- ^ The value of the flag.
 }
+
 
 -- ----------------------------------------------------------------------
 -- ** Types
@@ -88,34 +89,37 @@ data FlagInfo = FInfo {
 -- | The type of linear type expressions. Linear types can never be
 -- duplicable.
 data LinType =
--- Basic types
-    TVar Variable              -- ^ Type variable: /a/.
-  | TArrow Type Type           -- ^ Function type: @T -> U@.
+-- Basic types.
+    TVar Variable                -- ^ Type variable: /a/.
+  | TArrow Type Type             -- ^ Function type: @T -> U@.
 
--- Tensor types
-  | TUnit                      -- ^ Unit type: @()@.
-  | TTensor [Type]             -- ^ Tensor product: @(T1 * .. * T/n/)@.
+-- Tensor types.
+  | TUnit                        -- ^ Unit type: @()@.
+  | TTensor [Type]               -- ^ Tensor product: @(T1 * .. * T/n/)@.
 
--- Sum types
-  | TBool                      -- ^ The basic type /bool/.
-  | TInt                       -- ^ The basic type /int/.
-  | TAlgebraic Variable [Type]      -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
+-- Sum types.
+  | TBool                        -- ^ The basic type /bool/.
+  | TInt                         -- ^ The basic type /int/.
+  | TAlgebraic Algebraic [Type]  -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
 
--- Quantum related types
-  | TQubit                     -- ^ The basic type /qubit/.
-  | TCirc Type Type            -- ^ The type @circ (T, U)@.
+-- Quantum related types.
+  | TQubit                       -- ^ The basic type /qubit/.
+  | TCirc Type Type              -- ^ The type @circ (T, U)@.
 
--- Others
-  | TSynonym Synonym [Type]    -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
+-- Others.
+  | TSynonym Synonym [Type]      -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
+                                 -- Instead of immediatly replacing the synonym by its actual value,
+                                 -- the synonym name is kept in order to give more precise error
+                                 -- messages.
   deriving (Show, Eq)
 
 
 -- | The type of type expressions, which are linear types annotated
 -- with a flag.
 data Type =
-  TBang RefFlag LinType      -- ^ The type @!^n A@.
+  TBang RefFlag LinType          -- ^ The type @!^n A@.
   deriving (Show, Eq)
-    
+
 
 -- | An alternate definition of the equality between types. This function, contrarily to the default equality,
 -- compares only the skeleton of the types, ignoring the flag variables.
@@ -140,7 +144,40 @@ is_concrete :: Type -> Bool
 is_concrete typ =
   free_typ_var typ == []
 
-           
+
+-- | Remove the flag annotation from a type, returning a linear type.
+no_bang :: Type -> LinType
+no_bang (TBang _ t) = t
+
+
+-- | The constant type !0 qubit.
+qubit :: Type
+qubit = TBang 0 TQubit
+
+-- | The constant type !1 unit.
+unit :: Type
+unit = TBang 1 TUnit
+
+-- | The constant type !1 int.
+int :: Type
+int = TBang 1 TInt
+
+-- | The constant type !1 bool.
+bool :: Type
+bool = TBang 1 TBool
+
+-- | Build the type !1 circ T U.
+circ :: Type -> Type -> Type
+circ t u =
+  TBang 1 (TCirc t u)
+
+-- | Build the type !1 T -> U.
+arrow :: Type -> Type -> Type
+arrow t u =
+  TBang 1 (TArrow t u)
+
+
+
 -- | The type of type schemes. A /type scheme/ is a type expression
 -- together with universally quantified type variables /a/1, ...,
 -- /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set of
@@ -161,11 +198,6 @@ type_of_typescheme :: TypeScheme -> Type
 type_of_typescheme (TForall _ _ _ t) = t
 
 
--- | Remove the flag annotation from a type, returning a linear type.
--- This function does not make sense on typing schemes, and can only
--- be applied to types. It is an error to do otherwise.
-no_bang :: Type -> LinType
-no_bang (TBang _ t) = t
 
 
 instance KType TypeScheme where
@@ -190,7 +222,7 @@ class KType a where
 
   -- | Substitute a linear type for a type variable.
   subs_typ_var :: Int -> LinType -> a -> a
-  
+
   -- | Return the list of flag references.
   free_flag :: a -> [Int]
 
@@ -258,14 +290,14 @@ instance KType LinType where
   is_algebraic (TAlgebraic _ _) = True
   is_algebraic _ = False
 
- 
+
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
   subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
   free_flag (TBang n t) = List.insert n (free_flag t)
-  
+
   subs_flag n m (TBang p t) =
     let t' = subs_flag n m t in
     if n == p then
@@ -282,56 +314,72 @@ instance KType Type where
 -- ----------------------------------------------------------------------
 -- ** Data type definitions
 
--- | An algebraic data type definition.
-data Typedef = Typedef {
-  d_args :: Int,                                             -- ^ The number of type arguments required.
 
-  d_qdatatype :: Bool,                                       -- ^ Is this a quantum data type? Note that this flag is subject to change depending on the value of the type arguments.
-                                                             -- Its precise meaning is: assuming the type arguments are quantum data types, then the whole type is a quantum data type.
-                                                             -- For example, \"list a\" is a quantum data type on the condition that \"a\" is itself a quantum data type.
+-- | Describe the variability of an argument.
+data Variance =
+    Unrelated         -- ^ No clue.
+  | Covariant         -- ^ The argument is covariant.
+  | Contravariant     -- ^ The argument is contravariant.
+  | Equal             -- ^ The argument is both covariant and contravariant.
+  deriving Eq
 
-  d_unfolded :: ([Type], [(Datacon, Maybe Type)]),           -- ^ The unfolded definition of the type. The left component is the list of type arguments, and the right component is the unfolded type:
-                                                             -- a list of tuples (/Dk/, /Tk/) where /Dk/ is the name of the data constructor, /Tk/ the type of its optinal argument.
 
-  d_subtype :: ([Type], [Type], ConstraintSet),              -- ^ The result of breaking the constraint {user args <: user args'}. This extension to the subtyping relation
-                                                             -- is automatically inferred during the translation into the core syntax.
-  d_gettag :: Variable -> C.Expr                             -- ^ The extraction of the tag is common to all the constructors of an algebraic type.
+instance Show Variance where
+  show Unrelated = ""
+  show Equal = "="
+  show Covariant = "+"
+  show Contravariant = "-"
+
+
+-- | Return the least precise indication of the two arguments.
+join :: Variance -> Variance -> Variance
+join Unrelated v = v
+join v Unrelated = v
+join Covariant Covariant = Covariant
+join Contravariant Contravariant = Contravariant
+join _ _ = Equal
+
+
+-- Return the opposite variance.
+opposite :: Variance -> Variance
+opposite Covariant = Contravariant
+opposite Contravariant = Covariant
+opposite var = var
+
+
+
+-- | A generic type definition.
+data Typedef a = Typedef {
+  arguments :: [Variance],                 -- ^ The list of type arguments, each described by its variance.
+  definition :: ([Type], a)                -- ^ The type of the definition depends upon the kind of definition (algebraic / synonym).
 }
 
--- ----------------------------------------------------------------------
--- ** Type synonyms
 
--- | A type synonym definition, e.g., @intlist@ = @list int@.
-data Typesyn = Typesyn {
-  s_args :: Int,                                             -- ^ The number of type arguments.
+-- | Algebraic type definition.
+type Algdef = Typedef [(Datacon, Maybe Type)]
 
-  s_qdatatype :: Bool,                                       -- ^ Is this a synonym of a quantum data type?
+-- ̀| Synonym type definition.
+type Syndef = Typedef Type
 
-  s_unfolded :: ([Type], Type)                               -- ^ The unfolded type (given some argument types).
-
-  -- No subtyping relation is required, since the synonyms are automatically replaced.
-}
 
 
 -- ----------------------------------------------------------------------
--- ** Data constructors
-
+-- ** Data constructors.
 
 
 -- | A data constructor definition.
 data Datacondef = Datacondef {
-  d_datatype :: Variable,                                    -- ^ The original data type.
-
-  d_type :: TypeScheme,                                      -- ^ The type of the constructor.
-
-  d_tag :: Int,                                              -- ^ A tag (local to the type definition) uniquely identifying each constructor.
-
-  d_ref :: Variable,                                         -- ^ Data constructors with one argument must define a function representing the constructor used without its argument.
-                                                             -- For example, take the constructor \'Just\': a function is defined with the body
-                                                             -- @ fun x -> Just x @
-                                                             -- This variable records the name of definition of this function.
-  d_construct :: Either C.Expr (C.Expr -> C.Expr),           -- ^ The implementation of a data constructor.
-  d_deconstruct :: Variable -> C.Expr                        -- ^ The deconstructor associated with a data constrcuctor.
+  datatype :: Algebraic,                               -- ^ The original data type.
+  dtype :: TypeScheme,                                 -- ^ The type of the constructor.
+  tag :: Int,                                          -- ^ A tag uniquely identifying each constructor
+                                                       -- inside of a type definition.
+  implementation :: Variable,                          -- ^ Data constructors with one argument must define a function representing
+                                                       -- the constructor when not applied to an element.
+                                                       -- For example, take the constructor \'Just\': a function is defined with the body
+                                                      -- @ fun x -> Just x @
+                                                       -- This variable records this precise definition.
+  construct :: Either C.Expr (C.Expr -> C.Expr),       -- ^ The implementation of a data constructor.
+  deconstruct :: Variable -> C.Expr                    -- ^ The deconstructor associated with a data constrcuctor.
 }
 
 
@@ -343,9 +391,9 @@ type Ref = Int
 
 -- | The information contained by the above references.
 data RefInfo = RInfo {
-  r_location :: Extent,                -- ^ The extent of the expression in a file.
-  r_expression :: Either Expr Pattern, -- ^ The referenced expression.
-  r_type :: Type                      -- ^ The type of the expression.
+  extent :: Extent,                                    -- ^ The extent of the expression in a file.
+  expression :: Either Expr Pattern,                   -- ^ The referenced expression.
+  rtype :: Type                                        -- ^ The type of the expression.
 }
 
 -- ----------------------------------------------------------------------
@@ -358,7 +406,7 @@ data RefInfo = RInfo {
 -- keeping them as syntactic sugar reduces the number of variables,
 -- since the desugaring process produces new variables, one for each
 -- pair in the pattern. Here is how these patterns could be desugared:
--- 
+--
 -- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
 -- >
 -- >   let (p, q) = e in f    ==   If p, q are variables, then this is a structure of the language.
@@ -374,14 +422,14 @@ data RefInfo = RInfo {
 -- @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
     PWildcard Ref                                       -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-  | PUnit Ref                                          -- ^ Unit pattern: @()@.
+  | PUnit Ref                                           -- ^ Unit pattern: @()@.
   | PBool Ref Bool                                      -- ^ Boolean pattern: @true@ or @false@.
   | PInt Ref Int                                        -- ^ Integer pattern.
   | PVar Ref Variable                                   -- ^ Variable pattern: /x/.
   | PTuple Ref [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
   | PDatacon Ref Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PConstraint Pattern (S.Type, Map String Type)   -- ^ Constraint pattern: @(p <: T)@.
-  deriving Show 
+  | PConstraint Pattern (S.Type, Map String Type)       -- ^ Constraint pattern: @(p <: T)@.
+  deriving Show
 
 
 instance Constraint Pattern where
@@ -411,19 +459,19 @@ data Expr =
     EVar Ref Variable                                 -- ^ Variable: /x/.
   | EGlobal Ref Variable                              -- ^ Global variable from the imported modules.
   | EFun Ref Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
-  | EApp Ref Expr Expr                                -- ^ Function application: @t u@.
+  | EApp Expr Expr                                    -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
   | EUnit Ref                                         -- ^ Unit term: @()@.
   | ETuple Ref [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
-  | ELet Ref RecFlag Pattern Expr Expr                -- ^ Let-binding: @let [rec] p = e in f@.
+  | ELet RecFlag Pattern Expr Expr                    -- ^ Let-binding: @let [rec] p = e in f@.
 
 -- Custom union types
   | EBool Ref Bool                                    -- ^ Boolean constant: @true@ or @false@.
   | EInt Ref Int                                      -- ^ Integer constant.
-  | EIf Ref Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
+  | EIf Expr Expr Expr                                -- ^ Conditional: @if e then f else g@.
   | EDatacon Ref Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
-  | EMatch Ref Expr [(Pattern, Expr)]                 -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+  | EMatch Expr [(Pattern, Expr)]                     -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
 
 -- Quantum rules
   | EBox Ref Type                                     -- ^ The constant @box[T]@.
@@ -431,19 +479,18 @@ data Expr =
   | ERev Ref                                          -- ^ The constant @rev@.
 
 -- Unrelated
-  | EBuiltin Ref String                               -- ^ Built-in primitive: @#builtin s@.
   | EConstraint Expr (S.Type, Map String Type)        -- ^ Expression with type constraint: @(e <: T)@.
   deriving Show
 
 
 instance Constraint Expr where
   drop_constraints (EFun ref p e) = EFun ref (drop_constraints p) (drop_constraints e)
-  drop_constraints (EApp ref e f) = EApp ref (drop_constraints e) (drop_constraints f)
+  drop_constraints (EApp e f) = EApp (drop_constraints e) (drop_constraints f)
   drop_constraints (ETuple ref elist) = ETuple ref (List.map drop_constraints elist)
-  drop_constraints (ELet ref r p e f) = ELet ref r (drop_constraints p) (drop_constraints e) (drop_constraints f)
-  drop_constraints (EIf ref e f g) = EIf ref (drop_constraints e) (drop_constraints f) (drop_constraints g)
+  drop_constraints (ELet r p e f) = ELet r (drop_constraints p) (drop_constraints e) (drop_constraints f)
+  drop_constraints (EIf e f g) = EIf (drop_constraints e) (drop_constraints f) (drop_constraints g)
   drop_constraints (EDatacon ref dcon (Just e)) = EDatacon ref dcon $ Just (drop_constraints e)
-  drop_constraints (EMatch ref e blist) = EMatch ref (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
+  drop_constraints (EMatch e blist) = EMatch (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
   drop_constraints (EConstraint e _) = drop_constraints e
   drop_constraints e = e
 
@@ -453,56 +500,55 @@ reference :: Expr -> Ref
 reference (EVar ref _) = ref
 reference (EGlobal ref _) = ref
 reference (EFun ref _ _) = ref
-reference (EApp ref _ _) = ref
+reference (EApp _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
 reference (EUnit ref) = ref
 reference (ETuple ref _) = ref
-reference (ELet ref _ _ _ _) = ref
+reference (ELet _ _ _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
 reference (EBool ref _) = ref
 reference (EInt ref _) = ref
-reference (EIf ref _ _ _) = ref
+reference (EIf _ _ _) = throwNE $ ProgramError "Syntax:reference: unreferenced object"
 reference (EDatacon ref _ _) = ref
-reference (EMatch ref _ _) = ref
+reference (EMatch _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
 reference (EBox ref _) = ref
 reference (EUnbox ref) = ref
 reference (ERev ref) = ref
-reference (EBuiltin ref _) = ref
 reference (EConstraint e _) = reference e
 
 
 instance Param Expr where
   free_var (EVar _ x) = [x]
-  
+
   free_var (EGlobal _ x) = [x]
 
-  free_var (EFun _ p e) = 
+  free_var (EFun _ p e) =
     let fve = free_var e
         fvp = free_var p in
     fve \\ fvp
 
-  free_var (ELet _ r p e f) =
+  free_var (ELet r p e f) =
     let fve = free_var e
         fvf = free_var f
         fvp = free_var p in
     (List.union fve fvf) \\ fvp
 
-  free_var (EApp _ e f) =
+  free_var (EApp e f) =
     List.union (free_var e) (free_var f)
 
   free_var (ETuple _ elist) =
     List.foldl (\fv e -> List.union (free_var e) fv) [] elist
 
-  free_var (EIf _ e f g) =
+  free_var (EIf e f g) =
     List.union (List.union (free_var e) (free_var f)) (free_var g)
 
   free_var (EDatacon _ _ Nothing) = []
   free_var (EDatacon _ _ (Just e)) = free_var e
 
-  free_var (EMatch _ e blist) =
+  free_var (EMatch e blist) =
     let fvlist = List.foldl (\fv (p, f) ->
                                List.union (free_var f \\ free_var p) fv) [] blist
         fve = free_var e in
     List.union fve fvlist
-  
+
   free_var (EConstraint e _) =
     free_var e
 
@@ -522,7 +568,6 @@ is_value (EInt _ _) = True
 is_value (EDatacon _ _ e) = case e of
                             Nothing -> True
                             Just e -> is_value e
-is_value (EBuiltin _ _) = True
 is_value (EConstraint e _) = is_value e
 is_value (EUnbox _) = True
 is_value (EBox _ _) = True
@@ -582,7 +627,7 @@ instance Eq TypeConstraint where
 
 -- | A useful operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
-t <: u = Subtype t u no_info                              
+t <: u = Subtype t u no_info
 
 
 -- | A useful operator for writing a set of constraints of the form @T1, ..., Tn <: U@.
@@ -758,7 +803,7 @@ chain_constraints l =
     Just c -> case c of
                 Sublintype _ (TVar y) _ -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
-  
+
     Nothing -> case List.find (\c -> case c of
                                        Sublintype _ (TVar _) _ -> False
                                        _ -> True) l of
@@ -841,7 +886,7 @@ instance KType ConstraintSet where
   free_flag (lc, fc) =
     let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
         fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
-    List.union ffl fff 
+    List.union ffl fff
 
   subs_flag n m (lc, fc) =
     let lc' = List.map (subs_flag n m) lc
@@ -858,7 +903,7 @@ instance KType ConstraintSet where
 
   -- Not implemented.
   is_algebraic _ = False
-  
+
   -- Not implemented.
   is_synonym _ = False
 

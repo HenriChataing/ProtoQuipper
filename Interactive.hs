@@ -5,18 +5,19 @@ import Options
 import Classes
 import Console
 import Utils
+import Driver
 
 import Parsing.Lexer
 import Parsing.Parser
 import Parsing.Location
 import qualified Parsing.Syntax as S
 
-import Typing.CoreSyntax
+import Core.Syntax
+import Core.Translate
+import Core.LabellingContext as L
+
 import Typing.TypingContext
-import Typing.Driver
-import Typing.TransSyntax
 import Typing.Subtyping
-import Typing.LabellingContext as L
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
 
@@ -48,7 +49,7 @@ import_modules :: Options                     -- ^ The command line options. Thi
                -> [String]                    -- ^ The list of modules to import.
                -> ExtensiveContext            -- ^ The context of the interactive mode.
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
-import_modules opts mnames ctx = do 
+import_modules opts mnames ctx = do
   -- Build the dependencies (with a dummy module that is removed immediately)
   deps <- build_dependencies (includes opts) S.dummy_program { S.imports = mnames }
   deps <- return $ List.init $ deps
@@ -78,7 +79,6 @@ import_modules opts mnames ctx = do
                 _ <- process_module (opts, mopts) p
                 return ()
           return ctx) (return ctx) deps
-  set_file file_unknown
   return ctx
 
 
@@ -105,7 +105,7 @@ run_command opts prog ctx = do
 -- Two kind of commands are interpreted:
 --
 -- * Proto-Quipper code: anything that contains the string \";;\".
---   Multi-line commands are permitted. Anything that is part of a module implementation can be passed as a command: import statements, 
+--   Multi-line commands are permitted. Anything that is part of a module implementation can be passed as a command: import statements,
 --   type definitions, and top-level declarations.
 --
 -- * Context commands: any command starting with the prefix \":\". These commands occupy a single line, and give information about the
@@ -121,7 +121,7 @@ run_interactive opts ctx buffer = do
 
   -- Check the command
   case l of
-    Nothing -> do 
+    Nothing -> do
         -- Quit the interactive mode
         liftIO $ putStrLn ""
         liftIO $ hFlush stdout
@@ -161,12 +161,12 @@ run_interactive opts ctx buffer = do
                       rec
                       liftIO $ putStrLn $ c ++ (List.replicate (w - List.length c) ' ') ++ descr) (return ()) commands
                 run_interactive opts ctx []
-                
+
             [":exit"] -> do
-                exit ctx  
+                exit ctx
 
             [":context"] -> do
-                IMap.foldWithKey (\x a rec -> do 
+                IMap.foldWithKey (\x a rec -> do
                       rec
                       let (TForall _ _ _ (TBang f b)) = a
                       v <- flag_value f
@@ -197,7 +197,7 @@ run_interactive opts ctx buffer = do
                         case S.body p of
                           [] ->
                               liftIO $ putStrLn "-: ()"
-                         
+
                           _ -> do
                               S.DExpr e <- return $ List.head (S.body p)
 
@@ -211,7 +211,7 @@ run_interactive opts ctx buffer = do
                               -- Type e. The constraints from the context are added for the unification.
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
                               inferred <- map_type a >>= pprint_type_noref
 
@@ -248,7 +248,7 @@ run_interactive opts ctx buffer = do
                                   liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v
                               Nothing ->
                                   fail $ "Interactive:run_interactive: undefined variable: " ++ show x
-                        
+
                         Nothing ->
                             liftIO $ putStrLn $ "Unknown variable " ++ n) (return ()) args
 
@@ -265,7 +265,7 @@ run_interactive opts ctx buffer = do
                         case S.body p of
                           [] ->
                               liftIO $ putStrLn "-: ()"
-                         
+
                           _ -> do
                               S.DExpr e <- return $ List.head (S.body p)
 
@@ -282,10 +282,10 @@ run_interactive opts ctx buffer = do
 
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite True
+                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
                               inferred <- map_type a
-   
+
                               endtype <- get_context >>= return . type_id
                               endflag <- get_context >>= return . flag_id
 
@@ -313,8 +313,8 @@ run_interactive opts ctx buffer = do
                 run_interactive opts ctx []
 
         else
-          run_interactive opts ctx (l:buffer) 
- 
+          run_interactive opts ctx (l:buffer)
+
 -- | A list of valid context commands, associated with their descriptions.
 -- The commands are (for now):
 --
@@ -330,8 +330,8 @@ commands :: [(String, String)]
 commands = [
   (":help", "Show the list of commands"),
   (":exit", "Quit the interactive mode"),
-  (":path", "Add a directory to the current module path"), 
-  (":type", "Show the simplified type of an expression"), 
+  (":path", "Add a directory to the current module path"),
+  (":type", "Show the simplified type of an expression"),
   (":fulltype", "Show the detailed type of an expression"),
   (":context", "List the currently declared variables"),
   (":display", "Display the current toplevel circuit"),
@@ -349,7 +349,7 @@ exit ctx = do
         let (TForall _ _ _ (TBang f _)) = a
         v <- flag_value f
         case v of
-          Zero -> do 
+          Zero -> do
               n <- variable_name x
               return $ n:ndup
           _ ->

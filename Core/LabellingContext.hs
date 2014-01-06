@@ -1,18 +1,18 @@
--- | This module gives the definition of a labelling context, used to represent
--- the variables, data constructors and type names currently in scope.
-module Typing.LabellingContext where
+-- | This module contains the definition of labelling contexts, used to respesent
+-- the scope of variables, data constructors and types.
+module Core.LabellingContext where
 
 import Classes
 import Utils
 
-import Typing.CoreSyntax
+import Core.Syntax
 
 import Data.Map (Map)
 import qualified Data.Map as Map
 
 
 -- ----------------------------------------------------------------------
--- * Labelling context
+-- * Labelling context.
 
 
 -- | The type of variables in a labelling context; these can be either
@@ -20,7 +20,7 @@ import qualified Data.Map as Map
 data LVariable =
     LVar Variable       -- ^ Variable: /x/.
   | LGlobal Variable    -- ^ Global variable from the imported modules.
-
+  deriving (Show)
 
 
 -- | Labelling context: it contains the variable identifiers of all the variables, data constructors,

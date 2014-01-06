@@ -25,7 +25,7 @@ $infix1 = ['\@' '\^']
 $infix2 = ['\+' '\-']
 $infix3 = ['\*' '\/' '\%' '\=']
 $symbolchar = [$infix0 $infix1 $infix2 $infix3 '\%' '\.' '\:']
-$printable_char = [^ \" \\] 
+$printable_char = [^ \" \\]
 $escape_char = [0 a b f n r t v \" \' \\]
 
 tokens :-
@@ -49,7 +49,7 @@ tokens :-
   "->"                                { locate_token TkRArrow }
   "<-"                                { locate_token TkLArrow }
   "<-*"                               { locate_token TkLArrowStar }
-  "("                                 { locate_token TkLParen } 
+  "("                                 { locate_token TkLParen }
   ")"                                 { locate_token TkRParen }
   "["                                 { locate_token TkLBracket }
   "]"                                 { locate_token TkRBracket }
@@ -83,7 +83,6 @@ tokens :-
   unbox                               { locate_token TkUnbox }
   val                                 { locate_token TkVal }
   with                                { locate_token TkWith }
-  "#builtin"                          { locate_token TkBuiltin }
 
   $digit+                             { locate_named_token TkInt }
   $up_alpha $chars* \. $low_alpha $chars* { locate_named_token TkQLId }
@@ -92,9 +91,9 @@ tokens :-
   $up_alpha $chars*                   { locate_named_token TkUId }
 
   $infix0 $symbolchar*                { locate_named_token TkInfix0 }
-  $infix1 $symbolchar*                { locate_named_token TkInfix1 } 
-  $infix2 $symbolchar*                { locate_named_token TkInfix2 } 
-  $infix3 $symbolchar*                { locate_named_token TkInfix3 } 
+  $infix1 $symbolchar*                { locate_named_token TkInfix1 }
+  $infix2 $symbolchar*                { locate_named_token TkInfix2 }
+  $infix3 $symbolchar*                { locate_named_token TkInfix3 }
 
   [^tokens]                           { locate_named_token TkUnknownToken }
 
@@ -133,7 +132,7 @@ read_char s =
     _ -> throwNE $ ProgramError $ "Lexer:read_char: illegal argument: " ++ s
 
 
--- | The type of lexical tokens. 
+-- | The type of lexical tokens.
 -- Each token is annotated with an 'Extent', which records the location of the token
 -- in the original file. These extents are later also used to record the location of parsed expressions.
 -- The tokens can be divided into five categories: name tokens (variables and data constructors),
@@ -163,17 +162,16 @@ data Token =
   | TkInteger Extent       -- ^ The reserved name \'int'.
   | TkLet Extent           -- ^ The reserved name \'let'.
   | TkMatch Extent         -- ^ The reserved name \'match'.
-  | TkOf Extent            -- ^ The reserved name \'of'. 
+  | TkOf Extent            -- ^ The reserved name \'of'.
   | TkQuBit Extent         -- ^ The reserved name \'qubit'.
-  | TkRec Extent           -- ^ The reserved name \'rec'. 
+  | TkRec Extent           -- ^ The reserved name \'rec'.
   | TkRev Extent           -- ^ The reserved name \'rev'.
   | TkThen Extent          -- ^ The reserved name \'then'.
   | TkTrue Extent          -- ^ The reserved name \'true'.
   | TkType Extent          -- ^ The reserved name \'type'.
   | TkUnbox Extent         -- ^ The reserved name \'unbox'.
   | TkVal Extent           -- ^ The reserved name \'val'.
-  | TkWith Extent          -- ^ The reserved name \'with'. 
-  | TkBuiltin Extent       -- ^ The reserved name \'\#builtin'.
+  | TkWith Extent          -- ^ The reserved name \'with'.
 
   -- Punctuation marks, and other symbols
   | TkWildcard Extent      -- ^ The symbol \'@_@'.
@@ -219,8 +217,8 @@ instance Show Token where
   show (TkQLId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkQUId (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
   show (TkInt (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
-  show (TkString (ex,s)) = "'\"" ++ s ++ "\"' (" ++ show ex ++ ")" 
-  show (TkChar (ex, s)) = "'" ++ showLitChar s "" ++ "' (" ++ show ex ++ ")" 
+  show (TkString (ex,s)) = "'\"" ++ s ++ "\"' (" ++ show ex ++ ")"
+  show (TkChar (ex, s)) = "'" ++ showLitChar s "" ++ "' (" ++ show ex ++ ")"
   show (TkUnknownToken (ex, s)) = "'" ++ s ++ "' (" ++ show ex ++ ")"
 
   show (TkAnd ex) = "'and' (" ++ show ex ++ ")"
@@ -245,8 +243,7 @@ instance Show Token where
   show (TkType ex) = "'type' (" ++ show ex ++ ")"
   show (TkUnbox ex) = "'unbox' (" ++ show ex ++ ")"
   show (TkVal ex) = "'val' (" ++ show ex ++ ")"
-  show (TkWith ex) = "'with' (" ++ show ex ++ ")" 
-  show (TkBuiltin ex) = "'#builtin' (" ++ show ex ++ ")"
+  show (TkWith ex) = "'with' (" ++ show ex ++ ")"
 
   show (TkWildcard ex) = "'_' (" ++ show ex ++ ")"
   show (TkStar ex) = "'*' (" ++ show ex ++ ")"
@@ -290,7 +287,7 @@ locate_named_token tk p bs =
 
 -- | Change the location file of a token.
 locate_token_in_file :: String -> Token -> Token
-locate_token_in_file f (TkLId (ex, s)) = TkLId (ex { file = f }, s) 
+locate_token_in_file f (TkLId (ex, s)) = TkLId (ex { file = f }, s)
 locate_token_in_file f (TkUId (ex, s)) = TkUId (ex { file = f}, s)
 locate_token_in_file f (TkQLId (ex, s)) = TkQLId (ex { file = f }, s)
 locate_token_in_file f (TkQUId (ex, s)) = TkQUId (ex { file = f }, s)
@@ -322,7 +319,6 @@ locate_token_in_file f (TkType ex) = TkType ex { file = f }
 locate_token_in_file f (TkUnbox ex) = TkUnbox ex { file = f }
 locate_token_in_file f (TkVal ex) = TkVal ex { file = f }
 locate_token_in_file f (TkWith ex) = TkWith ex { file = f }
-locate_token_in_file f (TkBuiltin ex) = TkBuiltin ex { file = f }
 
 locate_token_in_file f (TkWildcard ex) = TkWildcard ex { file = f }
 locate_token_in_file f (TkStar ex) = TkStar ex { file = f }
@@ -365,5 +361,6 @@ mylex filename contents = do
                            TkUnknownToken _ -> True
                            _ -> False) tokens of
     Just (TkUnknownToken (ex, s)) -> throwQ (LexicalError s) ex
-    _ -> return tokens 
+    _ -> return tokens
 }
+

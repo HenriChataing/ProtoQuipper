@@ -11,9 +11,9 @@ module Typing.TypingContext where
 import Utils
 import Classes
 
-import Typing.CoreSyntax
-import Typing.TransSyntax
-import Typing.LabellingContext as L
+import Core.Syntax
+import Core.Translate
+import Core.LabellingContext as L
 
 import Monad.QpState
 import Monad.QuipperError
@@ -48,7 +48,6 @@ type_of x ctx = do
     Just t ->
         return t
     Nothing -> do
-        c <- get_context
         ex <- get_location
         name <- variable_name x
         fail $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
@@ -74,16 +73,16 @@ bind_pattern (PUnit _) = do
 -- Boolean pattern
 bind_pattern (PBool _ b) = do
   return (TBang 0 TBool, IMap.empty, emptyset)
-  
+
 -- Integer pattern
 bind_pattern (PInt _ n) = do
   return (TBang 0 TInt, IMap.empty, emptyset)
-  
+
 -- While binding variables, a new type is generated, and bound to x
 bind_pattern (PVar ref x) = do
   -- Create a new type, add some information to the flag
   a <- new_type
-  update_ref ref (\ri -> Just ri { r_type = a })
+  update_ref ref (\ri -> Just ri { rtype = a })
   -- The binding is returned in a singleton map, and no constraints are generated
   return (a, IMap.singleton x a, emptyset)
 
@@ -99,9 +98,9 @@ bind_pattern (PTuple _ plist) = do
 
 -- Data constructors
 bind_pattern (PDatacon _ dcon p) = do
-  -- Retrieves the type of data constructor 
+  -- Retrieves the type of data constructor
   dtype <- datacon_type dcon
-  
+
   -- Instantiate the type
   (typ, cset) <- instantiate dtype
 
@@ -138,7 +137,7 @@ bind_pattern (PConstraint p (t, typs)) = do
 -- | Return the set of annotation flags of the context.
 context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
 context_annotation ctx = do
-  return $ IMap.foldWithKey aux [] ctx 
+  return $ IMap.foldWithKey aux [] ctx
     where
       aux x (TForall _ _ _ (TBang f _)) ann = (x, f):ann
 

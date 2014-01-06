@@ -3,7 +3,7 @@
 
 
 -- | This module provides a type enumerating the errors that can be thrown by the lexer, parser, type inference algorithm, interpreter or compiler.
--- These errors will be divided between these categories. 
+-- These errors will be divided between these categories.
 module Monad.QuipperError where
 
 import Prelude hiding (print)
@@ -53,7 +53,7 @@ throw err ext =
   case ext of
     Nothing ->
         E.throw $ QuipperError $ printE err extent_unknown
-    Just ext -> 
+    Just ext ->
         E.throw $ QuipperError $ printE err ext
 
 
@@ -95,7 +95,7 @@ instance Show FileError where
   show (DuplicateImplementation mod p1 p2) =
     "several existing implementations of the module " ++ mod ++ " have been found:\n" ++
     "    at: " ++ p1 ++ "\n" ++
-    "    at: " ++ p2 
+    "    at: " ++ p2
 
   show (CircularDependency mod includes) =
     "circular module dependency:\n" ++
@@ -105,7 +105,7 @@ instance Show FileError where
 
 
 
--- | Enumeration of lexing errors. 
+-- | Enumeration of lexing errors.
 data LexicalError =
     LexicalError String                                                                   -- ^ Lexical error, thrown when an unknown token is read.
   deriving (Typeable)
@@ -118,11 +118,11 @@ instance QError LexicalError where
 instance Show LexicalError where
   show (LexicalError msg) =
     "unknown token " ++ msg
- 
+
 
 
 -- | Enumeration of parsing and syntax errors.
-data SyntaxError = 
+data SyntaxError =
     ParsingError String                                                                   -- ^ Parsing error, the argument is the token on which the error occurred.
   | ParsingOtherError String                                                              -- ^ Other parsing error (e.g., bad pattern).
   | EndOfFileError                                                                        -- ^ Thrown when the parser arrived at the end of a file with an incomplete expression.
@@ -134,6 +134,7 @@ data SyntaxError =
   | UnboundDatacon String                                                                 -- ^ Data constructor not in scope. The arguments are name and location of the constructor.
   | UndefinedType String                                                                  -- ^ Type definition not in scope. The arguments are name and location of the constructor.
   | UndefinedBuiltin String                                                               -- ^ As the name indicates, the program tried to used an undefined built-in operation.
+  | UnboundModule String                                                                  -- ^ When a reference to an undefined module is used.
   deriving (Typeable)
 
 
@@ -170,6 +171,8 @@ instance Show SyntaxError where
   show (UndefinedBuiltin s) =
     "undefined builtin operator " ++ s
 
+  show (UnboundModule m) =
+    "unbound module " ++ m
 
 
 -- | Enumeration of the run-time errors. Most don't make sense as they can be detected as soon as the type inference.
@@ -199,7 +202,7 @@ instance Show RuntimeError where
 
   show (NotFunctionError v) =
     v ++ " is not a function"
-  
+
   show (MatchingError p q) =
     "can't bind the objects " ++ p ++ " and " ++ q
 
@@ -208,16 +211,16 @@ instance Show RuntimeError where
 
   show (WrongDataArguments dcon) =
     "the data constructor " ++ dcon ++ " expects no arguments, but has been given one"
- 
+
   show (UserError msg) =
     msg
 
 
--- | Enumeration of all typing errors. 
+-- | Enumeration of all typing errors.
 data TypingError =
     TypingError String String                                                             -- ^ Typing error, but missing detailed information. The goal is to have as few of them as possible.
 
-  | DetailedTypingError String String (Maybe String) String                               -- ^ Typing error: the two first arguments are the types that couldn't be matched (the first the actual type, 
+  | DetailedTypingError String String (Maybe String) String                               -- ^ Typing error: the two first arguments are the types that couldn't be matched (the first the actual type,
                                                                                           -- the other one the expected type), the next string locates the actual type inside of a larger one, the
                                                                                           -- last string is the expression cause of the typing error, and the rest is the location.
 
@@ -308,7 +311,7 @@ instance Show Warning where
     "this pattern matching is not exhaustive:\n" ++
     "    the case\n" ++
     c ++ "\n" ++
-    "    is not matched" 
+    "    is not matched"
   show (UnexhaustiveMatch cases) =
     "this pattern matching is not exhaustive:\n" ++
     "    the cases\n" ++

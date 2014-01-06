@@ -19,9 +19,7 @@ import Data.Word (Word32, Word64)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-import System.IO.Unsafe
 import System.IO (hFlush, stdout)
-
 
 import Debug.Trace
 
@@ -55,9 +53,10 @@ declare_globals [] =
   return $ return IMap.empty
 declare_globals (gx:gxs) = do
   name <- variable_name gx
+  mod <- variable_module gx
   vals <- declare_globals gxs
   return $ do
-        ngx <- createNamedGlobal False ExternalLinkage name (constOf 0) :: TGlobal ArchInt
+        ngx <- createNamedGlobal False ExternalLinkage ("_" ++ mod ++ "_" ++ name) (constOf 0) :: TGlobal ArchInt
         vals <- vals
         return $ IMap.insert gx (LVIntPtr ngx) vals
 
@@ -66,32 +65,42 @@ declare_globals (gx:gxs) = do
 declare_module_functions :: Linkage -> [(Variable, [Variable], CExpr)] -> QpState (CodeGenModule LContext)
 declare_module_functions linkage [] =
   return $ return IMap.empty
-declare_module_functions linkage ((f, [_,_], _):fs) = do
+declare_module_functions ExternalLinkage ((f, arg, _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions linkage fs
-  return (do
-        vf <- case linkage of
-              ExternalLinkage ->
-                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
-              _ ->
-                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun2 vf) m
-      )
-declare_module_functions linkage ((f, [_,_,_], _):fs) = do
+  mod <- variable_module f
+  vals <- declare_module_functions ExternalLinkage fs
+  let fname = "_" ++ mod ++ "_" ++ nf
+  case arg of
+    [_,_] ->
+        return (do
+          vf <- newNamedFunction ExternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun2 vf) m
+        )
+    [_,_,_] ->
+        return (do
+          vf <- newNamedFunction ExternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun3 vf) m
+        )
+    _ -> fail "LlvmExport:declare_module_functions: illegal argument"
+declare_module_functions _ ((f, arg, _):fs) = do
   nf <- variable_name f
-  vals <- declare_module_functions linkage fs
-  return (do
-        vf <- case linkage of
-              ExternalLinkage ->
-                  newNamedFunction ExternalLinkage nf :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt-> IO ArchInt))
-              _ ->
-                  newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
-        m <- vals
-        return $ IMap.insert f (LVFun3 vf) m
-      )
-declare_module_functions _ _ = do
-  fail "CPStpLLVM:declare_module_functions: illegal argument"
+  vals <- declare_module_functions InternalLinkage fs
+  case arg of
+    [_,_] ->
+        return (do
+          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun2 vf) m
+        )
+    [_,_,_] ->
+        return (do
+          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+          m <- vals
+          return $ IMap.insert f (LVFun3 vf) m
+        )
+    _ -> fail "LlvmExport:declare_module_functions: illegal argument"
 
 
 -- | Proceed to the definition of the module functions.
@@ -233,20 +242,22 @@ cexpr_to_llvm vals (CAccess n x y c) = do
   -- translate the continuation
   cexpr_to_llvm (IMap.insert y (LVInt vy) vals) c
 
-cexpr_to_llvm vals (CSwitch x clist) = do
+cexpr_to_llvm vals (CSwitch x clist def) = do
   -- translate the value v, and check that it is indeed an integer
   vx <- cvalue_to_int  vals x
-  -- build the switch cases
-  cases <- List.foldl (\rec c -> do
+  -- Build the switch cases.
+  cases <- List.foldl (\rec (n, c) -> do
+        let tag = constOf $ fromIntegral n
         blocks <- rec
         block <- createBasicBlock
         cexpr_to_llvm vals c
-        return $ block:blocks) (return []) clist
-  let tags = List.map (constOf . fromIntegral) [0..List.length clist - 2]    -- the last case is omited for it will be the default jump target
+        return $ (tag, block):blocks) (return []) clist
+  -- Build he default block.
+  bdef <- createBasicBlock
+  cexpr_to_llvm vals def
 
-  let (bcases, dcase) = (List.init cases, List.last cases)
-
-  switch vx dcase $ List.zip tags bcases
+  -- Build the final expression.
+  switch vx bdef cases
 
 cexpr_to_llvm vals (CSet x v) = do
   vx <- cvalue_to_int  vals (VVar x)
@@ -273,10 +284,12 @@ cunit_to_llvm mods cu = do
         case v of
           VGlobal x -> do
               n <- variable_name x
-              return $ IMap.insert x (LVExtern n) vals
+              mod <- variable_module x
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
           VLabel x -> do
               n <- variable_name x
-              return $ IMap.insert x (LVExtern n) vals
+              mod <- variable_module x
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
           _ -> return vals) (return IMap.empty) (imports cu)
 
   -- declare the global variables
@@ -298,12 +311,17 @@ cunit_to_llvm mods cu = do
                     cexpr_to_llvm vals cinit
                     rec
                   ) (ret $ valueOf (fromIntegral 0 :: Int64)) (vglobals cu) :: CodeGenModule (Function (IO ArchInt))
-        main <- createNamedFunction ExternalLinkage "main" $ do
-              _ <- call initm
-              ret $ valueOf (fromIntegral 0 :: Int64)
-        let _ = main :: Function (IO ArchInt)
-        return ()
+        -- Define the main function, if need be.
+        case main cu of
+          Just body -> do
+              main <- createNamedFunction ExternalLinkage "main" $ do
+                    _ <- call initm
+                    cexpr_to_llvm vals body
+              let _ = main :: Function (IO ArchInt)
+              return ()
+          Nothing ->
+              return ()
 
-  liftIO $ writeBitcodeToFile (mods ++ ".ir") mod
+  liftIO $ writeBitcodeToFile (mods ++ ".bc") mod
 
 

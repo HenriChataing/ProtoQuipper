@@ -4,56 +4,59 @@
 -- Circ (T, U), making them readily useable.
 
 -- INIT AND TERM
-let init0 = unbox (#builtin INIT0) ;;
-let init1 = unbox (#builtin INIT1) ;;
+let init0 = unbox g_init0 ;;
+let init1 = unbox g_init1 ;;
 
-let term0 = unbox (#builtin TERM0) ;;
-let term1 = unbox (#builtin TERM1) ;;
+let term0 = unbox g_term0 ;;
+let term1 = unbox g_term1 ;;
 
-let qinit b = if b then
-                init1 ()
-              else
-                init0 ()
+let qinit b =
+  if b then
+    init1 ()
+  else
+    init0 ()
 ;;
 
-let qterm b q = if b then
-                  term1 q
-                else
-                  term0 q
+let qterm b q =
+  if b then
+    term1 q
+  else
+    term0 q
 ;;
 
 -- UNARY
-let hadamard = unbox (#builtin GATE_H) ;;
-let qnot = unbox (#builtin GATE_NOT) ;;
+let hadamard = unbox g_hadamard ;;
+let qnot = unbox g_not ;;
 
-let gateOmega = unbox (#builtin GATE_OMEGA) ;;
-let gateE = unbox (#builtin GATE_E) ;;
-let gateEInv = unbox (#builtin GATE_E_INV) ;;
+let gateOmega = unbox g_omega ;;
+let gateE = unbox g_e ;;
+let gateEInv = unbox g_e_inv ;;
 
-let gateX = unbox (#builtin GATE_X) ;;
-let gateY = unbox (#builtin GATE_Y) ;;
-let gateZ = unbox (#builtin GATE_Z) ;;
+let gateX = unbox g_x ;;
+let gateY = unbox g_y ;;
+let gateZ = unbox g_z ;;
 
-let gateT = unbox (#builtin GATE_T) ;;
-let gateTInv = unbox (#builtin GATE_T_INV) ;;
-let gateS = unbox (#builtin GATE_S) ;;
-let gateSInv = unbox (#builtin GATE_S_INV) ;;
+let gateT = unbox g_t ;;
+let gateTInv = unbox g_t_inv ;;
+let gateS = unbox g_s ;;
+let gateSInv = unbox g_s_inv ;;
 
-let phase n = unbox (#builtin PHASE n) ;;
-let exp_itZ = unbox (#builtin GATE_EITZ) ;;
+let phase n = unbox (g_phase n) ;;
+let exp_itZ = unbox g_eitz ;;
 
 -- BINARY
-let gateW = unbox (#builtin GATE_W) ;;
+let gateW = unbox g_w ;;
 
-let cnot_signed sign = unbox (#builtin CNOT sign) ;;
+let cnot_signed sign = unbox (g_cnot sign) ;;
 let cnot = cnot_signed true ;;
 
-let cphase_signed n sign = unbox (#builtin CONTROL_PHASE n sign) ;;
+let cphase_signed n sign = unbox (g_control_phase n sign) ;;
 let cphase n = cphase_signed n true ;;
 
-let cexp_itZ_signed sign = unbox (#builtin CONTROL_GATE_EITZ sign) ;;
+let cexp_itZ_signed sign = unbox (g_control_eitz sign) ;;
 let cexp_itZ = cexp_itZ_signed true ;;
 
 -- TERNARY
-let toffoli_signed s1 s2 = unbox (#builtin TOFFOLI s1 s2) ;;
+let toffoli_signed s1 s2 = unbox (g_toffoli s1 s2) ;;
 let toffoli = toffoli_signed true true ;;
+

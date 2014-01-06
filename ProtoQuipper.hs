@@ -6,10 +6,13 @@ module Main where
 import Monad.QuipperError
 import qualified Monad.QpState as Q
 
-import Typing.CoreSyntax
-import Typing.Driver
-import Typing.TransSyntax
-import Typing.LabellingContext
+import Core.Syntax
+
+import Driver
+import Builtins
+
+import Core.Translate
+import Core.LabellingContext
 
 import System.IO
 import System.Environment
@@ -45,7 +48,9 @@ main = do
     [] -> do
         putStrLn "### Proto-Quipper -- Interactive Mode ###"
         _ <- Q.runS (do
-            run_interactive opts (Context { labelling = empty_label,
+            define_builtins
+            lbl <- Q.global_namespace []
+            run_interactive opts (Context { labelling = lbl,
                                             typing = IMap.empty,
                                             environment = IMap.empty, constraints = emptyset }) []
             return ()) Q.empty_context

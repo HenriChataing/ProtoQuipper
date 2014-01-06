@@ -3,14 +3,14 @@
 
 
 -- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType', 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the source code.
-module Typing.CorePrinter where
+module Core.Printer where
 
 import Classes hiding ((<+>))
 import Utils
 
 import Monad.QuipperError
 
-import Typing.CoreSyntax hiding ((<>))
+import Core.Syntax hiding ((<>))
 
 import Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
@@ -63,7 +63,7 @@ instance PPrint LinType where
                      TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts b ++ ")"
                      TBang _ (TTensor _) -> "(" ++ genprint dlv opts b ++ ")"
                      _ -> genprint dlv opts b )) "" rest
-  genprint lv opts (TTensor []) = 
+  genprint lv opts (TTensor []) =
     throwNE $ ProgramError "CorePrinter:genprint(LinType): empty tensor"
 
   genprint lv opts (TArrow a b) =
@@ -92,18 +92,18 @@ instance PPrint Type where
     case (fflag n, a) of
       -- No flag
       ("", _) -> genprint (decr lv) opts a
-       
+
       -- Flag, check whether parenthesis are necessary
       (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
       (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
       (f, _) -> f ++ genprint (decr lv) opts a
-  genprint lv _ (TBang n a) = 
+  genprint lv _ (TBang n a) =
     throwNE $ ProgramError "CorePrinter:genprint(Type): illegal argument"
 
   -- Print unto Lvl = n
   -- The default functions are the same as with linear types
   sprintn lv a = genprint lv [pprint, prevar "X", prevar "T"] a
- 
+
 
 
 -- | Printing of type schemes. The generic function 'genprint'
@@ -173,7 +173,7 @@ print_doc :: Lvl                   -- ^ Maximum depth.
 print_doc _ (EUnit _) _ _ =
   text "()"
 
-print_doc _ (EBool _ b) _ _ = 
+print_doc _ (EBool _ b) _ _ =
   if b then text "true" else text "false"
 
 print_doc _ (EInt _ n) _ _ =
@@ -195,13 +195,10 @@ print_doc _ (ERev _) _ _ =
 print_doc _ (EDatacon _ datacon Nothing) _ fdata =
   text $ fdata datacon
 
-print_doc _ (EBuiltin _ s) _ _=
-  text "#builtin" <+> text s
-
 print_doc (Nth 0) _ _ _ =
   text "..."
 
-print_doc lv (ELet _ r p e f) fvar fdata =
+print_doc lv (ELet r p e f) fvar fdata =
   let dlv = decr lv in
   let recflag = if r == Recursive then text "rec" else empty in
   text "let" <+> recflag <+> text (genprint dlv [fvar, fdata] p) <+> equals <+> print_doc dlv e fvar fdata <+> text "in" $$
@@ -213,16 +210,16 @@ print_doc lv (ETuple _ elist) fvar fdata =
   let slist = punctuate comma plist in
   char '(' <> hsep slist <> char ')'
 
-print_doc lv (EApp _ e f) fvar fdata =
+print_doc lv (EApp e f) fvar fdata =
   let dlv = decr lv in
   let pe = print_doc dlv e fvar fdata
       pf = print_doc dlv f fvar fdata in
   (case e of
      EFun _ _ _ -> parens pe
-     _ -> pe) <+> 
+     _ -> pe) <+>
   (case f of
      EFun _ _ _ -> parens pf
-     EApp _ _ _ -> parens pf
+     EApp _ _ -> parens pf
      _ -> pf)
 
 print_doc lv (EFun _ p e) fvar fdata =
@@ -230,7 +227,7 @@ print_doc lv (EFun _ p e) fvar fdata =
   text "fun" <+> text (genprint dlv [fvar, fdata] p) <+> text "->" $$
   nest 2 (print_doc dlv e fvar fdata)
 
-print_doc lv (EIf _ e f g) fvar fdata =
+print_doc lv (EIf e f g) fvar fdata =
   let dlv = decr lv in
   text "if" <+> print_doc dlv e fvar fdata <+> text "then" $$
   nest 2 (print_doc dlv f fvar fdata) $$
@@ -245,7 +242,7 @@ print_doc lv (EDatacon _ datacon (Just e)) fvar fdata =
                               EVar _ _ -> pe
                               _ -> parens pe)
 
-print_doc lv (EMatch _ e blist) fvar fdata =
+print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
@@ -305,7 +302,7 @@ instance PPrint ConstraintSet where
     let screenw = 120 in
     let plcs = List.map (\c -> genprint Inf opts c) lcs in
     let maxw = List.maximum $ List.map List.length plcs in
-    let nline = screenw `quot` (maxw + 5) in 
+    let nline = screenw `quot` (maxw + 5) in
 
     let slcons = fst $ List.foldl (\(s, nth) pc ->
                         let padding = List.take (maxw - List.length pc + 5) $ List.repeat ' ' in

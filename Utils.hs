@@ -27,6 +27,17 @@ string_toLower :: String -> String
 string_toLower [] = []
 string_toLower (h:t) = Char.toLower h : t
 
+
+-- |  Convert a whole string to lower case.
+toLower :: String -> String
+toLower = List.map Char.toLower
+
+
+-- |  Convert a whole string to lower case.
+toUpper :: String -> String
+toUpper = List.map Char.toUpper
+
+
 -- | Convert a digit to the equivalent Unicode subscript character.
 subdigit :: Int -> Char
  -- Subscript digits are \x2080 .. \x2089
@@ -80,14 +91,14 @@ module_of_file f =
 
 
 -- | Input a list of sets, and output the set of those elements that
--- occur in exactly one of the given sets. 
--- 
--- Note that this is not a pairwise operation: 
--- 
+-- occur in exactly one of the given sets.
+--
+-- Note that this is not a pairwise operation:
+--
 -- > linear_union [x,y,z]
--- 
+--
 -- is not the same as
--- 
+--
 -- > linear_union [x, linear_union [y,z]].
 linear_union :: Eq a => [[a]] -> [a]
 linear_union l =
@@ -99,7 +110,7 @@ linear_union l =
 -- | Delete whitespace from the end of a string.
 trim_end :: String -> String
 trim_end [] = []
-trim_end (h:t) 
+trim_end (h:t)
   | isSpace h =
     if t' == "" then "" else h:t'
   | otherwise =
@@ -109,7 +120,7 @@ trim_end (h:t)
 
 -- | Check whether the first string is a suffix of the second one,
 -- possibly followed by whitespace.
-string_ends_with :: String -> String -> Bool 
+string_ends_with :: String -> String -> Bool
 string_ends_with suffix string = List.isSuffixOf suffix (trim_end string)
 
 
@@ -188,5 +199,5 @@ has_qubits (QTensor qlist) =
 has_qubits QQubit = True
 has_qubits _ = False
 
- 
+
 

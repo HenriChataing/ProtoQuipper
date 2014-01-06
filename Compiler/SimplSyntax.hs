@@ -32,11 +32,9 @@ data Expr =
 -- Custom union types
   | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
   | EInt Int                                      -- ^ Integer constant.
-  | EIf Expr Expr Expr                            -- ^ Conditional: @if e then f else g@.
-  | EMatch Expr [(Int, Expr)]                     -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+  | EMatch Expr [(Int, Expr)] Expr                -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@. The last expression is the default case.
 
 -- Unrelated
-  | EBuiltin String                               -- ^ Built-in primitive: @#builtin s@.
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
   deriving Show
 
@@ -55,8 +53,7 @@ imports (EApp e f) = List.union (imports e) (imports f)
 imports (ETuple elist) = List.nub $ List.concat $ List.map imports elist
 imports (ELet _ e f) = List.union (imports e) (imports f)
 imports (ESeq e f) = List.union (imports e) (imports f)
-imports (EIf e f g) = List.union (imports e) $ List.union (imports f) (imports g)
-imports (EMatch e clist) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] clist
+imports (EMatch e clist def) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] $ (0,def):clist
 imports _ = []
 
 
@@ -85,9 +82,6 @@ print_doc _ (EInt n) _ =
 print_doc _ (EVar x) fvar = text $ fvar x
 
 print_doc _ (EGlobal x) fvar = text $ fvar x
-
-print_doc _ (EBuiltin s) _ =
-  text s
 
 print_doc (Nth 0) _ _ =
   text "..."
@@ -129,14 +123,7 @@ print_doc lv (EFun v e) fvar =
   text "fun" <+> text (fvar v) <+> text "->" $$
   nest 2 (print_doc dlv e fvar)
 
-print_doc lv (EIf e f g) fvar =
-  let dlv = decr lv in
-  text "if" <+> print_doc dlv e fvar <+> text "then" $$
-  nest 2 (print_doc dlv f fvar) $$
-  text "else" $$
-  nest 2 (print_doc dlv g fvar)
-
-print_doc lv (EMatch e blist) fvar =
+print_doc lv (EMatch e blist def) fvar =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar <+> text "with" $$
   nest 2 (List.foldl (\doc (p, f) ->
@@ -144,7 +131,7 @@ print_doc lv (EMatch e blist) fvar =
         if isEmpty doc then
           pmatch
         else
-          doc $$ pmatch) PP.empty blist)
+          doc $$ pmatch) (text "| def ->" <+> print_doc dlv def fvar)  blist)
 
 
 

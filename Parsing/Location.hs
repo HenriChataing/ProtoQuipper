@@ -74,13 +74,13 @@ fromto_opt (Just ex1) (Just ex2) = Just (fromto ex1 ex2)
 class Located a where
   -- | Annotate an object with an extent.
   locate :: a -> Extent -> a
-  
+
   -- | Like 'locate', but the extent is optional.
   locate_opt :: a -> Maybe Extent -> a
-  
+
   -- | Remove all extent annotations.
   clear_location :: a -> a
-  
+
   -- | Return the extent associated with an object, if any.
   location :: a -> Maybe Extent
 

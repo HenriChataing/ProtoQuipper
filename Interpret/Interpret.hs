@@ -14,7 +14,7 @@ import Monad.Modules
 
 import Parsing.Location
 
-import Typing.CoreSyntax
+import Core.Syntax
 
 import Interpret.Circuits (Circuit, Binding, create_circuit)
 import qualified Interpret.Circuits as C
@@ -25,42 +25,80 @@ import qualified Data.IntMap as IMap
 import qualified Data.List as List
 
 
--- | The type of the evaluation context.
-type Environment = IntMap Value
-
-
-
--- | Generate a fresh quantum address. This is done by incrementing an id in the 'QpState' monad. Note that nothing is done to recycle used and discarded identifiers.
--- However, the index is reinitialized back to 0 at each box creation.
+-- | Generate a fresh quantum address.
+-- The index should be reinitialized back to 0 at each box creation.
 -- Thus, the inputs of a box will always be numbered 0../n/.
 fresh_qubit :: QpState Int
 fresh_qubit = do
   ctx <- get_context
-  q <- return $ qubit_id ctx
+  let q = qubit_id ctx
   set_context $ ctx { qubit_id = q + 1 }
   return q
 
 
+-- | Return without modifying it the value of the qubit counter.
+last_qubit :: QpState Variable
+last_qubit =
+  get_context >>= return . qubit_id
+
+
 -- | Reset the counter of qubit values.
 -- Since the quantum addresses are bound in a circuit (/t/, /C/, /u/), we can reset the counter for each box creation.
-reset_qubits :: QpState ()
-reset_qubits = do
-  ctx <- get_context
-  set_context $ ctx { qubit_id = 0 }
-
-
--- | Return, without incrementing it, the value of the quantum address counter.
-last_qubit :: QpState Int
-last_qubit = do
-  ctx <- get_context
-  return $ qubit_id ctx
+reset_qubit :: QpState ()
+reset_qubit =
+  set_qubit 0
 
 
 -- | Set the counter of qubit values.
-set_qubits :: Int -> QpState ()
-set_qubits q = do
+set_qubit :: Int -> QpState ()
+set_qubit q = do
   ctx <- get_context
   set_context $ ctx { qubit_id = q }
+
+
+-- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
+-- of the circuit stack.
+open_box :: [Int] -> QpState ()
+open_box ql = do
+  ctx <- get_context
+  newc <- return $ create_circuit ql
+  set_context $ ctx { circuits = newc:(circuits ctx) }
+
+
+-- | Unstack and return the top circuit from the circuit stack.
+-- The stack must be non empty. An empty circuit stack causes a runtime error.
+close_box :: QpState Circuit
+close_box = do
+  ctx <- get_context
+  case circuits ctx of
+    [] ->
+        fail "Interpret:close_box: empty circuit stack"
+
+    (top:rest) -> do
+        set_context $ ctx { circuits = rest }
+        return top
+
+-- | Append a circuit, using the specified binding.
+-- The action is done on the top circuit. If the circuit list is empty, throw
+-- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
+-- addresses done by the circuit constructor.
+unencap :: Circuit -> Binding -> QpState Binding
+unencap c b = do
+  ctx <- get_context
+  case circuits ctx of
+    [] -> do
+        ex <- get_location
+        fail "Interpret:unencap: empty circuit stack"
+
+    (top:rest) -> do
+        (c', b') <- return $ C.unencap top c b
+        set_context $ ctx { circuits = (c':rest) }
+        return b'
+
+
+
+-- | The type of the evaluation context.
+type Environment = IntMap Value
 
 
 
@@ -87,45 +125,7 @@ linspec _ = fail "Interpret:linspec: illegal argument"
 spec :: Type -> QpState Value
 spec (TBang _ t) = linspec t
 
--- | Create a new circuit, initialized with a set of wire identifiers, and put it on top
--- of the circuit stack.
-open_box :: [Int] -> QpState ()
-open_box ql = do
-  ctx <- get_context
-  newc <- return $ create_circuit ql
-  set_context $ ctx { circuits = newc:(circuits ctx) }
 
-
--- | Unstack and return the top circuit from the circuit stack.
--- The stack must be non empty. An empty circuit stack causes a runtime error.
-close_box :: QpState Circuit
-close_box = do
-  ctx <- get_context
-  case circuits ctx of
-    [] ->
-        fail "Interpret:close_box: empty circuit stack"
-
-    (top:rest) -> do
-        set_context $ ctx { circuits = rest }
-        return top
-
-
--- | Append a circuit, using the specified binding. 
--- The action is done on the top circuit. If the circuit list is empty, throw
--- a runtime error. The output of 'unencap' is a binding corresponding to the renaming of the
--- addresses done by the circuit constructor.
-unencap :: Circuit -> Binding -> QpState Binding
-unencap c b = do
-  ctx <- get_context
-  case circuits ctx of
-    [] -> do
-        ex <- get_location
-        fail "Interpret:unencap: empty circuit stack"
-
-    (top:rest) -> do
-        (c', b') <- return $ C.unencap top c b
-        set_context $ ctx { circuits = (c':rest) }
-        return b'
 
 
 -- | Extract a list of bindings x |-> v by matching a pattern and a value (supposedly of
@@ -151,14 +151,14 @@ bind_pattern (PUnit _) VUnit env = do
   return env
 
 bind_pattern (PBool _ b) (VBool b') env = do
-  if b == b' then 
-    return env 
+  if b == b' then
+    return env
     else
     throwNE $ MatchingError (sprint $ PBool 0 b) (sprint $ VBool b')
 
 bind_pattern (PInt _ n) (VInt n') env = do
-  if n == n' then 
-    return env 
+  if n == n' then
+    return env
     else
     throwNE $ MatchingError (sprint $ PInt 0 n) (sprint $ VInt n')
 
@@ -193,7 +193,7 @@ match_value (PWildcard _) _ =
 match_value (PVar _ _) _  =
   True
 
-match_value (PTuple _ plist) (VTuple vlist) = 
+match_value (PTuple _ plist) (VTuple vlist) =
   let match_list = (\plist vlist ->
                       case (plist, vlist) of
                         ([], []) ->
@@ -241,7 +241,7 @@ bind (VTuple vlist) (VTuple vlist') = do
   case (vlist, vlist') of
     ([], []) ->
         return []
- 
+
     (v:rest, v':rest') -> do
         b <- bind v v'
         brest <- bind (VTuple rest) (VTuple rest')
@@ -310,7 +310,7 @@ extract v = do
 -- * @unbox c@. Returns the unboxed circuit (i.e., VUnboxed c).
 --
 -- * @box[T] t@. See the operational semantics for more information about this case.
--- 
+--
 -- * @rev c@. Reverses the circuit.
 --
 -- A dedicated function was needed to reduce the function applications, because the 'Interpret.Interpret.interpret' function only reduces
@@ -352,9 +352,9 @@ do_application env f x =
         -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n,
         -- n the number of qubits in the type typ
         qinit <- last_qubit
-        reset_qubits
+        reset_qubit
         s <- spec typ
-        
+
         -- Open a new circuit, initialized with the quantum addresses of the specimen
         ql <- extract s
         open_box ql
@@ -362,9 +362,9 @@ do_application env f x =
         s' <- do_application env x s
         -- Close the box, and return the corresponding circuit
         c <- close_box
-        
+
         -- Reset the counter for qubit values
-        set_qubits qinit
+        set_qubit qinit
         return (VCirc s c s')
 
     (VDatacon dcon Nothing, _) ->
@@ -376,7 +376,7 @@ do_application env f x =
 
 
 
--- | Evaluate an expression. 
+-- | Evaluate an expression.
 -- Knowing that the monad 'QpState' encloses a circuit stack, this function closely follows the theoretical semantics describing the
 -- reduction of a closure [/C/, /t/]. The main difference is that the substitutions done during the beta reduction are delayed via
 -- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
@@ -415,15 +415,8 @@ interpret env (EVar ref x) = do
         throwWE (UnboundVariable expr) ex
 
 -- Global variables
-interpret env (EGlobal ref x) = do
-  vals <- get_context >>= return . values
-  case IMap.lookup x vals of
-    Just v ->
-        return v
-    Nothing -> do
-        -- This kind of errors should have been eliminated during the translation to the internal syntax
-        (ex, expr) <- ref_expression ref
-        throwWE (UnboundVariable expr) ex
+interpret env (EGlobal ref x) =
+  global_value x
 
 
 -- Functions : The current context is enclosed in the function value
@@ -431,10 +424,10 @@ interpret env (EFun _ p e) = do
   return (VFun env p e)
 
 -- Let .. in ..
-interpret env (ELet _ r p e1 e2) = do
+interpret env (ELet r p e1 e2) = do
   -- Reduce the argument e1
   v1 <- interpret env e1
-  
+
   -- Recursive function ?
   case (r, v1, drop_constraints p) of
     (Recursive, VFun ev arg body, PVar _ x) ->
@@ -450,7 +443,7 @@ interpret env (ELet _ r p e1 e2) = do
         interpret ev e2
 
 -- Function application
-interpret env (EApp _ ef arg) = do
+interpret env (EApp ef arg) = do
   f <- interpret env ef
   x <- interpret env arg
 
@@ -466,7 +459,7 @@ interpret env (EDatacon _ datacon e) = do
     Nothing ->
         return (VDatacon datacon Nothing)
 
-interpret env (EMatch _ e blist) = do
+interpret env (EMatch e blist) = do
   let match = (\ex v blist ->
                  case blist of
                    [] ->
@@ -490,7 +483,7 @@ interpret env (ETuple _ elist) = do
   return (VTuple vlist)
 
 -- If .. then .. else ..
-interpret env (EIf _ e1 e2 e3) = do
+interpret env (EIf e1 e2 e3) = do
   v1 <- interpret env e1
   case v1 of
     VBool True -> do
@@ -506,7 +499,5 @@ interpret env (EIf _ e1 e2 e3) = do
 interpret env (EConstraint e _) = do
   interpret env e
 
-interpret _ (EBuiltin _ s) =
-  builtin_value s
 
 
