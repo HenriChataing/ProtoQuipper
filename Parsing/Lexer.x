@@ -65,6 +65,7 @@ tokens :-
   box                                 { locate_token TkBox }
   circ                                { locate_token TkCirc }
   else                                { locate_token TkElse }
+  error                               { locate_token TkError }
   false                               { locate_token TkFalse }
   fun                                 { locate_token TkFun }
   if                                  { locate_token TkIf }
@@ -172,6 +173,7 @@ data Token =
   | TkUnbox Extent         -- ^ The reserved name \'unbox'.
   | TkVal Extent           -- ^ The reserved name \'val'.
   | TkWith Extent          -- ^ The reserved name \'with'.
+  | TkError Extent         -- ^ The reserved name \'error\'.
 
   -- Punctuation marks, and other symbols
   | TkWildcard Extent      -- ^ The symbol \'@_@'.
@@ -226,6 +228,7 @@ instance Show Token where
   show (TkBox ex) = "'box' (" ++ show ex ++ ")"
   show (TkCirc ex) = "'circ' (" ++ show ex ++ ")"
   show (TkElse ex) = "'else' (" ++ show ex ++ ")"
+  show (TkError ex) = "'error' (" ++ show ex ++ ")"
   show (TkFalse ex) = "'false' (" ++ show ex ++ ")"
   show (TkFun ex) = "'fun' (" ++ show ex ++ ")"
   show (TkIf ex) = "'if' (" ++ show ex ++ ")"
@@ -301,6 +304,7 @@ locate_token_in_file f (TkBool ex) = TkBool ex { file = f }
 locate_token_in_file f (TkBox ex) = TkBox ex { file = f }
 locate_token_in_file f (TkCirc ex) = TkCirc ex { file = f }
 locate_token_in_file f (TkElse ex) = TkElse ex { file = f }
+locate_token_in_file f (TkError ex) = TkError ex { file = f }
 locate_token_in_file f (TkFalse ex) = TkFalse ex { file = f }
 locate_token_in_file f (TkFun ex) = TkFun ex { file = f }
 locate_token_in_file f (TkIf ex) = TkIf ex { file = f }

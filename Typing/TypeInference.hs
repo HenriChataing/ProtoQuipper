@@ -314,6 +314,12 @@ constraint_typing gamma (EGlobal ref x) cst = do
   return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
 
 
+-- | Error typing rule.
+-- This rule ignores the context, and doesn't expect all the variables wihtin to be duplicable.
+constraint_typing gamma (EError msg) cst = do
+  a <- new_type
+  return $ (a <:: cst) <> emptyset
+
 
 -- | Box typing rule
 --

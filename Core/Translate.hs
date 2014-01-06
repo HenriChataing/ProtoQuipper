@@ -708,6 +708,9 @@ translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
   return $ EConstraint e' (t, L.types label)
 
+translate_expression (S.EError msg) _ =
+  return $ EError msg
+
 translate_expression e _ = do
   ref <- get_location
   throwQ (ParsingError (pprint e)) ref

@@ -60,6 +60,7 @@ data CExpr =
   | CSwitch Value [(Int, CExpr)] CExpr             -- ^ Switch condition (with a default target).
   | CRet Value                                     -- ^ Return a value. This instruction is terminal.
   | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
+  | CError Variable                                -- ^ This instruction is terminal, and throws an message error. The variable refers to a string constant from the compile unit.
   deriving Show
 
 
@@ -84,13 +85,33 @@ instance Param CExpr where
           List.union (free_var c) fv) (free_var v) ((0,def):clist)
   free_var (CSet x v) = free_var v
   free_var (CRet v) = free_var v
+  free_var (CError _) = []
 
   subs_var _ _ c = c
+
+
+-- | Return the list of strings used as error messages.
+used_strings :: CExpr -> [Variable]
+used_strings (CFun _ _ body c) =
+  used_strings body ++ used_strings c
+used_strings (CApp _ _ _ c) =
+  used_strings c
+used_strings (CTuple _ _ c) =
+  used_strings c
+used_strings (CAccess _ _ _ c) =
+  used_strings c
+used_strings (CSwitch _ cases def) =
+  List.concat (List.map (used_strings . snd) cases) ++ used_strings def
+used_strings (CError s) =
+  [s]
+used_strings _ =
+  []
 
 
 -- | Compilation unit.
 data CUnit = CUnit {
   imports :: [Value],                      -- ^ The list of functions and variables imported from extern modules.
+  strings :: [Variable],                   -- ^ The list of constant strings used by the compile unit.
   local :: [FunctionDef],                  -- ^ The list of local functions.
   extern :: [FunctionDef],                 -- ^ The list of functions accessible outside of the module.
   vglobals :: [GlobalDef],                 -- ^ Contains the list of global variables, along with the code initializing these variables.
@@ -228,6 +249,9 @@ convert_to_cps vals c (S.EMatch e blist def) = do
         return $ CFun k [x] cx $
                  CSwitch e (List.reverse elist') def') e
 
+convert_to_cps vals _ (S.EError msg) = do
+  s <- register_var Nothing msg 0
+  return $ CError s
 
 
 -- | Convert an expression from the simplified syntax to a weak form of the continuation passing style, where only branching conditions impose the use of continuations.
@@ -343,7 +367,9 @@ convert_to_wcps vals c (S.EMatch e blist def) = do
         return $ CFun k [x] cx $
                  CSwitch e (List.reverse elist') def') e
 
-
+convert_to_wcps _ _ (S.EError msg) = do
+  s <- register_var Nothing msg 0
+  return $ CError s
 
 
 -- | Convert the toplevel declarations into CPS form.
@@ -396,7 +422,7 @@ convert_declarations_to_cps decls = do
               -- return the extend compile unit
               return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, main = Nothing }, ivals)) decls
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, strings = [], main = Nothing }, ivals)) decls
   return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
 
 
@@ -447,7 +473,7 @@ convert_declarations_to_wcps decls = do
               -- return the extend compile unit
               return (cu { local = funs ++ local cu, vglobals = (f, init):(vglobals cu) }, IMap.insert f (VGlobal f) vals)
 
-    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, main = Nothing }, ivals)) decls
+    ) (return (CUnit { local = [], extern = [], vglobals = [], imports = imported, strings = [], main = Nothing }, ivals)) decls
   return cu { extern = List.reverse $ extern cu, vglobals = List.reverse $ vglobals cu }
 
 
@@ -636,6 +662,8 @@ print_cexpr _ fvar (CSet x v) =
   text (fvar x) <+> text ":=" <+> print_value fvar v
 print_cexpr _ fvar (CRet v) =
   text "ret" <+> print_value fvar v
+print_cexpr _ fvar (CError msg) =
+  text "error \"" <> text (fvar msg) <> text "\""
 
 
 instance PPrint CExpr where

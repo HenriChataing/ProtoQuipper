@@ -269,6 +269,9 @@ cexpr_to_llvm vals (CRet v) = do
   vv <- cvalue_to_int  vals v
   ret vv
 
+cexpr_to_llvm _ (CError msg) = do
+  ret (fromIntegral 0 :: ArchInt)
+
 
 
 -- | Convert a whole compilation unit to llvm.

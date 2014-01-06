@@ -382,6 +382,10 @@ do_application env f x =
 -- the passing of the environment: only when the function must evaluate a variable is the associated value retrieved.
 -- An auxiliary function, 'Interpret.Interpret.do_application', reduces the application of a function value to an argument value.
 interpret :: Environment -> Expr -> QpState Value
+-- Error
+interpret _ (EError msg) = do
+  throwNE $ UserError msg
+
 -- Empty
 interpret _ (EUnit _) = do
   return VUnit

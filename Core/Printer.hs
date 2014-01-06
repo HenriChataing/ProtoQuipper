@@ -255,6 +255,9 @@ print_doc lv (EMatch e blist) fvar fdata =
 print_doc lv (EConstraint e _) fvar fdata =
   print_doc lv e fvar fdata
 
+print_doc _ (EError msg) _ _ =
+  text "error" <+> text msg
+
 
 
 -- | Printing of expressions. The function 'genprint' generalizes the display of term

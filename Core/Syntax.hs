@@ -479,6 +479,7 @@ data Expr =
   | ERev Ref                                          -- ^ The constant @rev@.
 
 -- Unrelated
+  | EError String                                     -- ^ Throw an error.
   | EConstraint Expr (S.Type, Map String Type)        -- ^ Expression with type constraint: @(e <: T)@.
   deriving Show
 
@@ -513,7 +514,7 @@ reference (EBox ref _) = ref
 reference (EUnbox ref) = ref
 reference (ERev ref) = ref
 reference (EConstraint e _) = reference e
-
+reference (EError _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
 
 instance Param Expr where
   free_var (EVar _ x) = [x]

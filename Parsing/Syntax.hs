@@ -215,6 +215,7 @@ data XExpr =
 
 -- Unrelated
   | EConstraint XExpr Type         -- ^ Expression with type constraint: @(e <: A)@.
+  | EError String                  -- ^ Throw an error.
   | ELocated XExpr Extent          -- ^ A located expression.
   deriving Show
 

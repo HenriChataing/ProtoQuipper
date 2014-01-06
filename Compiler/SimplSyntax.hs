@@ -36,6 +36,7 @@ data Expr =
 
 -- Unrelated
   | EAccess Int Variable                          -- ^ Access the nth element of a tuple.
+  | EError String                                 -- ^ Throw an exception.
   deriving Show
 
 
@@ -133,6 +134,8 @@ print_doc lv (EMatch e blist def) fvar =
         else
           doc $$ pmatch) (text "| def ->" <+> print_doc dlv def fvar)  blist)
 
+print_doc _ (EError msg) _ =
+  text ("error " ++ msg)
 
 
 -- | Printing of expressions. The function 'genprint' generalizes the display of term

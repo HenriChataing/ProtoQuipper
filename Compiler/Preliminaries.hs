@@ -456,9 +456,7 @@ disambiguate_unbox_calls arg mod (C.ELet r p e f) = do
               -- Raise a warning
               ri <- ref_info_err ref'
               warnQ FailedMatch (C.extent ri)
-              vpattern <- lookup_qualified_var ("Builtins", "PATTERN_ERROR")
-              -- And replace it by the appropriate built-in function : PATTERN_ERROR
-              return $ C.EGlobal 0 vpattern
+              return $ C.EError (show (C.extent ri) ++ ":pattern error")
 
           -- All other cases should be unreachable
           (p, _) ->
@@ -842,8 +840,7 @@ simplify_pattern_matching e blist = do
   let unbuild = \dtree extracted ->
         case dtree of
           Result (-1) -> do
-              vpattern <- lookup_qualified_var ("Builtins", "PATTERN_ERROR")
-              return $ EGlobal vpattern
+              return $ EError "patter error"
 
           Result n -> do
               -- Get the list of the variables declared in the pattern
@@ -1045,6 +1042,8 @@ remove_patterns (C.ERev _) = do
 remove_patterns (C.EConstraint e t) =
   remove_patterns e
 
+remove_patterns (C.EError msg) =
+  return (EError msg)
 
 
 -- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern' to all the top-level declarations.

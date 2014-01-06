@@ -151,6 +151,8 @@ print_expr (EMatch e plist) =
 
 print_expr (EConstraint e t) = print_expr e
 print_expr (ELocated e _) = print_expr e
+print_expr (EError msg) = text "error" <+> text msg
+
 
 instance PPrint XExpr where
   genprint lv _ e = sprintn lv e

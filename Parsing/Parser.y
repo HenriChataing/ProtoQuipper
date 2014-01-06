@@ -52,6 +52,7 @@ import Data.List as List
   BOX { TkBox $$ }
   CIRC { TkCirc $$ }
   ELSE { TkElse $$ }
+  ERROR { TkError $$ }
   FALSE { TkFalse $$ }
   FUN { TkFun $$ }
   IF { TkIf $$ }
@@ -226,7 +227,7 @@ Atom_XExpr :
     | STRING                                    { locate (List.foldr (\c l ->
                                                                         EDatacon "Cons"
                                                                                  (Just $ ETuple [EDatacon "Char" (Just $ EInt $ ord c), l])) (EDatacon "Nil" Nothing) (snd $1)) (fst $1) }
-
+    | ERROR STRING                              { locate (EError (snd $2)) $ fromto $1 (fst $2) }
     | BOX '[' ']'                               { locate (EBox TUnit) (fromto $1 $3) }
     | BOX '[' QType ']'                         { locate (EBox $3) (fromto $1 $4) }
     | UNBOX                                     { locate EUnbox $1 }

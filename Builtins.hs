@@ -259,12 +259,6 @@ define_builtins = do
                              (singleton_circuit $ Controlled (Unary "G_NOT" 0) [(1, unVBool sign1 "G_TOFFOLI"),(2, unVBool sign2 "G_TOFFOLI")])
                              (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ]
 
-  -- Error builtin.
-  a <- fresh_type
-  n <- fresh_flag
-  let error = [ ("error", (TForall [n] [a] emptyset $ arrow (TBang 1 $ TAlgebraic list [TBang 1 $ TAlgebraic char []]) (TBang n $ TVar a),
-                           VBuiltin (\msg -> let string_msg = unVString msg "ERROR" in throwNE (UserError string_msg)))) ]
-
 
   -- Compilation specifics.
   -- Note that the variables are all given a dummy type and value.
