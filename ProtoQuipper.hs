@@ -13,6 +13,7 @@ import Typing.LabellingContext
 
 import System.IO
 import System.Environment
+import System.Exit
 import System.FilePath.Posix
 import qualified Control.Exception as E
 import Options
@@ -59,5 +60,8 @@ main = do
                Q.set_verbose (verbose opts)
                Q.set_warning_action (warningAction opts)
                do_everything opts files) Q.empty_context
-           return ()) `E.catch` (\(e :: QuipperError) -> hPutStrLn stderr $ show e)
-
+           return ()) `E.catch` (\(e :: QuipperError) -> die e)
+  where
+    die e = do
+      hPutStrLn stderr $ show e
+      exitFailure

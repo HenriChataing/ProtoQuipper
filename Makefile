@@ -92,21 +92,19 @@ haddock-simple : $(MODULES)
 # Distribution
 
 
-VERSION = 0.2
+VERSION = 0.2.1
 DISTDIR = proto-quipper-$(VERSION)
 DISTZIP = $(DISTDIR).zip
 DISTTAR = $(DISTDIR).tgz
 
 MAKEFILES_DIST = Makefile
-MAKEFILES_PUBLIC = $(MAKEFILEs_DIST:%=%-public)
 
-QP_MODULES = qlib/core.qp qlib/qft.qp qlib/list.qp qlib/gates.qp \
- bwt/definitions.qp bwt/bwt.qp bwt/definitions_imp.qp bwt/bwt_imp.qp
+QP_MODULES = qlib/core.qp qlib/function.qp qlib/qft.qp qlib/list.qp	\
+ qlib/gates.qp bwt/definitions.qp bwt/bwt.qp bwt/definitions_imp.qp	\
+ bwt/bwt_imp.qp
 
 OTHER_DIST = emacs/proto-quipper-mode.el
 
-# The README, Makefile, etc used for distribution are not the same as
-# the analogous files used by developers.
 PUBLIC = README COPYRIGHT prologue.txt NEWS
 #            LICENSE
 
@@ -115,7 +113,7 @@ $(DISTZIP) $(DISTTAR): dist
 RIGHT_COPY = maintainer/right_copy
 
 .PHONY: dist
-dist: $(PUBLIC) $(MAKEFILES_PUBLIC)
+dist: $(PUBLIC) $(MAKEFILES_DIST) $(SOURCE_MODULES) $(PRE_GENERATED_MODULES) $(QP_MODULES) $(OTHER_DIST) $(RIGHT_COPY)
 	rm -rf "$(DISTDIR)"
 	mkdir "$(DISTDIR)"
 	mkdir "$(DISTDIR)/$(BUILD_DIR)"
