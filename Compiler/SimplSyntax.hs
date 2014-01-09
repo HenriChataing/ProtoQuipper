@@ -40,9 +40,22 @@ data Expr =
   deriving Show
 
 
+-- | The visibility of a declaration. 'External' means accessible outside of the compile unit, and
+-- 'Internal' local to the unit.
+data Visibility =
+    External
+  | Internal
+
+
+instance Show Visibility where
+  show External = "external"
+  show Internal = "internal"
+
+
 -- | The top-level declarations of the simplified syntax. The top-level expressions have been eliminated at this point.
 data Declaration =
-    DLet Variable Expr                            -- ^ Top level declaration.
+    DLet Visibility Variable Expr                 -- ^ Top level declaration.
+
 
 
 -- | Return the list of imported variables of an expression.
@@ -157,10 +170,10 @@ instance PPrint Expr where
 instance PPrint [Declaration] where
   genprint lv opts [] =
     ""
-  genprint lv [fvar] ((DLet x e):ds) =
+  genprint lv [fvar] ((DLet vis x e):ds) =
     let pre = genprint lv [fvar] e in
     let prx = fvar x in
-    "let " ++ prx ++ " = " ++ pre ++ "\n" ++
+    "let " ++ show vis ++ " " ++ prx ++ " = " ++ pre ++ "\n" ++
     genprint lv [fvar] ds
 
   genprint _ _ _ =

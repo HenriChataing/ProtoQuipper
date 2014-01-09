@@ -206,7 +206,7 @@ request_unbox c = do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "unbox"
         eunbox <- implement_unbox c
-        update_circuit_ops (\ops -> ops { unboxes = Map.insert c x $ unboxes ops, code = (DLet x eunbox):(code ops) })
+        update_circuit_ops (\ops -> ops { unboxes = Map.insert c x $ unboxes ops, code = (DLet Internal x eunbox):(code ops) })
         return x
 
 
@@ -221,7 +221,7 @@ request_box t = do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "box"
         ebox <- implement_box t
-        update_circuit_ops (\ops -> ops { boxes = Map.insert t x $ boxes ops, code = (DLet x ebox):(code ops) })
+        update_circuit_ops (\ops -> ops { boxes = Map.insert t x $ boxes ops, code = (DLet Internal x ebox):(code ops) })
         return x
 
 
@@ -236,7 +236,7 @@ request_rev = do
         -- Implement the needed operator, and upload it to the circOps library.
         x <- create_var "rev"
         erev <- implement_rev
-        update_circuit_ops (\ops -> ops { rev = Just x, code = (DLet x erev):(code ops) })
+        update_circuit_ops (\ops -> ops { rev = Just x, code = (DLet Internal x erev):(code ops) })
         return x
 
 

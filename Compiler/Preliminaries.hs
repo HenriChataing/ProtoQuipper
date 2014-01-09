@@ -1046,7 +1046,8 @@ remove_patterns (C.EError msg) =
   return (EError msg)
 
 
--- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern' to all the top-level declarations.
+-- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern'
+-- to all the top-level declarations.
 transform_declarations :: [C.Declaration] -> QpState [Declaration]
 transform_declarations decls = do
   (decls, _) <- List.foldl (\rec d -> do
@@ -1091,12 +1092,12 @@ transform_declarations decls = do
                 -- Remove the patterns
                 e'' <- remove_patterns e''
 
-                return ((DLet x e''):decls, mod')
+                return ((DLet External x e''):decls, mod')
 
               -- No unresolved unbox operators
               else do
                 e' <- remove_patterns e
-                return ((DLet x e'):decls, mod)
+                return ((DLet External x e'):decls, mod)
       ) (return ([], IMap.empty)) decls
 
   -- Retrieve the declaration of quantum operations
