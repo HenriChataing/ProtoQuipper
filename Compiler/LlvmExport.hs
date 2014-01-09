@@ -279,8 +279,11 @@ cexpr_to_llvm vals (CRet v) = do
   ret vv
 
 cexpr_to_llvm _ (CError msg) = do
-  ret (fromIntegral 0 :: ArchInt)
-
+  withStringNul msg $ \msg -> do
+    err <- externFunction "_Builtins_ERROR" :: CodeGenFunction r (Function (Ptr Word8 -> IO ArchInt))
+    tmp <- getElementPtr0 msg (0 :: Word32, ())
+    _ <- call err tmp
+    ret (fromIntegral 0 :: ArchInt)
 
 
 -- | Convert a whole compilation unit to llvm.
