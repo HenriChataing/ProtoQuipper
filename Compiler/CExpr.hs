@@ -442,7 +442,7 @@ convert_declarations_to_wcps decls = do
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_wcps vals (\z -> return $ CRet z) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = if n == "main" then (f, [x], body) else (f, [fc,x], body)
+              let fdef = (f, [fc,x], body)
               case vis of
                 S.Internal ->
                     return (cu { local = funs ++ [fdef] ++ local cu },
@@ -456,7 +456,7 @@ convert_declarations_to_wcps decls = do
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_wcps vals' (\z -> return $ CRet z) c
               (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = if n == "main" then (f, [x], body) else (f, [fc,x], body)
+              let fdef = (f, [fc,x], body)
               case vis of
                 S.Internal ->
                     return (cu { local = funs ++ [fdef] ++ local cu }, vals')

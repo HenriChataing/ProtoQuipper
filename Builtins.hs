@@ -101,6 +101,19 @@ unVBool (VBool b) _ = b
 unVBool _ s = throwNE (BuiltinError s "a boolean")
 
 
+-- | Extract a tuple of size 2 from a value, or throw a 'BuiltinError'
+unVTuple2 :: Value -> String -> (Value, Value)
+unVTuple2 (VTuple [a,b]) _ = (a,b)
+unVTuple2 _ s = throwNE (BuiltinError s "a tuple (_,_)")
+
+
+-- | Extract a tuple of two integers from a value, or throw a 'BuiltinError'
+unVTuple2Int :: Value -> String -> (Int, Int)
+unVTuple2Int (VTuple [a,b]) s = (unVInt a s, unVInt b s)
+unVTuple2Int _ s = throwNE (BuiltinError s "a tuple (int,int)")
+
+
+
 -- | Extract a string from a value, or throw a 'BuiltinError'
 -- otherwise. The second argument is the name of the built-in
 -- operation that should appear in the error message.
@@ -187,7 +200,7 @@ binary_value g =
 
 
 
--- | Build the interface of the Builtins module.
+-- | Build the interfaces of the Builtins (and Core) modules.
 define_builtins :: QpState ()
 define_builtins = do
   -- Definition of builtin types.
@@ -195,86 +208,87 @@ define_builtins = do
   (char, dchar) <- define_char
 
   -- Definition of basic operations.
+  let intint_to_int = arrow (tensor [int, int]) int
+      intint_to_bool = arrow (tensor [int, int]) bool
   let ops = [
-        ("+", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "+" + unVInt n "+"))))),
-        ("-", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "-" - unVInt n "-"))))),
-        ("neg", (arrow int int, VBuiltin (\m -> VInt (-unVInt m "NEG")))),
-        ("*", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "*" * unVInt n "*"))))),
-        ("/", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "quot" `quot` unVInt n "quot"))))),
-        ("div", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "div" `div` unVInt n "div"))))),
-        ("%", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "rem" `rem` unVInt n "rem"))))),
-        ("mod", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "mod" `mod` unVInt n "mod"))))),
-        ("^", (arrow int $ arrow int int, VBuiltin (\m -> VBuiltin (\n -> VInt (unVInt m "^" ^ unVInt n "^"))))),
-        ("<=", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "<=" <= unVInt n "<="))))),
-        (">=", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m ">=" >= unVInt n ">="))))),
-        ("<", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "<" < unVInt n "<"))))),
-        (">", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m ">" > unVInt n ">"))))),
-        ("==", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "==" == unVInt n "=="))))),
-        ("<>", (arrow int $ arrow int bool, VBuiltin (\m -> VBuiltin (\n -> VBool (unVInt m "/=" /= unVInt n "/=")))))
+        ("add", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "add" in VInt (m + n))),
+        ("sub", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "sub" in VInt (m - n))),
+        ("mul", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "mul" in VInt (m * n))),
+        ("quot", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "quot" in VInt (m `quot` n))),
+        ("div", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "div" in VInt (m `div` n))),
+        ("rem", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "rem" in VInt (m `rem` n))),
+        ("mod", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "mod" in VInt (m `mod` n))),
+        ("pow", intint_to_int, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "pow" in VInt (m ^ n))),
+        ("le", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "le" in VBool (m <= n))),
+        ("ge", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "ge" in VBool (m >= n))),
+        ("lt", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "lt" in VBool (m < n))),
+        ("gt", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "gt" in VBool (m > n))),
+        ("eq", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "eq" in VBool (m == n))),
+        ("neq", intint_to_bool, VBuiltin (\arg -> let (m, n) = unVTuple2Int arg "neq" in VBool (m /= n))),
+        ("neg", arrow int int, VBuiltin (\n -> VInt (- unVInt n "neg")))
         ]
 
   -- Definition of some basic gates.
   let init = [
-        ("g_init0", (circ unit qubit, VCirc VUnit (singleton_circuit $ Init 0 0) (VQubit 0))),
-        ("g_init1", (circ unit qubit, VCirc VUnit (singleton_circuit $ Init 1 0) (VQubit 0)))
+        ("g_init0", circ unit qubit, VCirc VUnit (singleton_circuit $ Init 0 0) (VQubit 0)),
+        ("g_init1", circ unit qubit, VCirc VUnit (singleton_circuit $ Init 1 0) (VQubit 0))
         ]
 
   let term = [
-        ("g_term0", (circ qubit unit, VCirc (VQubit 0) (singleton_circuit $ Term 0 0) VUnit)),
-        ("g_term1", (circ qubit unit, VCirc (VQubit 0) (singleton_circuit $ Term 1 0) VUnit))
+        ("g_term0", circ qubit unit, VCirc (VQubit 0) (singleton_circuit $ Term 0 0) VUnit),
+        ("g_term1", circ qubit unit, VCirc (VQubit 0) (singleton_circuit $ Term 1 0) VUnit)
         ]
 
   let phase = [
-        ("g_phase", (arrow int unary_type,
-                   VBuiltin (\n -> VCirc (VQubit 0) (singleton_circuit $ Phase (unVInt n "G_PHASE") 0) (VQubit 0)))),
-        ("g_control_phase", (arrow int $ arrow bool binary_type,
-                           VBuiltin (\n ->
-                           VBuiltin (\sign ->
+        ("g_phase", arrow int unary_type, VBuiltin (\n -> VCirc (VQubit 0) (singleton_circuit $ Phase (unVInt n "G_PHASE") 0) (VQubit 0))),
+        ("g_control_phase", arrow (tensor [int,bool]) binary_type,
+                            VBuiltin (\param ->
+                              let (n, sign) = unVTuple2 param "G_CONTROL_PHASE" in
                               VCirc (VTuple [VQubit 0, VQubit 1])
                                     (singleton_circuit $ Controlled (Phase (unVInt n "G_CONTROL_PHASE") 0) [(1, unVBool sign "G_CONTROL_PHASE")])
-                                    (VTuple [VQubit 0, VQubit 1])))))
+                                    (VTuple [VQubit 0, VQubit 1])))
         ]
 
   let ceitz = [
-        ("g_control_eitz", (arrow bool binary_type,
+        ("g_control_eitz", arrow bool binary_type,
                                VBuiltin (\sign ->
                                  VCirc (VTuple [VQubit 0, VQubit 1])
                                        (singleton_circuit $ Controlled (Unary "G_EITZ" 0) [(1, unVBool sign "G_CONTROL_EITZ")])
-                                       (VTuple [VQubit 0, VQubit 1]))))
+                                       (VTuple [VQubit 0, VQubit 1])))
         ]
 
-  let unary = List.map (\(g, _) -> (toLower g, (unary_type, unary_value g))) unary_gates
-  let binary = List.map (\(g, _) -> (toLower g, (binary_type, binary_value g))) binary_gates
+  let unary = List.map (\(g, _) -> (toLower g, unary_type, unary_value g)) unary_gates
+  let binary = List.map (\(g, _) -> (toLower g, binary_type, binary_value g)) binary_gates
 
   let others = [
-        ("g_cnot", (TBang 1 $ TArrow bool $ circ (TBang 0 $ TTensor [qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit]),
+        ("g_cnot", TBang 1 $ TArrow bool $ circ (TBang 0 $ TTensor [qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit]),
                     VBuiltin (\sign ->
                       VCirc (VTuple [VQubit 0, VQubit 1])
                             (singleton_circuit $ Controlled (Unary "G_NOT" 0) [(1, unVBool sign "G_CNOT")])
-                             (VTuple [VQubit 0, VQubit 1])))),
-        ("g_toffoli", (TBang 1 $ TArrow bool $ TBang 1 $ TArrow bool $ circ (TBang 0 $ TTensor [qubit, qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit, qubit]),
-                     VBuiltin (\sign1 ->
-                     VBuiltin (\sign2 ->
+                             (VTuple [VQubit 0, VQubit 1]))),
+        ("g_toffoli", TBang 1 $ TArrow (tensor [bool, bool]) $ circ (TBang 0 $ TTensor [qubit, qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit, qubit]),
+                     VBuiltin (\param ->
+                       let (sign1, sign2) = unVTuple2 param "G_TOFFOLI" in
                        VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
                              (singleton_circuit $ Controlled (Unary "G_NOT" 0) [(1, unVBool sign1 "G_TOFFOLI"),(2, unVBool sign2 "G_TOFFOLI")])
-                             (VTuple [VQubit 0, VQubit 1, VQubit 2]))))) ]
+                             (VTuple [VQubit 0, VQubit 1, VQubit 2]))) ]
 
 
   -- Compilation specifics.
   -- Note that the variables are all given a dummy type and value.
   let compile = [
-        ("UNENCAP", (arrow int int, VUnit)),
-        ("OPENBOX", (arrow int int, VUnit)),
-        ("CLOSEBOX", (arrow int int, VUnit)),
-        ("REV", (arrow int int, VUnit)),
-        ("APPBIND", (arrow int int, VUnit)),
-        ("ISREF", (arrow int int, VUnit)),
-        ("PATTERN_ERROR", (arrow int int, VUnit)),
-        ("PRINT", (arrow int int, VUnit))
+        ("UNENCAP", arrow int int, VUnit),
+        ("OPENBOX", arrow int int, VUnit),
+        ("CLOSEBOX", arrow int int, VUnit),
+        ("REV", arrow int int, VUnit),
+        ("APPBIND", arrow int int, VUnit),
+        ("ISREF", arrow int int, VUnit),
+        ("ERROR", arrow int int, VUnit),
+        ("PRINT", arrow int int, VUnit)
         ]
 
   -- Import the preceding definitions.
-  lbl <- List.foldl (\rec (b, (typ, val)) -> do
+  lbl <- List.foldl (\rec (b, typ, val) -> do
         lbl <- rec
         vb <- register_var (Just "Builtins") b 0
         insert_global vb (typescheme_of_type typ) (Just val)

@@ -176,6 +176,10 @@ arrow :: Type -> Type -> Type
 arrow t u =
   TBang 1 (TArrow t u)
 
+-- | Build the type !1 T1 * .. * Tn.
+tensor :: [Type] -> Type
+tensor tlist =
+  TBang 1 (TTensor tlist)
 
 
 -- | The type of type schemes. A /type scheme/ is a type expression

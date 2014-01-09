@@ -1,5 +1,21 @@
 -- -- CORE MODULE -- --
 
+-- INTEGER OPERATIONS
+let m + n = add (m,n) ;;
+let m - n = sub (m,n) ;;
+let m * n = mul (m,n) ;;
+let m / n = quot (m,n) ;;
+let div m n = div (m,n) ;;
+let rem m n = rem (m,n) ;;
+let mod m n = mod (m,n) ;;
+let m ^ n = pow (m,n) ;;
+let m <= n = le (m,n) ;;
+let m >= n = ge (m,n) ;;
+let m < n = lt (m,n) ;;
+let m > n = gt (m,n) ;;
+let m == n = eq (m,n) ;;
+let m <> n = neq (m,n) ;;
+
 -- BOOLEAN OPERATIONS
 let (&&) = fun b0 b1 -> if b0 then b1 else false ;;
 let (||) = fun b0 b1 -> if b0 then true else b1 ;;

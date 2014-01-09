@@ -50,13 +50,13 @@ let gateW = unbox g_w ;;
 let cnot_signed sign = unbox (g_cnot sign) ;;
 let cnot = cnot_signed true ;;
 
-let cphase_signed n sign = unbox (g_control_phase n sign) ;;
+let cphase_signed n sign = unbox (g_control_phase (n, sign)) ;;
 let cphase n = cphase_signed n true ;;
 
 let cexp_itZ_signed sign = unbox (g_control_eitz sign) ;;
 let cexp_itZ = cexp_itZ_signed true ;;
 
 -- TERNARY
-let toffoli_signed s1 s2 = unbox (g_toffoli s1 s2) ;;
+let toffoli_signed s1 s2 = unbox (g_toffoli (s1, s2)) ;;
 let toffoli = toffoli_signed true true ;;
 

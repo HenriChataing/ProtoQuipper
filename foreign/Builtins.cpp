@@ -1,9 +1,28 @@
 #include <iostream>
+#include <cmath>
 
 #include "Circ.h"
 
 using namespace std;
 
+// Basic operators.
+
+int _Builtins_add(int *arg) { return arg[0] + arg[1]; }
+int _Builtins_sub(int *arg) { return arg[0] - arg[1]; }
+int _Builtins_mul(int *arg) { return arg[0] * arg[1]; }
+int _Builtins_quot(int *arg) { return arg[0] / arg[1]; }
+int _Builtins_div(int *arg) { return arg[0] / arg[1]; }
+int _Builtins_rem(int *arg) { return arg[0] % arg[1]; }
+int _Builtins_mod(int *arg) { return arg[0] % arg[1]; }
+int _Builtins_pow(int *arg) { return (int)pow((double)arg[0], (double)arg[1]); }
+int _Builtins_le(int *arg) { return arg[0] <= arg[1]; }
+int _Builtins_ge(int *arg) { return arg[0] >= arg[1]; }
+int _Builtins_lt(int *arg) { return arg[0] < arg[1]; }
+int _Builtins_gt(int *arg) { return arg[0] > arg[1]; }
+int _Builtins_eq(int *arg) { return arg[0] == arg[1]; }
+int _Builtins_neq(int *arg) { return arg[0] != arg[1]; }
+
+int _Builtins_neg(int arg) { return -arg; }
 
 // Circuit stack.
 list<Circuit*> circuits;
@@ -50,7 +69,8 @@ int _Builtins_ISREF(int p) {
 }
 
 
-// Builtin gates.
+// Builtin gates - Basic.
+
 Init* _Builtins_g_init0 = new Init(false);
 Init* _Builtins_g_init1 = new Init(true);
 Term* _Builtins_g_term0 = new Term(false);
@@ -76,17 +96,40 @@ UGate* _Builtins_g_eitz_inv = new UGate("exp(-itZ)", true);
 BGate* _Builtins_g_swap = new BGate("swap");
 BGate* _Builtins_g_w = new BGate("W");
 
-// The closure as argument...(fake).
-Phase* _Builtins_g_phase(int cls, int n) {
-  return new Phase(n);
-}
-inline Circuit* create_cnot() {
-  Circuit* c = new Circuit(2);
+Phase* _Builtins_g_phase(int cls, int n) { return new Phase(n); }
+
+// Builtin gates - Composed.
+
+Circuit* _Builtins_g_cnot(int sign) {
+  Circuit *c = new Circuit(2);
   c->append(_Builtins_g_not->clone());
-  c->withcontrol(1,true);
+  c->withcontrol(1, sign==1);
   return c;
 }
-Circuit* _Builtins_g_cnot = create_cnot();
+
+Circuit* _Builtins_g_control_phase(int *param) {
+  Circuit *c = new Circuit(2);
+  int n = param[0], sign = param[1];
+  c->append(_Builtins_g_phase(0,n));
+  c->withcontrol(1, sign==1);
+  return c;
+}
+
+Circuit* _Builtins_g_control_eitz(int sign) {
+  Circuit *c = new Circuit(2);
+  c->append(_Builtins_g_eitz->clone());
+  c->withcontrol(1, sign==1);
+  return c;
+}
+
+Circuit* _Builtins_g_toffoli(int *param) {
+  Circuit *c = new Circuit(3);
+  int sign1 = param[0], sign2 = param[1];
+  c->append(_Builtins_g_not->clone());
+  c->withcontrol(1, sign1==1);
+  c->withcontrol(2, sign2==1);
+  return c;
+}
 
 
 // Test.

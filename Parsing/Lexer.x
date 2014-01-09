@@ -1,7 +1,9 @@
 {
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
--- | This module is automatically generated from the file @Lexer.x@ by Alex, the Haskell lexer generator. It provides the definition of a data type 'Token' of lexical tokens, and a function for lexing a string into a list of tokens.
+-- | This module is automatically generated from the file @Lexer.x@ by Alex, the Haskell lexer generator.
+-- It provides the definition of a data type 'Token' of lexical tokens, and a function for lexing a string
+-- into a list of tokens.
 module Parsing.Lexer (Token(..), mylex) where
 
 import Parsing.Location
@@ -85,11 +87,11 @@ tokens :-
   val                                 { locate_token TkVal }
   with                                { locate_token TkWith }
 
-  $digit+                             { locate_named_token TkInt }
+  $digit+                                 { locate_named_token TkInt }
   $up_alpha $chars* \. $low_alpha $chars* { locate_named_token TkQLId }
   $up_alpha $chars* \. $up_alpha $chars*  { locate_named_token TkQUId }
-  $low_alpha $chars*                  { locate_named_token TkLId }
-  $up_alpha $chars*                   { locate_named_token TkUId }
+  [$low_alpha '\_'] $chars*               { locate_named_token TkLId }
+  $up_alpha $chars*                       { locate_named_token TkUId }
 
   $infix0 $symbolchar*                { locate_named_token TkInfix0 }
   $infix1 $symbolchar*                { locate_named_token TkInfix1 }
