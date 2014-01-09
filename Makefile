@@ -42,7 +42,7 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 bwt.circ : $(MAIN)
 	./$(MAIN) -iqlib -ibwt bwt > bwt.circ
 
-foreign/Builtins.ll : foreign/Builtins.cpp
+foreign/Builtins.ll : foreign/Builtins.cpp foreign/Circ.cpp
 	clang++ -S foreign/Builtins.cpp -emit-llvm -o foreign/Builtins.ll
 
 clean :
