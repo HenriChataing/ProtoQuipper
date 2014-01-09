@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, ScopedTypeVariables #-}
 
 -- | This module contains the functions necessary for the production of LLVM code.
 module Compiler.LlvmExport where
@@ -11,10 +11,11 @@ import Compiler.CExpr as C
 import Monad.QpState
 import Monad.QuipperError
 
-import LLVM.Core as L
+import LLVM.Core as L hiding (malloc)
 
 import Data.Int (Int32, Int64)
-import Data.Word (Word32, Word64)
+import Data.Word (Word8, Word32, Word64)
+import Data.Bits (bitSize, Bits)
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -32,6 +33,13 @@ import Debug.Trace
 #error cannot determine type of archint
 #endif
 
+
+
+-- | Malloc function.
+malloc :: forall a r s. (Bits a, IsType a, Integral s) => s -> CodeGenFunction r (L.Value (Ptr a))
+malloc size = do
+  malloc <- externFunction "malloc" :: CodeGenFunction r (Function (ArchInt -> IO (Ptr a)))
+  call malloc $ valueOf $ (fromIntegral size) * (fromIntegral $ bitSize (0 :: a)) `quot` 8
 
 
 -- | The type of used llvm values.
@@ -170,7 +178,7 @@ cexpr_to_llvm vals (CApp f args x c) = do
   vf <- cvalue_to_int  vals f
   vargs <- List.foldr (\a rec -> do
         as <- rec
-        a <- cvalue_to_int  vals a
+        a <- cvalue_to_int vals a
         return $ a:as) (return []) args
 
   -- build the function application
@@ -216,7 +224,8 @@ cexpr_to_llvm vals (CTailApp f args) = do
 
 cexpr_to_llvm vals (CTuple vlist x c) = do
   -- allocate space for the tuple
-  ptr <- arrayMalloc (fromIntegral $ List.length vlist :: Word32) :: CodeGenFunction r (L.Value (Ptr ArchInt))
+  ptr <- malloc (List.length vlist) :: CodeGenFunction r (L.Value (Ptr ArchInt))
+
   -- convert the values
   vlist <- List.foldr (\a rec -> do
         as <- rec
