@@ -30,3 +30,4 @@ proto-quipper-0.*.zip
 proto-quipper-0.*
 *.bak
 *.ll
+*.bc
