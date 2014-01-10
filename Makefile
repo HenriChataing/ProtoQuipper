@@ -26,7 +26,7 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
   Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
-BUILTINS = foreign/Builtins.ll
+BUILTINS = foreign/Builtins.bc
 
 all : $(MAIN) $(BUILTINS)
 
@@ -42,8 +42,9 @@ Parsing/Lexer.hs : Parsing/Lexer.x
 bwt.circ : $(MAIN)
 	./$(MAIN) -iqlib -ibwt bwt > bwt.circ
 
-foreign/Builtins.ll : foreign/Builtins.cpp foreign/Circ.cpp
-	clang++ -S foreign/Builtins.cpp -emit-llvm -o foreign/Builtins.ll
+foreign/Builtins.bc : foreign/Builtins.cpp
+	clang -c -emit-llvm -O2 foreign/Builtins.cpp -o foreign/Builtins.ll
+	llvm-as foreign/Builtins.ll -o foreign/Builtins.bc
 
 clean :
 	rm -f $(GENERATED_MODULES)
@@ -51,7 +52,7 @@ clean :
 	rm -f $(MAIN) $(MAIN).exe $(MAIN).prof $(MAIN).aux
 	rm -rf $(BUILD_DIR)/*
 	rm -f bwt.circ
-	rm -f foreign/Builtins.ll
+	rm -f foreign/Builtins.ll foreign/Builtins.bc
 
 count : clean
 	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y foreign/*
