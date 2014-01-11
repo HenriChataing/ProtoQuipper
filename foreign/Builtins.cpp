@@ -5,7 +5,7 @@
 
 using namespace std;
 
-inline string inttostr(int i) {
+inline string inttostr(size_t i) {
   stringstream ss;
   ss << i;
   return ss.str();
@@ -13,7 +13,7 @@ inline string inttostr(int i) {
 
 // Permutations.
 
-int app_perm(perm* p, int x) {
+int app_perm(perm* p, size_t x) {
   if (p == NULL)
     return x;
   else if (p->_q == x)
@@ -22,7 +22,7 @@ int app_perm(perm* p, int x) {
     return app_perm(p->_rem, x);
 }
 
-perm* append(int q, int assoc, perm *p) {
+perm* append(size_t q, size_t assoc, perm *p) {
   perm *pp = (perm*)malloc(sizeof(perm));
   pp->_q = q;
   pp->_assoc = assoc;
@@ -30,7 +30,7 @@ perm* append(int q, int assoc, perm *p) {
   return pp;
 }
 
-perm* remove(int x, perm* p) {
+perm* remove(size_t x, perm* p) {
   if (p == NULL)
     return NULL;
   else if (p->_q == x) {
@@ -45,7 +45,7 @@ perm* remove(int x, perm* p) {
 
 // Parent class.
 
-void Circ::withcontrol(int w, bool s) {
+void Circ::withcontrol(size_t w, bool s) {
   ctrl c;
   c._wire = w;
   c._sign = s;
@@ -84,7 +84,7 @@ string Init::print() {
 }
 
 perm* Init::unencap(Circuit* c, perm* p) {
-  int q = c->init();
+  size_t q = c->init();
   Init* cpy = clone();
   cpy->app_perm_to_controls(p);
   perm *pp = append(_output, q, p);
@@ -107,7 +107,7 @@ string Term::print() {
 }
 
 perm* Term::unencap(Circuit* c, perm* p) {
-  int q = app_perm(p, _input);
+  size_t q = app_perm(p, _input);
   Term* cpy = clone();
   cpy->app_perm_to_controls(p);
   perm *pp = remove(_input, p);
@@ -168,13 +168,10 @@ perm* Phase::unencap(Circuit *c, perm *p) {
 // Definition of a circuit.
 
 // Circuit initialized with n wires.
-Circuit::Circuit(int n): _qid(n) {
-  if (n >= 0) {
-    for (int i=0; i<n; i++)
-      _input.push_back(i);
-    _output = _input;
-  } else
-    cout << "Error: illegal number of wires" << endl;
+Circuit::Circuit(size_t n): _qid(n) {
+  for (size_t i=0; i<n; i++)
+    _input.push_back(i);
+  _output = _input;
 }
 
 Circuit::Circuit(const Circuit& cpy): Circ(cpy), _input(cpy._input), _output(cpy._output), _qid(cpy._qid) {
@@ -196,7 +193,7 @@ string Circuit::print() {
   if (_input.empty())
     doc << "none";
   else {
-    list<int>::iterator it=_input.begin();
+    list<size_t>::iterator it=_input.begin();
     doc << *it << ":Qbit";
     it++;
     for (; it!=_input.end(); it++)
@@ -211,7 +208,7 @@ string Circuit::print() {
   if (_output.empty())
     doc << "none";
   else {
-    list<int>::iterator it=_output.begin();
+    list<size_t>::iterator it=_output.begin();
     doc << *it << ":Qbit";
     it++;
     for (; it!=_output.end(); it++)
@@ -221,14 +218,14 @@ string Circuit::print() {
   return doc.str();
 }
 
-int Circuit::init() {
-  int q = _qid;
+size_t Circuit::init() {
+  size_t q = _qid;
   _qid++;
   _output.push_front(q);
   return q;
 }
 
-void Circuit::term(int q) {
+void Circuit::term(size_t q) {
   _output.remove(q);
 }
 
@@ -236,7 +233,7 @@ void Circuit::append(Circ* g) {
   _gates.push_back(g);
 }
 
-void Circuit::withcontrol(int w, bool s) {
+void Circuit::withcontrol(size_t w, bool s) {
   for (list<Circ*>::iterator it=_gates.begin(); it!=_gates.end(); it++)
     (*it)->withcontrol(w,s);
 }
@@ -257,43 +254,48 @@ Circuit* Circuit::rev() {
   return this;
 }
 
+// Circuit stack.
+list<Circuit*> circuits = list<Circuit*>(1,new Circuit(0));
+
+extern "C" {
+
 // Basic operators.
 
-int _Builtins_add(int *arg) { return arg[0] + arg[1]; }
-int _Builtins_sub(int *arg) { return arg[0] - arg[1]; }
-int _Builtins_mul(int *arg) { return arg[0] * arg[1]; }
-int _Builtins_quot(int *arg) { return arg[0] / arg[1]; }
-int _Builtins_div(int *arg) { return arg[0] / arg[1]; }
-int _Builtins_rem(int *arg) { return arg[0] % arg[1]; }
-int _Builtins_mod(int *arg) { return arg[0] % arg[1]; }
-int _Builtins_pow(int *arg) { return (int)pow((double)arg[0], (double)arg[1]); }
-int _Builtins_le(int *arg) { return arg[0] <= arg[1]; }
-int _Builtins_ge(int *arg) { return arg[0] >= arg[1]; }
-int _Builtins_lt(int *arg) { return arg[0] < arg[1]; }
-int _Builtins_gt(int *arg) { return arg[0] > arg[1]; }
-int _Builtins_eq(int *arg) { return arg[0] == arg[1]; }
-int _Builtins_neq(int *arg) { return arg[0] != arg[1]; }
+size_t _Builtins_add(size_t cls, size_t *arg) { return arg[0] + arg[1]; }
+size_t _Builtins_sub(size_t cls, size_t *arg) { return arg[0] - arg[1]; }
+size_t _Builtins_mul(size_t cls, size_t *arg) { return arg[0] * arg[1]; }
+size_t _Builtins_quot(size_t cls, size_t *arg) { return arg[0] / arg[1]; }
+size_t _Builtins_div(size_t cls, size_t *arg) { return arg[0] / arg[1]; }
+size_t _Builtins_rem(size_t cls, size_t *arg) { return arg[0] % arg[1]; }
+size_t _Builtins_mod(size_t cls, size_t *arg) { return arg[0] % arg[1]; }
+size_t _Builtins_pow(size_t cls, size_t *arg) { return (size_t)pow((double)arg[0], (double)arg[1]); }
+size_t _Builtins_le(size_t cls, size_t *arg) { return arg[0] <= arg[1]; }
+size_t _Builtins_ge(size_t cls, size_t *arg) { return arg[0] >= arg[1]; }
+size_t _Builtins_lt(size_t cls, size_t *arg) { return arg[0] < arg[1]; }
+size_t _Builtins_gt(size_t cls, size_t *arg) { return arg[0] > arg[1]; }
+size_t _Builtins_eq(size_t cls, size_t *arg) { return arg[0] == arg[1]; }
+size_t _Builtins_neq(size_t cls, size_t *arg) { return arg[0] != arg[1]; }
 
-int _Builtins_neg(int arg) { return -arg; }
-
-// Circuit stack.
-list<Circuit*> circuits;
+size_t _Builtins_neg(size_t cls, size_t arg) { return -arg; }
 
 // Builtin functions.
-perm* _Builtins_UNENCAP(Circ* c, perm* p) {
+perm* _Builtins_UNENCAP(size_t cls, size_t **arg) {
   if (circuits.empty()) {
     cout << "Error: empty circuit stack" << endl;
     return NULL;
-  } else
+  } else {
+    Circ *c = (Circ*)arg[0];
+    perm *p = (perm*)arg[1];
     return c->unencap(circuits.front(), p);
+  }
 }
 
-void _Builtins_OPENBOX(int n) {
+void _Builtins_OPENBOX(size_t cls, size_t n) {
   Circuit *c = new Circuit(n);
   circuits.push_front(c);
 }
 
-Circuit* _Builtins_CLOSEBOX() {
+Circuit* _Builtins_CLOSEBOX(size_t cls, size_t arg) {
   if (circuits.empty()) {
     cout << "Error: empty circuit stack" << endl;
     return NULL;
@@ -304,20 +306,27 @@ Circuit* _Builtins_CLOSEBOX() {
   }
 }
 
-Circuit* _Builtins_REV(Circuit* c) {
+Circuit* _Builtins_REV(size_t cls, Circuit* c) {
   return c->rev();
 }
 
-void _Builtins_PRINT(Circ *c) {
+size_t _Builtins_PRINT(size_t cls, Circ *c) {
   cout << c->print() << endl;
-}
-
-int _Builtins_PATTERN_ERROR(int x) {
   return 0;
 }
 
-int _Builtins_ISREF(int p) {
+size_t _Builtins_ERROR(size_t cls, size_t x) {
   return 0;
+}
+
+size_t _Builtins_ISREF(size_t cls, size_t p) {
+  return 0;
+}
+
+size_t _Builtins_APPBIND(size_t cls, size_t **arg) {
+  perm *p = (perm*)arg[0];
+  size_t q = (size_t)arg[1];
+  return app_perm(p,q);
 }
 
 
@@ -348,35 +357,35 @@ UGate* _Builtins_g_eitz_inv = new UGate("exp(-itZ)", true);
 BGate* _Builtins_g_swap = new BGate("swap");
 BGate* _Builtins_g_w = new BGate("W");
 
-Phase* _Builtins_g_phase(int cls, int n) { return new Phase(n); }
+Phase* _Builtins_g_phase(size_t cls, size_t n) { return new Phase(n); }
 
 // Builtin gates - Composed.
 
-Circuit* _Builtins_g_cnot(int sign) {
+Circuit* _Builtins_g_cnot(size_t cls, size_t sign) {
   Circuit *c = new Circuit(2);
   c->append(_Builtins_g_not->clone());
   c->withcontrol(1, sign==1);
   return c;
 }
 
-Circuit* _Builtins_g_control_phase(int *param) {
+Circuit* _Builtins_g_control_phase(size_t cls, size_t *param) {
   Circuit *c = new Circuit(2);
-  int n = param[0], sign = param[1];
+  size_t n = param[0], sign = param[1];
   c->append(_Builtins_g_phase(0,n));
   c->withcontrol(1, sign==1);
   return c;
 }
 
-Circuit* _Builtins_g_control_eitz(int sign) {
+Circuit* _Builtins_g_control_eitz(size_t cls, size_t sign) {
   Circuit *c = new Circuit(2);
   c->append(_Builtins_g_eitz->clone());
   c->withcontrol(1, sign==1);
   return c;
 }
 
-Circuit* _Builtins_g_toffoli(int *param) {
+Circuit* _Builtins_g_toffoli(size_t cls, size_t *param) {
   Circuit *c = new Circuit(3);
-  int sign1 = param[0], sign2 = param[1];
+  size_t sign1 = param[0], sign2 = param[1];
   c->append(_Builtins_g_not->clone());
   c->withcontrol(1, sign1==1);
   c->withcontrol(2, sign2==1);
@@ -385,10 +394,11 @@ Circuit* _Builtins_g_toffoli(int *param) {
 
 // Init function (necessary to link with quipper binaries).
 
-int InitBuiltins() {
+size_t InitBuiltins() {
   return 0;
 }
 
+}
 
 /* Test.
 int main () {

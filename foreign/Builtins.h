@@ -9,8 +9,8 @@ class Circuit;
 
 // Permutations.
 struct perm {
-  int _q;
-  int _assoc;
+  size_t _q;
+  size_t _assoc;
   perm* _rem;
 };
 
@@ -20,7 +20,7 @@ perm* remove(int, perm*);        // Remove a binding from the permutation.
 
 // Controls.
 typedef struct ctrl {
-  int _wire;
+  size_t _wire;
   bool _sign;
 } ctrl;
 
@@ -37,7 +37,7 @@ class Circ {
     virtual std::string print() =0;
     virtual Circ* clone() =0;
     virtual Circ* rev() =0;
-    virtual void withcontrol(int, bool);
+    virtual void withcontrol(size_t, bool);
     std::string controls();
   protected:
     std::list<ctrl> _controls;
@@ -49,7 +49,7 @@ class Circ {
 // Implementation of some gates.
 class Init: public Circ {
   public:
-    Init(bool b, int w=0): _val(b), _output(w) {};
+    Init(bool b, size_t w=0): _val(b), _output(w) {};
     Init(const Init& cpy): Circ(cpy), _val(cpy._val), _output(cpy._output) {};
     ~Init() {};
     perm* unencap(Circuit*, perm*);
@@ -58,12 +58,12 @@ class Init: public Circ {
     Circ* rev();
   private:
     bool _val;
-    int _output;
+    size_t _output;
 };
 
 class Term: public Circ {
   public:
-    Term(bool b, int w=0): _val(b), _input(w) {};
+    Term(bool b, size_t w=0): _val(b), _input(w) {};
     Term(const Term& cpy): Circ(cpy), _val(cpy._val), _input(cpy._input) {};
     ~Term() {};
     perm* unencap(Circuit*, perm*);
@@ -72,7 +72,7 @@ class Term: public Circ {
     Circ* rev();
   private:
     bool _val;
-    int _input;
+    size_t _input;
 };
 
 class UGate: public Circ {
@@ -86,7 +86,7 @@ class UGate: public Circ {
     UGate* rev() { _inv=not _inv; return this; };
   private:
     std::string _name;
-    int _wire;
+    size_t _wire;
     bool _inv;
 };
 
@@ -103,8 +103,8 @@ class BGate: public Circ {
     BGate* rev() { _inv=not _inv; return this; };
   private:
     std::string _name;
-    int _wire0;
-    int _wire1;
+    size_t _wire0;
+    size_t _wire1;
     bool _inv;
 };
 
@@ -118,29 +118,29 @@ class Phase: public Circ {
     Phase* clone() { return (new Phase(*this)); };
     Phase* rev() { return this; }
   private:
-    int _wire;
-    int _val;
+    size_t _wire;
+    size_t _val;
 };
 
 // Implementation of a circuit as a std::list of gates (or circuits).
 class Circuit: public Circ {
   public:
     Circuit(): _qid(0) {};
-    Circuit(int);
+    Circuit(size_t);
     Circuit(const Circuit&);
     ~Circuit();
     perm* unencap(Circuit*, perm*);
-    void withcontrol(int,bool);
+    void withcontrol(size_t,bool);
     void append(Circ*);
-    int init();          // Create a new qubit.
-    void term(int);      // Delete a qubit.
+    size_t init();          // Create a new qubit.
+    void term(size_t);      // Delete a qubit.
     std::string print();
     Circuit* clone() { return (new Circuit(*this)); };
     Circuit* rev();
   private:
-    std::list<int> _input;
-    std::list<int> _output;
+    std::list<size_t> _input;
+    std::list<size_t> _output;
     std::list<Circ*> _gates;
-    int _qid;
+    size_t _qid;
 };
 

@@ -176,7 +176,7 @@ implement_appbind typ b x = do
   where
     -- In the following, b is expected of the form : EApp (EBuiltin "APPBIND") b where is a binding
     appbind QUnit _ = return ([], EUnit)
-    appbind QQubit x = lookup_qualified_var ("Builtins","APPBIND") >>= \v -> return ([], EApp (EApp (EGlobal v) (EVar b)) (EVar x))
+    appbind QQubit x = lookup_qualified_var ("Builtins","APPBIND") >>= \v -> return ([], EApp (EGlobal v) (ETuple [EVar b, EVar x]))
     appbind (QTensor qlist) x = do
       (elet, elist) <- List.foldl (\rec (n, q) -> do
             (elet, elist) <- rec

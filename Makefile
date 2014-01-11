@@ -43,8 +43,7 @@ bwt.circ : $(MAIN)
 	./$(MAIN) -iqlib -ibwt bwt > bwt.circ
 
 foreign/Builtins.bc : foreign/Builtins.cpp
-	clang -c -emit-llvm -O2 foreign/Builtins.cpp -o foreign/Builtins.ll
-	llvm-as foreign/Builtins.ll -o foreign/Builtins.bc
+	clang -c -emit-llvm -O2 foreign/Builtins.cpp -o foreign/Builtins.bc
 
 clean :
 	rm -f $(GENERATED_MODULES)
