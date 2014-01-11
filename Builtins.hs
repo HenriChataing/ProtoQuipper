@@ -228,6 +228,12 @@ define_builtins = do
         ("neg", arrow int int, VBuiltin (\n -> VInt (- unVInt n "neg")))
         ]
 
+  -- Some printing functions.
+  let print = [
+        ("print_int", arrow int unit, VBuiltin (\arg -> VUnit)),
+        ("print_newline", arrow unit unit, VBuiltin (\arg -> arg))
+        ]
+
   -- Definition of some basic gates.
   let init = [
         ("g_init0", circ unit qubit, VCirc VUnit (singleton_circuit $ Init 0 0) (VQubit 0)),
@@ -283,8 +289,7 @@ define_builtins = do
         ("REV", arrow int int, VUnit),
         ("APPBIND", arrow int int, VUnit),
         ("ISREF", arrow int int, VUnit),
-        ("ERROR", arrow int int, VUnit),
-        ("PRINT", arrow int int, VUnit)
+        ("ERROR", arrow int int, VUnit)
         ]
 
   -- Import the preceding definitions.
@@ -293,7 +298,7 @@ define_builtins = do
         vb <- register_var (Just "Builtins") b 0
         insert_global vb (typescheme_of_type typ) (Just val)
         return $ Map.insert b (LGlobal vb) lbl
-      ) (return Map.empty) $ ops ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
+      ) (return Map.empty) $ ops ++ print ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
 
   -- Build the module.
   let builtins = Mod {

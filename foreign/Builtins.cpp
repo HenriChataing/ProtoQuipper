@@ -278,6 +278,11 @@ size_t _Builtins_neq(size_t cls, size_t *arg) { return arg[0] != arg[1]; }
 
 size_t _Builtins_neg(size_t cls, size_t arg) { return -arg; }
 
+// Printing.
+
+size_t _Builtins_print_int(size_t cls, size_t arg) { cout << arg; return 0; }
+size_t _Builtins_print_newline(size_t cls, size_t arg) { cout << endl; return 0; }
+
 // Builtin functions.
 perm* _Builtins_UNENCAP(size_t cls, size_t **arg) {
   if (circuits.empty()) {
