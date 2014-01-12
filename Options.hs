@@ -25,6 +25,7 @@ data Options = Options {
   runCompiler :: Bool,             -- ^ Compile the code? (default: no).
 
   conversionFormat :: String,      -- ^ Select the conversion to apply (e.g.: "cps", "wcps") (default: "wcps").
+  showIntermediate :: Bool,        -- ^ Should the intermediate code be displayed ?
 
   circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
 } deriving Show
@@ -47,6 +48,7 @@ default_options = Options {
   runInterpret = True,
   runCompiler = False,
   conversionFormat = "wcps",
+  showIntermediate = False,
 
   -- Others
   circuitFormat = "ir"
@@ -76,7 +78,9 @@ options =
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
       "set the output format for circuits. Valid formats are 'ir' (default), 'visual'.",
     Option ['c'] ["compile"] (OptArg read_conversion "CONV")
-      "run the compiler, with a specified conversion. Possible conversions are 'cps' and 'wcps'"
+      "run the compiler, with a specified conversion. Possible conversions are 'cps' and 'wcps'",
+    Option [] ["show-intermediate"] (ReqArg (\b opts -> return opts { showIntermediate = read b }) "[True False]")
+      "show the intermediate code produced by the compiler"
   ]
 
 

@@ -602,9 +602,12 @@ do_everything opts files = do
                 "wcps" -> C.convert_declarations_to_wcps decls
                 _ -> fail "Driver:do_everything: illegal format"
 
-          newlog 2 $ "======   " ++ S.module_name p ++ "   ======"
-          fvar <- display_var
-          newlog 2 $ genprint Inf [fvar] cunit
+          if showIntermediate opts then do
+            liftIO $ putStrLn $ "======   " ++ S.module_name p ++ "   ======"
+            fvar <- display_var
+            liftIO $ putStrLn $ genprint Inf [fvar] cunit
+          else
+            return ()
 
           cunit_to_llvm (S.module_name p) cunit
         else
