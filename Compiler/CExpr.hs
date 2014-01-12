@@ -687,14 +687,15 @@ instance PPrint CUnit where
           VLabel x -> text $ fvar x
           VGlobal x -> text $ fvar x
           _ -> text "WATWATWAT") (imports cu) in
+    let pmain = case main cu of
+          Just m -> text "main () {" $$ nest 2 (print_cexpr Inf fvar m) $$ text "}" $$ text " "
+          Nothing -> text " " in
 
     let all =
           text "extern" <+> hsep (punctuate comma pimport) $$
           text "globals" <+> hsep (punctuate comma gdef) $$ text " " $$
-          text "init () {" $$
-          nest 2 (vcat ginit) $$
-          text "}" $$
-          text " " $$
+          text "init () {" $$ nest 2 (vcat ginit) $$ text "}" $$ text " " $$
+          pmain $$
           vcat pcfuns in
     PP.render all
   genprint _ _ _ =
