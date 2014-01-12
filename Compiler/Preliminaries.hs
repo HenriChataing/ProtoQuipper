@@ -530,6 +530,7 @@ data TestResult =
   | ROtherInt [Int]         -- ^ Represents the set of all the integers not listed by the argument.
   | RBool Bool              -- ^ The result is a boolean.
   | RDatacon Datacon        -- ^ The result is a data constructor.
+  | ROtherDatacon [Datacon] -- ^ The result is a constructor not listed by the argument.
   deriving (Show, Eq)
 
 
@@ -541,11 +542,18 @@ rkind (RInt _:_) = RInt 0
 rkind (ROtherInt _:_) = RInt 0
 rkind (RBool _:_) = RBool True
 rkind (RDatacon _:_) = RDatacon 0
+rkind (ROtherDatacon _:_) = RDatacon 0
 
 
 -- | On the supposion that the result is 'RInt', return the associated integer.
+int_of_result :: TestResult -> Int
 int_of_result (RInt i) = i
 int_of_result _ = 0
+
+-- | On the supposition that the result is 'RDatacon', return the associated constructor.
+datacon_of_result :: TestResult -> Datacon
+datacon_of_result (RDatacon d) = d
+datacon_of_result _ = 0
 
 
 -- | Build the list of the tests relevant to a pattern. The result of the test is returned each time.
@@ -641,7 +649,11 @@ build_decision_tree plist = do
                     RDatacon dcon -> do
                         typ <- datacon_datatype dcon
                         all <- all_data_constructors typ
-                        return $ List.map (\dcon -> RDatacon dcon) all
+                        -- If not all datacons are listed, add another result of the form ROtherDatacon.
+                        if List.length results < List.length all then
+                          return $ (ROtherDatacon $ List.map datacon_of_result results):results
+                        else
+                          return results
                     -- If the result is an integer, all the possible results are the ones listed here, plus the remaining integers in ROtherInt.
                     RInt _ ->
                        return $ (ROtherInt $ List.map int_of_result results):results
@@ -654,7 +666,7 @@ build_decision_tree plist = do
               -- The remaining tests
               rtests <- return $ List.delete next tests
 
-              -- Build the subtress. At the same time, the list of unmatched cases is built.
+              -- Build the subtrees. At the same time, the list of unmatched cases is built.
               (subtrees, unmatched) <- List.foldl (\rec res -> do
                     (subtrees, unmatched) <- rec
                     -- List of the patterns matching this condition
@@ -678,12 +690,19 @@ build_decision_tree plist = do
                           -- Printing
                           fdata <- display_datacon
                           let prcase = genprint Inf [\_ -> "x", fdata] pcase
-                          -- In case the expected result is 'ROtherInt', display the list of non-admissible integers as well
+                          -- In case the expected result is 'ROtherInt' or 'ROtherDatacon', display the list of non-admissible integers as well
                           let prcase' =
                                 case res of
+                                  ROtherInt [i] ->
+                                      prcase ++ " where x /= " ++ show i
                                   ROtherInt (i:is) ->
-                                      prcase ++ " where x is not in {" ++
+                                      prcase ++ " where x /= {" ++
                                       show i ++ List.foldl (\s i -> s ++ ", " ++ show i) "" is ++ "}"
+                                  ROtherDatacon [d] ->
+                                      prcase ++ " where x /= " ++ fdata d
+                                  ROtherDatacon (d:ds) ->
+                                      prcase ++ " where x /= {" ++
+                                      fdata d ++ List.foldl (\s d -> s ++ ", " ++ fdata d) "" ds ++ "}"
                                   _ ->
                                       prcase
                           return ((res, Result (-1)):subtrees, prcase':unmatched)
@@ -864,7 +883,7 @@ simplify_pattern_matching e blist = do
               -- Build the sequence of tests
               teste <- case rkind (fst $ List.unzip results) of
                     RInt _ -> do
-                        -- Isolate the infinite case, and put it at the end of the list
+                        -- Isolate the infinite case.
                         ([(_, remains)], others) <- return $ List.partition (\(r, _) ->
                               case r of
                                 ROtherInt _ -> True
@@ -898,17 +917,31 @@ simplify_pattern_matching e blist = do
                         return $ EMatch (EVar var') [(1,casetrue)] casefalse
 
                     RDatacon _ -> do
+                        -- Isolate the default (ROtherDatacon) case (if one exists).
+                        let (remain, others) = List.foldl (\(remain, others) (r, subtree) ->
+                              case r of
+                                ROtherDatacon _ -> (Just (r,subtree), others)
+                                _ -> (remain, (r,subtree):others) ) (Nothing, []) results
+                        -- Build the standard cases.
                         cases <- List.foldl (\rec (rdcon, subtree) -> do
                               cases <- rec
                               tag <- case rdcon of
                                     RDatacon dcon -> datacon_def dcon >>= return . C.tag
                                     _ -> return (-1)
                               e <- unbuild subtree extracted
-                              return $ (tag, e):cases) (return []) results
-                        return $ EMatch (EVar var') (List.init cases) $ snd $ List.last cases
+                              return $ (tag, e):cases) (return []) others
+                        -- Build the default case.
+                        case remain of
+                          Nothing ->
+                              return $ EMatch (EVar var') (List.init cases) $ snd $ List.last cases
+                          Just (_, subtree) -> do
+                              e <- unbuild subtree extracted
+                              return $ EMatch (EVar var') cases e
 
                     ROtherInt _ ->
-                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'RRemainInt'"
+                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'ROtherInt'"
+                    ROtherDatacon _ ->
+                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'ROtherDatacon'"
 
               -- Complete the sequence with the variable extraction
               return $ initseq teste
