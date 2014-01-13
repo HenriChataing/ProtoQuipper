@@ -73,48 +73,17 @@ choose_implementation id = do
         -- First thing : count the constructors taking an argument.
         let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
 
-        -- In case at most one takes an argument, the remaining can be represented by just their tag.
-        if List.length with_args <= 1 then do
-          -- The constructor with one argument can forget its tag
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { C.construct = Right (\e -> ETuple [e]), C.deconstruct = \v -> EAccess 0 v })
-              ) (return ()) with_args
-          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { C.construct = Left $ EInt (C.tag ddef) })
-              ) (return ()) no_args
-          -- The tag is obtained by checking for references.
-          case with_args of
-            -- Since there isn't any reference in the lot, no need to check
-            [] -> set_tagaccess id $ \v -> EVar v
-            -- There is a reference: need to check
-            [(dcon, _)] -> do
-                visref <- lookup_qualified_var ("Builtins","ISREF")
-                tag <- datacon_def dcon >>= return . C.tag
-                set_tagaccess id $ \v -> EMatch (EApp (EGlobal visref) (EVar v))
-                                         [(1,EInt tag)]
-                                         (EVar v)
-            _ ->
-                fail "TransSyntax:choose_implementation: unexpected case"
-
-        -- If not, just give the default implementation.
-        else do
-          -- The constructor with one argument can forget its tag
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { C.construct = Right (\e -> ETuple [EInt (C.tag ddef),e]), C.deconstruct = \v -> EAccess 1 v })
-              ) (return ()) with_args
-          -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-          List.foldl (\rec (dcon, _) -> do
-                rec
-                update_datacon dcon (\ddef -> Just ddef { C.construct = Left $ ETuple [EInt (C.tag ddef)] })
-              ) (return ()) no_args
-          -- The tag is the first element of the tuple.
-          set_tagaccess id $ \v -> EAccess 0 v
-
-
+        List.foldl (\rec (dcon, _) -> do
+              rec
+              update_datacon dcon (\ddef -> Just ddef { C.construct = Right (\e -> ETuple [EInt (C.tag ddef),e]), C.deconstruct = \v -> EAccess 1 v })
+            ) (return ()) with_args
+        -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
+        List.foldl (\rec (dcon, _) -> do
+              rec
+              update_datacon dcon (\ddef -> Just ddef { C.construct = Left $ ETuple [EInt (C.tag ddef)] })
+            ) (return ()) no_args
+        -- The tag is the first element of the tuple.
+        set_tagaccess id $ \v -> EAccess 0 v
 
 
 
@@ -1000,7 +969,7 @@ remove_patterns (C.ELet Recursive (C.PVar _ v) e f) = do
   f' <- remove_patterns f
   case e' of
     EFun x e ->
-        return $ ELet v (ERecFun v x e') f'
+        return $ ELet v (EFix v x e) f'
     _ ->
         fail "Preliminaries:remove_patterns: unexpected recursive object"
 
@@ -1119,18 +1088,21 @@ transform_declarations decls = do
                 e' <- disambiguate_unbox_calls args mod' e
 
                 -- Transform e' into a function
-                let e'' = List.foldl (\e (_, v) ->
-                      C.EFun 0 (C.PVar 0 v) e) e' args
+                let e'' = List.foldl (\e (_, v) -> C.EFun 0 (C.PVar 0 v) e) e' args
 
                 -- Remove the patterns
                 e'' <- remove_patterns e''
-
-                return ((DLet External x e''):decls, mod')
+                case (recflag, e'') of
+                  (Recursive, EFun v e) -> return ((DLet External x $ EFix x v e):decls, mod')
+                  _ -> return ((DLet External x e''):decls, mod')
 
               -- No unresolved unbox operators
               else do
                 e' <- remove_patterns e
-                return ((DLet External x e'):decls, mod)
+                case (recflag, e') of
+                  (Recursive, EFun v e) -> return ((DLet External x $ EFix x v e):decls, mod)
+                  _ -> return ((DLet External x e'):decls, mod)
+
       ) (return ([], IMap.empty)) decls
 
   -- Retrieve the declaration of quantum operations

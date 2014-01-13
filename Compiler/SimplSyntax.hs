@@ -20,7 +20,7 @@ data Expr =
     EVar Variable                                 -- ^ Variable: /x/.
   | EGlobal Variable                              -- ^ Global variable from the imported modules.
   | EFun Variable Expr                            -- ^ Function abstraction: @fun x -> t@.
-  | ERecFun Variable Variable Expr                -- ^ A recursive function, that binds a name (variable) in its local context.
+  | EFix Variable Variable Expr                -- ^ A recursive function, that binds a name (variable) in its local context.
   | EApp Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
@@ -62,7 +62,7 @@ data Declaration =
 imports :: Expr -> [Variable]
 imports (EGlobal x) = [x]
 imports (EFun _ e) = imports e
-imports (ERecFun _ _ e) = imports e
+imports (EFix _ _ e) = imports e
 imports (EApp e f) = List.union (imports e) (imports f)
 imports (ETuple elist) = List.nub $ List.concat $ List.map imports elist
 imports (ELet _ e f) = List.union (imports e) (imports f)
@@ -127,7 +127,7 @@ print_doc lv (EApp e f) fvar =
      EApp _ _ -> parens pf
      _ -> pf)
 
-print_doc lv (ERecFun f x e) fvar =
+print_doc lv (EFix f x e) fvar =
   let dlv = decr lv in
   text "fun(" <> text (fvar f) <> text ")" <+> text (fvar x) <+> text "->" $$
   nest 2 (print_doc dlv e fvar)

@@ -173,7 +173,7 @@ convert_to_cps vals c (S.EFun x e) = do
   cf <- c (VVar f)
   return $ CFun f [x, k] body $ cf
 
-convert_to_cps vals c (S.ERecFun f x e) = do
+convert_to_cps vals c (S.EFix f x e) = do
   k <- create_var "k"       -- continuation argument
   -- At the end of the body, the result is passed to the continuation k
   let vals' = IMap.insert f (VVar f) vals
@@ -295,7 +295,7 @@ convert_to_wcps vals c (S.EFun x e) = do
   cf <- c (VVar f)
   return $ CFun f [x] body $ cf
 
-convert_to_wcps vals c (S.ERecFun f x e) = do
+convert_to_wcps vals c (S.EFix f x e) = do
   -- At the end of the body, the result is returned using CRet k
   let vals' = IMap.insert f (VVar f) vals
   body <- convert_to_wcps vals' (\z -> return $ CRet z) e
@@ -390,7 +390,7 @@ convert_declarations_to_cps decls = do
                 S.External ->
                     return (cu { local = funs ++ local cu, extern = fdef:(extern cu) }, IMap.insert f (VLabel f) vals)
 
-          (_, S.ERecFun _ x c) -> do
+          (_, S.EFix _ x c) -> do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
@@ -451,7 +451,7 @@ convert_declarations_to_wcps decls = do
                     return (cu { local = funs ++ local cu, extern = fdef:(extern cu) },
                             IMap.insert f (VLabel f) vals)
 
-          (_, S.ERecFun _ x c) -> do
+          (_, S.EFix _ x c) -> do
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_wcps vals' (\z -> return $ CRet z) c
@@ -477,78 +477,83 @@ convert_declarations_to_wcps decls = do
 
 
 -- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
-closure_conversion_aux :: CExpr -> QpState (CExpr, [Variable])
-closure_conversion_aux (CFun f args cf c) = do
-  -- close the function body and continuation
-  (cf', fvcf) <- closure_conversion_aux cf
-  (c', fvc) <- closure_conversion_aux c
-
-  -- free variables of f
-  let fv = fvcf List.\\ args
-  -- name of the function pointer and closure
+-- The map passed as first argument gives the current closure.
+closure_conversion_aux :: (Variable, Value, Value) -> CExpr -> QpState (CExpr, [Variable])
+closure_conversion_aux closure (CFun f args cf c) = do
+  -- Name the function pointer and closure.
   f' <- create_var "f"
   f'' <- create_var "fc"
   cl <- create_var "c"
-
-  -- extraction of the free variables of cf'
+  -- Close the function body and continuation. (the closure changes)
+  (cf', fvcf) <- closure_conversion_aux (f, VVar f', VVar f'') cf
+  (c', fvc) <- closure_conversion_aux closure c
+  -- Free variables of f.
+  let fv = fvcf List.\\ args
+  -- Extraction of the free variables of cf'.
   let cf'' = List.foldl (\cf (x,n) ->
         CAccess n (VVar f'') x cf) cf' $ List.zip fv [1..List.length fv]
-
-  -- construction of the closure (with continuation c' and name f)
+  -- Construction of the closure (with continuation c' and name f).
   let c'' = CTuple (VVar f':(List.map VVar fv)) f c'
-
-  -- re-definition of the function f
+  -- Re-definition of the function f.
   return (CFun f' (f'':args) cf'' c'', List.union fv (fvc List.\\ [f]))
 
-closure_conversion_aux (CApp (VVar f) args x c) = do
-  f' <- create_var "f"
-  (c', fvc) <- closure_conversion_aux c
-  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CApp (VVar f') (VVar f:args) x c',          -- Apply the function to its own closure
-           List.union (fvc List.\\ [x]) (f:(List.concat $ List.map free_var args)) )
+closure_conversion_aux (g, g', g'') (CApp (VVar f) args x c) = do
+  (c', fvc) <- closure_conversion_aux (g,g',g'') c
+  if f == g then
+    return ( CApp g' (g'':args) x c',                    -- Apply the function to its own closure
+             List.union (fvc List.\\ [x]) (List.concat $ List.map free_var args) )
+  else do
+    f' <- create_var "f"
+    return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+             CApp (VVar f') (VVar f:args) x c',          -- Apply the function to its own closure
+             List.union (fvc List.\\ [x]) (f:(List.concat $ List.map free_var args)) )
 
 -- since global functions are already closed, only a dummy closure is passed as argument.
-closure_conversion_aux (CApp (VLabel f) args x c) = do
-  (c', fvc) <- closure_conversion_aux c
+closure_conversion_aux closure (CApp (VLabel f) args x c) = do
+  (c', fvc) <- closure_conversion_aux closure c
   return ( CApp (VLabel f) (VInt 0:args) x c',         -- Apply the function to a dummy closure (0)
            List.union (fvc List.\\ [x]) (List.concat $ List.map free_var args) )
 
-closure_conversion_aux (CTailApp (VVar f) args) = do
-  f' <- create_var "f"
-  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CTailApp (VVar f') (VVar f:args),           -- Apply the function to its own closure
-           f:(List.concat $ List.map free_var args) )
+closure_conversion_aux (g,g',g'') (CTailApp (VVar f) args) = do
+  if f == g then
+    return ( CTailApp g' (g'':args),                     -- Apply the function to its own closure
+             List.concat $ List.map free_var args )
+  else do
+    f' <- create_var "f"
+    return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+             CTailApp (VVar f') (VVar f:args),           -- Apply the function to its own closure
+             f:(List.concat $ List.map free_var args) )
 
 -- since global functions are already closed, only a dummy closure is passed as argument.
-closure_conversion_aux (CTailApp (VLabel f) args) = do
+closure_conversion_aux _ (CTailApp (VLabel f) args) = do
   return ( CTailApp (VLabel f) (VInt 0:args),               -- Apply the function to a dummy closure (1)
            List.concat $ List.map free_var args )
 
-closure_conversion_aux (CTuple vlist x c) = do
-  (c', fvc) <- closure_conversion_aux c
+closure_conversion_aux closure (CTuple vlist x c) = do
+  (c', fvc) <- closure_conversion_aux closure c
   let fv = List.nub $ List.concat $ List.map free_var vlist
   return (CTuple vlist x c', List.union fv (fvc List.\\ [x]))
 
-closure_conversion_aux (CAccess n v x c) = do
-  (c', fvc) <- closure_conversion_aux c
+closure_conversion_aux closure (CAccess n v x c) = do
+  (c', fvc) <- closure_conversion_aux closure c
   return (CAccess n v x c', List.union (free_var v) (fvc List.\\ [x]))
 
-closure_conversion_aux (CSwitch v clist def) = do
+closure_conversion_aux closure (CSwitch v clist def) = do
   (clist', fvc) <- List.foldl (\rec (n,c) -> do
         (cl, fvc) <- rec
-        (c', fvc') <- closure_conversion_aux c
+        (c', fvc') <- closure_conversion_aux closure c
         return ((n,c'):cl, List.union fvc' fvc)) (return ([], [])) clist
-  (def', fvdef) <- closure_conversion_aux def
+  (def', fvdef) <- closure_conversion_aux closure def
   return (CSwitch v (List.reverse clist') def', List.union (free_var v) $ List.union fvc fvdef)
 
-closure_conversion_aux e =
+closure_conversion_aux _ e =
   return (e, free_var e)
 
 
 -- | Closure conversion of the CPS code.
 closure_conversion :: CExpr -> QpState CExpr
 closure_conversion e = do
-  (e, _) <- closure_conversion_aux e
+  (e, _) <- closure_conversion_aux (0,VVar 0,VVar 0) e
   return e
 
 

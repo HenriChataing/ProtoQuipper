@@ -129,7 +129,7 @@ define_module_functions vals ((f, arg, c):fs) = do
               cexpr_to_llvm (IMap.insert z (LVInt vz) vals'') c
         define_module_functions vals fs
     _ ->
-        throwNE $ ProgramError "CPStoLLVM:define_module_functions: illegal argument"
+        throwNE $ ProgramError "LlvmExport:define_module_functions: illegal argument"
 
 
 
@@ -139,7 +139,7 @@ lvalue_to_int (LVInt v) = return v
 lvalue_to_int (LVIntPtr p) = ptrtoint p
 lvalue_to_int (LVFun2 f) = ptrtoint f
 lvalue_to_int (LVFun3 f) = ptrtoint f
-lvalue_to_int _ = throwNE $ ProgramError "CPStoLLVM:lvalue_to_int: illegal argument"
+lvalue_to_int _ = throwNE $ ProgramError "LlvmExport:lvalue_to_int: illegal argument"
 
 
 -- | Convert a CPS value to an LLVM integer, using casts as needed.
@@ -152,18 +152,18 @@ cvalue_to_int vals (VLabel l) =
         p <- externFunction s :: CodeGenFunction r (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
         ptrtoint p
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined label"
+    Nothing -> throwNE $ ProgramError $ "LlvmExport:cvalue_to_int: undefined label"
 cvalue_to_int vals (VGlobal g) =
   case IMap.lookup g vals of
     Just (LVExtern s) -> do
         p <- externGlobal False s :: CodeGenFunction r (L.Value (Ptr ArchInt))
         ptrtoint p
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined global"
+    Nothing -> throwNE $ ProgramError $ "LlvmExport:cvalue_to_int: undefined global"
 cvalue_to_int vals (VVar x) =
   case IMap.lookup x vals of
     Just v -> lvalue_to_int v
-    Nothing -> throwNE $ ProgramError $ "CPStoLLVM:cvalue_to_int: undefined variable"
+    Nothing -> throwNE $ ProgramError $ "LlvmExport:cvalue_to_int: undefined variable"
 
 
 
@@ -172,7 +172,7 @@ cexpr_to_llvm :: LContext                                      -- ^ Context of v
                 -> CExpr                                         -- ^ Continuation expression.
                 -> CodeGenFunction ArchInt Terminate             -- ^ The result is a chunk of function code.
 cexpr_to_llvm _ (CFun _ _ _ _) =
-  fail "CPStoLLVM:cexpr_to_llvm: illegal argument"
+  fail "LlvmExport:cexpr_to_llvm: illegal argument"
 
 cexpr_to_llvm vals (CApp f args x c) = do
   vf <- cvalue_to_int  vals f
@@ -218,7 +218,7 @@ cexpr_to_llvm vals (CTailApp f args) = do
             f <- inttoptr vf :: CodeGenFunction r (L.Value (Ptr (ArchInt -> ArchInt -> ArchInt -> IO ArchInt)))
             call f a b c
         _ ->
-            throwNE $ ProgramError "CPStoLLVM:cexpr_to_llvm: bad function application"
+            throwNE $ ProgramError "LlvmExport:cexpr_to_llvm: bad function application"
   -- the return value is that of the function application
   ret app
 
@@ -252,21 +252,25 @@ cexpr_to_llvm vals (CAccess n x y c) = do
   cexpr_to_llvm (IMap.insert y (LVInt vy) vals) c
 
 cexpr_to_llvm vals (CSwitch x clist def) = do
-  -- translate the value v, and check that it is indeed an integer
+  -- Translate the value v, and check that it is indeed an integer.
   vx <- cvalue_to_int  vals x
-  -- Build the switch cases.
-  cases <- List.foldl (\rec (n, c) -> do
+  -- Create the case blocks (without initialization).
+  cases <- List.foldl (\rec (n, _) -> do
         let tag = constOf $ fromIntegral n
         blocks <- rec
-        block <- createBasicBlock
-        cexpr_to_llvm vals c
+        block <- newBasicBlock
         return $ (tag, block):blocks) (return []) clist
-  -- Build he default block.
-  bdef <- createBasicBlock
-  cexpr_to_llvm vals def
-
-  -- Build the final expression.
+  bdef <- newBasicBlock
+  -- Build the switch.
   switch vx bdef cases
+  -- Define the blocks.
+  List.foldl (\rec ((_, b), (_, c)) -> do
+        rec
+        defineBasicBlock b
+        cexpr_to_llvm vals c
+        return ()) (return ()) $ List.zip (List.reverse cases) clist
+  defineBasicBlock bdef
+  cexpr_to_llvm vals def
 
 cexpr_to_llvm vals (CSet x v) = do
   vx <- cvalue_to_int  vals (VVar x)
