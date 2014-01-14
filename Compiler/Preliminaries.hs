@@ -707,6 +707,7 @@ build_decision_tree plist = do
 
   where
       modify_pattern _ [] (ROtherInt ns) = C.PVar 0 0
+      modify_pattern _ _ (ROtherDatacon ns) = C.PVar 0 0
       modify_pattern _ [] (RInt n) = C.PInt 0 n
       modify_pattern _ [] (RBool b) = C.PBool 0 b
       modify_pattern (C.PTuple r plist) ((InTuple n):ns) res =
@@ -726,7 +727,7 @@ build_decision_tree plist = do
       modify_pattern (C.PVar _ _) _ _ =
         C.PWildcard 0
       modify_pattern _ _ _ =
-        throwNE $ ProgramError "Preliminaries;modify_pattern: illegal arguments"
+        throwNE $ ProgramError "Preliminaries:modify_pattern: illegal arguments"
 
 
 -- | Extract the variables of a pattern, and return the sequence of functions applications necessary to retrieve them.

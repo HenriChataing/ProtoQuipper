@@ -64,7 +64,7 @@ declare_globals (gx:gxs) = do
   mod <- variable_module gx
   vals <- declare_globals gxs
   return $ do
-        ngx <- createNamedGlobal False ExternalLinkage ("_" ++ mod ++ "_" ++ name) (constOf 0) :: TGlobal ArchInt
+        ngx <- createNamedGlobal False ExternalLinkage ("_" ++ mod ++ "_" ++ remove_specials name) (constOf 0) :: TGlobal ArchInt
         vals <- vals
         return $ IMap.insert gx (LVIntPtr ngx) vals
 
@@ -77,7 +77,7 @@ declare_module_functions ExternalLinkage ((f, arg, _):fs) = do
   nf <- variable_name f
   mod <- variable_module f
   vals <- declare_module_functions ExternalLinkage fs
-  let fname = "_" ++ mod ++ "_" ++ nf
+  let fname = "_" ++ mod ++ "_" ++ remove_specials nf
   case arg of
     [_,_] ->
         return (do
@@ -305,11 +305,11 @@ cunit_to_llvm mods cu = do
           VGlobal x -> do
               n <- variable_name x
               mod <- variable_module x
-              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ remove_specials n) vals
           VLabel x -> do
               n <- variable_name x
               mod <- variable_module x
-              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ n) vals
+              return $ IMap.insert x (LVExtern $ "_" ++ mod ++ "_" ++ remove_specials n) vals
           _ -> return vals) (return IMap.empty) (imports cu)
 
   -- declare the global variables

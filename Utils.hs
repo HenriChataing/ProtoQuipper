@@ -90,6 +90,18 @@ module_of_file f =
   string_toUpper name
 
 
+-- | Replace the special characters non accepted in C functiona names by their unicode number.
+remove_specials :: String -> String
+remove_specials =
+  List.concat . List.map (\c ->
+    if isAlphaNum c || c == '_' then
+      [c]
+    else
+      "_" ++ show (ord c) ++ "_"
+  )
+
+
+
 -- | Input a list of sets, and output the set of those elements that
 -- occur in exactly one of the given sets.
 --
