@@ -529,7 +529,7 @@ process_module opts prog = do
         (ctx, decl) <- process_declaration opts prog ctx decl
         case decl of
           Just d -> return (ctx, d:decls)
-          Nothing -> return (ctx, [])
+          Nothing -> return (ctx, decls)
       ) (return (Context { labelling = lctx,
                            typing = IMap.empty,
                            environment = IMap.empty,
