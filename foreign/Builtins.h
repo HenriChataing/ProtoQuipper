@@ -8,7 +8,9 @@ class Circuit;
 
 
 // Permutations.
+// The definition is given in the module Compiler.Circ
 struct perm {
+  size_t _tag;
   size_t _q;
   size_t _assoc;
   perm* _rem;
@@ -17,6 +19,7 @@ struct perm {
 int app_perm(perm*, int);        // Apply a permutation to a point.
 perm* append(int, int, perm*);   // Add a new binding to the permutation.
 perm* remove(int, perm*);        // Remove a binding from the permutation.
+void print(perm*);
 
 // Controls.
 typedef struct ctrl {

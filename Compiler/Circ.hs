@@ -55,7 +55,7 @@ implement_unbox (t, u) = do
         -- Build the binding
         elet $ ELet xb b $
         -- Call the unencap function
-        ELet xb' (EApp (EApp (EGlobal vunencap) (EVar xb)) (EVar xc)) $
+        ELet xb' (EApp (EGlobal vunencap) (ETuple [EVar xc, EVar xb])) $
         -- Finally, apply the binding to the output value
         elet' $ v
 
@@ -81,7 +81,7 @@ implement_box typ = do
         ELet x1 spec $                                -- Create the specimen
         ESeq (EApp (EGlobal vopenbox) (EInt n)) $     -- Open a new box
         ELet x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
-        ELet x3 (EGlobal vclosebox) $                 -- Close the box
+        ELet x3 (EApp (EGlobal vclosebox) EUnit) $    -- Close the box
         ETuple [EVar x1, EVar x3, EVar x2]            -- Build the resulting circuit
 
 
