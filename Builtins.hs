@@ -300,6 +300,15 @@ define_builtins = do
         return $ Map.insert b (LGlobal vb) lbl
       ) (return Map.empty) $ ops ++ print ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
 
+  -- Define a generic printing function for circuits.
+  vprint <- register_var (Just "Builtins") "print_circ" 0
+  a <- fresh_type
+  n <- fresh_flag
+  b <- fresh_type
+  m <- fresh_flag
+  insert_global vprint (TForall [n,m] [a,b] emptyset $ arrow (circ (TBang n $ TVar a) (TBang m $ TVar b)) unit) Nothing
+  lbl <- return $ Map.insert "print_circ" (LGlobal vprint) lbl
+
   -- Build the module.
   let builtins = Mod {
     labelling = LblCtx {
