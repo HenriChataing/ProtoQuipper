@@ -331,16 +331,7 @@ Circuit* _Builtins_REV(size_t cls, Circuit* c) {
   return c->rev();
 }
 
-size_t _Builtins_PRINT(size_t cls, Circ *c) {
-  cout << c->print() << endl;
-  return 0;
-}
-
 size_t _Builtins_ERROR(size_t cls, size_t x) {
-  return 0;
-}
-
-size_t _Builtins_ISREF(size_t cls, size_t p) {
   return 0;
 }
 
