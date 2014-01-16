@@ -943,6 +943,12 @@ remove_patterns (C.EFun ref p e) = do
       e' <- remove_patterns e
       return $ EFun x e'
 
+    -- The pattern is the wildcard: do nothing (except from creating a variable for the argument).
+    C.PWildcard _ -> do
+      e' <- remove_patterns e
+      x <- create_var "x"
+      return $ EFun x e'
+
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
       x <- create_var "x"

@@ -36,7 +36,7 @@ import Debug.Trace
 
 
 -- | Malloc function.
-malloc :: forall a r s. (Bits a, IsType a, Integral s) => s -> CodeGenFunction r (L.Value (Ptr a))
+malloc :: forall a r s. (Bits a, IsType a, Num a, Integral s) => s -> CodeGenFunction r (L.Value (Ptr a))
 malloc size = do
   malloc <- externFunction "malloc" :: CodeGenFunction r (Function (ArchInt -> IO (Ptr a)))
   call malloc $ valueOf $ (fromIntegral size) * (fromIntegral $ bitSize (0 :: a)) `quot` 8
