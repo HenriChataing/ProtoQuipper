@@ -1103,12 +1103,22 @@ transform_declarations decls = do
                   (Recursive, EFun v e) -> return ((DLet External x $ EFix x v e):decls, mod')
                   _ -> return ((DLet External x e''):decls, mod')
 
-              -- No unresolved unbox operators
+              -- No unresolved unbox operators.
               else do
                 e' <- remove_patterns e
                 case (recflag, e') of
+                  -- Recursive function.
                   (Recursive, EFun v e) -> return ((DLet External x $ EFix x v e):decls, mod)
-                  _ -> return ((DLet External x e'):decls, mod)
+                  -- Function.
+                  (Nonrecursive, EFun v e) -> return ((DLet External x $ EFun v e):decls, mod)
+                  _ -> do
+                      typ <- global_type x >>= return . C.type_of_typescheme
+                      if C.is_fun typ then do
+                        -- Necessary eta-expansion.
+                        a <- create_var "x"
+                        return ((DLet External x $ EFun a (EApp e' $ EVar a)):decls, mod)
+                      else
+                        return ((DLet External x e'):decls, mod)
 
       ) (return ([], IMap.empty)) decls
 
