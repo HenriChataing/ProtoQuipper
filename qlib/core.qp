@@ -7,7 +7,7 @@ let m * n = mul (m,n) ;;
 let m / n = quot (m,n) ;;
 let div m n = div (m,n) ;;
 let rem m n = rem (m,n) ;;
-let mod m n = mod (m,n) ;;
+let m % n = mod (m,n) ;;
 let m ^ n = pow (m,n) ;;
 let m <= n = le (m,n) ;;
 let m >= n = ge (m,n) ;;
