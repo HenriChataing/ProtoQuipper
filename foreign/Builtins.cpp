@@ -80,6 +80,7 @@ string Circ::controls() {
 
 void Circ::app_perm_to_controls(perm *p) {
   list<ctrl>::iterator it=_controls.begin();
+  list<ctrl> ncontrols;
   for (; it!=_controls.end(); it++)
     it->_wire = app_perm(p, it->_wire);
 }
@@ -171,6 +172,7 @@ string Phase::print() {
 
 perm* Phase::unencap(Circuit *c, perm *p) {
   Phase *cpy = clone();
+  cpy->app_perm_to_controls(p);
   cpy->_wire = app_perm(p, _wire);
   c->append(cpy);
   return p;

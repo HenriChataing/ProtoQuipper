@@ -44,7 +44,7 @@ implement_unbox (t, u) = do
   xb' <- create_var "b"
 
   -- Implementation of the chunks of code needed for the bindings
-  (elet, b) <- implement_bind t x1 xt
+  (elet, b) <- implement_bind t xt x1
   (elet', v) <- implement_appbind u xb' xu
 
   return $ EFun x0 $ EFun x1 $
