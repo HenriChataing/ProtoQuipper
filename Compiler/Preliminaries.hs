@@ -829,7 +829,7 @@ simplify_pattern_matching e blist = do
   let unbuild = \dtree extracted ->
         case dtree of
           Result (-1) -> do
-              return $ EError "patter error"
+              return $ EError "Pattern Error"
 
           Result n -> do
               -- Get the list of the variables declared in the pattern

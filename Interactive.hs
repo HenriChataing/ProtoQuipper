@@ -212,7 +212,7 @@ run_interactive opts ctx buffer = do
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
                               cset <- constraint_typing gamma_e e' [a] >>= break_composite
-                              cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                              cset' <- unify (exact opts) (cset <> constraints ctx)
                               inferred <- map_type a >>= pprint_type_noref
 
                               -- Display the type
@@ -283,7 +283,7 @@ run_interactive opts ctx buffer = do
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- sub_context fve gamma
                               cset <- constraint_typing gamma_e e' [a] >>= break_composite
-                              cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+                              cset' <- unify (exact opts) (cset <> constraints ctx)
                               inferred <- map_type a
 
                               endtype <- get_context >>= return . type_id

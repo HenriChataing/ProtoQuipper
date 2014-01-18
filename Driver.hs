@@ -211,8 +211,6 @@ build_set_dependencies dirs progs = do
 
 
 
-
-
 -- | The type of /extensive contexts/, which are used during the processing of top-level declarations.
 data ExtensiveContext = Context {
   labelling :: LabellingContext,        -- ^ A labelling context.
@@ -259,7 +257,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   e' <- translate_expression e $ labelling ctx
 
   -- Remember the body of the module
-  let decl = if runCompiler opts then
+  let decl = if run_compiler opts then
           Just (DExpr e')
         else
           Nothing
@@ -275,7 +273,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
   cset <- constraint_typing gamma_e e' [a] >>= break_composite
-  cset' <- unify (not $ approximations opts) (cset <> constraints ctx)
+  cset' <- unify (exact opts) (cset <> constraints ctx)
   inferred <- map_type a >>= pprint_type_noref
 
   -- Resolve the constraints (BECAUSE MAP_TYPE CAN CHANGE THE FLAGS)
@@ -295,7 +293,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   if run_interpret opts && toplevel mopts then do
     v <- interpret (environment ctx) e'
     pv <- pprint_value_noref v
-    case (v, circuitFormat opts) of
+    case (v, circuit_format opts) of
       (VCirc _ c _, "ir") -> do
           irdoc <- return $ export_to_IR c
           liftIO $ putStrLn irdoc
@@ -303,7 +301,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
           liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
           liftIO $ putStrLn (pv ++ " : " ++ inferred)
-  else if toplevel mopts && not (runCompiler opts) then
+  else if toplevel mopts && not (run_compiler opts) then
     liftIO $ putStrLn ("-: "  ++ inferred)
   else
     return ()
@@ -339,7 +337,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   fve <- return $ free_var e'
 
   -- Remember the body of the module
-  let decl = if runCompiler opts then
+  let decl = if run_compiler opts then
           Just (DLet recflag (unPVar p') e')
         else
           Nothing
@@ -408,7 +406,6 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- If the expression is not a value, it has a classical type
   else
     return (IMap.map typescheme_of_type gamma_p)
-
 
   if disp_decls mopts && toplevel mopts then
     -- Print the types of the pattern p
@@ -539,7 +536,6 @@ process_module opts prog = do
   duplicable_context (typing ctx)
   _ <- unify True $ constraints ctx
 
-
   -- Import everything to the qstate fields
   qst <- get_context
   set_context $ qst { globals = IMap.union (typing ctx) $ globals qst,
@@ -550,14 +546,11 @@ process_module opts prog = do
                      M.declarations = List.reverse decls }
 
   -- Explicit the construction of the data constructors
+  -- Return the circuit stack to its original form
   newmod <- explicit_datacons newmod
 
   ctx <- get_context
-  set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx) }
-
-  -- Return the circuit stack to its original form
-  ctx <- get_context
-  set_context $ ctx { circuits = old_stack }
+  set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx), circuits = old_stack }
 
   -- Return
   return newmod
@@ -583,40 +576,42 @@ do_everything opts files = do
 
   -- Build the dependencies
   deps <- build_set_dependencies (includes opts) progs
+  let ndeps = List.length deps
 
   -- Build the builtin / qlib interfaces
   define_builtins
 
   -- Process everything, finishing by the main modules
-  mods <- List.foldl (\rec p -> do
+  mods <- List.foldl (\rec (n, p) -> do
         ms <- rec
         let mopts = MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
         nm <- process_module (opts, mopts) p
 
         -- Compilation
-        if runCompiler opts then do
+        if run_compiler opts then do
+          liftIO $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ S.module_name p
           decls <- transform_declarations (M.declarations nm)
 
-          cunit <- case conversionFormat opts of
+          cunit <- case conversion_format opts of
                 "cps" -> C.convert_declarations_to_cps decls
                 "wcps" -> C.convert_declarations_to_wcps decls
                 _ -> fail "Driver:do_everything: illegal format"
 
-          if showIntermediate opts then do
+          if show_intermediate opts then do
             liftIO $ putStrLn $ "======   " ++ S.module_name p ++ "   ======"
             fvar <- display_var
             liftIO $ putStrLn $ genprint Inf [fvar] cunit
           else
             return ()
 
-          cunit_to_llvm (S.module_name p) cunit
+          cunit_to_llvm (combine (output_dir opts) (S.module_name p)) cunit
         else
           return ()
 
         -- The references used during the processing of the module p have become useless,
         -- so remove them.
         clear_references
-      ) (return ()) deps
+      ) (return ()) $ List.zip [1..ndeps] deps
   return ()
 
 

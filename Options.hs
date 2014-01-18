@@ -12,22 +12,21 @@ import qualified Data.List as List
 
 -- | A data structure to hold command line options.
 data Options = Options {
-  verbose :: Int,                  -- ^ The verbosity level (default: -1).
+  verbose :: Int,                   -- ^ The verbosity level (default: -1).
+  warning_action :: String,         -- ^ How should warnings be handled (default: \"display\").
 
-  warningAction :: String,         -- ^ How should warnings be handled (default: \"display\").
+  includes :: [FilePath],           -- ^ List of include directories (default: empty).
 
-  approximations :: Bool,          -- ^ Permit approximations in the unification? (default: no).
+  exact :: Bool,                    -- Switch on / off the use of approximations in the unification algorithm.
 
-  includes :: [FilePath],          -- ^ List of include directories (default: empty).
+  run_interpreter :: Bool,          -- ^ Interpret the code? (default: yes).
+  run_compiler :: Bool,             -- ^ Compile the code? (default: no).
 
-  runInterpret :: Bool,            -- ^ Interpret the code? (default: yes).
+  conversion_format :: String,      -- ^ Select the conversion to apply (e.g.: "cps", "wcps") (default: "wcps").
+  show_intermediate :: Bool,        -- ^ Should the intermediate code be displayed ?
+  output_dir :: String,             -- ^ Where should the bitcode files be created ?
 
-  runCompiler :: Bool,             -- ^ Compile the code? (default: no).
-
-  conversionFormat :: String,      -- ^ Select the conversion to apply (e.g.: "cps", "wcps") (default: "wcps").
-  showIntermediate :: Bool,        -- ^ Should the intermediate code be displayed ?
-
-  circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
+  circuit_format :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
 } deriving Show
 
 
@@ -36,22 +35,23 @@ default_options :: Options
 default_options = Options {
   -- General options
   verbose = 0,
-  warningAction = "display",
+  warning_action = "display",
 
   -- Include directories
   includes = [],
 
-  -- Typing options
-  approximations = False,
+  -- Settings
+  exact = True,
 
   -- Actions
-  runInterpret = True,
-  runCompiler = False,
-  conversionFormat = "wcps",
-  showIntermediate = False,
+  run_interpreter = True,
+  run_compiler = False,
+  conversion_format = "wcps",
+  show_intermediate = False,
+  output_dir = ".",
 
   -- Others
-  circuitFormat = "ir"
+  circuit_format = "ir"
 }
 
 
@@ -69,25 +69,27 @@ options =
       "specify the handling of warnings. Possible actions are 'error', 'hide', 'display' (default).",
     Option ['I'] ["include"] (ReqArg include_directory "DIR")
       "add a directory to the module path",
-    Option ['r'] ["run"] (NoArg (\opts -> return opts { runInterpret = True }))
+    Option ['r'] ["run"] (NoArg (\opts -> return opts { run_interpreter = True }))
       "run the interpreter (default)",
-    Option ['t'] ["type"] (NoArg (\opts -> return opts { runInterpret = False }))
+    Option ['t'] ["type"] (NoArg (\opts -> return opts { run_interpreter = False }))
       "type-checking only; don't run the interpreter",
-    Option []    ["approx"] (NoArg (\opts -> return opts { approximations = True }))
-      "permit approximations in type inference",
+    Option [] ["exact"] (ReqArg (\b opts -> return opts { exact = read b }) "[True False]")
+      "allow for approximations in the unification process",
     Option ['f'] ["format"] (ReqArg read_format "FORMAT")
       "set the output format for circuits. Valid formats are 'ir' (default), 'visual'.",
     Option ['c'] ["compile"] (OptArg read_conversion "CONV")
       "run the compiler, with a specified conversion. Possible conversions are 'cps' and 'wcps'",
-    Option [] ["show-intermediate"] (ReqArg (\b opts -> return opts { showIntermediate = read b }) "[True False]")
+    Option ['o'] ["output"] (ReqArg read_output "DIR")
+      "specify the output directory of the compilation",
+    Option [] ["show-intermediate"] (ReqArg (\b opts -> return opts { show_intermediate = read b }) "[True False]")
       "show the intermediate code produced by the compiler"
   ]
 
 
--- | Return True if and only if the @runInterpret@ flag is set, and @runCompiler@ is not.
+-- | Return True if and only if the @run_interpret@ flag is set, and @run_compiler@ is not.
 run_interpret :: Options -> Bool
 run_interpret opts =
-  runInterpret opts && not (runCompiler opts)
+  run_interpreter opts && not (run_compiler opts)
 
 
 -- | Display the help screen, and exit.
@@ -139,7 +141,7 @@ read_format f opts =
   let formats = ["visual", "ir"] in
   case prefix_of f formats of
     [] -> optFail $ "-f: Invalid format '" ++ f ++ "'"
-    [format] -> return $ opts { circuitFormat = format }
+    [format] -> return $ opts { circuit_format = format }
     _ -> optFail $ "-f: Ambiguous format '" ++ f ++ "'"
 
 
@@ -152,22 +154,20 @@ read_warning f opts =
   let actions = ["error", "hide", "display"] in
   case prefix_of f actions of
     [] -> optFail $ "-W: Invalid action '" ++ f ++ "'"
-    [action] -> return $ opts { warningAction = action }
+    [action] -> return $ opts { warning_action = action }
     _ -> optFail $ "-W: Ambiguous action '" ++ f ++ "'"
 
 
 -- | Read the conversion format.
 read_conversion :: Maybe String -> Options -> IO Options
 read_conversion Nothing opts =
-  return opts { runCompiler = True }
+  return opts { run_compiler = True }
 read_conversion (Just f) opts =
   let formats = ["cps", "wcps"] in
   case prefix_of f formats of
     [] -> optFail $ "-c: Invalid conversion '" ++ f ++ "'"
-    [format] -> return $ opts { runCompiler = True, conversionFormat = format }
+    [format] -> return $ opts { run_compiler = True, conversion_format = format }
     _ -> optFail $ "-c: Ambiguous conversion '" ++ f ++ "'"
-
-
 
 
 -- | Add a directory to the list of include directories. This first checks the existence of the directory,
@@ -179,6 +179,16 @@ include_directory dir opts = do
     return $ opts { includes = dir:(includes opts) }
   else
     optFail $ "-i: Invalid directory '" ++ dir ++ "'"
+
+
+-- | Read the output directory.
+read_output :: String -> Options -> IO Options
+read_output dir opts = do
+  exist <- doesDirectoryExist dir
+  if exist then
+    return opts { output_dir = dir }
+  else
+    optFail $ "-o: Invalid directory '" ++ dir ++ "'"
 
 
 

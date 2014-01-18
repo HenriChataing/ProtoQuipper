@@ -63,7 +63,7 @@ main = do
         (do
            _ <- Q.runS (do
                Q.set_verbose (verbose opts)
-               Q.set_warning_action (warningAction opts)
+               Q.set_warning_action (warning_action opts)
                do_everything opts files) Q.empty_context
            return ()) `E.catch` (\(e :: QuipperError) -> die e)
   where
