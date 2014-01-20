@@ -42,6 +42,7 @@ malloc size = do
   call malloc $ valueOf $ (fromIntegral size) * (fromIntegral $ bitSize (0 :: a)) `quot` 8
 
 
+
 -- | The type of used llvm values.
 data LValue =
     LVInt (L.Value ArchInt)                                               -- ^ Basic integers.
@@ -292,8 +293,12 @@ cexpr_to_llvm _ (CError msg) = do
 
 
 -- | Convert a whole compilation unit to llvm.
-cunit_to_llvm :: String -> CUnit -> QpState ()
-cunit_to_llvm mods cu = do
+cunit_to_llvm :: String     -- ^ Module name.
+              -> CUnit      -- ^ Body of the module.
+              -> [String]   -- ^ Module dependencies.
+              -> String     -- ^ Output file.
+              -> QpState ()
+cunit_to_llvm mods cu depend filepath = do
 
   liftIO $ initializeNativeTarget
   mod <- liftIO $ newNamedModule mods
@@ -323,25 +328,37 @@ cunit_to_llvm mods cu = do
         efvals <- efvals
         lfvals <- lfvals
         let vals = IMap.union (IMap.union gvals ivals) (IMap.union lfvals efvals)
+
         -- define the functions
         define_module_functions vals (extern cu ++ local cu)
+
         -- define the module initializer
         initm <- createNamedFunction ExternalLinkage ("init" ++ mods) $
               List.foldr (\(_,cinit) rec -> do
                     cexpr_to_llvm vals cinit
                     rec
-                  ) (ret $ valueOf (fromIntegral 0 :: Int64)) (vglobals cu) :: CodeGenModule (Function (IO ArchInt))
+                  ) (ret $ valueOf (fromIntegral 0 :: ArchInt)) (vglobals cu)
+        let _ = initm :: Function (IO ArchInt)
+
         -- Define the main function, if need be.
         case main cu of
           Just body -> do
               main <- createNamedFunction ExternalLinkage "main" $ do
+                    -- Global variable initialization.
+                    _ <- List.foldl (\rec dep -> do
+                          rec
+                          initdep <- externFunction ("init" ++ dep)
+                          let _ = initdep :: Function (IO ArchInt)
+                          _ <- call initdep
+                          return ()) (return ()) depend
                     _ <- call initm
+                    -- Body of the main.
                     cexpr_to_llvm vals body
               let _ = main :: Function (IO ArchInt)
               return ()
           Nothing ->
               return ()
 
-  liftIO $ writeBitcodeToFile (mods ++ ".bc") mod
+  liftIO $ writeBitcodeToFile (filepath ++ ".bc") mod
 
 

@@ -572,11 +572,12 @@ do_everything :: Options       -- ^ Command line options.
               -> QpState ()
 do_everything opts files = do
   -- Get the modules' names
-  progs <- return $ List.map module_of_file files
+  let progs = List.map module_of_file files
 
   -- Build the dependencies
   deps <- build_set_dependencies (includes opts) progs
   let ndeps = List.length deps
+      depend = List.map S.module_name deps
 
   -- Build the builtin / qlib interfaces
   define_builtins
@@ -584,12 +585,13 @@ do_everything opts files = do
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec (n, p) -> do
         ms <- rec
-        let mopts = MOptions { toplevel = List.elem (S.module_name p) progs, disp_decls = False }
+        let mopts = MOptions { toplevel = List.elem pname progs, disp_decls = False }
+            pname = S.module_name p
         nm <- process_module (opts, mopts) p
 
         -- Compilation
         if run_compiler opts then do
-          liftIO $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ S.module_name p
+          liftIO $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ pname
           decls <- transform_declarations (M.declarations nm)
 
           cunit <- case conversion_format opts of
@@ -598,13 +600,13 @@ do_everything opts files = do
                 _ -> fail "Driver:do_everything: illegal format"
 
           if show_intermediate opts then do
-            liftIO $ putStrLn $ "======   " ++ S.module_name p ++ "   ======"
+            liftIO $ putStrLn $ "======   " ++ pname ++ "   ======"
             fvar <- display_var
             liftIO $ putStrLn $ genprint Inf [fvar] cunit
           else
             return ()
 
-          cunit_to_llvm (combine (output_dir opts) (S.module_name p)) cunit
+          cunit_to_llvm pname cunit (depend List.\\ [pname]) (combine (output_dir opts) pname)
         else
           return ()
 
