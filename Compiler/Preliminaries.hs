@@ -589,10 +589,10 @@ build_decision_tree plist = do
           (t:ts, _) -> do
               -- Determine the test to do next, based on the relevance.
               let next = List.foldl (\(t, results) (t', results') ->
-                    -- Test the validity of the comparison (can't test 1.2.3 before 1.2)
-                    if List.isPrefixOf t' t then
+                    -- Test the validity of the comparison (always choose the shortest path).
+                    if List.length t' < List.length t then
                       (t', results')
-                    else if List.isPrefixOf t t' then
+                    else if List.length t < List.length t' then
                       (t, results)
                     else
                       -- Compare the lowest relevant pattern
