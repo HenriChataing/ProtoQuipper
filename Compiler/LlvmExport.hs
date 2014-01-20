@@ -94,18 +94,18 @@ declare_module_functions ExternalLinkage ((f, arg, _):fs) = do
         )
     _ -> fail "LlvmExport:declare_module_functions: illegal argument"
 declare_module_functions _ ((f, arg, _):fs) = do
-  nf <- variable_name f
+  fname <- variable_name f
   vals <- declare_module_functions InternalLinkage fs
   case arg of
     [_,_] ->
         return (do
-          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
+          vf <- newNamedFunction InternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> IO ArchInt))
           m <- vals
           return $ IMap.insert f (LVFun2 vf) m
         )
     [_,_,_] ->
         return (do
-          vf <- newFunction InternalLinkage :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
+          vf <- newNamedFunction InternalLinkage fname :: CodeGenModule (Function (ArchInt -> ArchInt -> ArchInt -> IO ArchInt))
           m <- vals
           return $ IMap.insert f (LVFun3 vf) m
         )
