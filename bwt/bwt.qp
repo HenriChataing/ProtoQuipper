@@ -489,11 +489,11 @@ let oracle_orthodox n f g =
 -- some arbitrary choice of welding vectors f and g.
 --
 -- main :: int -> circ((), list qubit)
-let main n =
+let main _ =
+  let n = 3 in
   let f = cycle n [true, false] in
   let g = cycle n [false, true] in
   let s = 1 in
-  box[] (fun () -> qrwbwt (oracle_orthodox n f g) s)
+  print_circ (box[] (fun () -> qrwbwt (oracle_orthodox n f g) s))
 ;;
 
-main 3;;
