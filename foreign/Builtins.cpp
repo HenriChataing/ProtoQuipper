@@ -5,7 +5,7 @@
 
 using namespace std;
 
-inline string inttostr(size_t i) {
+inline string inttostr(intptr_t i) {
   stringstream ss;
   ss << i;
   return ss.str();
@@ -13,7 +13,7 @@ inline string inttostr(size_t i) {
 
 // Permutations.
 
-int app_perm(perm* p, size_t x) {
+int app_perm(perm* p, intptr_t x) {
   if (p->_tag == 0)
     return x;
   else if (p->_q == x)
@@ -22,7 +22,7 @@ int app_perm(perm* p, size_t x) {
     return app_perm(p->_rem, x);
 }
 
-perm* append(size_t q, size_t assoc, perm *p) {
+perm* append(intptr_t q, intptr_t assoc, perm *p) {
   perm *pp = (perm*)malloc(sizeof(perm));
   pp->_tag = 1;
   pp->_q = q;
@@ -31,7 +31,7 @@ perm* append(size_t q, size_t assoc, perm *p) {
   return pp;
 }
 
-perm* remove(size_t x, perm* p) {
+perm* remove(intptr_t x, perm* p) {
   if (p->_tag == 0)
     return p;
   else if (p->_q == x) {
@@ -56,7 +56,7 @@ void print(perm *p) {
 
 // Parent class.
 
-void Circ::withcontrol(size_t w, bool s) {
+void Circ::withcontrol(intptr_t w, bool s) {
   ctrl c;
   c._wire = w;
   c._sign = s;
@@ -96,7 +96,7 @@ string Init::print() {
 }
 
 perm* Init::unencap(Circuit* c, perm* p) {
-  size_t q = c->init();
+  intptr_t q = c->init();
   Init* cpy = clone();
   cpy->app_perm_to_controls(p);
   perm *pp = append(_output, q, p);
@@ -119,7 +119,7 @@ string Term::print() {
 }
 
 perm* Term::unencap(Circuit* c, perm* p) {
-  size_t q = app_perm(p, _input);
+  intptr_t q = app_perm(p, _input);
   Term* cpy = clone();
   cpy->app_perm_to_controls(p);
   perm *pp = remove(_input, p);
@@ -181,8 +181,8 @@ perm* Phase::unencap(Circuit *c, perm *p) {
 // Definition of a circuit.
 
 // Circuit initialized with n wires.
-Circuit::Circuit(size_t n): _qid(n) {
-  for (size_t i=0; i<n; i++)
+Circuit::Circuit(intptr_t n): _qid(n) {
+  for (intptr_t i=0; i<n; i++)
     _input.push_back(i);
   _output = _input;
 }
@@ -206,7 +206,7 @@ string Circuit::print() {
   if (_input.empty())
     doc << "none";
   else {
-    list<size_t>::iterator it=_input.begin();
+    list<intptr_t>::iterator it=_input.begin();
     doc << *it << ":Qbit";
     it++;
     for (; it!=_input.end(); it++)
@@ -221,7 +221,7 @@ string Circuit::print() {
   if (_output.empty())
     doc << "none";
   else {
-    list<size_t>::iterator it=_output.begin();
+    list<intptr_t>::iterator it=_output.begin();
     doc << *it << ":Qbit";
     it++;
     for (; it!=_output.end(); it++)
@@ -231,14 +231,14 @@ string Circuit::print() {
   return doc.str();
 }
 
-size_t Circuit::init() {
-  size_t q = _qid;
+intptr_t Circuit::init() {
+  intptr_t q = _qid;
   _qid++;
   _output.push_front(q);
   return q;
 }
 
-void Circuit::term(size_t q) {
+void Circuit::term(intptr_t q) {
   _output.remove(q);
 }
 
@@ -246,7 +246,7 @@ void Circuit::append(Circ* g) {
   _gates.push_back(g);
 }
 
-void Circuit::withcontrol(size_t w, bool s) {
+void Circuit::withcontrol(intptr_t w, bool s) {
   for (list<Circ*>::iterator it=_gates.begin(); it!=_gates.end(); it++)
     (*it)->withcontrol(w,s);
 }
@@ -274,35 +274,35 @@ extern "C" {
 
 // Basic operators.
 
-size_t _Builtins_add(size_t cls, size_t *arg) { return arg[0] + arg[1]; }
-size_t _Builtins_sub(size_t cls, size_t *arg) { return arg[0] - arg[1]; }
-size_t _Builtins_mul(size_t cls, size_t *arg) { return arg[0] * arg[1]; }
-size_t _Builtins_quot(size_t cls, size_t *arg) { return arg[0] / arg[1]; }
-size_t _Builtins_div(size_t cls, size_t *arg) { return arg[0] / arg[1]; }
-size_t _Builtins_rem(size_t cls, size_t *arg) { return arg[0] % arg[1]; }
-size_t _Builtins_mod(size_t cls, size_t *arg) { return arg[0] % arg[1]; }
-size_t _Builtins_pow(size_t cls, size_t *arg) { return (size_t)pow((double)arg[0], (double)arg[1]); }
-size_t _Builtins_le(size_t cls, size_t *arg) { return arg[0] <= arg[1]; }
-size_t _Builtins_ge(size_t cls, size_t *arg) { return arg[0] >= arg[1]; }
-size_t _Builtins_lt(size_t cls, size_t *arg) { return arg[0] < arg[1]; }
-size_t _Builtins_gt(size_t cls, size_t *arg) { return arg[0] > arg[1]; }
-size_t _Builtins_eq(size_t cls, size_t *arg) { return arg[0] == arg[1]; }
-size_t _Builtins_neq(size_t cls, size_t *arg) { return arg[0] != arg[1]; }
+intptr_t _Builtins_add(intptr_t cls, intptr_t *arg) { return arg[0] + arg[1]; }
+intptr_t _Builtins_sub(intptr_t cls, intptr_t *arg) { return arg[0] - arg[1]; }
+intptr_t _Builtins_mul(intptr_t cls, intptr_t *arg) { return arg[0] * arg[1]; }
+intptr_t _Builtins_quot(intptr_t cls, intptr_t *arg) { return arg[0] / arg[1]; }
+intptr_t _Builtins_div(intptr_t cls, intptr_t *arg) { return arg[0] / arg[1]; }
+intptr_t _Builtins_rem(intptr_t cls, intptr_t *arg) { return arg[0] % arg[1]; }
+intptr_t _Builtins_mod(intptr_t cls, intptr_t *arg) { return arg[0] % arg[1]; }
+intptr_t _Builtins_pow(intptr_t cls, intptr_t *arg) { return (intptr_t)pow((double)arg[0], (double)arg[1]); }
+intptr_t _Builtins_le(intptr_t cls, intptr_t *arg) { return arg[0] <= arg[1]; }
+intptr_t _Builtins_ge(intptr_t cls, intptr_t *arg) { return arg[0] >= arg[1]; }
+intptr_t _Builtins_lt(intptr_t cls, intptr_t *arg) { return arg[0] < arg[1]; }
+intptr_t _Builtins_gt(intptr_t cls, intptr_t *arg) { return arg[0] > arg[1]; }
+intptr_t _Builtins_eq(intptr_t cls, intptr_t *arg) { return arg[0] == arg[1]; }
+intptr_t _Builtins_neq(intptr_t cls, intptr_t *arg) { return arg[0] != arg[1]; }
 
-size_t _Builtins_neg(size_t cls, size_t arg) { return -arg; }
+intptr_t _Builtins_neg(intptr_t cls, intptr_t arg) { return -arg; }
 
 // Printing.
 
-size_t _Builtins_print_int(size_t cls, size_t arg) { cout << arg; return 0; }
-size_t _Builtins_print_newline(size_t cls, size_t arg) { cout << endl; return 0; }
-size_t _Builtins_print_circ(size_t cls, size_t *arg) {
+intptr_t _Builtins_print_int(intptr_t cls, intptr_t arg) { cout << arg; return 0; }
+intptr_t _Builtins_print_newline(intptr_t cls, intptr_t arg) { cout << endl; return 0; }
+intptr_t _Builtins_print_circ(intptr_t cls, intptr_t *arg) {
   Circuit *c = (Circuit*)arg[1];
   cout << c->print() << endl;
   return 0;
 }
 
 // Builtin functions.
-perm* _Builtins_UNENCAP(size_t cls, size_t **arg) {
+perm* _Builtins_UNENCAP(intptr_t cls, intptr_t **arg) {
   if (circuits.empty()) {
     cout << "Error: empty circuit stack" << endl;
     return NULL;
@@ -313,12 +313,12 @@ perm* _Builtins_UNENCAP(size_t cls, size_t **arg) {
   }
 }
 
-void _Builtins_OPENBOX(size_t cls, size_t n) {
+void _Builtins_OPENBOX(intptr_t cls, intptr_t n) {
   Circuit *c = new Circuit(n);
   circuits.push_front(c);
 }
 
-Circuit* _Builtins_CLOSEBOX(size_t cls, size_t arg) {
+Circuit* _Builtins_CLOSEBOX(intptr_t cls, intptr_t arg) {
   if (circuits.empty()) {
     cout << "Error: empty circuit stack" << endl;
     return NULL;
@@ -329,95 +329,96 @@ Circuit* _Builtins_CLOSEBOX(size_t cls, size_t arg) {
   }
 }
 
-Circuit* _Builtins_REV(size_t cls, Circuit* c) {
+Circuit* _Builtins_REV(intptr_t cls, Circuit* c) {
   return c->rev();
 }
 
-size_t _Builtins_ERROR(size_t cls, size_t x) {
+intptr_t _Builtins_ERROR(intptr_t cls, intptr_t x) {
+  cout << "ERROR" << endl;
   return 0;
 }
 
-size_t _Builtins_APPBIND(size_t cls, size_t **arg) {
+intptr_t _Builtins_APPBIND(intptr_t cls, intptr_t **arg) {
   perm *p = (perm*)arg[0];
-  size_t q = (size_t)arg[1];
+  intptr_t q = (intptr_t)arg[1];
   return app_perm(p,q);
 }
 
 
 // Helpers.
 
-size_t *make_circ(Circ *c, int n) {
-  size_t *qc = new size_t[3];
-  qc[1] = (size_t)c;
+intptr_t *make_circ(Circ *c, int n) {
+  intptr_t *qc = new intptr_t[3];
+  qc[1] = (intptr_t)c;
   if (n <= 1) {
     qc[0] = 0;
     qc[2] = 0;
   } else {
-    size_t *v = new size_t[n];
+    intptr_t *v = new intptr_t[n];
     for (int i=0; i<n; i++)
       v[i] = i;
-    qc[0] = (size_t)v;
-    qc[2] = (size_t)v;
+    qc[0] = (intptr_t)v;
+    qc[2] = (intptr_t)v;
   }
   return qc;
 }
 
 // Builtin gates - Basic.
 
-size_t* _Builtins_g_init0 = make_circ(new Init(false), 1);
-size_t* _Builtins_g_init1 = make_circ(new Init(true), 1);
-size_t* _Builtins_g_term0 = make_circ(new Term(false), 1);
-size_t* _Builtins_g_term1 = make_circ(new Term(true), 1);
+intptr_t* _Builtins_g_init0 = make_circ(new Init(false), 1);
+intptr_t* _Builtins_g_init1 = make_circ(new Init(true), 1);
+intptr_t* _Builtins_g_term0 = make_circ(new Term(false), 1);
+intptr_t* _Builtins_g_term1 = make_circ(new Term(true), 1);
 
-size_t* _Builtins_g_hadamard = make_circ(new UGate("H"), 1);
-size_t* _Builtins_g_not = make_circ(new UGate("not"), 1);
-size_t* _Builtins_g_x = make_circ(new UGate("X"), 1);
-size_t* _Builtins_g_y = make_circ(new UGate("Y"), 1);
-size_t* _Builtins_g_z = make_circ(new UGate("Z"), 1);
-size_t* _Builtins_g_s = make_circ(new UGate("S"), 1);
-size_t* _Builtins_g_s_inv = make_circ(new UGate("S", true), 1);
-size_t* _Builtins_g_t = make_circ(new UGate("T"), 1);
-size_t* _Builtins_g_t_inv = make_circ(new UGate("T", true), 1);
-size_t* _Builtins_g_e = make_circ(new UGate("E"), 1);
-size_t* _Builtins_g_e_inv = make_circ(new UGate("E", true), 1);
-size_t* _Builtins_g_v = make_circ(new UGate("V"), 1);
-size_t* _Builtins_g_v_inv = make_circ(new UGate("V", true), 1);
-size_t* _Builtins_g_omega = make_circ(new UGate("omega"), 1);
-size_t* _Builtins_g_eitz = make_circ(new UGate("exp(-itZ)"), 1);
-size_t* _Builtins_g_eitz_inv = make_circ(new UGate("exp(-itZ)", true), 1);
+intptr_t* _Builtins_g_hadamard = make_circ(new UGate("H"), 1);
+intptr_t* _Builtins_g_not = make_circ(new UGate("not"), 1);
+intptr_t* _Builtins_g_x = make_circ(new UGate("X"), 1);
+intptr_t* _Builtins_g_y = make_circ(new UGate("Y"), 1);
+intptr_t* _Builtins_g_z = make_circ(new UGate("Z"), 1);
+intptr_t* _Builtins_g_s = make_circ(new UGate("S"), 1);
+intptr_t* _Builtins_g_s_inv = make_circ(new UGate("S", true), 1);
+intptr_t* _Builtins_g_t = make_circ(new UGate("T"), 1);
+intptr_t* _Builtins_g_t_inv = make_circ(new UGate("T", true), 1);
+intptr_t* _Builtins_g_e = make_circ(new UGate("E"), 1);
+intptr_t* _Builtins_g_e_inv = make_circ(new UGate("E", true), 1);
+intptr_t* _Builtins_g_v = make_circ(new UGate("V"), 1);
+intptr_t* _Builtins_g_v_inv = make_circ(new UGate("V", true), 1);
+intptr_t* _Builtins_g_omega = make_circ(new UGate("omega"), 1);
+intptr_t* _Builtins_g_eitz = make_circ(new UGate("exp(-itZ)"), 1);
+intptr_t* _Builtins_g_eitz_inv = make_circ(new UGate("exp(-itZ)", true), 1);
 
-size_t* _Builtins_g_swap = make_circ(new BGate("swap"), 2);
-size_t* _Builtins_g_w = make_circ(new BGate("W"), 2);
+intptr_t* _Builtins_g_swap = make_circ(new BGate("swap"), 2);
+intptr_t* _Builtins_g_w = make_circ(new BGate("W"), 2);
 
-size_t* _Builtins_g_phase(size_t cls, size_t n) { return make_circ(new Phase(n),1); }
+intptr_t* _Builtins_g_phase(intptr_t cls, intptr_t n) { return make_circ(new Phase(n),1); }
 
 // Builtin gates - Composed.
 
-size_t* _Builtins_g_cnot(size_t cls, size_t sign) {
+intptr_t* _Builtins_g_cnot(intptr_t cls, intptr_t sign) {
   Circuit *c = new Circuit(2);
   c->append(new UGate("not"));
   c->withcontrol(1, sign==1);
   return make_circ(c, 2);
 }
 
-size_t* _Builtins_g_control_phase(size_t cls, size_t *param) {
+intptr_t* _Builtins_g_control_phase(intptr_t cls, intptr_t *param) {
   Circuit *c = new Circuit(2);
-  size_t n = param[0], sign = param[1];
+  intptr_t n = param[0], sign = param[1];
   c->append(new Phase(n));
   c->withcontrol(1, sign==1);
   return make_circ(c, 2);
 }
 
-size_t* _Builtins_g_control_eitz(size_t cls, size_t sign) {
+intptr_t* _Builtins_g_control_eitz(intptr_t cls, intptr_t sign) {
   Circuit *c = new Circuit(2);
   c->append(new UGate("exp(-itZ)"));
   c->withcontrol(1, sign==1);
   return make_circ(c, 2);
 }
 
-size_t* _Builtins_g_toffoli(size_t cls, size_t *param) {
+intptr_t* _Builtins_g_toffoli(intptr_t cls, intptr_t *param) {
   Circuit *c = new Circuit(3);
-  size_t sign1 = param[0], sign2 = param[1];
+  intptr_t sign1 = param[0], sign2 = param[1];
   c->append(new UGate("not"));
   c->withcontrol(1, sign1==1);
   c->withcontrol(2, sign2==1);
@@ -426,7 +427,7 @@ size_t* _Builtins_g_toffoli(size_t cls, size_t *param) {
 
 // Init function (necessary to link with quipper binaries).
 
-size_t InitBuiltins() {
+intptr_t InitBuiltins() {
   return 0;
 }
 
