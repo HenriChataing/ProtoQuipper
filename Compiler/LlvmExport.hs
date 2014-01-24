@@ -242,6 +242,12 @@ cexpr_to_llvm vals (CTuple vlist x c) = do
   vx <- ptrtoint ptr :: CodeGenFunction r (L.Value ArchInt)
   cexpr_to_llvm (IMap.insert x (LVInt vx) vals) c
 
+cexpr_to_llvm vals (CFree x c) = do
+  vx <- cvalue_to_int vals x
+  ptr <- inttoptr vx :: CodeGenFunction r (L.Value (Ptr ArchInt))
+  free ptr
+  cexpr_to_llvm vals c
+
 cexpr_to_llvm vals (CAccess n x y c) = do
   -- retrieve the array from the context
   vx <- cvalue_to_int  vals x

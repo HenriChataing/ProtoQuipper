@@ -450,7 +450,6 @@ instance Param Pattern where
   free_var (PConstraint p _) = free_var p
   free_var _ = []
 
-  subs_var _ _ p = p
 
 -- ----------------------------------------------------------------------
 -- * Expressions
@@ -559,8 +558,6 @@ instance Param Expr where
 
   free_var _ =
     []
-
-  subs_var _ _ e = e
 
 
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 -- | This module contains the definition of the last language used before the cnstruction of the LLVM module.
 -- It explicitates the flow control, and uses only simple operations.
 module Compiler.CExpr where
@@ -29,13 +31,21 @@ data Value =
   | VGlobal Variable           -- ^ A reference to a global variable.
   deriving (Show, Eq)
 
+-- | Destruct a 'VVar' value.
+unVVar :: Value -> Variable
+unVVar (VVar x) = x
+unVVar _ = throwNE $ ProgramError "CExpr:unVVar: illegal argument"
+
 
 -- | Are considered free variables only variables bound in a local scope.
 instance Param Value where
   free_var (VVar x) = [x]
   free_var _ = []
 
-  subs_var _ _ v = v
+
+instance Subs Value Value where
+  subs x v (VVar y) = if x == y then v else VVar y
+  subs _ _ v = v
 
 
 -- | Context of values used during the translation.
@@ -60,6 +70,7 @@ data CExpr =
   | CSwitch Value [(Int, CExpr)] CExpr             -- ^ Switch condition (with a default target).
   | CRet Value                                     -- ^ Return a value. This instruction is terminal.
   | CSet Variable Value                            -- ^ This instruction is terminal, and specific to global variables, where it is necessary to set a specific variable.
+  | CFree Value CExpr                              -- ^ Assuming the value represents a tuple, free the memory and continue with the expression.
   | CError String                                  -- ^ This instruction is terminal, and throws an error message.
   deriving Show
 
@@ -85,9 +96,32 @@ instance Param CExpr where
           List.union (free_var c) fv) (free_var v) ((0,def):clist)
   free_var (CSet x v) = free_var v
   free_var (CRet v) = free_var v
+  free_var (CFree v c) = List.union (free_var v) (free_var c)
   free_var (CError _) = []
 
-  subs_var _ _ c = c
+
+instance Subs CExpr Value where
+  subs x v (CFun f args cf c) =
+    CFun f args (subs x v cf) (subs x v c)
+  subs x v (CApp f args y c) =
+    CApp (subs x v f) (List.map (subs x v) args) y $ subs x v c
+  subs x v (CTailApp f args) =
+    CTailApp (subs x v f) $ List.map (subs x v) args
+  subs x v (CTuple vlist y c) =
+    CTuple (List.map (subs x v) vlist) y $ subs x v c
+  subs x v (CAccess n w y c) =
+    CAccess n (subs x v w) y $ subs x v c
+  subs x v (CSwitch w clist def) =
+    CSwitch (subs x v w) (List.map (\(n, c) -> (n, subs x v c)) clist) $ subs x v def
+  subs x v (CSet y w) =
+    CSet y $ subs x v w
+  subs x v (CRet w) =
+    CRet $ subs x v w
+  subs x v (CFree w c) =
+    CFree (subs x v w) (subs x v c)
+  subs _ _ (CError msg) =
+    CError msg
+
 
 
 
@@ -652,6 +686,9 @@ print_cexpr _ fvar (CSet x v) =
   text (fvar x) <+> text ":=" <+> print_value fvar v
 print_cexpr _ fvar (CRet v) =
   text "ret" <+> print_value fvar v
+print_cexpr _ fvar (CFree v c) =
+  text "free" <+> print_value fvar v <> text ";" $$
+  print_cexpr Inf fvar c
 print_cexpr _ fvar (CError msg) =
   text "error \"" <> text msg <> text "\""
 

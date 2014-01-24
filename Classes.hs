@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 -- | This module gives the definition of custom Proto-Quipper type
 -- classes.  Among these are: 'PPrint', 'Constraint', 'Reversible',
 -- 'Param'. These classes were created specifically to be able to
@@ -14,7 +16,7 @@ import Parsing.Location
 -- default one ('pprint'), with 'sprintn' and 'sprint' as intermediaries. At least 'genprint' and 'sprintn' must be
 -- defined in an instance.
 class PPrint a where
-  -- | The most generic function of the 'PPrint' class. 
+  -- | The most generic function of the 'PPrint' class.
   genprint :: Lvl                   -- ^ The depth limit.
            -> [(Int -> String)]     -- ^ A list of options. Depending on the implementation, this list may vary in size and meaning.
                                     -- For example, consider term variables; they can be displayed either with their original name, or just the generic name /x_n/.
@@ -57,9 +59,12 @@ class Constraint a where
 class Param a where
   -- | List all the free variables.
   free_var :: a -> [Int]
-  
-  -- | Substitute a free variable for another.
-  subs_var :: Int -> Int -> a -> a
+
+
+-- | A type class of objects where variables can be substituted.
+class Subs a b where
+  -- | Substitute a variable.
+  subs :: Int -> b -> a -> a
 
 
 -- | The class of contexts. For example: typing context, labelling context, evaluation context.
