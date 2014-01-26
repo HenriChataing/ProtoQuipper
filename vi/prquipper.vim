@@ -7,14 +7,12 @@ if exists("b:current_syntax")
   finish
 endif
 
-syn match number '[0-9]+'
-syn region circuitOps start='box' end='\]'
-syn match header '#builtin [A-Z a-z '_' 0-9]+'
-syn match basicOps '<-\|<-\*\|->\|=\|;\|:'
+syn match number '\d\+'
+syn match basicOps '<-\|<-\*\|->\|=\|;\|:\||'
 syn match basicOps '[- < > | & $ @ + * / % . : =]\+'
-syn match basicOps '|'
-syn match variable '[a-z A-Z '_'][a-z A-Z '_' 0-9]+'
-syn region commented start='-- ' end='$'
+syn match variable '[a-zA-Z_]\w*'
+syn match circuitOps 'box\s*\[.*\]'
+syn region commented start='--' end='$'
 syn region commented start='{-' end='-}'
 syn match printable contained '[^ "]'
 syn match string '"[^"]*"'
@@ -33,4 +31,3 @@ hi def link commented     Comment
 hi def link header        PreProc
 hi def link basicOps      Statement
 hi def link circuitOps    Type
-hi def link bracketType   Statement
