@@ -736,8 +736,8 @@ set_flag ref info = do
                 Zero -> do
                     case c_type info of
                       Just a -> do
-                          a0 <- return $ subs_flag ref 0 a
-                          a1 <- return $ subs_flag ref 1 a
+                          let a0 = subs ref (0 :: Variable) a
+                              a1 = subs ref (1 :: Variable) a
                           throw_TypingError a0 a1 info { c_actual = True }
                       Nothing ->
                           throw_NonDuplicableError info
@@ -766,8 +766,8 @@ unset_flag ref info = do
                 One ->
                     case c_type info of
                       Just a -> do
-                          a0 <- return $ subs_flag ref 0 a
-                          a1 <- return $ subs_flag ref 1 a
+                          let a0 = subs ref (0 :: Variable) a
+                              a1 = subs ref (1 :: Variable) a
                           throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
                       Nothing ->
                           throw_NonDuplicableError info
@@ -879,16 +879,16 @@ instantiate_scheme refs vars cset typ = do
   (typ', cset') <- List.foldl (\rec ref -> do
                                  (typ, cset) <- rec
                                  nref <- duplicate_flag ref
-                                 typ' <- return $ subs_flag ref nref typ
-                                 cset' <- return $ subs_flag ref nref cset
+                                 typ' <- return $ subs ref nref typ
+                                 cset' <- return $ subs ref nref cset
                                  return (typ', cset')) (return (typ, cset)) refs
 
   -- Replace the variables
   (typ', cset') <- List.foldl (\rec var -> do
                                  (typ, cset) <- rec
                                  nvar <- fresh_type
-                                 typ' <- return $ subs_typ_var var (TVar nvar) typ
-                                 cset' <- return $ subs_typ_var var (TVar nvar) cset
+                                 typ' <- return $ subs var (TVar nvar) typ
+                                 cset' <- return $ subs var (TVar nvar) cset
                                  return (typ', cset')) (return (typ', cset')) vars
 
   return (typ', cset')

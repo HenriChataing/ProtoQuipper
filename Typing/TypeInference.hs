@@ -1021,8 +1021,8 @@ apply_flag_constraints (c:cc) = do
           (One, Zero) -> do
               case c_type info of
                 Just a -> do
-                    a0 <- return $ subs_flag m 0 a
-                    a1 <- return $ subs_flag n 1 a
+                    let a0 = subs m (0 :: Variable) a
+                        a1 = subs n (1 :: Variable) a
                     throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
 
                 Nothing ->

@@ -131,7 +131,7 @@ break_composite ((Sublintype (TSynonym utyp arg) u info):lc, fc) = do
   let (arg', typ) = definition spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
-          (TBang n (TVar a), TBang n' a') -> subs_typ_var a a' (subs_flag n n' typ)
+          (TBang n (TVar a), TBang n' a') -> subs a a' (subs n n' typ)
           _ -> throwNE $ ProgramError "Subtyping:break_composite: inadequate type arguments in type synonym definition") typ (List.zip arg' arg)
 
   break_composite ((Sublintype (no_bang typ') u info):lc, fc)
@@ -142,7 +142,7 @@ break_composite ((Sublintype t (TSynonym utyp arg) info):lc, fc) = do
   let (arg', typ) = definition spec
   let typ' = List.foldl (\typ (a, a') -> do
         case (a, a') of
-          (TBang n (TVar a), TBang n' a') -> subs_typ_var a a' (subs_flag n n' typ)
+          (TBang n (TVar a), TBang n' a') -> subs a a' (subs n n' typ)
           _ -> throwNE $ ProgramError "Subtyping:break_composite: inadequate type arguments in type synonym definition") typ (List.zip arg' arg)
 
   break_composite ((Sublintype t (no_bang typ') info):lc, fc)

@@ -1,6 +1,5 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
@@ -202,13 +201,14 @@ type_of_typescheme :: TypeScheme -> Type
 type_of_typescheme (TForall _ _ _ t) = t
 
 
-
+instance Subs TypeScheme LinType where
+  subs _ _ a = a
+instance Subs TypeScheme Variable where
+  subs _ _ a = a
 
 instance KType TypeScheme where
   free_typ_var _ = []
-  subs_typ_var _ _ a = a
   free_flag _ = []
-  subs_flag _ _ a = a
   is_fun (TForall _ _ _ t) = is_fun t
   is_qdata (TForall _ _ _ t) = is_qdata t
   is_algebraic (TForall _ _ _ t) = is_algebraic t
@@ -220,19 +220,12 @@ instance KType TypeScheme where
 -- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
 -- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
 -- The only purpose of this class is to overload the functions listed below.
-class KType a where
+class (Subs a LinType, Subs a Variable) => KType a where
   -- | Return the list of free type variables.
   free_typ_var :: a -> [Int]
 
-  -- | Substitute a linear type for a type variable.
-  subs_typ_var :: Int -> LinType -> a -> a
-
   -- | Return the list of flag references.
   free_flag :: a -> [Int]
-
-  -- | Replace a flag reference for another one.
-  subs_flag :: Int -> Int -> a -> a
-
 
   -- | Return @True@ iff the argument is of the form \A -> B\.
   is_fun :: a -> Bool
@@ -250,6 +243,26 @@ class KType a where
   is_synonym _ = False
 
 
+instance Subs LinType LinType where
+  subs a b (TVar x) | x == a = b
+                        | otherwise = TVar x
+  subs _ _ TUnit = TUnit
+  subs _ _ TInt = TInt
+  subs _ _ TBool = TBool
+  subs _ _ TQubit = TQubit
+  subs a b (TAlgebraic n args) = TAlgebraic n $ List.map (subs a b) args
+  subs a b (TSynonym n args) = TSynonym n $ List.map (subs a b) args
+  subs a b (TArrow t u) = TArrow (subs a b t) (subs a b u)
+  subs a b (TTensor tlist) = TTensor $ List.map (subs a b) tlist
+  subs a b (TCirc t u) = TCirc (subs a b t) (subs a b u)
+
+instance Subs LinType Variable where
+  subs n m (TAlgebraic typename args) = TAlgebraic typename $ List.map (subs n m) args
+  subs n m (TArrow t u) = TArrow (subs n m t) (subs n m u)
+  subs n m (TTensor tlist) = TTensor $ List.map (subs n m) tlist
+  subs n m (TCirc t u) = TCirc (subs n m t) (subs n m u)
+  subs _ _ t = t
+
 instance KType LinType where
   free_typ_var (TVar x) = [x]
   free_typ_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] tlist
@@ -259,29 +272,11 @@ instance KType LinType where
   free_typ_var (TSynonym _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
   free_typ_var _ = []
 
-  subs_typ_var a b (TVar x) | x == a = b
-                        | otherwise = TVar x
-  subs_typ_var _ _ TUnit = TUnit
-  subs_typ_var _ _ TInt = TInt
-  subs_typ_var _ _ TBool = TBool
-  subs_typ_var _ _ TQubit = TQubit
-  subs_typ_var a b (TAlgebraic n args) = TAlgebraic n $ List.map (subs_typ_var a b) args
-  subs_typ_var a b (TSynonym n args) = TSynonym n $ List.map (subs_typ_var a b) args
-  subs_typ_var a b (TArrow t u) = TArrow (subs_typ_var a b t) (subs_typ_var a b u)
-  subs_typ_var a b (TTensor tlist) = TTensor $ List.map (subs_typ_var a b) tlist
-  subs_typ_var a b (TCirc t u) = TCirc (subs_typ_var a b t) (subs_typ_var a b u)
-
   free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
   free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
   free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
   free_flag (TAlgebraic _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
   free_flag _ = []
-
-  subs_flag n m (TAlgebraic typename args) = TAlgebraic typename $ List.map (subs_flag n m) args
-  subs_flag n m (TArrow t u) = TArrow (subs_flag n m t) (subs_flag n m u)
-  subs_flag n m (TTensor tlist) = TTensor $ List.map (subs_flag n m) tlist
-  subs_flag n m (TCirc t u) = TCirc (subs_flag n m t) (subs_flag n m u)
-  subs_flag _ _ t = t
 
   is_fun (TArrow _ _) = True
   is_fun _ = False
@@ -294,20 +289,19 @@ instance KType LinType where
   is_algebraic (TAlgebraic _ _) = True
   is_algebraic _ = False
 
+instance Subs Type LinType where
+  subs a b (TBang n t) = TBang n (subs a b t)
 
+instance Subs Type Variable where
+  subs n m (TBang p t) =
+    let t' = subs n m t in
+    if n == p then TBang m t'
+    else TBang p t'
 
 instance KType Type where
   free_typ_var (TBang _ t) = free_typ_var t
-  subs_typ_var a b (TBang n t) = TBang n (subs_typ_var a b t)
 
   free_flag (TBang n t) = List.insert n (free_flag t)
-
-  subs_flag n m (TBang p t) =
-    let t' = subs_flag n m t in
-    if n == p then
-      TBang m t'
-    else
-      TBang p t'
 
   is_fun (TBang _ t) = is_fun t
   is_algebraic (TBang _ t) = is_algebraic t
@@ -850,18 +844,20 @@ chain_right_to_left chain endvar l =
     Nothing -> (False, [])
 
 
+instance Subs TypeConstraint LinType where
+  subs a b (Sublintype t u info) = Sublintype (subs a b t) (subs a b u) info
+  subs a b (Subtype t u info) = Subtype (subs a b t) (subs a b u) info
 
--- | Type constraints are an instance of 'KType'.
+instance Subs TypeConstraint Variable where
+  subs n m (Sublintype t u info) = Sublintype (subs n m t) (subs n m u) info
+  subs n m (Subtype t u info) = Subtype (subs n m t) (subs n m u) info
+
 instance KType TypeConstraint where
   free_typ_var (Sublintype t u _) = List.union (free_typ_var t) (free_typ_var u)
   free_typ_var (Subtype t u _) = List.union (free_typ_var t) (free_typ_var u)
-  subs_typ_var a b (Sublintype t u info) = Sublintype (subs_typ_var a b t) (subs_typ_var a b u) info
-  subs_typ_var a b (Subtype t u info) = Subtype (subs_typ_var a b t) (subs_typ_var a b u) info
 
   free_flag (Sublintype t u _) = List.union (free_flag t) (free_flag u)
   free_flag (Subtype t u _) = List.union (free_flag t) (free_flag u)
-  subs_flag n m (Sublintype t u info) = Sublintype (subs_flag n m t) (subs_flag n m u) info
-  subs_flag n m (Subtype t u info) = Subtype (subs_flag n m t) (subs_flag n m u) info
 
   -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are function types.
   is_fun (Sublintype t u _) = is_fun t && is_fun u
@@ -879,23 +875,24 @@ instance KType TypeConstraint where
   is_synonym (Sublintype t u _) = is_synonym t || is_synonym u
   is_synonym (Subtype t u _) = is_synonym t || is_synonym u
 
+instance Subs ConstraintSet LinType where
+  subs a b (lc, fc) = (List.map (subs a b) lc, fc)
 
--- | Constraint sets are an instance of 'KType'.
+instance Subs ConstraintSet Variable where
+  subs n m (lc, fc) =
+    let lc' = List.map (subs n m) lc
+        fc' = List.map (\(Le p q info) -> if p == n then (Le m q info)
+                                   else if q == n then (Le p m info)
+                                   else (Le p q info)) fc in
+    (lc', fc')
+
 instance KType ConstraintSet where
   free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
-  subs_typ_var a b (lc, fc) = (List.map (subs_typ_var a b) lc, fc)
 
   free_flag (lc, fc) =
     let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
         fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
     List.union ffl fff
-
-  subs_flag n m (lc, fc) =
-    let lc' = List.map (subs_flag n m) lc
-        fc' = List.map (\(Le p q info) -> if p == n then (Le m q info)
-                                   else if q == n then (Le p m info)
-                                   else (Le p q info)) fc in
-    (lc', fc')
 
   -- Not implemented.
   is_fun _ = False
