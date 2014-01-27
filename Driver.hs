@@ -39,6 +39,7 @@ import Monad.QuipperError
 
 import System.Directory
 import System.FilePath.Posix
+import System.Process
 
 import Data.List as List
 import Data.Map as Map
@@ -565,8 +566,9 @@ process_module opts prog = do
 
 -- ==================================== --
 -- | A function to do everything!
--- In order to sort the dependencies of a list of modules, and to be able to reuse the existing functions for single modules,
--- a dummy module is created that imports all the top-level modules (never to be executed).
+-- In order to sort the dependencies of a list of modules, and to be able to reuse the existing
+-- functions for single modules, a dummy module is created that imports all the top-level modules
+-- (never to be executed).
 do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.
               -> QpState ()
@@ -614,6 +616,24 @@ do_everything opts files = do
         -- so remove them.
         clear_references
       ) (return ()) $ List.zip [1..ndeps] deps
+
+  -- Assemble the compiled files (if needed).
+  if run_compiler opts then do
+    let files = List.map (\m -> " " ++ combine (output_dir opts) (S.module_name m) ++ ".bc") deps
+        builtin = "foreign/Builtins.bc"
+        mainbc = combine (output_dir opts) "main.bc"
+        mainS = combine (output_dir opts) "main.S"
+        mains = combine (output_dir opts) "main.s"
+    liftIO $ putStrLn $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc
+    _ <- liftIO $ (runCommand $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc) >>= waitForProcess
+    liftIO $ putStrLn $ "llc " ++ mainbc ++ " -o " ++ mainS
+    _ <- liftIO $ (runCommand $ "llc " ++ mainbc ++ " -o " ++ mainS) >>= waitForProcess
+    liftIO $ putStrLn $ "g++ -g " ++ mainS ++ " -o " ++ mains
+    _ <- liftIO $ (runCommand $ "g++ -g " ++ mainS ++ " -o " ++ mains) >>= waitForProcess
+    return ()
+  else
+    return ()
+
   return ()
 
 
