@@ -1,0 +1,16 @@
+-- Test on recursive functions.
+
+let m <= n = le(m,n) ;;
+let m + n = add(m,n) ;;
+let m - n = sub(m,n) ;;
+
+let rec fib n =
+  if n <= 1 then
+    1
+  else
+    fib (n-1) + fib (n-2)
+;;
+
+let main _ =
+  print_int (fib 12)
+;;

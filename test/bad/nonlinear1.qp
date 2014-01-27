@@ -1,0 +1,5 @@
+-- This test should fail because a qubit is used twice at top-level.
+let p = unbox g_init0 () ;;
+let (q, r) = unbox (g_cnot true) (p,p) ;;
+let (q,r) = (unbox q_term0 q, unbox g_term0 r) ;;
+

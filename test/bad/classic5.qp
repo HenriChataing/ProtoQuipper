@@ -1,0 +1,4 @@
+-- Fail : typing error in a function call.
+let m + n = add(m,n) ;;
+let bad = 0 + true ;;
+

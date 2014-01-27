@@ -1,0 +1,23 @@
+-- Test several possibilities of data types and type synonyms
+-- in order to check the good inference of the arguments' variance.
+-- Add the option -v1 in order to see the relevant information.
+
+type either a b = Left of a | Right of b
+
+type option a = Some of a | None
+
+type list a = Nil | Cons of a * list a
+
+type tree a = Leaf of a | Node of a * tree a * tree a
+
+type weird a b = One of a -> b | Two of b -> a
+
+type alsoweird a b = Three of a -> () | Four of a
+
+type alta a b = AA of a | AB of b | AAB of altb b a
+and type altb a b = BA of a | BB of b | BAB of alta b a
+
+type synA a = either (a -> a) a
+
+type synB a = weird a a
+;;

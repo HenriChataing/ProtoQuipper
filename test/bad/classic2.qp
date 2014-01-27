@@ -1,0 +1,9 @@
+-- Another classical error : the types of the two branches of a conditional
+-- don't match.
+let bad x =
+  if x then
+    0
+  else
+    ()
+;;
+

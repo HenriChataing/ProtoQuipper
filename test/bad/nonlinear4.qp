@@ -1,0 +1,17 @@
+-- More complicated : this test fails because a function on duplicable lists
+-- is used with a non-duplicable one.
+
+-- Duplicate each element of the list.
+-- Expected type : !(!list a -> !list a)
+let rec dup l =
+  match l with
+    [] -> []
+  | x:xs -> x:x:(dup l)
+;;
+
+-- This term fails.
+let ndup =
+  let l = [unbox g_init0 (), unbox g_init0 ()] in
+  dup l
+;;
+

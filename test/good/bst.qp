@@ -1,0 +1,88 @@
+-- Binary Search Trees.
+
+let m == n = eq(m,n) ;;
+let m <= n = le(m,n) ;;
+
+type bst =
+    Empty
+  | Node of bst * int * bst
+
+
+let rec insert x bst =
+  match bst with
+    Empty -> Node (Empty, x, Empty)
+  | Node (left, y, right) ->
+      if x <= y then
+        Node (insert x left, y, right)
+      else
+        Node (left, y, insert x right)
+;;
+
+let rec find x bst =
+  match bst with
+    Empty -> false
+  | Node (left, y, right) ->
+      if x == y then true
+      else if x <= y then
+        find x left
+      else
+        find x right
+;;
+
+let rec delete x bst =
+  let rec delete_min bst =
+    match bst with
+      Empty -> (0, Empty)
+    | Node (left, x, Empty) -> (x, left)
+    | Node (left, x, right) ->
+        let (m, right) = delete_min right in
+        (m, Node (left, x, right))
+  in
+  match bst with
+    Empty -> Empty
+  | Node (left, y, right) ->
+    if x == y then
+      match (left, right) with
+        (Empty, _) -> right
+      | (_, Empty) -> left
+      | _ ->
+        let (m, left) = delete_min left in
+        Node (left, m, right)
+    else if x <= y then
+      Node (delete x left, y, right)
+    else
+      Node (left, y, delete x right)
+;;
+
+let traversal bst =
+  let rec aux bst acc =
+    match bst with
+      Empty -> acc
+    | Node (left, x, right) ->
+      aux left (x:aux right acc)
+  in
+  aux bst []
+;;
+
+let rec print_int_list l =
+  match l with
+    [] -> print_newline()
+  | x:xs -> print_int x; print_newline(); print_int_list xs
+;;
+
+
+let main _ =
+  b <- insert 9 Empty;
+  b <- insert 2 b;
+  b <- insert 7 b;
+  b <- insert 4 b;
+  b <- insert 5 b;
+  b <- insert 6 b;
+  b <- insert 3 b;
+  b <- insert 8 b;
+  b <- insert 1 b;
+
+  l <- traversal b;
+  print_int_list l
+;;
+

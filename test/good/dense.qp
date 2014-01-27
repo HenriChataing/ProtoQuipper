@@ -1,0 +1,34 @@
+-- Implement the super dense coding algorithm.
+
+let gateZ = unbox g_z ;;
+let gateX = unbox g_x ;;
+let hadamard = unbox g_hadamard ;;
+let cnot = unbox (g_cnot true) ;;
+let init0 = unbox g_init0 ;;
+
+-- Create an EPR entangled pair.
+let epr () =
+  let (p, q) = (init0 (), init0 ()) in
+  cnot (p, hadamard q)
+;;
+
+let encode b1 b2 =
+  (p,q) <- epr ();
+  p <- (if b1 then gateZ p else p);
+  p <- (if b2 then gateX p else p);
+  (q,p) <-* cnot;
+  p <-* hadamard;
+  (p,q)
+;;
+
+let main _ =
+  let b = box[] (fun x ->
+    (p0,q0) <- encode false false;
+    (p1,q1) <- encode false true;
+    (p2,q2) <- encode true false;
+    (p3,q3) <- encode true true;
+    (p0,p1,p2,p3,q0,q1,q2,q3)
+  ) in
+  print_circ b
+;;
+

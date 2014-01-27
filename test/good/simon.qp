@@ -1,0 +1,70 @@
+-- Implement Simon's period finding algorithm.
+
+let m <= n = le(m,n) ;;
+let m - n = sub(m,n) ;;
+
+let qinit b =
+  if b then
+    unbox g_init1 ()
+  else
+    unbox g_init0 ()
+;;
+
+let hadamard = unbox g_hadamard ;;
+let cnot = unbox (g_cnot true) ;;
+
+let rec qinitn n b =
+  if n <= 0 then
+    []
+  else
+    (qinit b):(qinitn (n-1) b)
+;;
+
+let rec map f l =
+  match l with
+    [] -> []
+  | x:xs -> (f x):(map f xs)
+;;
+
+-- [simon n oracle] returns the circuit wich extracts the period of the function
+-- represented by the oracle. This oracle is passed as a function from list of qubits
+-- to list of qubits, and should should not change the input wires.
+let simon n oracle =
+  input <- map hadamard (qinitn n false);
+  output <- qinitn n false;
+
+  (input, output) <- oracle (input, output);
+  input <- map hadamard input;
+
+  (input, output)
+;;
+
+
+-- Implement some toy oracles.
+
+-- The output is always 0.
+let oracle_null (input, output) =
+  (input, output)
+;;
+
+-- Copy the intput to the output.
+let oracle_identity (input, output) =
+  let rec ncnot l12 =
+    match l12 with
+      ([], []) -> ([], [])
+    | (x:xs, y:ys) ->
+      (y, x) <- cnot (y, x);
+      (xs, ys) <- ncnot (xs, ys);
+      (x:xs, y:ys)
+  in
+  ncnot (input, output)
+;;
+
+let main _ =
+  let s = box [] (fun x ->
+    let ([p0,p1,p2], [q0,q1,q2]) = simon 3 oracle_identity in
+    (p0,p1,p2,q0,q1,q2)
+  ) in
+  print_circ s
+;;
+

@@ -1,0 +1,47 @@
+-- Union sort on integer lists.
+
+let m <= n = le(m,n) ;;
+
+let rec merge ls =
+  match ls with
+    ([], ys) -> ys
+  | (xs, []) -> xs
+  | (x:xs, y:ys) ->
+    if x <= y then
+      x:(merge (xs, y:ys))
+    else
+      y:(merge (x:xs, ys))
+;;
+
+let rec split l =
+  match l with
+    [] -> ([], [])
+  | [x] -> ([x], [])
+  | x:y:l ->
+    let (xs, ys) = split l in
+    (x:xs, y:ys)
+;;
+
+let rec sort l =
+  match l with
+    [] -> []
+  | [x] -> [x]
+  | _ ->
+    let (xs,ys) = split l in
+    let xs = sort xs in
+    let ys = sort ys in
+    merge (xs, ys)
+;;
+
+let rec print_int_list l =
+  match l with
+    [] -> ()
+  | x:xs -> print_int x; print_newline (); print_int_list xs
+;;
+
+-- Main function.
+let main _ =
+  let l = sort [1,9,2,8,3,7,4,6,5] in
+  print_int_list l
+;;
+

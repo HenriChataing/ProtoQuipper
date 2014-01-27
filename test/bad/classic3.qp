@@ -1,0 +1,8 @@
+-- Fail : the types of the branches of a pattern matching
+-- don't match.
+let bad x =
+  match x with
+    [] -> 0
+  | _:_ -> true
+;;
+
