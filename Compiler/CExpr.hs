@@ -7,7 +7,7 @@ module Compiler.CExpr where
 import Prelude hiding (lookup)
 
 import Utils
-import Classes hiding ((<+>))
+import Classes hiding ((<+>), (\\))
 
 import Monad.QpState
 import Monad.QuipperError
@@ -17,10 +17,12 @@ import qualified Core.Syntax as CS
 import qualified Compiler.SimplSyntax as S
 import Compiler.Circ
 
+import Data.List ((\\))
 import qualified Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
+
 
 
 -- | The definition of values.
@@ -78,23 +80,23 @@ data CExpr =
 
 instance Param CExpr where
   free_var (CFun f args cf c) =
-    List.union (free_var cf List.\\ args) (free_var c List.\\ [f])
+    List.union (free_var cf \\ (f:args)) (free_var c \\ [f])
   free_var (CApp f args x c) =
     List.foldl (\fv a ->
-          List.union (free_var a) fv) (free_var c List.\\ [x]) (f:args)
+          List.union (free_var a) fv) (free_var c \\ [x]) (f:args)
   free_var (CTailApp f args) =
     List.foldl (\fv a ->
           List.union (free_var a) fv) [] (f:args)
   free_var (CTuple vlist x c) =
     let fvl = List.foldl (\fv a ->
           List.union (free_var a) fv) [] vlist in
-    List.union (free_var c List.\\ [x]) fvl
+    List.union (free_var c \\ [x]) fvl
   free_var (CAccess _ v x c) =
-    List.union (free_var c List.\\ [x]) (free_var v)
+    List.union (free_var c \\ [x]) (free_var v)
   free_var (CSwitch v clist def) =
     List.foldl (\fv (_,c) ->
-          List.union (free_var c) fv) (free_var v) ((0,def):clist)
-  free_var (CSet x v) = free_var v
+          List.union (free_var c) fv) (free_var v) $ (0,def):clist
+  free_var (CSet x v) = free_var v -- x is ignored here because a global variable.
   free_var (CRet v) = free_var v
   free_var (CFree v c) = List.union (free_var v) (free_var c)
   free_var (CError _) = []
@@ -409,6 +411,7 @@ convert_declarations_to_cps decls = do
         case (n,e) of
           ("main", S.EFun _ c) -> do
               body <- convert_to_cps vals (\z -> return $ CRet z) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { main = Just body, local = funs ++ local cu }, vals)
 
@@ -416,6 +419,7 @@ convert_declarations_to_cps decls = do
               k <- create_var "k"       -- continuation argument
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_cps vals (\z -> return $ CTailApp (VVar k) [z]) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               let fdef = (f, [fc,x,k], body)
               case vis of
@@ -429,6 +433,7 @@ convert_declarations_to_cps decls = do
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_cps vals' (\z -> return $ CTailApp (VVar k) [z]) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               let fdef = (f, [fc,x,k], body)
               case vis of
@@ -469,12 +474,14 @@ convert_declarations_to_wcps decls = do
         case (n, e) of
           ("main", S.EFun _ c) -> do
               body <- convert_to_wcps vals (\z -> return $ CRet z) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               return (cu { main = Just body, local = funs ++ local cu }, vals)
 
           (_, S.EFun x c) -> do
               fc <- create_var "fc"     -- closure argument
               body <- convert_to_wcps vals (\z -> return $ CRet z) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               let fdef = (f, [fc,x], body)
               case vis of
@@ -489,6 +496,7 @@ convert_declarations_to_wcps decls = do
               fc <- create_var "fc"     -- closure argument
               let vals' = IMap.insert f (VLabel f) vals
               body <- convert_to_wcps vals' (\z -> return $ CRet z) c
+              body <- return $ constant_folding 3 body
               (funs, body) <- closure_conversion body >>= return . lift_functions
               let fdef = (f, [fc,x], body)
               case vis of
@@ -511,71 +519,99 @@ convert_declarations_to_wcps decls = do
 
 
 -- | Closure conversion of the CPS code. This auxiliary function also returns the set of free variables of the produced expression.
--- The map passed as first argument gives the current closure.
-closure_conversion_aux :: CExpr -> QpState (CExpr, [Variable])
-closure_conversion_aux (CFun f args cf c) = do
-  -- Close the function body and continuation. (the closure changes)
-  (cf', fvcf) <- closure_conversion_aux cf
-  (c', fvc) <- closure_conversion_aux c
-  -- Free variables of f.
-  let fv = fvcf List.\\ (f:args)
-  -- Extraction of the free variables of cf'.
-  let cf'' = List.foldl (\cf (x,n) ->
-        CAccess n (VVar f) x cf) cf' $ List.zip fv [1..List.length fv]
-  -- Construction of the closure (with continuation c' and name f).
-  let c'' = CTuple (VVar f:(List.map VVar fv)) f c'
-  -- Re-definition of the function f.
-  return (CFun f (f:args) cf'' c'', List.union fv (fvc List.\\ [f]))
+closure_conversion_aux :: IntMap (Usage, Information) -> CExpr -> QpState (CExpr, [Variable])
+closure_conversion_aux info (CFun f args cf c) = do
+  -- Check the usage iof the function [f].
+  case IMap.lookup f info of
+    Just (usage@Usage { escapes = 0 } , _) -> do
+        -- The function doesn't need to be closed.
+        -- Instead, the free variables are passed as arguments.
 
-closure_conversion_aux (CApp (VVar f) args x c) = do
-  (c', fvc) <- closure_conversion_aux c
-  f' <- create_var "f"
-  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CApp (VVar f') (VVar f:args) x c',          -- Apply the function to its own closure
-           List.union (fvc List.\\ [x]) (f:(List.concat $ List.map free_var args)) )
+        -- Free variables of f.
+        let fv = free_var cf \\ (f:args)
+        -- Update the information about [f] to convey the free variables.
+        let info' = IMap.insert f (usage, IFun fv cf) info
+        (cf', _) <- closure_conversion_aux info' cf
+        (c', fvc) <- closure_conversion_aux info' c
+        return (CFun f (args ++ fv) cf' c', List.union fv (fvc \\ [f]))
+    _ -> do
+        (cf', fvcf) <- closure_conversion_aux info cf
+        (c', fvc) <- closure_conversion_aux info c
+        let fv = fvcf \\ (f:args)
+        -- Extraction of the free variables of cf'.
+        let cf'' = List.foldl (\cf (x,n) ->
+              CAccess n (VVar f) x cf) cf' $ List.zip fv [1..List.length fv]
+        -- Construction of the closure (with continuation c' and name f).
+        let c'' = CTuple (VVar f:(List.map VVar fv)) f c'
+        -- Re-definition of the function f.
+        return (CFun f (f:args) cf'' c'', List.union fv (fvc \\ [f]))
+
+closure_conversion_aux info (CApp (VVar f) args x c) = do
+  -- Check the usage of the function [f].
+  case IMap.lookup f info of
+    Just (Usage { escapes = 0 }, IFun fv _) -> do
+        -- The function is known: no closure argument, instead
+        -- the free variables added to the list of arguments.
+        (c', fvc) <- closure_conversion_aux info c
+        return ( CApp (VVar f) (args ++ List.map VVar fv) x c',
+                 List.union (fvc \\ [x]) (f:(List.union fv $ List.concat $ List.map free_var args)))
+    _ -> do
+        (c', fvc) <- closure_conversion_aux info c
+        f' <- create_var "f"
+        return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+                 CApp (VVar f') (VVar f:args) x c',          -- Apply the function to its own closure
+                 List.union (fvc \\ [x]) (f:(List.concat $ List.map free_var args)) )
 
 -- since global functions are already closed, only a dummy closure is passed as argument.
-closure_conversion_aux (CApp (VLabel f) args x c) = do
-  (c', fvc) <- closure_conversion_aux c
+closure_conversion_aux info (CApp (VLabel f) args x c) = do
+  (c', fvc) <- closure_conversion_aux info c
   return ( CApp (VLabel f) (VInt 0:args) x c',         -- Apply the function to a dummy closure (0)
-           List.union (fvc List.\\ [x]) (List.concat $ List.map free_var args) )
+           List.union (fvc \\ [x]) (List.concat $ List.map free_var args) )
 
-closure_conversion_aux (CTailApp (VVar f) args) = do
-  f' <- create_var "f"
-  return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
-           CTailApp (VVar f') (VVar f:args),           -- Apply the function to its own closure
-           f:(List.concat $ List.map free_var args) )
+closure_conversion_aux info (CTailApp (VVar f) args) = do
+  -- Check the usage of the function [f].
+  case IMap.lookup f info of
+    Just (Usage { escapes = 0 }, IFun fv _) -> do
+        -- The function is known: no closure argument, instead
+        -- the free variables added to the list of arguments.
+        return ( CTailApp (VVar f) (args ++ List.map VVar fv),
+                  f:(List.union fv $ List.concat $ List.map free_var args))
+    _ -> do
+        f' <- create_var "f"
+        return ( CAccess 0 (VVar f) f' $                     -- Extract the function pointer
+                 CTailApp (VVar f') (VVar f:args),           -- Apply the function to its own closure
+                 f:(List.concat $ List.map free_var args) )
 
 -- since global functions are already closed, only a dummy closure is passed as argument.
-closure_conversion_aux (CTailApp (VLabel f) args) = do
+closure_conversion_aux info (CTailApp (VLabel f) args) = do
   return ( CTailApp (VLabel f) (VInt 0:args),               -- Apply the function to a dummy closure (1)
            List.concat $ List.map free_var args )
 
-closure_conversion_aux (CTuple vlist x c) = do
-  (c', fvc) <- closure_conversion_aux c
+closure_conversion_aux info (CTuple vlist x c) = do
+  (c', fvc) <- closure_conversion_aux info c
   let fv = List.nub $ List.concat $ List.map free_var vlist
-  return (CTuple vlist x c', List.union fv (fvc List.\\ [x]))
+  return (CTuple vlist x c', List.union fv (fvc \\ [x]))
 
-closure_conversion_aux (CAccess n v x c) = do
-  (c', fvc) <- closure_conversion_aux c
-  return (CAccess n v x c', List.union (free_var v) (fvc List.\\ [x]))
+closure_conversion_aux info (CAccess n v x c) = do
+  (c', fvc) <- closure_conversion_aux info c
+  return (CAccess n v x c', List.union (free_var v) (fvc \\ [x]))
 
-closure_conversion_aux (CSwitch v clist def) = do
+closure_conversion_aux info (CSwitch v clist def) = do
   (clist', fvc) <- List.foldl (\rec (n,c) -> do
         (cl, fvc) <- rec
-        (c', fvc') <- closure_conversion_aux c
+        (c', fvc') <- closure_conversion_aux info c
         return ((n,c'):cl, List.union fvc' fvc)) (return ([], [])) clist
-  (def', fvdef) <- closure_conversion_aux def
+  (def', fvdef) <- closure_conversion_aux info def
   return (CSwitch v (List.reverse clist') def', List.union (free_var v) $ List.union fvc fvdef)
 
-closure_conversion_aux e =
+closure_conversion_aux _ e =
   return (e, free_var e)
 
 
 -- | Closure conversion of the CPS code.
 closure_conversion :: CExpr -> QpState CExpr
 closure_conversion e = do
-  (e, _) <- closure_conversion_aux e
+  (e, _) <- closure_conversion_aux (gather IMap.empty e) e
   return e
 
 
@@ -614,6 +650,212 @@ lift_functions c =
 
 
 
+-- | Check a value.
+check_value :: [Variable] -> Value -> QpState ()
+check_value scope (VVar v) =
+  if List.elem v scope then return ()
+  else do
+    n <- variable_name v
+    fail $ "CExpr:check_value: undefined variable " ++ n
+check_value scope _ =
+  return ()
+
+
+-- * This section is dedicated to code optimization.
+
+
+-- | Usage information : number of uses and escapes.
+data Usage = Usage { uses :: Int, escapes :: Int }
+
+-- | No usage.
+no_usage :: Usage
+no_usage = Usage { uses = 0, escapes = 0 }
+
+
+-- | Describe for each kind of bound variable the information
+-- needed for the optimizations.
+data Information =
+    IFun [Variable] CExpr
+  | ITuple [Value]
+  | IAccess Variable Int
+  | IParam
+  | ICall
+  | IOther
+
+
+-- | Update the information regarding a variable.
+update_information :: ((Usage, Information) -> Maybe (Usage, Information)) -> IntMap (Usage, Information) -> Value -> IntMap (Usage, Information)
+update_information f info (VVar x) = IMap.update f x info
+update_information f info (VLabel x) = IMap.update f x info
+update_information f info (VGlobal x) = IMap.update f x info
+update_information _ info _ = info
+
+
+-- | Increase the number of uses of a variable.
+increase_uses :: IntMap (Usage, Information) -> Value -> IntMap (Usage, Information)
+increase_uses = update_information (\(usage, info) -> Just (usage { uses = uses usage + 1 }, info))
+
+
+-- | Increase the number of uses of a variable.
+increase_escapes :: IntMap (Usage, Information) -> Value -> IntMap (Usage, Information)
+increase_escapes = update_information (\(usage, info) -> Just (usage { escapes = escapes usage + 1 }, info))
+
+
+-- | Lookup the information about a value.
+lookup_information :: Value -> IntMap (Usage, Information) -> Maybe (Usage, Information)
+lookup_information (VVar x) info = IMap.lookup x info
+lookup_information (VLabel x) info = IMap.lookup x info
+lookup_information (VGlobal x) info = IMap.lookup x info
+lookup_information _ _ = Nothing
+
+
+-- | Do a pass to gather information.
+gather :: IntMap (Usage, Information) -> CExpr -> IntMap (Usage, Information)
+gather info (CFun g arg body c) =
+  let info' = List.foldl (\info a -> IMap.insert a (no_usage, IParam) info) (IMap.insert g (no_usage, IFun arg body) info) arg in
+  gather (gather info' body) c
+gather info (CTailApp f arg) =
+  List.foldl increase_escapes (increase_uses info f) arg
+gather info (CApp f arg x c) =
+  let info' = List.foldl increase_escapes (increase_uses info f) arg in
+  gather (IMap.insert x (no_usage, ICall) info') c
+gather info (CTuple vals x c) =
+  let info' = List.foldl increase_escapes info vals in
+  gather (IMap.insert x (no_usage, ITuple vals) info') c
+gather info (CAccess n v x c) =
+  let info' = increase_uses info v in
+  gather (IMap.insert x (no_usage, IAccess (unVVar v) n) info') c
+gather info (CSwitch v clist c) =
+  let info' = increase_uses info v in
+  List.foldl (\info (_,c) -> gather info c) (gather info' c) clist
+gather info (CRet v) =
+  increase_escapes info v
+gather info (CSet x v) =
+  -- Since [x] here is supposed to be a global variable, no need
+  -- to track it down.
+  increase_escapes info v
+gather info (CFree v c) =
+  gather (increase_uses info v) c
+gather info (CError msg) =
+  info
+
+
+
+-- | Perform a certain number of optimization passes of constant folding.
+-- These include:
+--
+-- * If a function is non-escaping, then it can be closed by passing the free variables
+-- additional as arguments.
+--
+-- * If a function is non-escaping and used only once, then it can be inlined.
+--
+-- * If an access is made on a tuple that is known at compile time, it can
+-- be replaced by its known value.
+--
+-- * Dead variable elimination.
+constant_folding :: Int -> CExpr -> CExpr
+constant_folding n c =
+  if not ((n > 0) && (n < 5)) then
+    throwNE $ ProgramError "CExpr:constant_folding: illegal number of iterations"
+  else
+    let opt info (CFun f arg body c) =
+          -- Optimize the body.
+          let body' = opt info body in
+          CFun f arg body' (opt info c)
+        opt info (CTailApp f vals) =
+          CTailApp f vals
+        opt info (CApp f vals x c) =
+          CApp f vals x $ opt info c
+        opt info (CTuple vals x c) =
+          case IMap.lookup x info of
+            Just (usage, inf) ->
+                -- If the tuple is not used, remove it.
+                if uses usage + escapes usage == 0 then
+                  opt info c
+                else CTuple vals x $ opt info c
+            Nothing -> CTuple vals x $ opt info c
+        opt info (CAccess n v x c) =
+          case IMap.lookup x info of
+            Just (usage, inf) ->
+                -- If the tuple is not used, remove it.
+                if uses usage + escapes usage == 0 then
+                  opt info c
+                else
+                  case lookup_information v info of
+                    Just (_, ITuple vals) ->
+                        -- In case the value being accessed is a tuple,
+                        -- replace [x] by its known value.
+                        opt info $ subs x (vals !! n) c
+                    _ ->
+                        CAccess n v x $ opt info c
+            _ -> CAccess n v x $ opt info c
+        opt info (CSwitch (VInt n) clist def) =
+          -- If the value by compared is known at compile time,
+          -- just access the expected branch.
+          case List.lookup n clist of
+            Just c -> opt info c
+            Nothing -> opt info def
+        opt info (CSwitch v clist def) =
+          CSwitch v (List.map (\(n,c) -> (n, opt info c)) clist) $ opt info def
+        opt info c = c
+    in
+    List.foldl (\c n ->
+      opt (gather IMap.empty c) c) c [1..n]
+
+
+
+-- | Check the scope of the variables of the continuation expression.
+check_cexpr :: [Variable] -> CExpr -> QpState ()
+check_cexpr scope (CFun g arg body c) = do
+  let nscope = List.union scope arg
+  check_cexpr nscope body
+  check_cexpr (g:scope) c
+check_cexpr scope (CTailApp f arg) = do
+  check_value scope f
+  List.foldl (\rec a -> do
+        rec
+        check_value scope a) (return ()) arg
+check_cexpr scope (CApp f arg x c) = do
+  check_value scope f
+  List.foldl (\rec a -> do
+        rec
+        check_value scope a) (return ()) arg
+  check_cexpr (x:scope) c
+check_cexpr scope (CTuple vals x c) = do
+  List.foldl (\rec v -> do
+        rec
+        check_value scope v) (return ()) vals
+  check_cexpr (x:scope) c
+check_cexpr scope (CAccess n v x c) = do
+  check_value scope v
+  check_cexpr (x:scope) c
+check_cexpr scope (CSwitch v clist c) = do
+  check_value scope v
+  List.foldl (\rec (_,c) -> do
+        rec
+        check_cexpr scope c) (return ()) clist
+  check_cexpr scope c
+check_cexpr scope (CRet v) =
+  check_value scope v
+check_cexpr scope (CSet x v) =
+  check_value scope v
+check_cexpr scope (CFree v c) = do
+  check_value scope v
+  check_cexpr scope c
+check_cexpr scope (CError msg) =
+  return ()
+
+
+-- | Check the scope of the variables of a compile unit.
+check_cunit :: CUnit -> QpState ()
+check_cunit cu = do
+  let scope = List.map (\(f,_,_) -> f) (local cu) ++ List.map (\(f,_,_) -> f) (extern cu) ++ List.map fst (vglobals cu)
+  List.foldl (\rec (_, arg, c) -> do
+        rec
+        check_cexpr (List.union arg scope) c) (return ()) (local cu ++ extern cu)
+  case main cu of
+    Just c -> check_cexpr scope c
+    Nothing -> return ()
 
 -- | Pretty-print a value using Hughes's and Peyton Jones's
 -- pretty printer combinators. The type 'Doc' is defined in the library
@@ -680,8 +922,9 @@ print_cexpr _ fvar (CSwitch v clist def) =
         doc $$
         text (show tag ++ ":") $$
         nest 2 c) empty pcs $$ pdef)
-print_cexpr _ fvar (CFun _ _ _ _) =
-  text ""
+print_cexpr _ fvar (CFun f arg cf c) =
+  print_cfun fvar (f, arg, cf) $$
+  print_cexpr Inf fvar c
 print_cexpr _ fvar (CSet x v) =
   text (fvar x) <+> text ":=" <+> print_value fvar v
 print_cexpr _ fvar (CRet v) =
