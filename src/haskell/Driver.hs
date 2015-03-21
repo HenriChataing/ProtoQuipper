@@ -51,166 +51,116 @@ import qualified Data.ByteString.Lazy as B
 
 
 -- | Lex and parse the module implementation file at the given filepath.
-lex_and_parse_implementation :: FilePath -> QpState S.Program
-lex_and_parse_implementation file = do
-  contents <- liftIO $ B.readFile file
-  tokens <- mylex file contents
-  mod <- return $ module_of_file file
-  return $ (P.parse tokens) { S.moduleName = mod, S.filePath = file }
+parseModule :: FilePath -> QpState S.Program
+parseModule filePath = do
+  contents <- liftIO $ B.readFile filePath
+  tokens <- mylex filePath contents
+  let name = moduleNameOfFile filePath
+  return $ (P.parse tokens) { S.moduleName = name, S.filePath = filePath }
 
-{-
--- | Lex and parse the interface file at the given filepath.
-lex_and_parse_interface :: FilePath -> QpState S.Interface
-lex_and_parse_interface file = do
-  contents <- liftIO $ B.readFile file
-  tokens <- mylex file contents
-  mod <- return $ module_of_file file
-  return $ IP.parse tokens
--}
 
--- | Find the implementation of a module in a given directory.
--- The name of the code file is expected to be /dir/\//module/./ext/,
--- where /dir/ is the directory, /module/ is the name of the module (with
--- the first letter changed to lower case), and /ext/ the extension, which can be either @.qp@ (implementation)
--- or @.qpi@ (interface). \'/dir/\' is taken in the provided list of directories.
--- If several implementations are found, an error is raised.
-find_in_directories :: String       -- ^ Module name.
-                    -> [FilePath]   -- ^ List of directories.
-                    -> String       -- ^ Extension.
-                    -> QpState (Maybe FilePath)
-find_in_directories "" directories extension = do
-  fail "Driver:find_in_directories: null module name"
+-- | Explore a list of include directories in order to find the implementation of the requested
+-- module. The name of the file is expected to be /dir/\//module/./ext/, where /dir/ is the directory,
+-- /module/ is the name of the module (with the first letter changed to lower case), and /ext/ the
+-- extension, which can be either @.qp@ (implementation) or @.qpi@ (interface). \'/dir/\' is taken
+-- in the provided list of directories. If several implementations are found, an error is raised.
+findModule :: String       -- ^ Module name.
+          -> [FilePath]    -- ^ List of included directories.
+          -> String        -- ^ Extension.
+          -> QpState FilePath
+findModule "" directories extension = do
+  fail "Driver:findModule: empty module name"
 
-find_in_directories mname directories extension = do
-  let mfile = string_toLower mname ++ extension
-  existing <- List.foldl (\rec d -> do
-        r <- rec
-        let nexttry = combine d mfile
-        exists <- liftIO $ doesFileExist nexttry
-        if exists then
-          return (nexttry:r)
-        else
-          return r) (return []) directories
+findModule moduleName directories extension = do
+  let moduleFile = fileOfModuleName moduleName extension
+  existing <- List.foldl (\rec directory -> do
+      found <- rec
+      let nexttry = combine directory moduleFile
+      exists <- liftIO $ doesFileExist nexttry
+      if exists then
+        return (nexttry:found)
+      else
+        return found
+    ) (return []) directories
   case existing of
-    [] ->
-        -- No implementation found
-        return Nothing
-    [path] ->
-        -- OK
-        return $ Just path
-    (m1:m2:_) ->
-        -- Several implementations found
-        throwNE $ DuplicateImplementation mname m1 m2
+    -- No implementation found
+    [] -> throwNE $ NonExistentModule moduleName
+    -- OK
+    [path] -> return $ path
+    -- Several implementations found
+    (path:path':_) -> throwNE $ DuplicateImplementation moduleName path path'
 
 
--- | Specifically look for the implementation of a module.
--- Since an implementation is expected, the function fails if no matching
--- file is found (and also if more than one exists).
-find_implementation_in_directories :: String -> [FilePath] -> QpState FilePath
-find_implementation_in_directories mod directories = do
-  f <- find_in_directories mod directories ".qp"
-  case f of
-    Just f ->
-        return f
-
-    Nothing ->
-        -- The module doesn't exist
-        throwNE $ NonExistingModule mod
-
-
--- | Specifically look for the interface of a module.
--- Since the interface file is optional, so is the return value.
-find_interface_in_directories :: String -> [FilePath] -> QpState (Maybe FilePath)
-find_interface_in_directories mod directories =
-  find_in_directories mod directories ".qpi"
-
-
-
--- | Recursively explore the dependencies of the program. This function returns
--- a map linking the modules to their parsed implementations, and a map corresponding
--- to the dependency graph.
--- It proceeds to sort the dependencies topologically using an in-depth exploration of the graph.
--- Note that the return list is reversed, with the \'oldest\' module first.
--- During the exploration, if a module is visited that had already been explored but not yet pushed on
--- the sorted list, an error is generated (cyclic dependencies).
-explore_dependencies :: [FilePath]            -- ^ List of directories.
-                     -> S.Program             -- ^ Current module.
-                     -> [String]              -- ^ The list of explored modules.
-                     -> [S.Program]           -- ^ The dependencies that have already been sorted.
-                     -> QpState ([S.Program], [String])
-explore_dependencies dirs prog explored sorted = do
-  -- Mark the module as explored
+-- | Recursively explore the dependencies of the program. This function returns a map linking the
+-- modules to their parsed implementations, and a map corresponding to the dependency graph. It
+-- proceeds to sort the dependencies topologically using an in-depth exploration of the graph. Note
+-- that the return list is reversed, with the \'oldest\' module first. During the exploration, if
+-- a module is visited that had already been explored but not yet pushed on the sorted list, an error
+-- is generated (cyclic dependencies).
+findDependencies :: [FilePath]           -- ^ List of included directories.
+                -> S.Program             -- ^ Current module.
+                -> [String]              -- ^ The list of explored modules.
+                -> [S.Program]           -- ^ Modules depending on the current module.
+                -> QpState ([S.Program], [String])
+findDependencies directories prog explored depends = do
+  -- Mark the module as explored.
   explored <- return $ (S.moduleName prog):explored
-  -- Sort the dependencies
-  (s,ex) <- List.foldl (\rec m -> do
-        (sorted, exp) <- rec
-        case (List.elem m exp, List.find (\p -> S.moduleName p == m) sorted) of
-          -- Ok
-          (True, Just _) ->
-              return (sorted, exp)
-
-          -- Not ok
-          (True, Nothing) -> do
-              -- The module has already been visited : cyclic dependency
-              -- Build the loop : by removing the already sorted modules,
-              -- and spliting the explored list at the first visit of this module.
-              flush_logs
-              inloop <- return $ explored List.\\ (List.map S.moduleName sorted)
-              (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
-
-              throwNE $ CircularDependency m (List.reverse (m:loop))
-
-          -- Explore
-          _ -> do
-              file <- find_implementation_in_directories m dirs
-              inter <- find_interface_in_directories m dirs
-              p <- lex_and_parse_implementation file
-              p <- case inter of
-                    Just f -> do
-              --          interface <- lex_and_parse_interface f
-              --          return $ p { S.interface = Just interface }
-                        return p
-                    Nothing -> return p
-
-              explore_dependencies dirs p exp sorted) (return (sorted, explored)) (S.imports prog)
+  -- For each dependency, check if it was already loaded, else recursively call findDependencies
+  -- on the dependency.
+  (depends, explored) <- List.foldl (\rec name -> do
+      (depends, explored) <- rec
+      case (List.elem name explored, List.find (\prog -> S.moduleName prog == name) depends) of
+        -- Ok: depency already met.
+        (True, Just _) -> return (depends, explored)
+        -- The module has already been visited : cyclic dependency Build the loop : by removing
+        -- the already sorted modules, and spliting the explored list at the first visit of this module.
+        (True, Nothing) -> do
+            flush_logs
+            inloop <- return $ explored List.\\ (List.map S.moduleName depends)
+            (loop, _) <- return $ List.span (\name' -> name' /= name) inloop
+            throwNE $ CircularDependency name $ List.reverse (name:loop)
+        -- Explore.
+        _ -> do
+            file <- findModule name directories ".qp"
+            parsedModule <- parseModule file
+            findDependencies directories parsedModule explored depends
+    ) (return (depends, explored)) (S.imports prog)
   -- Push the module on top of the list : after its dependencies
-  return (prog:s, ex)
+  return (prog:depends, explored)
 
 
--- | Sort the dependencies of file in a topological fashion.
--- The program argument is the main program, on which Proto-Quipper has been called. The return value
--- is a list of the dependencies, with the properties:
+-- | Sort the dependencies of file in a topological fashion. The program argument is the main program,
+-- on which Proto-Quipper has been called. The return value is a list of the dependencies, with the
+-- properties:
 --
 --     * each module may only appear once;
 --
---     * the dependencies of each module are placed before it in the sorted list; and
+--     * the dependencies of each module are placed before it in the sorted list;
 --
---     * (as a corollary) the main module is placed last.
+--     * the main module is placed last.
 --
-build_dependencies :: [FilePath]          -- ^ List of directories.
-                   -> S.Program           -- ^ Main module.
-                   -> QpState [S.Program] -- ^ Returns the total list of dependencies, sorted in a topological fashion.
-build_dependencies dirs main = do
-  (deps, _) <- explore_dependencies dirs main [] []
-  return $ List.reverse deps
+buildDependencies :: [FilePath]          -- ^ List of directories.
+                  -> S.Program           -- ^ Main module.
+                  -> QpState [S.Program]
+buildDependencies directories main = do
+  (depends, _) <- findDependencies directories main [] []
+  return $ List.reverse depends
 
 
--- | Sort the dependencies of a set of modules in a topological fashion.
--- The program argument is the list of programs on which Proto-Quipper has been called. The return value
--- is a list of the dependencies, with the properties:
+-- | Sort the dependencies of a set of modules in a topological fashion. The program argument is the
+-- list of programs on which Proto-Quipper has been called. The return value is a list of the dependencies,
+-- with the properties:
 --
 --     * each module may only appear once;
 --
---     * the dependencies of each module are placed before it in the sorted list; and
+--     * the dependencies of each module are placed before it in the sorted list
 --
-build_set_dependencies :: [FilePath]          -- ^ List of directories.
-                       -> [String]            -- ^ Main modules (by name only).
-                       -> QpState [S.Program] -- ^ Returns the total list of dependencies, sorted in a topological fashion.
-build_set_dependencies dirs progs = do
-  deps <- build_dependencies dirs S.dummyProgram { S.imports = progs }
-  return $ List.init deps
-
-
+buildSetDependencies :: [FilePath]         -- ^ List of directories.
+                    -> [String]            -- ^ Main modules (by name only).
+                    -> QpState [S.Program]
+buildSetDependencies directories modules = do
+  depends <- buildDependencies directories S.dummyProgram { S.imports = modules }
+  return $ List.init depends
 
 
 -- | The type of /extensive contexts/, which are used during the processing of top-level declarations.
@@ -224,7 +174,7 @@ data ExtensiveContext = Context {
 
 -- | A type for processing options that are specific to modules (as opposed to program options, which affect
 -- the whole program).
-data MOptions = MOptions {
+data ModuleOptions = ModuleOptions {
   toplevel :: Bool,               -- ^ Is the module at top level (in a sense: was it given as argument of the program).
   disp_decls :: Bool              -- ^ Display the variable declarations or not.
 }
@@ -234,7 +184,7 @@ data MOptions = MOptions {
 -- | Process a list of top-level declarations (corresponding to either commands in interactive mode, or
 -- the body of a module). The arguments include the vector of command options, the current module,
 -- an extensive context, and a declaration.
-process_declaration :: (Options, MOptions)       -- ^ The command line and module options combined.
+process_declaration :: (Options, ModuleOptions)       -- ^ The command line and module options combined.
                     -> S.Program                 -- ^ The current module.
                     -> ExtensiveContext          -- ^ The context.
                     -> S.Declaration             -- ^ The declaration to process.
@@ -505,7 +455,7 @@ explicit_datacons mod = do
 -- * linearity check at the end of the module implementation: checks that no
 -- global and non-duplicable variable is discarded.
 --
-process_module :: (Options, MOptions)  -- ^ Command line options and module options combined.
+process_module :: (Options, ModuleOptions)  -- ^ Command line options and module options combined.
                -> S.Program            -- ^ Module to process.
                -> QpState Module       -- ^ Return the module contents (variables, data constructors, types).
 process_module opts prog = do
@@ -574,11 +524,11 @@ do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.
               -> QpState ()
 do_everything opts files = do
-  -- Get the modules' names
-  let progs = List.map module_of_file files
+  -- Get the modules' names.
+  let progs = List.map moduleNameOfFile files
 
-  -- Build the dependencies
-  deps <- build_set_dependencies (includes opts) progs
+  -- Build the dependencies.
+  deps <- buildSetDependencies (includes opts) progs
   let ndeps = List.length deps
       depend = List.map S.moduleName deps
 
@@ -588,7 +538,7 @@ do_everything opts files = do
   -- Process everything, finishing by the main modules
   mods <- List.foldl (\rec (n, p) -> do
         ms <- rec
-        let mopts = MOptions { toplevel = List.elem pname progs, disp_decls = False }
+        let mopts = ModuleOptions { toplevel = List.elem pname progs, disp_decls = False }
             pname = S.moduleName p
         nm <- process_module (opts, mopts) p
 

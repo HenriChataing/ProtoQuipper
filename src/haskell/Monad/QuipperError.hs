@@ -78,7 +78,7 @@ throwWE err ext =
 
 -- | Enumeration of file errors. It contains all the errors thrown before the parsing of files.
 data FileError =
-    NonExistingModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
+    NonExistentModule String                                                              -- ^ Thrown when the program can't find the implementation of a module.
   | DuplicateImplementation String String String                                          -- ^ Thrown if two implementation files of the same module are found.
   | CircularDependency String [String]                                                    -- ^ Thrown in case of circular dependencies.
   deriving (Typeable)
@@ -89,7 +89,7 @@ instance QError FileError where
 
 
 instance Show FileError where
-  show (NonExistingModule mod) =
+  show (NonExistentModule mod) =
     "couldn't find the implementation of the module " ++ mod
 
   show (DuplicateImplementation mod p1 p2) =

@@ -49,19 +49,18 @@ import_modules :: Options                     -- ^ The command line options. Thi
                -> [String]                    -- ^ The list of modules to import.
                -> ExtensiveContext            -- ^ The context of the interactive mode.
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
-import_modules opts mnames ctx = do
+import_modules opts moduleNames ctx = do
   -- Build the dependencies (with a dummy module that is removed immediately)
-  deps <- build_dependencies (includes opts) S.dummyProgram { S.imports = mnames }
-  deps <- return $ List.init $ deps
+  depends <- buildSetDependencies (includes opts) moduleNames
 
   -- Process the modules.
   -- If a module was explicitly imported, then it is ret-processed.
   ctx <- List.foldl (\rec p -> do
         ctx <- rec
-        let mopts = MOptions { toplevel = False, disp_decls = False }
+        let mopts = ModuleOptions { toplevel = False, disp_decls = False }
 
         -- If the module has been explicitly included, re-process it
-        if List.elem (S.moduleName p) mnames then do
+        if List.elem (S.moduleName p) moduleNames then do
           -- Re-process
           m <- process_module (opts, mopts) p
           -- Import
@@ -78,7 +77,7 @@ import_modules opts mnames ctx = do
                 -- Process the module
                 _ <- process_module (opts, mopts) p
                 return ()
-          return ctx) (return ctx) deps
+          return ctx) (return ctx) depends
   return ctx
 
 
@@ -86,7 +85,7 @@ import_modules opts mnames ctx = do
 
 -- | Process a user command. Since the command is like a module implementation, it is dealt with the same way.
 -- The only exception concerns import declarations, which are handled specifically by the function 'Interactive.import_modules'.
-run_command :: (Options, MOptions) -> S.Program -> ExtensiveContext -> QpState ExtensiveContext
+run_command :: (Options, ModuleOptions) -> S.Program -> ExtensiveContext -> QpState ExtensiveContext
 run_command opts prog ctx = do
   -- Import the modules
   ctx <- import_modules (fst opts) (S.imports prog) ctx
@@ -137,7 +136,7 @@ run_interactive opts ctx buffer = do
                 tokens <- mylex file_unknown $ B.pack (List.map (toEnum . fromEnum) $ List.foldl (\r l -> l ++ "\n" ++ r) "" (l:buffer))
                 prog <- return $ parse tokens
 
-                run_command (opts, MOptions { toplevel = True, disp_decls = True }) prog ctx)
+                run_command (opts, ModuleOptions { toplevel = True, disp_decls = True }) prog ctx)
             `catchQ` (\e -> do
                 liftIO $ hPutStrLn stderr $ show e
                 return ctx)

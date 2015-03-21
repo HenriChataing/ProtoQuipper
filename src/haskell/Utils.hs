@@ -17,15 +17,15 @@ import Data.List as List
 
 
 -- | Convert the first character of a string to uppercase.
-string_toUpper :: String -> String
-string_toUpper [] = []
-string_toUpper (h:t) = Char.toUpper h : t
+capitalize :: String -> String
+capitalize [] = []
+capitalize (h:t) = Char.toUpper h : t
 
 
--- | Convert the first character of a string to uppercase.
-string_toLower :: String -> String
-string_toLower [] = []
-string_toLower (h:t) = Char.toLower h : t
+-- | Convert the first character of a string to lowercase.
+uncapitalize :: String -> String
+uncapitalize [] = []
+uncapitalize (h:t) = Char.toLower h : t
 
 
 -- |  Convert a whole string to lower case.
@@ -83,12 +83,16 @@ prevar x n =
   x ++ show n
 
 
--- | Return the name of the module encoded by the file /f/.
-module_of_file :: FilePath -> String
-module_of_file f =
+-- | Return the name of the module based on the file name.
+moduleNameOfFile :: FilePath -> String
+moduleNameOfFile f =
   let name = (P.dropExtension . P.takeFileName) f in
-  string_toUpper name
+  capitalize name
 
+-- | Return the name of the module based on the file name.
+fileOfModuleName :: String -> String -> String
+fileOfModuleName moduleName extension =
+  uncapitalize moduleName ++ extension
 
 -- | Replace the special characters non accepted in C functiona names by their unicode number.
 remove_specials :: String -> String
