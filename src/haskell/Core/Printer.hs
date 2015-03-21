@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType',
+-- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinearType',
 -- 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate
 -- any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the
 -- source code.
@@ -16,67 +16,60 @@ import Core.Syntax hiding ((<>))
 import Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
 
+instance PPrint Flag where
+  genprint _ _ f = pprint f
+
+  sprintn _ 0 = ""
+  sprintn _ 1 = "!"
+  sprintn _ n = "(" ++ show n ++ ")"
+
 -- | Printing of linear types. The generic function 'genprint' parameterizes the printing over the display
 -- of flags and type variables.
-instance PPrint LinType where
+instance PPrint LinearType where
   -- Generic printing. The display of flags and type variables is specified by two option functions
-  genprint _ [_, fvar, _] (TVar x) = fvar x
-  genprint _ _ (TVar x) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
-
-  genprint _ _ TUnit = "()"
-  genprint _ _ TInt = "int"
-  genprint _ _ TBool = "bool"
-  genprint _ _ TQubit = "qubit"
+  genprint _ [_, fvar, _] (TypeVar x) = fvar x
+  genprint _ _ (TypeVar x) = throwNE $ ProgramError "CorePrinter:genprint(LinearType): illegal argument"
+  genprint _ _ (TypeApply name [])  = name
   
-  genprint lv opts@[_, _, fuser] (TAlgebraic n arg) =
-    fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
-                                    " " ++
-                                    (case no_bang t of
-                                       TArrow _ _ -> "(" ++ prt ++ ")"
-                                       TTensor _ -> "(" ++ prt ++ ")"
-                                       TCirc _ _ -> "(" ++ prt ++ ")"
-                                       TAlgebraic _ [] -> prt
-                                       TAlgebraic _ _ -> "(" ++ prt ++ ")"
-                                       _ -> prt) ++ rec) "" arg
-  genprint _ _ (TAlgebraic n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
-  genprint lv opts@[_, _, fuser] (TSynonym n arg) =
-    fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
-                                    " " ++
-                                    (case no_bang t of
-                                       TArrow _ _ -> "(" ++ prt ++ ")"
-                                       TTensor _ -> "(" ++ prt ++ ")"
-                                       TCirc _ _ -> "(" ++ prt ++ ")"
-                                       TAlgebraic _ [] -> prt
-                                       TAlgebraic _ _ -> "(" ++ prt ++ ")"
-                                       _ -> prt) ++ rec) "" arg
-  genprint _ _ (TSynonym n arg) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
-
   genprint (Nth 0) _ _ = "..."
 
-  genprint lv opts (TTensor (a:rest)) =
+  genprint lv opts (TypeApply "->" [t, u]) =
     let dlv = decr lv in
-    (case a of
-       TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts a ++ ")"
-       TBang _ (TTensor _) -> "(" ++ genprint dlv opts a ++ ")"
-       _ -> genprint dlv opts a) ++
-    List.foldl (\s b -> s ++ " * " ++
-                  (case b of
-                     TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts b ++ ")"
-                     TBang _ (TTensor _) -> "(" ++ genprint dlv opts b ++ ")"
-                     _ -> genprint dlv opts b )) "" rest
-  genprint lv opts (TTensor []) =
-    throwNE $ ProgramError "CorePrinter:genprint(LinType): empty tensor"
+    let t' =
+          case unannot t of
+            TypeApply "->" _ -> "(" ++ genprint dlv opts t ++ ")"
+            _ -> genprint dlv opts t
+    in
+    t' ++ " -> " ++ genprint dlv opts u
 
-  genprint lv opts (TArrow a b) =
+  genprint lv opts (TypeApply "*" (t:rest)) =
     let dlv = decr lv in
-    (case a of
-       TBang _ (TArrow _ _) -> "(" ++ genprint dlv opts a ++ ")"
-       _ -> genprint dlv opts a) ++ " -> " ++
-    genprint dlv opts b
+    let t' =
+          case unannot t of
+            TypeApply "->" _ -> "(" ++ genprint dlv opts t ++ ")"
+            TypeApply "*" _ -> "(" ++ genprint dlv opts t ++ ")"
+            _ -> genprint dlv opts t
+    in
+    List.foldl (\s t ->
+      case unannot t of
+        TypeApply "->" _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
+        TypeApply "*" _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
+        _ -> s ++ " * " ++ genprint dlv opts t
+    ) t' rest
 
-  genprint lv opts (TCirc a b) =
+  genprint lv opts@[_, _, fuser] (TypeApply c [t]) =
+    c ++ "(" ++ genprint (decr lv) opts t ++ ")"
+
+  genprint lv opts@[_, _, fuser] (TypeApply c (t:rest)) =
     let dlv = decr lv in
-    "circ(" ++ genprint dlv opts a ++ ", " ++ genprint dlv opts b ++ ")"
+    let args' = List.foldl (\s t -> s ++ ", " ++ genprint dlv opts t) (genprint dlv opts t) rest in
+    c ++ "(" ++ args' ++ ")"
+
+  genprint _ _ _ = ""
+    
+  --genprint lv opts (TCirc a b) =
+  --  let dlv = decr lv in
+  --  "circ(" ++ genprint dlv opts a ++ ", " ++ genprint dlv opts b ++ ")"
 
   -- Print unto Lvl = n
   -- By default, the flags are printed using the default pprint function
@@ -89,16 +82,16 @@ instance PPrint LinType where
 -- printing over the display of flag and type variables.
 instance PPrint Type where
   -- Generic printing, the options are the same as with linear types
-  genprint lv opts@[fflag, _, _] (TBang n a) =
+  genprint lv opts@[fflag, _, _] (TypeAnnot n a) =
     case (fflag n, a) of
       -- No flag
       ("", _) -> genprint (decr lv) opts a
 
       -- Flag, check whether parenthesis are necessary
-      (f, TArrow _ _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
-      (f, TTensor _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, TypeApply "->" _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, TypeApply "*" _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
       (f, _) -> f ++ genprint (decr lv) opts a
-  genprint lv _ (TBang n a) =
+  genprint lv _ (TypeAnnot n a) =
     throwNE $ ProgramError "CorePrinter:genprint(Type): illegal argument"
 
   -- Print unto Lvl = n
@@ -111,10 +104,10 @@ instance PPrint Type where
   -- parameterizes the printing over the display of flag and type
   -- variables.
 instance PPrint TypeScheme where
-  genprint lv opts (TForall _ [] _ a) =
+  genprint lv opts (TypeScheme _ [] _ a) =
     genprint lv opts a
 
-  genprint lv opts@[_,fvar,_] (TForall ff fv cset a) =
+  genprint lv opts@[_,fvar,_] (TypeScheme ff fv cset a) =
     "forall" ++ List.foldr (\x s -> " " ++ fvar x ++ s) "" fv ++ ",\n" ++
      genprint Inf opts ((fst cset, []) :: ConstraintSet) ++ "\n => " ++
      genprint lv opts a
@@ -134,9 +127,9 @@ instance PPrint Pattern where
   genprint _ [fvar, _] (PVar _ x) = fvar x
   genprint _ _ (PVar _ x) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
-  genprint _ _ (PUnit _) = "()"
-  genprint _ _ (PBool _ b) = if b then "true" else "false"
-  genprint _ _ (PInt _ n) = show n
+  genprint _ _ (PConstant _ ConstUnit) = "()"
+  genprint _ _ (PConstant _ (ConstBool b)) = if b then "true" else "false"
+  genprint _ _ (PConstant _ (ConstInt i)) = show i
   genprint _ _ (PWildcard _) = "_"
   genprint (Nth 0) _ _ = "..."
 
@@ -154,7 +147,7 @@ instance PPrint Pattern where
   genprint lv _ (PDatacon _ dcon p) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
 
-  genprint lv opts (PConstraint p _) =
+  genprint lv opts (PCoerce p _ _) =
     genprint lv opts p
 
    -- Print unto Lvl = n
@@ -283,7 +276,7 @@ instance PPrint TypeConstraint where
   genprint lv opts (Subtype t u _) =
     genprint lv opts t ++ " <: " ++ genprint lv opts u
 
-  genprint lv opts (Sublintype t u _) =
+  genprint lv opts (SubLinearType t u _) =
     genprint lv opts t ++ " <: " ++ genprint lv opts u
 
   sprintn lvl c = genprint Inf [pprint, prevar "x", prevar "T"] c

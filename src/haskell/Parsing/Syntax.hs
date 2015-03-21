@@ -86,7 +86,7 @@ instance Eq Program where
 -- | A type.
 data Type =
 -- STLC types
-    TVar String               -- ^ Type variable: /a/, /b/, ...
+    TypeVar String               -- ^ Type variable: /a/, /b/, ...
   | TQualified String String  -- ^ Qualified type name: @Module.type@.
   | TArrow Type Type          -- ^ Function type: @A -> B@.
 
@@ -107,7 +107,7 @@ data Type =
   | TInt                      -- ^ The basic type /int/.
 
 -- Generic types
-  | TForall String Type       -- ^ A type generalized over a single variable. This constructor is not readily accessible to the user.
+  | TypeScheme String Type       -- ^ A type generalized over a single variable. This constructor is not readily accessible to the user.
 
 -- Unrelated
   | TLocated Type Extent      -- ^ A located type.
@@ -132,7 +132,7 @@ bang a =
 instance Eq Type where
   (==) (TLocated t1 _) t2 = t1 == t2
   (==) t1 (TLocated t2 _) = t1 == t2
-  (==) (TVar x) (TVar y) = x == y
+  (==) (TypeVar x) (TypeVar y) = x == y
   (==) (TQualified m x) (TQualified m' x') = m == m' && x == x'
   (==) TUnit TUnit = True
   (==) TBool TBool = True

@@ -147,28 +147,28 @@ register_constraint :: TypeConstraint -> Poset -> Poset
 register_constraint cst poset =
   case cst of
     -- Case of an atomic constraint
-    Sublintype (TVar x) (TVar y) _ ->
+    SubLinearType (TypeVar x) (TypeVar y) _ ->
         let (cx, poset') = cluster_of x poset
             (cy, poset'') = cluster_of y poset' in
         -- Merge the clusters of x and y
         merge_clusters cx cy poset''
 
     -- Case of semi-composite constraints
-    Sublintype (TVar x) u _ ->
+    SubLinearType (TypeVar x) u _ ->
         let (cx, poset') = cluster_of x poset
             fvu = free_typ_var u in
         List.foldl (\poset y ->
                       let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvu
 
-    Sublintype t (TVar x) _ ->
+    SubLinearType t (TypeVar x) _ ->
         let (cx, poset') = cluster_of x poset
             fvt = free_typ_var t in
         List.foldl (\poset y ->
                       let (cy, poset') = cluster_of y poset in
                       new_relation cy cx cst poset') poset' fvt
 
-    Sublintype _ _ _ ->
+    SubLinearType _ _ _ ->
         throwNE $ ProgramError "Ordering:register_constraint: illegal argument: unreduced constraint"
 
     Subtype _ _ _ ->
@@ -234,8 +234,8 @@ check_cyclic c explored poset = do
         cloop <- return $ List.map fst loop ++ [cst]
         -- Identify the infinite type
         (infinite, info) <- case cst of
-                              Sublintype (TVar x) _ info -> return (x, info)
-                              Sublintype _ (TVar x) info -> return (x, info)
+                              SubLinearType (TypeVar x) _ info -> return (x, info)
+                              SubLinearType _ (TypeVar x) info -> return (x, info)
                               _ -> throwNE $ ProgramError "Ordering:check_cyclic: unexpected unreduced constraint"
         -- Printing flags
         fflag <- return (\f -> "")
@@ -367,7 +367,7 @@ insert_constraint x y c eqv =
 --
 -- the result will be the set { 0 <= 2, 2 <= 3 }. The constraint 42 <= 24, which cannot affect the type,
 -- is removed.
-clean_constraint_set :: Type -> ConstraintSet -> ([Variable], [RefFlag], ConstraintSet)
+clean_constraint_set :: Type -> ConstraintSet -> ([Variable], [Flag], ConstraintSet)
 clean_constraint_set a (lc, fc) =
   let ff = free_flag a
       fv = free_typ_var a in
@@ -378,7 +378,7 @@ clean_constraint_set a (lc, fc) =
                      (x:_) -> let eqvl = new_with_class fv in
                               let eqvl' = List.foldl (\eqv c ->
                                                        case c of
-                                                         Sublintype (TVar x) (TVar y) _ ->
+                                                         SubLinearType (TypeVar x) (TypeVar y) _ ->
                                                            insert_constraint x y c eqv
                                                          _ -> throwNE $ ProgramError "Ordering:clean_constraint_set: unexpected non-atomic constraint"
                                                      ) eqvl lc in

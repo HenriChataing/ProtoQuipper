@@ -90,16 +90,16 @@ choose_implementation id = do
 
 -- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'.
 convert_type :: C.Type -> QpState QType
-convert_type (C.TBang _ C.TUnit) =
+convert_type (C.TypeAnnot _ C.TUnit) =
   return QUnit
 
-convert_type (C.TBang _ (C.TVar a)) =
+convert_type (C.TypeAnnot _ (C.TypeVar a)) =
   return (QVar a)
 
-convert_type (C.TBang _ C.TQubit) =
+convert_type (C.TypeAnnot _ C.TQubit) =
   return QQubit
 
-convert_type (C.TBang _ (C.TTensor alist)) = do
+convert_type (C.TypeAnnot _ (C.TTensor alist)) = do
   alist' <- List.foldr (\a rec -> do
         as <- rec
         a' <- convert_type a
@@ -113,13 +113,13 @@ convert_type typ =
 -- | Convert a quantum data type to a type.
 convert_qtype :: QType -> C.Type
 convert_qtype QUnit =
-  C.TBang 0 C.TUnit
+  C.TypeAnnot 0 C.TUnit
 convert_qtype QQubit =
-  C.TBang 0 C.TQubit
+  C.TypeAnnot 0 C.TQubit
 convert_qtype (QVar v) =
-  C.TBang 0 $ C.TVar v
+  C.TypeAnnot 0 $ C.TypeVar v
 convert_qtype (QTensor qlist) =
-  C.TBang 0 $ C.TTensor (List.map convert_qtype qlist)
+  C.TypeAnnot 0 $ C.TTensor (List.map convert_qtype qlist)
 
 
 -- | Return True iff the type contains no variables.
@@ -134,7 +134,7 @@ is_concrete (QTensor qlist) =
 -- | Convert the type of an unbox operator (only) to 'Compiler.Preliminaries.QType'.
 -- An exception is raised if the given type is not of the form: @Circ (QType, QType) -> _@.
 circuit_type :: C.Type -> QpState CircType
-circuit_type (C.TBang _ (C.TArrow (C.TBang _ (C.TCirc t u)) _)) = do
+circuit_type (C.TypeAnnot _ (C.TArrow (C.TypeAnnot _ (C.TCirc t u)) _)) = do
   t' <- convert_type t
   u' <- convert_type u
   return (t', u')
@@ -148,7 +148,7 @@ make_unbox_type :: CircType -> C.Type
 make_unbox_type (t,u) =
   let t' = convert_qtype t
       u' = convert_qtype u in
-  C.TBang 0 $ C.TArrow (C.TBang 0 $ C.TCirc t' u') (C.TBang 0 $ C.TArrow t' u')
+  C.TypeAnnot 0 $ C.TArrow (C.TypeAnnot 0 $ C.TCirc t' u') (C.TypeAnnot 0 $ C.TArrow t' u')
 
 
 -- | Return the types of all the occurences of \'unbox\' in the given expression.
@@ -207,22 +207,22 @@ unbox_types _ =
 
 -- | Bind two types, producing a mapping from type variables to types.
 bind_types :: C.Type -> C.Type -> QpState (IntMap C.Type)
-bind_types (C.TBang _ (C.TVar v)) typ = do
+bind_types (C.TypeAnnot _ (C.TypeVar v)) typ = do
   return $ IMap.singleton v typ
-bind_types (C.TBang _ (C.TArrow t u)) (C.TBang _ (C.TArrow t' u')) = do
+bind_types (C.TypeAnnot _ (C.TArrow t u)) (C.TypeAnnot _ (C.TArrow t' u')) = do
   bt <- bind_types t t'
   bu <- bind_types u u'
   return $ IMap.union bt bu
-bind_types (C.TBang _ (C.TCirc t u)) (C.TBang _ (C.TCirc t' u')) = do
+bind_types (C.TypeAnnot _ (C.TCirc t u)) (C.TypeAnnot _ (C.TCirc t' u')) = do
   bt <- bind_types t t'
   bu <- bind_types u u'
   return $ IMap.union bt bu
-bind_types (C.TBang _ (C.TAlgebraic _ arg)) (C.TBang _ (C.TAlgebraic _ arg')) = do
+bind_types (C.TypeAnnot _ (C.TAlgebraic _ arg)) (C.TypeAnnot _ (C.TAlgebraic _ arg')) = do
   List.foldl (\rec (a, a') -> do
         map <- rec
         ba <- bind_types a a'
         return $ IMap.union ba map) (return IMap.empty) (List.zip arg arg')
-bind_types (C.TBang _ (C.TTensor alist)) (C.TBang _ (C.TTensor alist')) =
+bind_types (C.TypeAnnot _ (C.TTensor alist)) (C.TypeAnnot _ (C.TTensor alist')) =
   List.foldl (\rec (a, a') -> do
         map <- rec
         ba <- bind_types a a'
@@ -233,16 +233,16 @@ bind_types _ _ =
 
 -- | Apply the binding produced by the function 'Compiler.Preliminaries.bind_types'.
 app_bind :: IntMap C.Type -> C.Type -> C.Type
-app_bind b (C.TBang n (C.TVar v)) =
+app_bind b (C.TypeAnnot n (C.TypeVar v)) =
   case IMap.lookup v b of
     Just t -> t
-    Nothing -> C.TBang n $ C.TVar v
-app_bind b (C.TBang n (C.TTensor alist)) =
-  C.TBang n $ C.TTensor (List.map (app_bind b) alist)
-app_bind b (C.TBang n (C.TArrow t u)) =
-  C.TBang n $ C.TArrow (app_bind b t) (app_bind b u)
-app_bind b (C.TBang n (C.TCirc t u)) =
-  C.TBang n $ C.TCirc (app_bind b t) (app_bind b u)
+    Nothing -> C.TypeAnnot n $ C.TypeVar v
+app_bind b (C.TypeAnnot n (C.TTensor alist)) =
+  C.TypeAnnot n $ C.TTensor (List.map (app_bind b) alist)
+app_bind b (C.TypeAnnot n (C.TArrow t u)) =
+  C.TypeAnnot n $ C.TArrow (app_bind b t) (app_bind b u)
+app_bind b (C.TypeAnnot n (C.TCirc t u)) =
+  C.TypeAnnot n $ C.TCirc (app_bind b t) (app_bind b u)
 app_bind _ t = t
 
 
@@ -918,12 +918,12 @@ simplify_pattern_matching e blist = do
 
   -- If the test expression is not a variable, then push it in a variable
   case e' of
-    EVar initvar -> do
-        unbuild dtree [([], initvar)]
+    EVar iniTypeVar -> do
+        unbuild dtree [([], iniTypeVar)]
     _ -> do
-        initvar <- create_var "x"
-        tests <- unbuild dtree [([], initvar)]
-        return $ ELet initvar e' tests
+        iniTypeVar <- create_var "x"
+        tests <- unbuild dtree [([], iniTypeVar)]
+        return $ ELet iniTypeVar e' tests
 
 
 

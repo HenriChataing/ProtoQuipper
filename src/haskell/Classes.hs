@@ -47,10 +47,10 @@ class PPrint a where
 
 -- | This type class identifies the objects carrying type constraints of the form (/e/ <: /A/).
 -- The only purpose of this class, except from marking \"constrained\" objects, is to overload the
--- 'drop_constraints' function, used to remove all these annotations.
-class Constraint a where
+-- 'uncoerce' function, used to remove all these annotations.
+class Coerced a where
   -- | Removes all type constraint annotations.
-  drop_constraints :: a -> a
+  uncoerce :: a -> a
 
 
 -- | A type class for objects parameterized over some integer variables.

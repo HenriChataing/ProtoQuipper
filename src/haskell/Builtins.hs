@@ -38,10 +38,10 @@ define_list = do
     arguments = [Covariant],
     definition = ([], [])
   }
-  let an = TBang n $ TVar a
-      acons = TBang p $ TTensor [an, TBang q $ TAlgebraic list [an]]
-      tcons = TForall [n,m,p,q] [a] ([],[Le m p no_info]) (TBang one $ TArrow acons (TBang m $ TAlgebraic list [an]))
-      tnil = TForall [n,m] [a] emptyset (TBang m $ TAlgebraic list [an])
+  let an = TypeAnnot n $ TypeVar a
+      acons = TypeAnnot p $ TTensor [an, TypeAnnot q $ TAlgebraic list [an]]
+      tcons = TypeScheme [n,m,p,q] [a] ([],[Le m p no_info]) (TypeAnnot one $ TArrow acons (TypeAnnot m $ TAlgebraic list [an]))
+      tnil = TypeScheme [n,m] [a] emptyset (TypeAnnot m $ TAlgebraic list [an])
 
   cons <- register_datacon "_Cons" Datacondef {
     datatype = list,
@@ -70,7 +70,7 @@ define_char = do
     arguments = [],
     definition = ([], [])
   }
-  let tchar = TForall [] [] emptyset (arrow int (TBang 1 $ TAlgebraic char []))
+  let tchar = TypeScheme [] [] emptyset (arrow int (TypeAnnot 1 $ TAlgebraic char []))
 
   dchar <- register_datacon "_Char" Datacondef {
     datatype = char,
@@ -132,7 +132,7 @@ unary_type = circ qubit qubit
 
 -- | The type of all binary gates, i.e., @circ (qubit * qubit, qubit * qubit)@.
 binary_type :: Type
-binary_type = circ (TBang zero $ TTensor [qubit, qubit]) (TBang zero $ TTensor [qubit, qubit])
+binary_type = circ (TypeAnnot zero $ TTensor [qubit, qubit]) (TypeAnnot zero $ TTensor [qubit, qubit])
 
 
 -- | Generic value of unary gates, parameterized over the name of the gate.
@@ -267,12 +267,12 @@ define_builtins = do
   let binary = List.map (\(g, _) -> (toLower g, binary_type, binary_value g)) binary_gates
 
   let others = [
-        ("g_cnot", TBang 1 $ TArrow bool $ circ (TBang 0 $ TTensor [qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit]),
+        ("g_cnot", TypeAnnot 1 $ TArrow bool $ circ (TypeAnnot 0 $ TTensor [qubit, qubit]) (TypeAnnot 0 $ TTensor [qubit, qubit]),
                     VBuiltin (\sign ->
                       VCirc (VTuple [VQubit 0, VQubit 1])
                             (singleton_circuit $ Controlled (Unary "G_NOT" 0) [(1, unVBool sign "G_CNOT")])
                              (VTuple [VQubit 0, VQubit 1]))),
-        ("g_toffoli", TBang 1 $ TArrow (tensor [bool, bool]) $ circ (TBang 0 $ TTensor [qubit, qubit, qubit]) (TBang 0 $ TTensor [qubit, qubit, qubit]),
+        ("g_toffoli", TypeAnnot 1 $ TArrow (tensor [bool, bool]) $ circ (TypeAnnot 0 $ TTensor [qubit, qubit, qubit]) (TypeAnnot 0 $ TTensor [qubit, qubit, qubit]),
                      VBuiltin (\param ->
                        let (sign1, sign2) = unVTuple2 param "G_TOFFOLI" in
                        VCirc (VTuple [VQubit 0, VQubit 1, VQubit 2])
@@ -306,14 +306,14 @@ define_builtins = do
   n <- fresh_flag
   b <- fresh_type
   m <- fresh_flag
-  insert_global vprint (TForall [n,m] [a,b] emptyset $ arrow (circ (TBang n $ TVar a) (TBang m $ TVar b)) unit) Nothing
+  insert_global vprint (TypeScheme [n,m] [a,b] emptyset $ arrow (circ (TypeAnnot n $ TypeVar a) (TypeAnnot m $ TypeVar b)) unit) Nothing
   lbl <- return $ Map.insert "print_circ" (Global vprint) lbl
 
   -- Build the module.
   let builtins = Module {
     environment = Environment {
       variables = lbl,
-      types = Map.fromList [("list", TBang 1 $ TAlgebraic list []), ("char", TBang 1 $ TAlgebraic char [])],
+      types = Map.fromList [("list", TypeAnnot 1 $ TAlgebraic list []), ("char", TypeAnnot 1 $ TAlgebraic char [])],
       E.datacons = Map.fromList [("_Cons", cons), ("_Nil", nil), ("_Char", dchar)]
     },
     declarations = []

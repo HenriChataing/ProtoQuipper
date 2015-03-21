@@ -19,6 +19,7 @@ import Monad.QuipperError
 import qualified Compiler.SimplSyntax as C
 
 import Data.List as List
+import Data.IntSet as IntSet
 import Data.Map (Map)
 
 
@@ -28,37 +29,28 @@ import Data.Map (Map)
 -- ----------------------------------------------------------------------
 -- ** Flags
 
--- | The type of referenced flags. A referenced flag represents a numbered
--- flag variable. Three values are reserved:
+-- | The type of referenced flags. A referenced flag represents a numbered flag variable. Three
+-- values are reserved:
 --
 -- *    0: the flag equal to zero (meaning not duplicable);
 --
 -- *    1: the flag equal to one (meaning duplicable);
 --
 -- *    Any other value refers to a flag variable.
-type RefFlag = Int
+type Flag = Int
 
 
 -- | The flag 1.
-one :: RefFlag
+one :: Flag
 one = 1
 
 -- | The flag 0.
-zero :: RefFlag
+zero :: Flag
 zero = 0
 
 
-instance PPrint RefFlag where
-  genprint _ _ f = pprint f
-
-  sprintn _ 0 = ""
-  sprintn _ 1 = "!"
-  sprintn _ n = "(" ++ show n ++ ")"
-
-
-
--- | The type of values a flag can take. Initially, all flags are set to 'Unknown',
--- except for some that are imposed to 'Zero' or 'One' by the typing rules.
+-- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except for some
+-- that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
     Unknown   -- ^ The value of the flag has not been decided yet.
   | One       -- ^ The value 1.
@@ -66,245 +58,186 @@ data FlagValue =
   deriving Show
 
 
--- | Information relevant to a flag. This contains the flag value.
--- Eventually, it will also contain various things such as reversibility, control, etc.
-data FlagInfo = FInfo {
-  f_value :: FlagValue                              -- ^ The value of the flag.
+-- | Information relevant to a flag. This contains the flag value. Eventually, it will also contain
+-- various things such as reversibility, control, etc.
+data FlagInfo = FlagInfo {
+  flagValue :: FlagValue      -- ^ The value of the flag.
 }
 
 
 -- ----------------------------------------------------------------------
 -- ** Types
 
--- $ The definition of types distinguishes between /linear types/ and
--- /types/.  Linear types are never duplicable, whereas types are
--- always annotated with an exponential flag. The grammar defines
--- linear types and types by mutual recursion. This ensures that types
--- are annotated with a flag in every possible place, but that flags
--- are never doubled up. This helps simplify the type inference algorithm.
+-- $ The definition of types distinguishes between /linear types/ and /types/.  Linear types are
+-- never duplicable, whereas types are always annotated with an exponential flag. The grammar defines
+-- linear types and types by mutual recursion. This ensures that types are annotated with a flag in
+-- every possible place, but that flags are never doubled up. This helps simplify the type inference
+-- algorithm.
 
--- | The type of linear type expressions. Linear types can never be
--- duplicable.
-data LinType =
--- Basic types.
-    TVar Variable                -- ^ Type variable: /a/.
-  | TArrow Type Type             -- ^ Function type: @T -> U@.
 
--- Tensor types.
-  | TUnit                        -- ^ Unit type: @()@.
-  | TTensor [Type]               -- ^ Tensor product: @(T1 * .. * T/n/)@.
-
--- Sum types.
-  | TBool                        -- ^ The basic type /bool/.
-  | TInt                         -- ^ The basic type /int/.
-  | TAlgebraic Algebraic [Type]  -- ^ Algebraic type, parameterized over the variables /a1/ ... /an/.
-
--- Quantum related types.
-  | TQubit                       -- ^ The basic type /qubit/.
-  | TCirc Type Type              -- ^ The type @circ (T, U)@.
-
--- Others.
-  | TSynonym Synonym [Type]      -- ^ Type synonym, parametrized over the variables /a1/ ... /an/.
-                                 -- Instead of immediatly replacing the synonym by its actual value,
-                                 -- the synonym name is kept in order to give more precise error
-                                 -- messages.
+-- | The type of linear type expressions. Expressions with linear types can never be duplicable.
+-- Linear types implement the standard type algebra, where the only objects are type variables,
+-- type constructions (application) and some type constants.
+data LinearType =
+    TypeVar Variable                  -- ^ Type variables.
+  | TypeApply Constant [Type]         -- ^ Type constructor.
   deriving (Show, Eq)
 
 
--- | The type of type expressions, which are linear types annotated
--- with a flag.
+-- | The type of type expressions, which are linear types annotated with a flag. Since we want to
+-- map type variables to types instead of linear types, type variables should not be considered linear
+-- types.
 data Type =
-  TBang RefFlag LinType          -- ^ The type @!^n A@.
+    TypeAnnot Flag LinearType         -- ^ The type @!^n A@.
+  
   deriving (Show, Eq)
 
 
 -- | An alternate definition of the equality between types. This function, contrarily to the default
 -- equality, compares only the skeleton of the types, ignoring the flag variables.
-eq_skel :: Type -> Type -> Bool
-eq_skel (TBang _ (TArrow t u)) (TBang _ (TArrow t' u')) = eq_skel t t' && eq_skel u u'
-eq_skel (TBang _ (TCirc t u)) (TBang _ (TCirc t' u')) = eq_skel t t' && eq_skel u u'
-eq_skel (TBang _ (TTensor tlist)) (TBang _ (TTensor ulist)) =
-  if List.length tlist == List.length ulist then
-    List.and $ List.map (\(t, u) -> eq_skel t u) (List.zip tlist ulist)
-  else
-    False
-eq_skel (TBang _ (TAlgebraic alg arg)) (TBang _ (TAlgebraic alg' arg')) =
-  if alg == alg' && List.length arg == List.length arg' then
-    List.and $ List.map (\(a, a') -> eq_skel a a') (List.zip arg arg')
-  else
-    False
-eq_skel (TBang _ t) (TBang _ u) = t == u
+equalsLinear :: Type -> Type -> Bool
+equalsLinear (TypeAnnot _ (TypeApply c args)) (TypeAnnot _ (TypeApply c' args')) =
+  if c == c' && List.length args == List.length args' then
+    List.and $ List.map (\(t, t') -> equalsLinear t t') (List.zip args args')
+  else False
+equalsLinear (TypeAnnot _ t) (TypeAnnot _ t') = t == t'
 
 
 -- | A type is concrete if it doesn't contain any type variables.
-is_concrete :: Type -> Bool
-is_concrete typ =
-  free_typ_var typ == []
-
+isConcrete :: Type -> Bool
+isConcrete typ = IntSet.null $ freevar typ
 
 -- | Remove the flag annotation from a type, returning a linear type.
-no_bang :: Type -> LinType
-no_bang (TBang _ t) = t
+unannot :: Type -> LinearType
+unannot (TypeAnnot _ t) = t
+
+-- | Build a constant type.
+constant :: Flag -> String -> Type
+constant flag name = TypeAnnot flag (TypeApply name [])
+
+-- | Apply a type constructor to some arguments.
+apply :: Flag -> String -> [Type] -> Type
+apply flag name args = TypeAnnot flag (TypeApply name args)
 
 
--- | The constant type !0 qubit.
+-- *** Some predefined types. Those include: qubit, unit, int, bool, circ.
+
 qubit :: Type
-qubit = TBang 0 TQubit
+qubit = constant 0 "qubit"
 
--- | The constant type !1 unit.
 unit :: Type
-unit = TBang 1 TUnit
+unit = constant 0 "unit"
 
--- | The constant type !1 int.
 int :: Type
-int = TBang 1 TInt
+int = constant 0 "int"
 
--- | The constant type !1 bool.
 bool :: Type
-bool = TBang 1 TBool
+bool = constant 0 "bool"
 
--- | Build the type !1 circ T U.
 circ :: Type -> Type -> Type
-circ t u =
-  TBang 1 (TCirc t u)
+circ t u = apply 1 "circ" [t, u]
 
 -- | Build the type !1 T -> U.
 arrow :: Type -> Type -> Type
-arrow t u =
-  TBang 1 (TArrow t u)
+arrow t u = apply 1 "->" [t, u]
 
 -- | Build the type !1 T1 * .. * Tn.
 tensor :: [Type] -> Type
-tensor tlist =
-  TBang 1 (TTensor tlist)
+tensor args = apply 1 "*" args
 
 
--- | The type of type schemes. A /type scheme/ is a type expression
--- together with universally quantified type variables /a/1, ...,
--- /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set of
--- constraints /L/.
+-- | The type of type schemes. A /type scheme/ is a type expression together with universally
+-- quantified type variables /a/1, ..., /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set
+-- of constraints /L/.
 data TypeScheme =
-  TForall [RefFlag] [Variable] ConstraintSet Type
+  TypeScheme [Flag] [Variable] ConstraintSet Type
   deriving Show
 
 
 -- | Convert a type to a trivial type scheme, i.e., without adding
 -- quantifiers or constraints.
-typescheme_of_type :: Type -> TypeScheme
-typescheme_of_type t = TForall [] [] emptyset t
+schemeOfType :: Type -> TypeScheme
+schemeOfType t = TypeScheme [] [] emptyset t
 
 
 -- | Extract the main type of a typescheme (without instantiating it).
-type_of_typescheme :: TypeScheme -> Type
-type_of_typescheme (TForall _ _ _ t) = t
+typeOfScheme :: TypeScheme -> Type
+typeOfScheme (TypeScheme _ _ _ t) = t
 
 
-instance Subs TypeScheme LinType where
+-- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinearType' and
+-- 'Type', but also everything else that contains types: 'TypeConstraint', 'ConstraintSet',
+-- ['TypeConstraint'], etc. The only purpose of this class is to overload the functions listed below.
+class (Subs a LinearType, Subs a Variable) => TypeObject a where
+  -- | Return the set of free type variables.
+  freevar :: a -> IntSet
+
+  -- | Return the list of flag references.
+  freeflag :: a -> IntSet
+
+  -- | Return @True@ iff the argument is of the form \A -> B\.
+  isFunction :: a -> Bool
+
+  -- | Return @True@ iff the argument is a quantum data type.
+  isQuantum :: a -> Bool
+
+
+-- Linear types.
+
+instance Subs LinearType LinearType where
+  subs x t (TypeVar x') | x == x' = t
+                        | otherwise = TypeVar x'
+  subs x t (TypeApply c args) = TypeApply c $ List.map (subs x t) args
+
+instance Subs LinearType Variable where
+  subs n m (TypeApply c args) = TypeApply c $ List.map (subs n m) args
+  subs _ _ t = t
+
+instance TypeObject LinearType where
+  freevar (TypeVar x) = IntSet.singleton x
+  freevar (TypeApply _ args) = IntSet.unions $ List.map freevar args
+
+  freeflag (TypeVar _) = IntSet.empty
+  freeflag (TypeApply _ args) = IntSet.unions $ List.map freeflag args
+
+  isFunction (TypeApply "->" _) = True
+  isFunction _ = False
+
+  isQuantum (TypeApply "qubit" _) = True
+  isQuantum (TypeApply "circ" _) = True
+  isQuantum (TypeApply "unit" _) = True
+  isQuantum (TypeApply "*" args) = List.and $ List.map isQuantum args
+  isQuantum _ = False
+
+-- Types.
+
+instance Subs Type LinearType where
+  subs x t (TypeAnnot n u) = TypeAnnot n (subs x t u)
+
+instance Subs Type Variable where
+  subs n m (TypeAnnot n' t) =
+    let t' = subs n m t in
+    if n == n' then TypeAnnot m t'
+    else TypeAnnot n' t'
+
+instance TypeObject Type where
+  freevar (TypeAnnot _ t) = freevar t
+  freeflag (TypeAnnot n t) = IntSet.insert n (freeflag t)
+  isFunction (TypeAnnot _ t) = isFunction t
+  isQuantum (TypeAnnot _ t) = isQuantum t
+
+-- Type schemes.
+
+instance Subs TypeScheme LinearType where
   subs _ _ a = a
 instance Subs TypeScheme Variable where
   subs _ _ a = a
 
-instance KType TypeScheme where
-  free_typ_var _ = []
-  free_flag _ = []
-  is_fun (TForall _ _ _ t) = is_fun t
-  is_qdata (TForall _ _ _ t) = is_qdata t
-  is_algebraic (TForall _ _ _ t) = is_algebraic t
-  is_synonym _ = False
-
-
-
-
--- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinType' and 'Type', but also
--- everything else that contains types: 'TypeConstraint', 'ConstraintSet', ['TypeConstraint'], etc.
--- The only purpose of this class is to overload the functions listed below.
-class (Subs a LinType, Subs a Variable) => KType a where
-  -- | Return the list of free type variables.
-  free_typ_var :: a -> [Int]
-
-  -- | Return the list of flag references.
-  free_flag :: a -> [Int]
-
-  -- | Return @True@ iff the argument is of the form \A -> B\.
-  is_fun :: a -> Bool
-
-  -- | Return @True@ iff the argument is a quantum data type.
-  is_qdata :: a -> Bool
-
-  -- | Return @True@ iff the argument is an algebraic type.
-  is_algebraic :: a -> Bool
-
-  -- | Return @True@ iff the argument is a type synonym.
-  -- This function is optinal (default is False).
-  is_synonym :: a -> Bool
-
-  is_synonym _ = False
-
-
-instance Subs LinType LinType where
-  subs a b (TVar x) | x == a = b
-                        | otherwise = TVar x
-  subs _ _ TUnit = TUnit
-  subs _ _ TInt = TInt
-  subs _ _ TBool = TBool
-  subs _ _ TQubit = TQubit
-  subs a b (TAlgebraic n args) = TAlgebraic n $ List.map (subs a b) args
-  subs a b (TSynonym n args) = TSynonym n $ List.map (subs a b) args
-  subs a b (TArrow t u) = TArrow (subs a b t) (subs a b u)
-  subs a b (TTensor tlist) = TTensor $ List.map (subs a b) tlist
-  subs a b (TCirc t u) = TCirc (subs a b t) (subs a b u)
-
-instance Subs LinType Variable where
-  subs n m (TAlgebraic typename args) = TAlgebraic typename $ List.map (subs n m) args
-  subs n m (TArrow t u) = TArrow (subs n m t) (subs n m u)
-  subs n m (TTensor tlist) = TTensor $ List.map (subs n m) tlist
-  subs n m (TCirc t u) = TCirc (subs n m t) (subs n m u)
-  subs _ _ t = t
-
-instance KType LinType where
-  free_typ_var (TVar x) = [x]
-  free_typ_var (TTensor tlist) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] tlist
-  free_typ_var (TArrow t u) = List.union (free_typ_var t) (free_typ_var u)
-  free_typ_var (TCirc t u) = List.union (free_typ_var t) (free_typ_var u)
-  free_typ_var (TAlgebraic _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
-  free_typ_var (TSynonym _ arg) = List.foldl (\fv t -> List.union (free_typ_var t) fv) [] arg
-  free_typ_var _ = []
-
-  free_flag (TTensor tlist) = List.foldl (\fv t -> List.union (free_flag t) fv) [] tlist
-  free_flag (TArrow t u) = List.union (free_flag t) (free_flag u)
-  free_flag (TCirc t u) = List.union (free_flag t) (free_flag u)
-  free_flag (TAlgebraic _ arg) = List.foldl (\fv t -> List.union (free_flag t) fv) [] arg
-  free_flag _ = []
-
-  is_fun (TArrow _ _) = True
-  is_fun _ = False
-
-  is_qdata TQubit = True
-  is_qdata TUnit = True
-  is_qdata (TTensor tlist) = List.and $ List.map is_qdata tlist
-  is_qdata _ = False
-
-  is_algebraic (TAlgebraic _ _) = True
-  is_algebraic _ = False
-
-instance Subs Type LinType where
-  subs a b (TBang n t) = TBang n (subs a b t)
-
-instance Subs Type Variable where
-  subs n m (TBang p t) =
-    let t' = subs n m t in
-    if n == p then TBang m t'
-    else TBang p t'
-
-instance KType Type where
-  free_typ_var (TBang _ t) = free_typ_var t
-
-  free_flag (TBang n t) = List.insert n (free_flag t)
-
-  is_fun (TBang _ t) = is_fun t
-  is_algebraic (TBang _ t) = is_algebraic t
-  is_qdata (TBang _ t) = is_qdata t
-  is_synonym (TBang _ t) = is_synonym t
+instance TypeObject TypeScheme where
+  freevar _ = IntSet.empty
+  freeflag _ = IntSet.empty
+  isFunction (TypeScheme _ _ _ t) = isFunction t
+  isQuantum (TypeScheme _ _ _ t) = isQuantum t
 
 
 -- ----------------------------------------------------------------------
@@ -343,18 +276,17 @@ opposite Contravariant = Covariant
 opposite var = var
 
 
-
 -- | A generic type definition.
 data Typedef a = Typedef {
-  arguments :: [Variance],                 -- ^ The list of type arguments, each described by its variance.
-  definition :: ([Type], a)                -- ^ The type of the definition depends upon the kind of definition (algebraic / synonym).
+  arguments :: [Variance],       -- ^ The list of type arguments, each annotated with a variance.
+  definition :: ([Type], a)      -- ^ Generic type definition.
 }
 
 
 -- | Algebraic type definition.
 type Algdef = Typedef [(Datacon, Maybe Type)]
 
--- ̀| Synonym type definition.
+-- | Synonym type definition.
 type Syndef = Typedef Type
 
 
@@ -386,22 +318,31 @@ data Datacondef = Datacondef {
 type Ref = Int
 
 -- | The information contained by the above references.
-data RefInfo = RInfo {
+data ReFlagInfo = RInfo {
   extent :: Extent,                                    -- ^ The extent of the expression in a file.
   expression :: Either Expr Pattern,                   -- ^ The referenced expression.
   rtype :: Type                                        -- ^ The type of the expression.
 }
 
+
+-- ----------------------------------------------------------------------
+-- ** Constants
+
+-- | Union of the language constants. May yet be extended in the future with other values.
+data ConstantValue =
+    ConstInt Int
+  | ConstBool Bool
+  | ConstUnit
+  deriving Show
+
 -- ----------------------------------------------------------------------
 -- ** Patterns
 
--- | A core pattern.  The definition is largely the same as that of
--- the 'Parsing.Syntax.Pattern's of the surface syntax. The only
--- difference lies in variables, which are now represented by ids.
--- Although the syntax of Proto-Quipper does not make use of patterns,
--- keeping them as syntactic sugar reduces the number of variables,
--- since the desugaring process produces new variables, one for each
--- pair in the pattern. Here is how these patterns could be desugared:
+-- | A core pattern.  The definition is largely the same as that of the 'Parsing.Syntax.Pattern's of
+-- the surface syntax. The only difference lies in variables, which are now represented by ids.
+-- Although the syntax of Proto-Quipper does not make use of patterns, keeping them as syntactic
+-- sugar reduces the number of variables, since the desugaring process produces new variables, one
+-- for each pair in the pattern. Here is how these patterns could be desugared:
 --
 -- >   fun p -> e             ==   fun x -> let p = x in e  (and desugar again)
 -- >
@@ -413,33 +354,36 @@ data RefInfo = RInfo {
 -- >                                    e
 -- >                               (and desugar again).
 --
--- Note that the expression @let x = e in f@ (where /x/ is a
--- variable), is not syntactic sugar.  It differs from the application
--- @(fun x -> f) e@ by the presence of let-polymorphism.
+-- Note that the expression @let x = e in f@ (where /x/ is a variable), is not syntactic sugar. It
+-- differs from the application @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
-    PWildcard Ref                                       -- ^ The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-  | PUnit Ref                                           -- ^ Unit pattern: @()@.
-  | PBool Ref Bool                                      -- ^ Boolean pattern: @true@ or @false@.
-  | PInt Ref Int                                        -- ^ Integer pattern.
-  | PVar Ref Variable                                   -- ^ Variable pattern: /x/.
-  | PTuple Ref [Pattern]                                -- ^ Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PDatacon Ref Datacon (Maybe Pattern)                -- ^ Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PConstraint Pattern (S.Type, Map String Type)       -- ^ Constraint pattern: @(p <: T)@.
+  -- | The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
+    PWildcard { ref :: Ref }
+  -- | Constant values (integers, booleans ..).
+  | PConstant { ref :: Ref, value :: ConstantValue }
+  -- | Pattern variables: /x/.
+  | PVar { ref :: Ref, var :: Variable }
+  -- | Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
+  | PTuple { ref :: Ref, tuple :: [Pattern] }
+  -- | Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
+  | PDatacon { ref :: Ref, cons :: Datacon, args :: Maybe Pattern }
+  -- | Type coercion: @(p <: T)@. The type has not been converted yet.
+  | PCoerce { pattern :: Pattern, typ :: S.Type, map :: Map String Type }
   deriving Show
 
 
-instance Constraint Pattern where
-  drop_constraints (PConstraint p _) = drop_constraints p
-  drop_constraints (PTuple ref plist) = PTuple ref $ List.map drop_constraints plist
-  drop_constraints (PDatacon ref dcon (Just p)) = PDatacon ref dcon $ Just (drop_constraints p)
-  drop_constraints p = p
+instance Coerced Pattern where
+  uncoerce (PCoerce p _ _) = uncoerce p
+  uncoerce (PTuple ref tuple) = PTuple ref $ List.map uncoerce tuple
+  uncoerce (PDatacon ref cons (Just p)) = PDatacon ref cons $ Just (uncoerce p)
+  uncoerce p = p
 
 instance Param Pattern where
   free_var (PVar _ x) = [x]
   free_var (PDatacon _ _ Nothing) = []
   free_var (PDatacon _ _ (Just p)) = free_var p
   free_var (PTuple _ plist) = List.foldl (\fv p -> List.union (free_var p) fv) [] plist
-  free_var (PConstraint p _) = free_var p
+  free_var (PCoerce p _ _) = free_var p
   free_var _ = []
 
 
@@ -479,16 +423,16 @@ data Expr =
   deriving Show
 
 
-instance Constraint Expr where
-  drop_constraints (EFun ref p e) = EFun ref (drop_constraints p) (drop_constraints e)
-  drop_constraints (EApp e f) = EApp (drop_constraints e) (drop_constraints f)
-  drop_constraints (ETuple ref elist) = ETuple ref (List.map drop_constraints elist)
-  drop_constraints (ELet r p e f) = ELet r (drop_constraints p) (drop_constraints e) (drop_constraints f)
-  drop_constraints (EIf e f g) = EIf (drop_constraints e) (drop_constraints f) (drop_constraints g)
-  drop_constraints (EDatacon ref dcon (Just e)) = EDatacon ref dcon $ Just (drop_constraints e)
-  drop_constraints (EMatch e blist) = EMatch (drop_constraints e) (List.map (\(p, f) -> (drop_constraints p, drop_constraints f)) blist)
-  drop_constraints (EConstraint e _) = drop_constraints e
-  drop_constraints e = e
+instance Coerced Expr where
+  uncoerce (EFun ref p e) = EFun ref (uncoerce p) (uncoerce e)
+  uncoerce (EApp e f) = EApp (uncoerce e) (uncoerce f)
+  uncoerce (ETuple ref elist) = ETuple ref (List.map uncoerce elist)
+  uncoerce (ELet r p e f) = ELet r (uncoerce p) (uncoerce e) (uncoerce f)
+  uncoerce (EIf e f g) = EIf (uncoerce e) (uncoerce f) (uncoerce g)
+  uncoerce (EDatacon ref dcon (Just e)) = EDatacon ref dcon $ Just (uncoerce e)
+  uncoerce (EMatch e blist) = EMatch (uncoerce e) (List.map (\(p, f) -> (uncoerce p, uncoerce f)) blist)
+  uncoerce (EConstraint e _) = uncoerce e
+  uncoerce e = e
 
 
 -- | Return the reference of an expression.
@@ -519,13 +463,13 @@ instance Param Expr where
   free_var (EFun _ p e) =
     let fve = free_var e
         fvp = free_var p in
-    fve \\ fvp
+    fve List.\\ fvp
 
   free_var (ELet r p e f) =
     let fve = free_var e
         fvf = free_var f
         fvp = free_var p in
-    (List.union fve fvf) \\ fvp
+    (List.union fve fvf) List.\\ fvp
 
   free_var (EApp e f) =
     List.union (free_var e) (free_var f)
@@ -541,7 +485,7 @@ instance Param Expr where
 
   free_var (EMatch e blist) =
     let fvlist = List.foldl (\fv (p, f) ->
-                               List.union (free_var f \\ free_var p) fv) [] blist
+                               List.union (free_var f List.\\ free_var p) fv) [] blist
         fve = free_var e in
     List.union fve fvlist
 
@@ -604,18 +548,17 @@ no_info = CInfo {
 }
 
 
-
 -- | The subtyping relation @<:@ operates on both linear types and types.
 -- However, only constraints on types are kept, since it is the kind of constraints generated by the
 -- constraint typing algorithm, and it is also useful to have the flag references at hand.
 data TypeConstraint =
     Subtype Type Type ConstraintInfo              -- ^ A sub-typing constraint T <: U.
-  | Sublintype LinType LinType ConstraintInfo     -- ^ A sub-typing constraint A <: B.
+  | SubLinearType LinearType LinearType ConstraintInfo     -- ^ A sub-typing constraint A <: B.
   deriving Show
 
 instance Eq TypeConstraint where
   (==) (Subtype t u _) (Subtype t' u' _) = t == t' && u == u'
-  (==) (Sublintype a b _) (Sublintype a' b' _) = a == a' && b == b'
+  (==) (SubLinearType a b _) (SubLinearType a' b' _) = a == a' && b == b'
   (==) _ _ = False
 
 
@@ -643,7 +586,7 @@ t <:: ulist = List.map (\u -> t <: u) ulist
 --
 -- *  (m \<= n)     ==     (m = 1 =\> n = 1)
 data FlagConstraint =
-   Le RefFlag RefFlag ConstraintInfo
+   Le Flag Flag ConstraintInfo
   deriving Show
 
 instance Eq FlagConstraint where
@@ -657,7 +600,7 @@ type ConstraintSet =
 
 -- | The equality of constraint sets, allowing for substitutions of the constraints.
 equals_set :: ConstraintSet -> ConstraintSet -> Bool
-equals_set (lc, fc) (lc', fc') = (lc \\ lc' == []) && (lc' \\ lc == []) && (fc \\ fc' == []) && (fc' \\ fc == [])
+equals_set (lc, fc) (lc', fc') = (lc List.\\ lc' == []) && (lc' List.\\ lc == []) && (fc List.\\ fc' == []) && (fc' List.\\ fc == [])
 
 
 -- | A type class for objects (such as constraints and constraint
@@ -670,7 +613,7 @@ class WithDebugInfo a where
 
 instance WithDebugInfo [TypeConstraint] where
   cset & info = List.map (\c -> case c of
-                            Sublintype a b _ -> Sublintype a b info
+                            SubLinearType a b _ -> SubLinearType a b info
                             Subtype t u _ -> Subtype t u info) cset
 
 instance WithDebugInfo [FlagConstraint] where
@@ -723,13 +666,13 @@ emptyset = ([], [])
 -- | Return true iff the constraint is of the form T <: T.
 is_trivial :: TypeConstraint -> Bool
 is_trivial (Subtype t u _) = t == u
-is_trivial (Sublintype a b _) = a == b
+is_trivial (SubLinearType a b _) = a == b
 
 
 -- | Return true iff the constraint /T/ <: /U/ is atomic, meaning
 -- /T/ and /U/ are both of the form !^/n/ /a/, where /a/ is a type variable.
 is_atomic :: TypeConstraint -> Bool
-is_atomic (Sublintype (TVar _) (TVar _) _) = True
+is_atomic (SubLinearType (TypeVar _) (TypeVar _) _) = True
 is_atomic _ = False
 
 
@@ -744,11 +687,11 @@ is_composite c = (not $ is_atomic c) && (not $ is_semi_composite c)
 -- it is not atomic, and either /T/ or /U/ is of the form !^/n/ /a/, making it not
 -- composite.
 is_semi_composite :: TypeConstraint -> Bool
-is_semi_composite (Sublintype t u _) =
+is_semi_composite (SubLinearType t u _) =
   case (t, u) of
-    (TVar _, TVar _) -> False
-    (TVar _, _) -> True
-    (_, TVar _) -> True
+    (TypeVar _, TypeVar _) -> False
+    (TypeVar _, _) -> True
+    (_, TypeVar _) -> True
     _ -> False
 is_semi_composite _ = False
 
@@ -760,10 +703,10 @@ is_semi_composite _ = False
 -- * /right-sided/ if it is of the form /T/ <: /a/.
 is_one_sided :: [TypeConstraint] -> Bool
 is_one_sided [] = True
-is_one_sided ((Sublintype t u _):cset) =
+is_one_sided ((SubLinearType t u _):cset) =
   case (t, u) of
-    (TVar _, _) -> is_left_sided cset
-    (_, TVar _) -> is_right_sided cset
+    (TypeVar _, _) -> is_left_sided cset
+    (_, TypeVar _) -> is_right_sided cset
     _ -> False
 is_one_sided _ = False
 
@@ -771,7 +714,7 @@ is_one_sided _ = False
 -- | Check whether all the type constraints of a list are left-sided.
 is_left_sided :: [TypeConstraint] -> Bool
 is_left_sided [] = True
-is_left_sided ((Sublintype (TVar _) _ _):cset) =
+is_left_sided ((SubLinearType (TypeVar _) _ _):cset) =
   is_left_sided cset
 is_left_sided _ = False
 
@@ -779,7 +722,7 @@ is_left_sided _ = False
 -- | Check whether all the type constraints of a list are right-sided.
 is_right_sided :: [TypeConstraint] -> Bool
 is_right_sided [] = True
-is_right_sided ((Sublintype _ (TVar _) _):cset) =
+is_right_sided ((SubLinearType _ (TypeVar _) _):cset) =
   is_right_sided cset
 is_right_sided _ = False
 
@@ -792,17 +735,17 @@ is_right_sided _ = False
 chain_constraints :: [TypeConstraint] -> (Bool, [TypeConstraint])
 chain_constraints l =
   case List.find (\c -> case c of
-                          Sublintype (TVar _) _ _ -> False
+                          SubLinearType (TypeVar _) _ _ -> False
                           _ -> True) l of
     Just c -> case c of
-                Sublintype _ (TVar y) _ -> chain_left_to_right [c] y (List.delete c l)
+                SubLinearType _ (TypeVar y) _ -> chain_left_to_right [c] y (List.delete c l)
                 _ -> error "Unreduced composite constraint"
 
     Nothing -> case List.find (\c -> case c of
-                                       Sublintype _ (TVar _) _ -> False
+                                       SubLinearType _ (TypeVar _) _ -> False
                                        _ -> True) l of
                  Just c -> case c of
-                             Sublintype (TVar y) _ _ -> chain_right_to_left [c] y (List.delete c l)
+                             SubLinearType (TypeVar y) _ _ -> chain_right_to_left [c] y (List.delete c l)
                              _ -> error "Unreduced composite constraint"
                  Nothing -> error "Only atomic constraints"
 
@@ -814,10 +757,10 @@ chain_left_to_right :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 chain_left_to_right chain endvar [] = (True, List.reverse chain)
 chain_left_to_right chain endvar l =
   case List.find (\c -> case c of
-                          Sublintype (TVar y) _ _ -> y == endvar
+                          SubLinearType (TypeVar y) _ _ -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Sublintype (TVar _) (TVar y) _ -> chain_left_to_right (c:chain) y (List.delete c l)
+                SubLinearType (TypeVar _) (TypeVar y) _ -> chain_left_to_right (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, List.reverse (c:chain))
                      else
@@ -831,10 +774,10 @@ chain_right_to_left :: [TypeConstraint] -> Int -> [TypeConstraint] -> (Bool, [Ty
 chain_right_to_left chain endvar [] = (True, chain)
 chain_right_to_left chain endvar l =
   case List.find (\c -> case c of
-                          Sublintype _ (TVar y) _ -> y == endvar
+                          SubLinearType _ (TypeVar y) _ -> y == endvar
                           _ -> False) l of
     Just c -> case c of
-                Sublintype (TVar y) (TVar _) _ -> chain_right_to_left (c:chain) y (List.delete c l)
+                SubLinearType (TypeVar y) (TypeVar _) _ -> chain_right_to_left (c:chain) y (List.delete c l)
                 _ -> if List.length l == 1 then
                        (True, c:chain)
                      else
@@ -842,38 +785,30 @@ chain_right_to_left chain endvar l =
     Nothing -> (False, [])
 
 
-instance Subs TypeConstraint LinType where
-  subs a b (Sublintype t u info) = Sublintype (subs a b t) (subs a b u) info
+instance Subs TypeConstraint LinearType where
+  subs a b (SubLinearType t u info) = SubLinearType (subs a b t) (subs a b u) info
   subs a b (Subtype t u info) = Subtype (subs a b t) (subs a b u) info
 
 instance Subs TypeConstraint Variable where
-  subs n m (Sublintype t u info) = Sublintype (subs n m t) (subs n m u) info
+  subs n m (SubLinearType t u info) = SubLinearType (subs n m t) (subs n m u) info
   subs n m (Subtype t u info) = Subtype (subs n m t) (subs n m u) info
 
-instance KType TypeConstraint where
-  free_typ_var (Sublintype t u _) = List.union (free_typ_var t) (free_typ_var u)
-  free_typ_var (Subtype t u _) = List.union (free_typ_var t) (free_typ_var u)
+instance TypeObject TypeConstraint where
+  freevar (SubLinearType t u _) = IntSet.union (freevar t) (freevar u)
+  freevar (Subtype t u _) = IntSet.union (freevar t) (freevar u)
 
-  free_flag (Sublintype t u _) = List.union (free_flag t) (free_flag u)
-  free_flag (Subtype t u _) = List.union (free_flag t) (free_flag u)
+  freeflag (SubLinearType t u _) = IntSet.union (freeflag t) (freeflag u)
+  freeflag (Subtype t u _) = IntSet.union (freeflag t) (freeflag u)
 
   -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are function types.
-  is_fun (Sublintype t u _) = is_fun t && is_fun u
-  is_fun (Subtype t u _) = is_fun t && is_fun u
+  isFunction (SubLinearType t u _) = isFunction t && isFunction u
+  isFunction (Subtype t u _) = isFunction t && isFunction u
 
   -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are quantum data types.
-  is_qdata (Sublintype t u _) = is_qdata t && is_qdata u
-  is_qdata (Subtype t u _) = is_qdata t && is_qdata u
+  isQuantum (SubLinearType t u _) = isQuantum t && isQuantum u
+  isQuantum (Subtype t u _) = isQuantum t && isQuantum u
 
-  -- | Return @True@ if @t@ and @u@ from the constraint @t <: u@ are algebraic types.
-  is_algebraic (Sublintype t u _) = is_algebraic t && is_algebraic u
-  is_algebraic (Subtype t u _) = is_algebraic t && is_algebraic u
-
-  -- | Return @True@ if either @t@ or @u@ from the constraint @t <: u@ is a type synonym.
-  is_synonym (Sublintype t u _) = is_synonym t || is_synonym u
-  is_synonym (Subtype t u _) = is_synonym t || is_synonym u
-
-instance Subs ConstraintSet LinType where
+instance Subs ConstraintSet LinearType where
   subs a b (lc, fc) = (List.map (subs a b) lc, fc)
 
 instance Subs ConstraintSet Variable where
@@ -884,24 +819,15 @@ instance Subs ConstraintSet Variable where
                                    else (Le p q info)) fc in
     (lc', fc')
 
-instance KType ConstraintSet where
-  free_typ_var (lc, _) = List.foldl (\fv c -> List.union (free_typ_var c) fv) [] lc
+instance TypeObject ConstraintSet where
+  freevar (lc, _) = IntSet.unions $ List.map freevar lc
 
-  free_flag (lc, fc) =
-    let ffl = List.foldl (\fv c -> List.union (free_flag c) fv) [] lc
-        fff = List.foldl (\fv (Le n m _) -> List.union [n, m] fv) [] fc in
-    List.union ffl fff
-
-  -- Not implemented.
-  is_fun _ = False
+  freeflag (lc, fc) =
+    let ffl = IntSet.unions $ List.map freevar lc
+        fff = IntSet.unions $ List.map (\(Le n m _) -> IntSet.fromList [n,m]) fc in
+    IntSet.union ffl fff
 
   -- Not implemented.
-  is_qdata _ = False
-
+  isFunction _ = False
   -- Not implemented.
-  is_algebraic _ = False
-
-  -- Not implemented.
-  is_synonym _ = False
-
-
+  isQuantum _ = False

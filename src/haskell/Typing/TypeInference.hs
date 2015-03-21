@@ -59,7 +59,7 @@ filter fc = do
 -- The free variables of the type are those that are greater or equal to a limit type\/flag.
 make_polymorphic_type :: Type                                  -- ^ Generic type.
                       -> ConstraintSet                         -- ^ Unreduced constraint set.
-                      -> (RefFlag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
+                      -> (Flag -> Bool, Variable -> Bool)   -- ^ Two functions stating whether a reference flag / variable is to be generalized over.
                       -> QpState TypeScheme
 make_polymorphic_type typ (lc, fc) (isref, isvar) = do
   let (ff, fv) = (free_flag typ, free_typ_var typ)
@@ -123,7 +123,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
   -- Types
   let g = List.foldl (\g c ->
         case c of
-          Sublintype (TVar x) (TVar y) _ ->
+          SubLinearType (TypeVar x) (TypeVar y) _ ->
               case IMap.lookup x g of
                 Just c -> IMap.insert x (y:c) g
                 Nothing -> IMap.insert x [y] g
@@ -131,14 +131,14 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
 
   let initv = List.filter keepvar $ IMap.keys g
   cs' <- walk_all initv g keepvar (\a b ->
-        mapsto a (TVar $ List.head fv))
-  let lc' = List.map (\(n,m) -> Sublintype (TVar n) (TVar m) no_info) cs'
+        mapsto a (TypeVar $ List.head fv))
+  let lc' = List.map (\(n,m) -> SubLinearType (TypeVar n) (TypeVar m) no_info) cs'
 
   -- Build the polymorphic type
   genfv <- return $ List.filter isvar fv
   genff <- return $ List.filter isref ff
 
-  return $ TForall genff genfv (lc',fc') typ
+  return $ TypeScheme genff genfv (lc',fc') typ
 
 
 
@@ -238,9 +238,9 @@ constraint_typing gamma (EUnit ref) cst = do
 
   -- Generates a referenced flag of the actual type of EUnit
   info <- return $ no_info { c_ref = ref }
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 TUnit })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TUnit })
 
-  return $ ((TBang 1 TUnit <:: cst) & info, [])
+  return $ ((TypeAnnot 1 TUnit <:: cst) & info, [])
 
 
 -- | True / False typing rule
@@ -255,9 +255,9 @@ constraint_typing gamma (EBool ref b) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ no_info { c_ref = ref }
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 TBool })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TBool })
 
-  return $ ((TBang 1 TBool <:: cst) & info, [])
+  return $ ((TypeAnnot 1 TBool <:: cst) & info, [])
 
 
 -- | Int typing rule
@@ -272,9 +272,9 @@ constraint_typing gamma (EInt ref p) cst = do
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ no_info { c_ref = ref }
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 TInt })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TInt })
 
-  return $ ((TBang 1 TInt <:: cst) & info, [])
+  return $ ((TypeAnnot 1 TInt <:: cst) & info, [])
 
 
 -- | Axiom typing rules
@@ -336,12 +336,12 @@ constraint_typing gamma (EBox ref a) cst = do
 
   -- Build the type of box
   b <- new_type
-  arw <- return $ TBang 1 (TArrow a b)
-  cir <- return $ TBang 1 (TCirc a b)
+  arw <- return $ TypeAnnot 1 (TArrow a b)
+  cir <- return $ TypeAnnot 1 (TCirc a b)
 
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 (TArrow arw cir) })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 (TArrow arw cir) })
 
-  return ((TBang 1 (TArrow arw cir) <:: cst) & info, [])
+  return ((TypeAnnot 1 (TArrow arw cir) <:: cst) & info, [])
 
 
 -- | Rev typing rule
@@ -360,12 +360,12 @@ constraint_typing gamma (ERev ref) cst = do
   -- Build the type of rev
   a <- new_type
   b <- new_type
-  cirab <- return $ TBang 0 (TCirc a b)
-  cirba <- return $ TBang 1 (TCirc b a)
+  cirab <- return $ TypeAnnot 0 (TCirc a b)
+  cirba <- return $ TypeAnnot 1 (TCirc b a)
 
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 (TArrow cirab cirba) })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 (TArrow cirab cirba) })
 
-  return $ ((TBang 1 (TArrow cirab cirba) <:: cst) & info, [])
+  return $ ((TypeAnnot 1 (TArrow cirab cirba) <:: cst) & info, [])
 
 
 -- | Unbox typing rule
@@ -384,12 +384,12 @@ constraint_typing gamma (EUnbox ref) cst = do
   -- Build the type of unbox
   a <- new_type
   b <- new_type
-  arw <- return $ TBang 1 (TArrow a b)
-  cir <- return $ TBang 0 (TCirc a b)
+  arw <- return $ TypeAnnot 1 (TArrow a b)
+  cir <- return $ TypeAnnot 0 (TCirc a b)
 
-  update_ref ref (\ri -> Just ri { rtype = TBang 1 (TArrow cir arw) })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 (TArrow cir arw) })
 
-  return $ ((TBang 1 (TArrow cir arw) <:: cst) & info, [])
+  return $ ((TypeAnnot 1 (TArrow cir arw) <:: cst) & info, [])
 
 
 -- App typing rule
@@ -412,7 +412,7 @@ constraint_typing gamma (EApp t u) cst = do
   -- The constraints on the actual type of the application are transformed into constraints
   -- on the type of the function
   (gamma_t, _) <- sub_context fvt gamma
-  csett <- constraint_typing gamma_t t (List.map (\t -> TBang 0 $ TArrow a t) cst)
+  csett <- constraint_typing gamma_t t (List.map (\t -> TypeAnnot 0 $ TArrow a t) cst)
 
   -- Filter on the free variables of u and type u
   (gamma_u, _) <- sub_context fvu gamma
@@ -451,9 +451,9 @@ constraint_typing gamma (EFun ref p e) cst = do
   -- Build the context constraints: n <= I
   fconstraints <- (return $ List.map (\(_, f) -> Le n f info) flags) >>= filter
 
-  update_ref ref (\ri -> Just ri { rtype = TBang n (TArrow a b) })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot n (TArrow a b) })
 
-  return $ (csetp & info) <> csete <> ((TBang n (TArrow a b) <:: cst) & info) <> fconstraints
+  return $ (csetp & info) <> csete <> ((TypeAnnot n (TArrow a b) <:: cst) & info) <> fconstraints
 
 
 -- Tensor intro typing rule
@@ -489,16 +489,16 @@ constraint_typing gamma (ETuple ref elist) cst = do
                             return $ cset <> cset') (return ([], [])) (List.zip3 elist tlist fvlist)
 
   -- Construction of all the constraints p <= f1 ... p <= fn
-  pcons <- (return $ List.map (\(TBang n _) -> Le p n info) tlist) >>= filter
+  pcons <- (return $ List.map (\(TypeAnnot n _) -> Le p n info) tlist) >>= filter
 
   -- Construction of the constraints of delta
   disunion <- return $ linear_union fvlist
   (_, delta) <- sub_context disunion gamma
   duplicable_context delta
 
-  update_ref ref (\ri -> Just ri { rtype = TBang p (TTensor tlist) })
+  update_ref ref (\ri -> Just ri { rtype = TypeAnnot p (TTensor tlist) })
 
-  return $ csetlist <> ((TBang p (TTensor tlist) <:: cst) & info) <> pcons
+  return $ csetlist <> ((TypeAnnot p (TTensor tlist) <:: cst) & info) <> pcons
 
 
 -- Tensor elim typing rule, generalized to work with any kind of pattern
@@ -633,20 +633,20 @@ constraint_typing gamma (EDatacon ref dcon e) cst = do
 
   case (dtype', e) of
     -- No argument given, the constructor is typed as is
-    (TBang n _, Nothing) -> do
+    (TypeAnnot n _, Nothing) -> do
         -- The context must be duplicable
         duplicable_context gamma
         update_ref ref (\ri -> Just ri { rtype = dtype' })
         return $ ((dtype' <:: cst) & info) <> (csetd & info)
 
     -- One argument given, and the constructor requires one
-    (TBang _ (TArrow t u@(TBang n _)), Just e) -> do
+    (TypeAnnot _ (TArrow t u@(TypeAnnot n _)), Just e) -> do
         -- Type the argument of the data constructor
         csete <- constraint_typing gamma e [t]
         update_ref ref (\ri -> Just ri { rtype = u })
         return $ ((u <:: cst) & info) <> csete <> (csetd & info)
 
-    (TBang _ _, Just _) ->
+    (TypeAnnot _ _, Just _) ->
         fail "TypeInference:constraint_typing: ill-typed data constructor"
 
 -- Match typing rule
@@ -714,7 +714,7 @@ constraint_typing gamma (EIf e f g) cst = do
   -- Filter on the free variables of e and type e: e must have the type bool
   -- The expected type !0 bool makes the least assumption about the type of e
   (gamma_e, _) <- sub_context fve gamma
-  csete <- constraint_typing gamma_e e [TBang zero TBool]
+  csete <- constraint_typing gamma_e e [TypeAnnot zero TBool]
 
   -- Filter on the free variables of f an g. f and g must have the same type as the whole expression, so they
   -- inherit the same constraints.
@@ -745,56 +745,56 @@ constraint_typing gamma (EConstraint e (t, typs)) cst = do
 
 -- | Duplicate the input linear type, replacing every type variable or flag reference
 -- by a newly generated one.
-duplicate_lintype :: LinType -> QpState LinType
-duplicate_lintype TUnit = do
+duplicate_LinearType :: LinearType -> QpState LinearType
+duplicate_LinearType TUnit = do
   return TUnit
 
-duplicate_lintype (TArrow t u) = do
+duplicate_LinearType (TArrow t u) = do
   t' <- duplicate_type t
   u' <- duplicate_type u
   return (TArrow t' u')
 
-duplicate_lintype (TTensor tlist) = do
+duplicate_LinearType (TTensor tlist) = do
   tlist' <- List.foldr (\t rec -> do
                           rc <- rec
                           t' <- duplicate_type t
                           return (t':rc)) (return []) tlist
   return (TTensor tlist')
 
-duplicate_lintype (TAlgebraic n args) = do
+duplicate_LinearType (TAlgebraic n args) = do
   args' <- List.foldr (\a rec -> do
                          rc <- rec
                          a' <- duplicate_type a
                          return (a':rc)) (return []) args
   return (TAlgebraic n args')
 
-duplicate_lintype (TVar _) = do
+duplicate_LinearType (TypeVar _) = do
   x <- fresh_type
-  return (TVar x)
+  return (TypeVar x)
 
-duplicate_lintype (TCirc t u) = do
+duplicate_LinearType (TCirc t u) = do
   t' <- duplicate_type t
   u' <- duplicate_type u
   return (TCirc t' u')
 
 -- Remaining cases: bool int qubit
-duplicate_lintype typ = do
+duplicate_LinearType typ = do
   return typ
 
 
 -- | Duplicate the input type, replacing every type variable or flag reference
 -- by a newly generated one.
 duplicate_type :: Type -> QpState Type
-duplicate_type (TBang _ t) = do
+duplicate_type (TypeAnnot _ t) = do
   n <- fresh_flag
-  t' <- duplicate_lintype t
-  return $ TBang n t'
+  t' <- duplicate_LinearType t
+  return $ TypeAnnot n t'
 
 -- | Create a duplicate version of a type, and map the argument type variable to it.
 -- The first type is assumed to be of the form !^/n/ /x/, where /x/ is a type variable.
-map_to_duplicate :: Variable -> LinType -> QpState LinType
+map_to_duplicate :: Variable -> LinearType -> QpState LinearType
 map_to_duplicate x t = do
-  t' <- duplicate_lintype t
+  t' <- duplicate_LinearType t
   mapsto x t'
   return t'
 
@@ -817,9 +817,9 @@ unify_with_poset exact poset (lc, fc) = do
 
     -- Filter the constraints which have an element of cx as right or left hand side
     (lcx, non_lcx) <- return $ List.partition (\c -> case c of
-                                                       Sublintype (TVar x) _ _ -> List.elem x cx
-                                                       Sublintype _ (TVar y) _ -> List.elem y cx
-                                                       Sublintype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
+                                                       SubLinearType (TypeVar x) _ _ -> List.elem x cx
+                                                       SubLinearType _ (TypeVar y) _ -> List.elem y cx
+                                                       SubLinearType _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                                                        Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected non-atomic constraint"
         ) lc
     -- Log
@@ -844,7 +844,7 @@ unify_with_poset exact poset (lc, fc) = do
             (xh:rest) <- return cx
             List.foldl (\rec x -> do
                           rec
-                          mapsto x $ TVar xh) (return ()) rest
+                          mapsto x $ TypeVar xh) (return ()) rest
             unify_with_poset exact poset (non_lcx, fc)
 
           else do
@@ -866,15 +866,15 @@ unify_with_poset exact poset (lc, fc) = do
 
             -- Get the left and right ends of the chain of constraints
             leftend <- case List.head sorted of
-                         Sublintype t _ _ -> return $ t
+                         SubLinearType t _ _ -> return $ t
                          Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
             rightend <- case List.last sorted of
-                          Sublintype _ t _ -> return t
+                          SubLinearType _ t _ -> return t
                           Subtype _ _ _ -> throwNE $ ProgramError "TypeInference:unify_with_poset: unexpected type constraint"
 
             -- One of the ends must be composite
             case (leftend, rightend) of
-              (TVar x, _) -> do
+              (TypeVar x, _) -> do
                   -- Map everything to the right end
                   List.foldl (\rec x -> do
                                 rec
@@ -883,7 +883,7 @@ unify_with_poset exact poset (lc, fc) = do
                   -- Unify the rest
                   unify_with_poset False poset (non_lcx, fc)
 
-              (_, TVar x) -> do
+              (_, TypeVar x) -> do
                   -- Map everything to the left end
                   List.foldl (\rec x -> do
                                   rec
@@ -899,7 +899,7 @@ unify_with_poset exact poset (lc, fc) = do
                                 mapsto x leftend) (return ()) cx
 
                   -- Add the constraint  leftend <: rightend
-                  cset' <- break_composite ([Sublintype leftend rightend no_info], [])
+                  cset' <- break_composite ([SubLinearType leftend rightend no_info], [])
                   poset <- return $ register_constraints (fst cset') poset
 
                   -- Unify the rest
@@ -911,9 +911,9 @@ unify_with_poset exact poset (lc, fc) = do
             -- Select a composite type from the semi-composite constraints
             newlog 1 "EXACT"
             model <- case List.head cset of
-                       Sublintype (TVar _) t _ -> return t
-                       Sublintype t (TVar _) _ -> return t
-                       Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                       SubLinearType (TypeVar _) t _ -> return t
+                       SubLinearType t (TypeVar _) _ -> return t
+                       SubLinearType _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
                        Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
 
 
@@ -926,11 +926,11 @@ unify_with_poset exact poset (lc, fc) = do
             -- Rewrite and reduce the atomic constraints
             atomx' <- List.foldl (\rec constraint -> do
                                     case constraint of
-                                      Sublintype (TVar x) (TVar y) info -> do
+                                      SubLinearType (TypeVar x) (TypeVar y) info -> do
                                         atom <- rec
                                         xt <- appmap x
                                         yt <- appmap y
-                                        atom' <- break_composite ([Sublintype xt yt info], [])
+                                        atom' <- break_composite ([SubLinearType xt yt info], [])
                                         return $ atom' <> atom
                                       _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic constraint"
                                  ) (return emptyset) atomx
@@ -939,17 +939,17 @@ unify_with_poset exact poset (lc, fc) = do
             cset' <- List.foldl (\rec c -> do
                                    cs <- rec
                                    case c of
-                                     Sublintype (TVar x) u info -> do
+                                     SubLinearType (TypeVar x) u info -> do
                                          xt <- appmap x
-                                         cs' <- break_composite ([Sublintype xt u info], [])
+                                         cs' <- break_composite ([SubLinearType xt u info], [])
                                          return $ cs' <> cs
 
-                                     Sublintype t (TVar y) info -> do
+                                     SubLinearType t (TypeVar y) info -> do
                                          yt <- appmap y
-                                         cs' <- break_composite ([Sublintype t yt info], [])
+                                         cs' <- break_composite ([SubLinearType t yt info], [])
                                          return $ cs' <> cs
 
-                                     Sublintype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
+                                     SubLinearType _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non-atomic contraint"
                                      Subtype _ _ _ -> fail "TypeInference:unify_with_poset: unexpected non_atomic constraint"
                                 )  (return emptyset) cset
 
@@ -969,14 +969,14 @@ unify_with_poset exact poset (lc, fc) = do
               -- If all the constraints are one-sided, make the approximation: x1 = .. = xn
               cset <- if onesided then do
                       newlog 0 "ONE SIDED"
-                      (TBang _ (TVar cxh)) <- return $ List.head cx
-                      List.foldl (\rec (TBang n (TVar x)) -> do
+                      (TypeAnnot _ (TypeVar cxh)) <- return $ List.head cx
+                      List.foldl (\rec (TypeAnnot n (TypeVar x)) -> do
                                       rec
-                                      mapsto x (TVar cxh)) (return ()) $ List.tail cx
+                                      mapsto x (TypeVar cxh)) (return ()) $ List.tail cx
 
                       return $ List.map (\c -> case c of
-                                                 Subtype (TBang n (TVar _)) t -> Subtype (TBang n $ TVar cxh) t
-                                                 Subtype t (TBang n (TVar _)) -> Subtype t (TBang n $ TVar cxh)) cset
+                                                 Subtype (TypeAnnot n (TypeVar _)) t -> Subtype (TypeAnnot n $ TypeVar cxh) t
+                                                 Subtype t (TypeAnnot n (TypeVar _)) -> Subtype t (TypeAnnot n $ TypeVar cxh)) cset
                     else do
                       return cset
               -}
@@ -1081,10 +1081,10 @@ unify exact (lc, fc) = do
   lc <- List.foldl (\rec c -> do
                       lc <- rec
                       case c of
-                        Sublintype a b info -> do
-                            a' <- map_lintype a
-                            b' <- map_lintype b
-                            return $ (Sublintype a' b' info):lc
+                        SubLinearType a b info -> do
+                            a' <- map_LinearType a
+                            b' <- map_LinearType b
+                            return $ (SubLinearType a' b' info):lc
                         Subtype t u info -> do
                             t' <- map_type t
                             u' <- map_type u

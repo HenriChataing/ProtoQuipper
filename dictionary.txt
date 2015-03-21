@@ -220,7 +220,7 @@ readdress
 ReadLine
 rec
 RecFlag
-RefFlag
+Flag
 REM
 resp
 RInt

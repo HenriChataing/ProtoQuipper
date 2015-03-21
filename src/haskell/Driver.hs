@@ -216,7 +216,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 
   -- Free variables of the new expression
   fve <- return $ free_var e'
-  a@(TBang n _) <- new_type
+  a@(TypeAnnot n _) <- new_type
 
   -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE :
   set_flag n no_info { c_ref = reference e' }
@@ -261,7 +261,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Remove the used AND non duplicable variables from the context
   ctx <- IMap.foldWithKey (\x a rec -> do
         ctx <- rec
-        let (TForall _ _ _ (TBang f _)) = a
+        let (TypeScheme _ _ _ (TypeAnnot f _)) = a
         v <- flag_value f
 
         case (List.elem x fve, v) of
@@ -365,7 +365,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           rec
           nx <- variable_name x
           case a of
-            TForall _ _ _ a -> do
+            TypeScheme _ _ _ a -> do
                 pa <- pprint_type_noref a
                 liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
           return ()) (return ()) gamma_p
@@ -378,7 +378,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     v <- interpret (environment ctx) e'
 
     -- Recursive function ?
-    env <- case (recflag, v, drop_constraints p') of
+    env <- case (recflag, v, uncoerce p') of
           (Recursive, VFun ev arg body, PVar _ x) -> do
               let ev' = IMap.insert x (VFun ev' arg body) ev
               Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
@@ -397,7 +397,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Remove the variables used by e and non duplicable
   ctx <- IMap.foldWithKey (\x a rec -> do
         ctx <- rec
-        let (TForall _ _ _ (TBang f _)) = a
+        let (TypeScheme _ _ _ (TypeAnnot f _)) = a
         v <- flag_value f
         case (List.elem x fve, v) of
           (True, Zero) -> do
@@ -511,7 +511,7 @@ process_module opts prog = do
       unLVar (E.Local id) = id
       unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
 
-      unTAlgebraic (TBang _ (TAlgebraic id _)) = id
+      unTAlgebraic (TypeAnnot _ (TAlgebraic id _)) = id
       unTAlgebraic _ = throwNE $ ProgramError "Driver:process_module: expected algebaric type"
 
 

@@ -64,19 +64,19 @@ bind_pattern :: Pattern -> QpState (Type, IntMap Type, ConstraintSet)
 -- generated.
 bind_pattern (PWildcard _) = do
   a <- fresh_type
-  return (TBang 1 $ TVar a, IMap.empty, emptyset)
+  return (TypeAnnot 1 $ TypeVar a, IMap.empty, emptyset)
 
 -- Unit pattern.
 bind_pattern (PUnit _) = do
-  return (TBang 0 TUnit, IMap.empty, emptyset)
+  return (TypeAnnot 0 TUnit, IMap.empty, emptyset)
 
 -- Boolean pattern.
 bind_pattern (PBool _ b) = do
-  return (TBang 0 TBool, IMap.empty, emptyset)
+  return (TypeAnnot 0 TBool, IMap.empty, emptyset)
 
 -- Integer pattern.
 bind_pattern (PInt _ n) = do
-  return (TBang 0 TInt, IMap.empty, emptyset)
+  return (TypeAnnot 0 TInt, IMap.empty, emptyset)
 
 -- While binding variables, a new type is generated, and bound to x.
 bind_pattern (PVar ref x) = do
@@ -95,7 +95,7 @@ bind_pattern (PTuple _ plist) = do
       return (a:r, IMap.union ctx' ctx, cset' <> cset)
     ) (return ([], IMap.empty, emptyset)) plist
 
-  return (TBang 0 (TTensor ptypes), ctx, cset)
+  return (TypeAnnot 0 (TTensor ptypes), ctx, cset)
 
 -- Data constructors.
 bind_pattern (PDatacon _ dcon p) = do
@@ -108,11 +108,11 @@ bind_pattern (PDatacon _ dcon p) = do
 
   -- Check the arguments
   case (typ, p) of
-    (TBang _ (TArrow t u), Just p) -> do
+    (TypeAnnot _ (TArrow t u), Just p) -> do
         (t', ctx, csett) <- bind_pattern p
         return (a, ctx, [t <: t',a <: u] <> cset <> csett)
 
-    (TBang n _, Nothing) -> do
+    (TypeAnnot n _, Nothing) -> do
         -- No binding
         return (a, IMap.empty, [a <: typ] <> cset)
 
@@ -135,18 +135,18 @@ bind_pattern (PConstraint p (t, typs)) = do
 
 
 -- | Return the set of annotation flags of the context.
-context_annotation :: TypingContext -> QpState [(Variable, RefFlag)]
+context_annotation :: TypingContext -> QpState [(Variable, Flag)]
 context_annotation ctx = do
   return $ IMap.foldWithKey aux [] ctx
     where
-      aux x (TForall _ _ _ (TBang f _)) ann = (x, f):ann
+      aux x (TypeScheme _ _ _ (TypeAnnot f _)) ann = (x, f):ann
 
 -- | Return a set of flag constraints forcing the context to be duplicable.
 duplicable_context :: TypingContext -> QpState ()
 duplicable_context ctx = do
   IMap.foldWithKey aux (return ()) ctx
     where
-      aux x (TForall _ _ _ (TBang f _)) rec = do
+      aux x (TypeScheme _ _ _ (TypeAnnot f _)) rec = do
         rec
         ref <- variable_reference x
         set_flag f no_info { c_ref = ref }

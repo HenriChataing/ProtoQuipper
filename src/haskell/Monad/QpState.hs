@@ -15,7 +15,7 @@ import Monad.Namespace (Namespace)
 import qualified Monad.Namespace as N
 
 import Core.Syntax
-import Core.Printer
+--import Core.Printer
 import Core.Environment (Environment)
 import qualified Core.Environment as L
 
@@ -35,6 +35,7 @@ import qualified Data.Map as Map
 
 import Data.List as List
 import Data.Array as Array
+import Data.IntSet as IntSet
 
 
 
@@ -169,7 +170,7 @@ data QContext = QCtx {
   circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
-  references :: IntMap RefInfo,                       -- ^ Information about each expression.
+  references :: IntMap ReFlagInfo,                       -- ^ Information about each expression.
 
 -- Circuit stack
   circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
@@ -181,7 +182,7 @@ data QContext = QCtx {
   ref_id :: Int,                                      -- ^ Used to generate new references.
 
 -- Substitution from type variable to types
-  mappings :: IntMap LinType                          -- ^ The result of the unification: a mapping from type variables to linear types.
+  mappings :: IntMap LinearType                          -- ^ The result of the unification: a mapping from type variables to linear types.
 }
 
 
@@ -695,7 +696,7 @@ check_assertions = do
                   IsDuplicable -> return ()
                   IsNonduplicable -> return ()
                   IsNotfun ->
-                      if not $ is_fun typ' then
+                      if not $ isFunction typ' then
                         return ()
                       else
                         fail "QpState:check_assertions: matched value has a function type") (return ()) (assertions ctx)
@@ -705,7 +706,7 @@ check_assertions = do
 
 -- | Access the information held by a flag.
 -- Returns the current value of the flag given by its reference.
-flag_value :: RefFlag -> QpState FlagValue
+flag_value :: Flag -> QpState FlagValue
 flag_value ref =
   case ref of
     0 -> return Zero
@@ -714,7 +715,7 @@ flag_value ref =
         ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just info ->
-              return $ f_value info
+              return $ flagValue info
 
           Nothing ->
               return Unknown
@@ -722,7 +723,7 @@ flag_value ref =
 
 -- | Set the value of a flag to one.
 -- If the previously recorded value is incompatible with the new one, generate an error (i.e.., old val = Zero).
-set_flag :: RefFlag -> ConstraintInfo -> QpState ()
+set_flag :: Flag -> ConstraintInfo -> QpState ()
 set_flag ref info = do
   case ref of
     0 -> do
@@ -732,7 +733,7 @@ set_flag ref info = do
         ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just i -> do
-              case f_value i of
+              case flagValue i of
                 Zero -> do
                     case c_type info of
                       Just a -> do
@@ -742,17 +743,17 @@ set_flag ref info = do
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { f_value = One }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = One }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and one
 
           Nothing ->
-              set_context ctx { flags = IMap.insert ref FInfo { f_value = One } $ flags ctx }
+              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = One } $ flags ctx }
 
 
 -- | Set the value of a flag to zero.
 -- If the previously recorded value is incompatible with the new one, generate an error (i.e., old val = One).
-unset_flag :: RefFlag -> ConstraintInfo -> QpState ()
+unset_flag :: Flag -> ConstraintInfo -> QpState ()
 unset_flag ref info = do
   case ref of
     0 -> return ()
@@ -762,7 +763,7 @@ unset_flag ref info = do
         ctx <- get_context
         case IMap.lookup ref $ flags ctx of
           Just i -> do
-              case f_value i of
+              case flagValue i of
                 One ->
                     case c_type info of
                       Just a -> do
@@ -772,19 +773,19 @@ unset_flag ref info = do
                       Nothing ->
                           throw_NonDuplicableError info
                 Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { f_value = Zero }) $ flags ctx }
+                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = Zero }) $ flags ctx }
                 _ ->
                     return ()  -- Includes anyflag and zero
 
           Nothing ->
-              set_context ctx { flags = IMap.insert ref FInfo { f_value = Zero } $ flags ctx }
+              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = Zero } $ flags ctx }
 
 
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
 -- The flag is not immediatly added to the state, as its value is initially unknown.
-fresh_flag :: QpState RefFlag
+fresh_flag :: QpState Flag
 fresh_flag = do
   ctx <- get_context
   let id = flag_id ctx
@@ -794,20 +795,20 @@ fresh_flag = do
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
 -- The new flag is set to the specified value, but it is still un-located.
-fresh_flag_with_value :: FlagValue -> QpState RefFlag
+fresh_flag_with_value :: FlagValue -> QpState Flag
 fresh_flag_with_value Unknown =
   fresh_flag
 fresh_flag_with_value v = do
   ctx <- get_context
   id <- return $ flag_id ctx
   set_context ctx { flag_id = id + 1,
-                      flags = IMap.insert id (FInfo { f_value = v }) $ flags ctx }
+                      flags = IMap.insert id (FlagInfo { flagValue = v }) $ flags ctx }
   return id
 
 
 -- | Create a new flag reference, initialized with the information
 -- of the argument flag.
-duplicate_flag :: RefFlag -> QpState RefFlag
+duplicate_flag :: Flag -> QpState Flag
 duplicate_flag ref = do
   case ref of
     0 -> return 0
@@ -834,14 +835,14 @@ create_ref = do
   ctx <- get_context
   ex <- get_location
   let id = ref_id ctx
-  set_context ctx { ref_id = id + 1, references = IMap.insert id RInfo { extent = ex,
-                                                                         expression = Left (EUnit 0),
-                                                                         rtype = TBang 0 TUnit } $ references ctx }
+  set_context ctx {
+    ref_id = id + 1,
+    references = IMap.insert id RInfo { extent = ex, expression = Left (EUnit 0), rtype = unit } $ references ctx }
   return id
 
 
 -- | Update the value referenced by the argument.
-update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
+update_ref :: Ref -> (ReFlagInfo -> Maybe ReFlagInfo) -> QpState ()
 update_ref ref f = do
   ctx <- get_context
   set_context ctx { references = IMap.update f ref $ references ctx }
@@ -855,14 +856,14 @@ clear_references = do
 
 
 -- | Return the information referenced by the argument, if any is found (else Nothing).
-ref_info :: Ref -> QpState (Maybe RefInfo)
+ref_info :: Ref -> QpState (Maybe ReFlagInfo)
 ref_info ref = do
   ctx <- get_context
   return $ IMap.lookup ref $ references ctx
 
 
 -- | Return the information referenced by the argument, and fails if nothing is found.
-ref_info_err :: Ref -> QpState RefInfo
+ref_info_err :: Ref -> QpState ReFlagInfo
 ref_info_err ref = do
   ctx <- get_context
   case IMap.lookup ref $ references ctx of
@@ -873,7 +874,7 @@ ref_info_err ref = do
 
 -- | Generic type instantiation.
 -- Produce a new variable for every one generalized over, and substitute it for the old ones in the type and the constraints.
-instantiate_scheme :: [RefFlag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
+instantiate_scheme :: [Flag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
 instantiate_scheme refs vars cset typ = do
   -- Replace the flag references by new ones
   (typ', cset') <- List.foldl (\rec ref -> do
@@ -887,15 +888,15 @@ instantiate_scheme refs vars cset typ = do
   (typ', cset') <- List.foldl (\rec var -> do
                                  (typ, cset) <- rec
                                  nvar <- fresh_type
-                                 typ' <- return $ subs var (TVar nvar) typ
-                                 cset' <- return $ subs var (TVar nvar) cset
+                                 typ' <- return $ subs var (TypeVar nvar) typ
+                                 cset' <- return $ subs var (TypeVar nvar) cset
                                  return (typ', cset')) (return (typ', cset')) vars
 
   return (typ', cset')
 
 -- | Instantiate the typing scheme.
 instantiate :: TypeScheme -> QpState (Type, ConstraintSet)
-instantiate (TForall refs vars cset typ) =
+instantiate (TypeScheme refs vars cset typ) =
   instantiate_scheme refs vars cset typ
 
 
@@ -904,34 +905,15 @@ instantiate (TForall refs vars cset typ) =
 --     1 of one,
 --     -1 of any,
 --     -2 if unknown.
-rewrite_flags_in_lintype :: LinType -> QpState LinType
-rewrite_flags_in_lintype (TArrow t u) = do
-  t' <- rewrite_flags t
-  u' <- rewrite_flags u
-  return (TArrow t' u')
-
-rewrite_flags_in_lintype (TTensor tlist) = do
-  tlist' <- List.foldr (\t rec -> do
-                          r <- rec
-                          t' <- rewrite_flags t
-                          return (t':r)) (return []) tlist
-  return (TTensor tlist')
-
-rewrite_flags_in_lintype (TCirc t u) = do
-  t' <- rewrite_flags t
-  u' <- rewrite_flags u
-  return (TCirc t' u')
-
-rewrite_flags_in_lintype (TAlgebraic n args) = do
-  args' <- List.foldr (\a rec -> do
-                         r <- rec
-                         a' <- rewrite_flags a
-                         return (a':r)) (return []) args
-  return (TAlgebraic n args')
-
-rewrite_flags_in_lintype t =
-  return t
-
+rewrite_flags_in_LinearType :: LinearType -> QpState LinearType
+rewrite_flags_in_LinearType (TypeVar x) = return $ TypeVar x
+rewrite_flags_in_LinearType (TypeApply c args) = do
+  args' <- List.foldl (\rec t -> do
+      args <- rec
+      t' <- rewrite_flags t
+      return (t':args)
+    ) (return []) args
+  return $ TypeApply c $ List.reverse args'
 
 -- | In a type, replace all the flag references by their actual value:
 --     0 if no flag,
@@ -939,23 +921,23 @@ rewrite_flags_in_lintype t =
 --     -1 of any,
 --     -2 if unknown.
 rewrite_flags :: Type -> QpState Type
-rewrite_flags (TBang n t) = do
-  t' <- rewrite_flags_in_lintype t
+rewrite_flags (TypeAnnot n t) = do
+  t' <- rewrite_flags_in_LinearType t
   if n < 2 then
-    return (TBang n t')
+    return (TypeAnnot n t')
   else do
     v <- flag_value n
     case v of
       One ->
-          return (TBang 1 t')
+          return (TypeAnnot 1 t')
       Zero ->
-          return (TBang 0 t')
+          return (TypeAnnot 0 t')
       Unknown ->
-          return (TBang (-2) t')
+          return (TypeAnnot (-2) t')
 
 
 -- | Return without modifying it the value of the flag counter.
-last_flag :: QpState RefFlag
+last_flag :: QpState Flag
 last_flag =
   get_context >>= return . flag_id
 
@@ -981,7 +963,7 @@ new_type :: QpState Type
 new_type = do
   x <- fresh_type
   f <- fresh_flag
-  return (TBang f (TVar x))
+  return (TypeAnnot f (TypeVar x))
 
 
 -- | Generate /n/ new types.
@@ -994,7 +976,7 @@ new_types n | n <= 0 =
       fid = flag_id ctx
   let xs = [xid .. xid+n-1]
       fs = [fid .. fid+n-1]
-  let typs = List.map (\(x, f) -> TBang f $ TVar x) $ List.zip xs fs
+  let typs = List.map (\(x, f) -> TypeAnnot f $ TypeVar x) $ List.zip xs fs
   set_context ctx { type_id = xid+n, flag_id = fid+n }
   return typs
 
@@ -1140,7 +1122,7 @@ throw_NonDuplicableError info = do
 
 
 -- | Insert a new mapping /x/ |-> /t/ in the substitution, where /x/ is a type variable and /t/ is a linear type.
-mapsto :: Variable -> LinType -> QpState ()
+mapsto :: Variable -> LinearType -> QpState ()
 mapsto x t = do
   ctx <- get_context
   set_context $ ctx { mappings = IMap.insert x t $ mappings ctx }
@@ -1148,72 +1130,50 @@ mapsto x t = do
 
 -- | Look for a mapping of the argument variable. This function never fails, because if no mapping
 -- is found for /x/, the linear type \"x\" is returned.
-appmap :: Variable -> QpState LinType
+appmap :: Variable -> QpState LinearType
 appmap x = do
   ctx <- get_context
   case IMap.lookup x $ mappings ctx of
     Just t -> return t
-    Nothing -> return $ TVar x
+    Nothing -> return $ TypeVar x
 
 
 -- | Recursively apply the mappings recorded in the current state to a linear type.
-map_lintype :: LinType -> QpState LinType
-map_lintype (TVar x) = do
+map_LinearType :: LinearType -> QpState LinearType
+map_LinearType (TypeVar x) = do
   t <- appmap x
   case t of
     -- If the value of x has been changed, reapply the mapping function, else returns the original type.
-    TVar y | y /= x -> map_lintype (TVar y)
-           | otherwise -> return (TVar x)
-    t -> map_lintype t
+    TypeVar y | y /= x -> map_LinearType (TypeVar y)
+              | otherwise -> return (TypeVar x)
+    t -> map_LinearType t
 
-map_lintype (TArrow t u) = do
-  t' <- map_type t
-  u' <- map_type u
-  return (TArrow t' u')
-
-map_lintype (TTensor tlist) = do
-  tlist' <- List.foldr (\t rec -> do
-                          r <- rec
-                          t' <- map_type t
-                          return (t':r)) (return []) tlist
-  return (TTensor tlist')
-
-map_lintype (TCirc t u) = do
-  t' <- map_type t
-  u' <- map_type u
-  return (TCirc t' u')
-
-map_lintype (TAlgebraic typename arg) = do
-  arg' <- List.foldr (\a rec -> do
-                        r <- rec
-                        a' <- map_type a
-                        return (a':r)) (return []) arg
-  return (TAlgebraic typename arg')
-
--- The remainging linear types are unit bool qubit and int, and mapped to themselves.
-map_lintype typ = do
-  return typ
+map_LinearType (TypeApply c args) = do
+  args' <- List.foldl (\rec t -> do
+      args <- rec
+      t' <- map_type t
+      return (t':args)
+    ) (return []) args
+  return $ TypeApply c $ List.reverse args'
 
 
 -- | Recursively apply the mappings recorded in the current state to a type.
 -- Qubits are intercepted to check the value of their flag.
 map_type :: Type -> QpState Type
-map_type (TBang f t) = do
-  t' <- map_lintype t
+map_type (TypeAnnot f t) = do
+  t' <- map_LinearType t
   case t' of
-    TQubit ->
-        unset_flag f no_info
-    _ ->
-        return ()
-  return $ TBang f t'
+    TypeApply "qubit" _ -> unset_flag f no_info
+    _ -> return ()
+  return $ TypeAnnot f t'
 
 -- | Recursively apply the mappings recorded in the current state to a
 -- type scheme.  Qubits are intercepted to check the value of their
 -- flag.
 map_typescheme :: TypeScheme -> QpState TypeScheme
-map_typescheme (TForall fv ff cset typ) = do
+map_typescheme (TypeScheme fv ff cset typ) = do
   typ' <- map_type typ
-  return $ TForall fv ff cset typ'
+  return $ TypeScheme fv ff cset typ'
 
 
 
@@ -1252,13 +1212,13 @@ display_var = do
 
 -- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
 -- if the value is one, and \"\" else.
-display_flag :: QpState (RefFlag -> String)
+display_flag :: QpState (Flag -> String)
 display_flag = do
   refs <- get_context >>= return . flags
   return (\f -> case f of
                   1 -> "!"
                   n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FInfo { f_value = One } -> "!"
+                                  Just FlagInfo { flagValue = One } -> "!"
                                   Just _ -> ""
                                   Nothing -> ""
                     | otherwise -> "")
@@ -1267,15 +1227,15 @@ display_flag = do
 -- | Display a reference flag. This function is similar to 'Monad.QpState.display_flag', but
 -- displays the reference flag when the value is unknown. The argument gives the reference flags that may appear in the final
 -- type. Each reference is then associated with a name.
-display_ref :: [RefFlag] -> QpState (RefFlag -> String)
+display_ref :: [Flag] -> QpState (Flag -> String)
 display_ref ff = do
   attr <- return $ List.zip ff available_flags
   refs <- get_context >>= return . flags
   return (\f -> case f of
                   1 -> "!"
                   n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FInfo { f_value = One } -> "!"
-                                  Just FInfo { f_value = Zero } -> ""
+                                  Just FlagInfo { flagValue = One } -> "!"
+                                  Just FlagInfo { flagValue = Zero } -> ""
                                   _ ->
                                       case List.lookup n attr of
                                         Just nm -> "(" ++ nm ++ ")"
@@ -1327,7 +1287,7 @@ pprint_expr_noref e = do
 pprint_type_noref :: Type -> QpState String
 pprint_type_noref t = do
   -- Printing of type variables, flags and types
-  fvar <- display_typvar (free_typ_var t)
+  fvar <- display_typvar (IntSet.toList $ freevar t)
   fflag <- display_flag
   fuser <- display_algebraic
 
@@ -1336,10 +1296,10 @@ pprint_type_noref t = do
 
 
 -- | Like 'pprint_type_noref', but for linear types.
-pprint_lintype_noref :: LinType -> QpState String
-pprint_lintype_noref a = do
+pprint_LinearType_noref :: LinearType -> QpState String
+pprint_LinearType_noref a = do
   -- Printing of type variables, flags and types
-  fvar <- display_typvar (free_typ_var a)
+  fvar <- display_typvar (IntSet.toList $ freevar a)
   fflag <- display_flag
   fuser <- display_algebraic
 
@@ -1349,13 +1309,13 @@ pprint_lintype_noref a = do
 
 -- | Like 'pprint_type_noref', but for typing schemes.
 pprint_typescheme_noref :: TypeScheme -> QpState String
-pprint_typescheme_noref (TForall ff fv cset typ) = do
+pprint_typescheme_noref (TypeScheme ff fv cset typ) = do
   -- Printing of type variables, flags and types
   fvar <- display_typvar fv
   fflag <- display_flag
   fuser <- display_algebraic
 
-  return $ genprint Inf [fflag, fvar, fuser] (TForall ff fv cset typ)
+  return $ genprint Inf [fflag, fvar, fuser] (TypeScheme ff fv cset typ)
 
 
 
@@ -1369,3 +1329,28 @@ pprint_value_noref v = do
 
 
 
+-- | This type class includes several pretty printing functions, offering some control over the
+-- size and form of the display. Four functions are defined, going from the most generic ('genprint')
+-- down to the default one ('pprint'), with 'sprintn' and 'sprint' as intermediaries. At least
+-- 'genprint' and 'sprintn' must be defined in an instance.
+--class QPrint a where
+--  -- | The most generic function of the 'PPrint' class.
+--  genprint :: Lvl -> a -> QpState String
+
+--  -- | Less generic than 'genprint'. It is still possible to control the size of the output, but the
+--  -- rendering of variables and such is fixed.
+--  sprintn :: Lvl -> a -> QpState String
+
+--  -- | Same as 'sprintn', but with the default level 2.
+--  sprint  :: a -> QpState String
+
+--  -- | Basic printing function. It prints everything, and provides default rendering functions for
+--  -- the variables. Typically, they will be rendered as /c_n/, where /n/ is the unique id, and /c/
+--  -- a character that changes depending on the kind of variable (/x/ for term variables, /X/ for type
+--  -- variables, ! for flag variables, /D/ for data constructors, /A/ for algebraic or synonym types).
+--  pprint :: a -> QpState String
+
+--  -- By default, pprint is a call to sprintn with n = Inf.
+--  pprint a = sprintn Inf a
+--  -- By default, sprintn is a call to sprintn with n = default_lvl.
+--  sprint a = sprintn default_lvl a

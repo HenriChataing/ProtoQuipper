@@ -167,9 +167,9 @@ run_interactive opts ctx buffer = do
             [":context"] -> do
                 IMap.foldWithKey (\x a rec -> do
                       rec
-                      let (TForall _ _ _ (TBang f b)) = a
+                      let (TypeScheme _ _ _ (TypeAnnot f b)) = a
                       v <- flag_value f
-                      t <- pprint_type_noref (TBang f b)
+                      t <- pprint_type_noref (TypeAnnot f b)
                       nm <- variable_name x
                       liftIO $ putStr "~ "
                       case v of
@@ -205,7 +205,7 @@ run_interactive opts ctx buffer = do
 
                               -- Free variables of the new expression
                               fve <- return $ free_var e'
-                              a@(TBang n _) <- new_type
+                              a@(TypeAnnot n _) <- new_type
 
                               -- Type e. The constraints from the context are added for the unification.
                               gamma <- return $ typing ctx
@@ -273,7 +273,7 @@ run_interactive opts ctx buffer = do
 
                               -- Free variables of the new expression
                               fve <- return $ free_var e'
-                              a@(TBang n _) <- new_type
+                              a@(TypeAnnot n _) <- new_type
 
                               -- Type e. The constraints from the context are added for the unification.
                               limtype <- get_context >>= return . type_id
@@ -289,7 +289,7 @@ run_interactive opts ctx buffer = do
                               endflag <- get_context >>= return . flag_id
 
                               -- Simplify the constraint set
-                              (TForall ff fv cset a@(TBang n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
+                              (TypeScheme ff fv cset a@(TypeAnnot n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
 
                               -- Display the type
                               fvar <- display_typvar fv
@@ -345,7 +345,7 @@ exit ctx = do
   -- List all the non-duplicable variables
   ndup <- IMap.foldWithKey (\x a rec -> do
         ndup <- rec
-        let (TForall _ _ _ (TBang f _)) = a
+        let (TypeScheme _ _ _ (TypeAnnot f _)) = a
         v <- flag_value f
         case v of
           Zero -> do

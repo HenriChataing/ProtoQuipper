@@ -28,7 +28,7 @@ instance PPrint Type where
   sprintn _ TBool =   "bool"
   sprintn _ TInt =    "int"
   sprintn _ TQubit =   "qubit"
-  sprintn _ (TVar x) = x
+  sprintn _ (TypeVar x) = x
   sprintn _ (TQualified m x) = m ++ "." ++ x
   sprintn (Nth 0) _ = "..."
   sprintn lv (TCirc a b) =
@@ -56,14 +56,14 @@ instance PPrint Type where
        TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
        _ -> sprintn dlv b)
 
-  sprintn lv (TBang a) =
+  sprintn lv (TypeAnnot a) =
     "!" ++ (case a of
-              TBang a -> sprintn lv a
+              TypeAnnot a -> sprintn lv a
               TTensor _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
 
-  sprintn lv (TForall a typ) =
+  sprintn lv (TypeScheme a typ) =
     "forall " ++ a ++ "  " ++ sprintn (decr lv) typ
 
   sprintn lv (TLocated a _) = sprintn lv a

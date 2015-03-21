@@ -160,6 +160,9 @@ instance Show RecFlag where
 -- | Type of term (and type) variables.
 type Variable = Int
 
+-- | Type of type constants.
+type Constant = String
+
 -- | Type of data constructors.
 type Datacon = Int
 

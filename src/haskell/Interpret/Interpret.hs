@@ -104,7 +104,7 @@ type Environment = IntMap Value
 
 -- | Create a specimen of a given linear quantum data type. The quantum addresses of
 -- the specimen range from 0 to /n/-1, /n/ being the number of qubits in the type.
-linspec :: LinType -> QpState Value
+linspec :: LinearType -> QpState Value
 linspec TQubit = do
   q <- fresh_qubit
   return (VQubit q)
@@ -123,7 +123,7 @@ linspec _ = fail "Interpret:linspec: illegal argument"
 
 -- | Like 'linspec', but return a specimen of a type.
 spec :: Type -> QpState Value
-spec (TBang _ t) = linspec t
+spec (TypeAnnot _ t) = linspec t
 
 
 
@@ -433,7 +433,7 @@ interpret env (ELet r p e1 e2) = do
   v1 <- interpret env e1
 
   -- Recursive function ?
-  case (r, v1, drop_constraints p) of
+  case (r, v1, uncoerce p) of
     (Recursive, VFun ev arg body, PVar _ x) ->
         let ev' = IMap.insert x (VFun ev' arg body) ev in do
           env <- bind_pattern p (VFun ev' arg body) env

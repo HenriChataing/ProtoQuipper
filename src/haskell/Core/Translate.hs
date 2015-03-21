@@ -114,15 +114,15 @@ variance :: Variance                        -- ^ The variance of the current typ
          -> [S.Type]                        -- ^ The type arguments.
          -> Map String Type                 -- ^ A partial labelling context.
          -> QpState (Map String Variance)   -- ^ The resulting map.
-variance var (S.TVar a) [] typs = do
+variance var (S.TypeVar a) [] typs = do
   -- The variance of a variance is the global variance.
   return $ Map.singleton a var
-variance var (S.TVar a) arg typs = do
+variance var (S.TypeVar a) arg typs = do
   -- The variance of each of the type arguments depends upon the variance imposed by the type.
   vars <- case Map.lookup a typs of
-        Just (TBang _ (TAlgebraic id _)) ->
+        Just (TypeAnnot _ (TAlgebraic id _)) ->
             algebraic_def id >>= return . arguments
-        Just (TBang _ (TSynonym id _)) ->
+        Just (TypeAnnot _ (TSynonym id _)) ->
             synonym_def id >>= return . arguments
         _ ->
             fail "Translate:variance: undefined type"
@@ -142,7 +142,7 @@ variance var (S.TTensor tlist) [] typs =
         m <- rec
         va <- variance var a [] typs
         return $ Map.unionWith join va m) (return Map.empty) tlist
-variance var (S.TBang t) [] typs =
+variance var (S.TypeAnnot t) [] typs =
   -- The variance is unchanged.
   variance var t [] typs
 variance var (S.TCirc t u) [] typs = do
@@ -185,7 +185,7 @@ import_typedefs dblock label = do
         -- Register the type in the current context.
         id <- register_algebraic typename spec
         -- Add the type to the labelling context.
-        return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
+        return $ Map.insert typename (TypeAnnot 0 $ TAlgebraic id []) typs
       ) (return (E.types label)) dblock
 
   -- Build the unfolded type definition.
@@ -193,7 +193,7 @@ import_typedefs dblock label = do
         lbl <- rec
         -- Type id needed for updates.
         id <- case Map.lookup typename typs of
-            Just (TBang _ (TAlgebraic id _)) -> return id
+            Just (TypeAnnot _ (TAlgebraic id _)) -> return id
             _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
 
         -- Bind the arguments of the type.
@@ -210,16 +210,16 @@ import_typedefs dblock label = do
               (dtyp, argtyp, cset) <- case dtype of
                     -- If the constructor takes no argument
                     Nothing -> do
-                        return (TBang m (TAlgebraic id args), Nothing, emptyset)
+                        return (TypeAnnot m (TAlgebraic id args), Nothing, emptyset)
                     -- If the constructor takes one argument
                     Just dt -> do
-                        dt@(TBang n _) <- translate_bound_type dt E.empty { E.types = mapargs }
-                        return (TBang one $ TArrow dt $ TBang m $ TAlgebraic id args, Just dt, ([], [Le m n no_info]))
+                        dt@(TypeAnnot n _) <- translate_bound_type dt E.empty { E.types = mapargs }
+                        return (TypeAnnot one $ TArrow dt $ TypeAnnot m $ TAlgebraic id args, Just dt, ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
               -- Those variables must also respect the constraints from the construction of the type.
               let (fv, ff) = (free_typ_var dtyp, free_flag dtyp)
-              dtyp <- return $ TForall ff fv cset dtyp
+              dtyp <- return $ TypeScheme ff fv cset dtyp
 
               -- Register the datacon.
               id <- register_datacon dcon Datacondef {
@@ -241,7 +241,7 @@ import_typedefs dblock label = do
   -- Update the variance of the type arguments of a single type.
   let update_variance typ = do
         let id = case Map.lookup (S.name typ) typs of
-              Just (TBang _ (TAlgebraic id _)) -> id
+              Just (TypeAnnot _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
         let old = arguments algdef
@@ -264,7 +264,7 @@ import_typedefs dblock label = do
   -- Print the information relevant to a type (constructors, ...).
   let print_info typ = do
         let id = case Map.lookup (S.name typ) typs of
-              Just (TBang _ (TAlgebraic id _)) -> id
+              Just (TypeAnnot _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
         algdef <- algebraic_def id
         newlog 0 $ List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.name typ) $ List.zip (arguments algdef) (S.arguments typ)
@@ -273,7 +273,7 @@ import_typedefs dblock label = do
   List.foldl (\rec alg -> do
         rec
         case Map.lookup (S.name alg) typs of
-          Just (TBang _ (TAlgebraic id _)) -> choose_implementation id
+          Just (TypeAnnot _ (TAlgebraic id _)) -> choose_implementation id
           _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
       ) (return ()) dblock
 
@@ -319,7 +319,7 @@ import_typesyn typesyn label = do
   id <- register_synonym (S.name typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { E.types = Map.insert (S.name typesyn) (TBang 0 $ TSynonym id []) $ E.types label }
+  return label { E.types = Map.insert (S.name typesyn) (TypeAnnot 0 $ TSynonym id []) $ E.types label }
 
 
 
@@ -337,42 +337,42 @@ translate_type :: S.Type
                                           -- * be bound in the map (all other cases).
                -> QpState (Type, Map String Type)
 translate_type S.TUnit [] m = do
-  return (TBang one TUnit, fst m)
+  return (TypeAnnot one TUnit, fst m)
 
 translate_type S.TBool [] m = do
-  return (TBang one TBool, fst m)
+  return (TypeAnnot one TBool, fst m)
 
 translate_type S.TInt [] m = do
-  return (TBang one TInt, fst m)
+  return (TypeAnnot one TInt, fst m)
 
 translate_type S.TQubit [] m = do
-  return (TBang zero TQubit, fst m)
+  return (TypeAnnot zero TQubit, fst m)
 
-translate_type (S.TVar x) arg (label, bound) = do
+translate_type (S.TypeVar x) arg (label, bound) = do
   case Map.lookup x label of
 
     -- The variable is an algebraic type.
-    Just (TBang _ (TAlgebraic id as)) -> do
+    Just (TypeAnnot _ (TAlgebraic id as)) -> do
         spec <- algebraic_def id
         let nexp = List.length $ arguments spec
             nact = List.length as + List.length arg
 
         if nexp == nact then do
           n <- fresh_flag
-          return (TBang n $ TAlgebraic id (as ++ arg), label)
+          return (TypeAnnot n $ TAlgebraic id (as ++ arg), label)
         else do
           ex <- get_location
           throwQ (WrongTypeArguments x nexp nact) ex
 
     -- The variable is a type synonym.
-    Just (TBang _ (TSynonym id as)) -> do
+    Just (TypeAnnot _ (TSynonym id as)) -> do
         spec <- synonym_def id
         let nexp = List.length $ arguments spec
         let nact = List.length as + List.length arg
 
         if nexp == nact then do
           n <- fresh_flag
-          return (TBang n $ TSynonym id (as ++ arg), label)
+          return (TypeAnnot n $ TSynonym id (as ++ arg), label)
         else do
           ex <- get_location
           throwQ (WrongTypeArguments x nexp nact) ex
@@ -403,10 +403,10 @@ translate_type (S.TQualified m x) arg lbl = do
 
   -- Expected number of arguments
   nexp <- case typ of
-        TBang _ (TAlgebraic alg _) -> do
+        TypeAnnot _ (TAlgebraic alg _) -> do
           dalg <- algebraic_def alg
           return $ List.length $ arguments dalg
-        TBang _ (TSynonym syn _) -> do
+        TypeAnnot _ (TSynonym syn _) -> do
           dsyn <- synonym_def syn
           return $ List.length $ arguments dsyn
         _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
@@ -417,8 +417,8 @@ translate_type (S.TQualified m x) arg lbl = do
   if nexp == nact then do
     n <- fresh_flag
     case typ of
-      TBang _ (TAlgebraic alg _) -> return (TBang n (TAlgebraic alg arg), fst lbl)
-      TBang _ (TSynonym syn _) -> return (TBang n (TSynonym syn arg), fst lbl)
+      TypeAnnot _ (TAlgebraic alg _) -> return (TypeAnnot n (TAlgebraic alg arg), fst lbl)
+      TypeAnnot _ (TSynonym syn _) -> return (TypeAnnot n (TSynonym syn arg), fst lbl)
       _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
   else do
     ex <- get_location
@@ -428,7 +428,7 @@ translate_type (S.TArrow t u) [] (label, bound) = do
   (t', lblt) <- translate_type t [] (label, bound)
   (u', lblu) <- translate_type u [] (lblt, bound)
   n <- fresh_flag
-  return (TBang n (TArrow t' u'), lblu)
+  return (TypeAnnot n (TArrow t' u'), lblu)
 
 translate_type (S.TTensor tlist) [] (label, bound) = do
   n <- fresh_flag
@@ -436,16 +436,16 @@ translate_type (S.TTensor tlist) [] (label, bound) = do
                                  (r, lbl) <- rec
                                  (t', lbl') <- translate_type t [] (lbl, bound)
                                  return (t':r, lbl')) (return ([], label)) tlist
-  return (TBang n (TTensor tlist'), lbl)
+  return (TypeAnnot n (TTensor tlist'), lbl)
 
-translate_type (S.TBang t) [] label = do
-  (TBang _ t, lbl) <- translate_type t [] label
-  return (TBang 1 t, lbl)
+translate_type (S.TypeAnnot t) [] label = do
+  (TypeAnnot _ t, lbl) <- translate_type t [] label
+  return (TypeAnnot 1 t, lbl)
 
 translate_type (S.TCirc t u) [] (label, bound) = do
   (t', lblt) <- translate_type t [] (label, bound)
   (u', lblu) <- translate_type u [] (lblt, bound)
-  return (TBang one (TCirc t' u'), lblu)
+  return (TypeAnnot one (TCirc t' u'), lblu)
 
 -- Case of type application: the argument is pushed onto the arg list
 translate_type (S.TApp t u) args (label, bound) = do
@@ -457,7 +457,7 @@ translate_type (S.TLocated t ex) args label = do
   set_location ex
   translate_type t args label
 
-translate_type (S.TForall a typ) [] (label, bound) = do
+translate_type (S.TypeScheme a typ) [] (label, bound) = do
   a' <- new_type
   label' <- return $ Map.insert a a' label
   translate_type typ [] (label', bound)
