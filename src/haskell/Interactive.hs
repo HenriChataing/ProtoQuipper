@@ -14,7 +14,7 @@ import qualified Parsing.Syntax as S
 
 import Core.Syntax
 import Core.Translate
-import Core.LabellingContext as L
+import Core.Environment as E
 
 import Typing.TypingContext
 import Typing.Subtyping
@@ -51,7 +51,7 @@ import_modules :: Options                     -- ^ The command line options. Thi
                -> QpState ExtensiveContext    -- ^ Returns the updated context.
 import_modules opts mnames ctx = do
   -- Build the dependencies (with a dummy module that is removed immediately)
-  deps <- build_dependencies (includes opts) S.dummy_program { S.imports = mnames }
+  deps <- build_dependencies (includes opts) S.dummyProgram { S.imports = mnames }
   deps <- return $ List.init $ deps
 
   -- Process the modules.
@@ -61,16 +61,16 @@ import_modules opts mnames ctx = do
         let mopts = MOptions { toplevel = False, disp_decls = False }
 
         -- If the module has been explicitly included, re-process it
-        if List.elem (S.module_name p) mnames then do
+        if List.elem (S.moduleName p) mnames then do
           -- Re-process
           m <- process_module (opts, mopts) p
           -- Import
-          return $ ctx { labelling = M.labelling m <+> labelling ctx }
+          return $ ctx { labelling = M.environment m <+> labelling ctx }
         else do
           -- Check whether the module has already been imported or not
           imported <- get_context >>= return . modules
           -- If needed, process the module, in any case return the module contents
-          case List.lookup (S.module_name p) imported of
+          case List.lookup (S.moduleName p) imported of
             Just m -> do
                 -- The module already exists
                 return ()
@@ -233,8 +233,8 @@ run_interactive opts ctx buffer = do
             [":value"] -> do
                 List.foldl (\rec n -> do
                       rec
-                      case Map.lookup n $ L.variables (labelling ctx) of
-                        Just (LGlobal x) -> do
+                      case Map.lookup n $ E.variables (labelling ctx) of
+                        Just (E.Global x) -> do
                             vals <- get_context >>= return . values
                             case IMap.lookup x vals of
                               Just v ->
@@ -242,7 +242,7 @@ run_interactive opts ctx buffer = do
                               Nothing ->
                                   fail $ "INteractive:run_interactive: undefined global variable: " ++ show x
 
-                        Just (LVar x) -> do
+                        Just (E.Local x) -> do
                             case IMap.lookup x $ environment ctx of
                               Just v ->
                                   liftIO $ putStrLn $ "val " ++ n ++ "=" ++ pprint v

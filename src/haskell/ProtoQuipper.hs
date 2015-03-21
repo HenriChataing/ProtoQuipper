@@ -12,7 +12,7 @@ import Driver
 import Builtins
 
 import Core.Translate
-import Core.LabellingContext
+import Core.Environment
 
 import System.IO
 import System.Environment

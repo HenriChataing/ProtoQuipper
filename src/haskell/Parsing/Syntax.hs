@@ -1,7 +1,6 @@
--- | This module defines the /surface syntax/ of types, patterns, and
--- expressions, as parsed by the parser. This should not be confused
--- with the /internal syntax/ defined in "Typing.CoreSyntax", which is
--- used internally by the interpreter and type checker.
+-- | This module defines the /surface syntax/ of types, patterns, and expressions, as parsed by the
+-- parser. This should not be confused with the /internal syntax/ defined in "Typing.CoreSyntax",
+-- which is used internally by the interpreter and type checker.
 module Parsing.Syntax where
 
 import Classes
@@ -58,27 +57,27 @@ data Declaration =
 -- ** Programs
 
 -- | A program (or equivalently, a module).
-data Program = Prog {
-  module_name :: String,                     -- ^ Name of the module.
-  filepath :: FilePath,                      -- ^ Path to the implementation of the module.
-  imports :: [String],                       -- ^ List of imported modules.
-  body :: [Declaration]                      -- ^ Body of the module, which contains the type and term declarations.
+data Program = Program {
+  moduleName :: String,       -- ^ Name of the module.
+  filePath :: FilePath,       -- ^ Path to the implementation of the module.
+  imports :: [String],        -- ^ List of imported modules.
+  body :: [Declaration]       -- ^ Body of the module, which contains the type and term declarations.
 }
 
 
--- | A dummy program that is completely empty.
-dummy_program :: Program
-dummy_program = Prog {
-  module_name = "Dummy",
-  filepath = file_unknown,
+-- | A dummy, empty program.
+dummyProgram :: Program
+dummyProgram = Program {
+  moduleName = "Dummy",
+  filePath = file_unknown,
   imports = [],
   body = []
 }
 
--- | Modules are compared based on their name.
--- This implies two different modules can't have the same name.
+-- | Modules are compared based on their name. This implies two different modules can't have the
+-- same name.
 instance Eq Program where
-  (==) p1 p2 = module_name p1 == module_name p2
+  (==) p1 p2 = moduleName p1 == moduleName p2
 
 
 -- ----------------------------------------------------------------------

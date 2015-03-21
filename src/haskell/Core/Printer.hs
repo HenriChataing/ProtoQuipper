@@ -2,24 +2,24 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 
--- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType', 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the source code.
+-- | This module contains the 'Classes.PPrint' instance declarations of the types 'Type', 'LinType',
+-- 'Pattern', and 'Expr' of the /internal syntax/. Please note that instance declarations do not generate
+-- any documentation, so there is almost nothing to document here. Please click on \"Source\" to view the
+-- source code.
 module Core.Printer where
 
-import Classes hiding ((<+>))
 import Utils
-
+import Classes hiding ((<+>))
 import Monad.QuipperError
-
 import Core.Syntax hiding ((<>))
 
 import Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
 
--- | Printing of linear types. The generic function 'genprint' parameterizes the printing
--- over the display of flags and type variables.
+-- | Printing of linear types. The generic function 'genprint' parameterizes the printing over the display
+-- of flags and type variables.
 instance PPrint LinType where
-  -- Generic printing
-  -- The display of flags and type variables is specified by two option functions
+  -- Generic printing. The display of flags and type variables is specified by two option functions
   genprint _ [_, fvar, _] (TVar x) = fvar x
   genprint _ _ (TVar x) = throwNE $ ProgramError "CorePrinter:genprint(LinType): illegal argument"
 
@@ -27,6 +27,7 @@ instance PPrint LinType where
   genprint _ _ TInt = "int"
   genprint _ _ TBool = "bool"
   genprint _ _ TQubit = "qubit"
+  
   genprint lv opts@[_, _, fuser] (TAlgebraic n arg) =
     fuser n ++ List.foldr (\t rec -> let prt = genprint lv opts t in
                                     " " ++

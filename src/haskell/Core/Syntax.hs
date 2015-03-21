@@ -3,12 +3,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
--- | This module defines the /internal syntax/ of Proto-Quipper.
--- Compared to the /surface syntax/ defined in "Parsing.Syntax", the
--- grammar of types has been considerably modified to facilitate type
--- inference. For greater efficiency, all term and type variables are
--- labelled by a unique id, which serves as a lookup key in maps and
--- other data structures.
+-- | This module defines the /internal syntax/ of Proto-Quipper. Compared to the /surface syntax/
+-- defined in "Parsing.Syntax", the grammar of types has been considerably modified to facilitate
+-- type inference. For greater efficiency, all term and type variables are labelled by a unique id,
+-- which serves as a lookup key in maps and other data structures.
 module Core.Syntax where
 
 import Classes hiding ((\\))
@@ -120,8 +118,8 @@ data Type =
   deriving (Show, Eq)
 
 
--- | An alternate definition of the equality between types. This function, contrarily to the default equality,
--- compares only the skeleton of the types, ignoring the flag variables.
+-- | An alternate definition of the equality between types. This function, contrarily to the default
+-- equality, compares only the skeleton of the types, ignoring the flag variables.
 eq_skel :: Type -> Type -> Bool
 eq_skel (TBang _ (TArrow t u)) (TBang _ (TArrow t' u')) = eq_skel t t' && eq_skel u u'
 eq_skel (TBang _ (TCirc t u)) (TBang _ (TCirc t' u')) = eq_skel t t' && eq_skel u u'

@@ -11,7 +11,7 @@ import qualified Parsing.Syntax as S
 
 import Core.Syntax
 import Core.Translate
-import Core.LabellingContext as L
+import qualified Core.Environment as E
 
 import Typing.TypingContext
 import Typing.Ordering
@@ -735,7 +735,7 @@ constraint_typing gamma (EIf e f g) cst = do
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
 constraint_typing gamma (EConstraint e (t, typs)) cst = do
-  t' <- translate_unbound_type t $ empty_label { L.types = typs }
+  t' <- translate_unbound_type t $ E.empty { E.types = typs }
   csete <- constraint_typing gamma e (t':cst)
   return csete
 

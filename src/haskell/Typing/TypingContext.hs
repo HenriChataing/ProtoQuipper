@@ -1,9 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
--- | This module provides definitions and functions for manipulating
--- typing contexts. Typing contexts are represented by maps from term
--- variables to types. The functions provided here include union,
+-- | This module provides definitions and functions for manipulating typing contexts. Typing contexts
+-- are represented by maps from term variables to types. The functions provided here include union,
 -- partition, variable binding, and patterns.
 
 module Typing.TypingContext where
@@ -13,7 +12,7 @@ import Classes
 
 import Core.Syntax
 import Core.Translate
-import Core.LabellingContext as L
+import qualified Core.Environment as Environment
 
 import Monad.QpState
 import Monad.QuipperError
@@ -39,8 +38,8 @@ bind_var x t ctx = do
 
 
 -- | Retrieve the type of a variable from the context.
--- This function is not supposed to fail, as the scope analysis performed during the translation to the
--- core syntax should have located all the unbound variables. If it does fail, it is because of
+-- This function is not supposed to fail, as the scope analysis performed during the translation to
+-- the core syntax should have located all the unbound variables. If it does fail, it is because of
 -- a programming error.
 type_of :: Variable -> TypingContext -> QpState TypeScheme
 type_of x ctx = do
@@ -53,32 +52,33 @@ type_of x ctx = do
         fail $ "Unbound variable: " ++ name ++ ": at extent " ++ show ex
 
 
--- | Given a pattern, create a type matching the pattern, and bind, in a new typing context, the term variables of the pattern
--- to new type variables created as needed. The construction of the type can generate typing constraints, be they structural flag constraints
--- or constraints coming from the instantiation of some type (e.g., with data constructors).
--- For example, consider the pattern (/x/, /y/). This function is going to generate the type !^/p/(!^/n/ /a/ * !^/m/ /b/), with the constraints {/p/ <= /n/, /p/ <= /m/}
--- and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
+-- | Given a pattern, create a type matching the pattern, and bind, in a new typing context, the term
+-- variables of the pattern to new type variables created as needed. The construction of the type can
+-- generate typing constraints, be they structural flag constraints or constraints coming from the
+-- instantiation of some type (e.g., with data constructors). For example, consider the pattern
+-- (/x/, /y/). This function is going to generate the type !^/p/(!^/n/ /a/ * !^/m/ /b/), with the
+-- constraints {/p/ <= /n/, /p/ <= /m/} and the bindings [/x/ : !^/n/ /a/, /y/ : !^/m/ /b/].
 bind_pattern :: Pattern -> QpState (Type, IntMap Type, ConstraintSet)
 
--- Wildcard: the wildcard must have a duplicable type, since
--- the value is discarded. No binding is generated.
+-- Wildcard: the wildcard must have a duplicable type, since the value is discarded. No binding is
+-- generated.
 bind_pattern (PWildcard _) = do
   a <- fresh_type
   return (TBang 1 $ TVar a, IMap.empty, emptyset)
 
--- Unit pattern
+-- Unit pattern.
 bind_pattern (PUnit _) = do
   return (TBang 0 TUnit, IMap.empty, emptyset)
 
--- Boolean pattern
+-- Boolean pattern.
 bind_pattern (PBool _ b) = do
   return (TBang 0 TBool, IMap.empty, emptyset)
 
--- Integer pattern
+-- Integer pattern.
 bind_pattern (PInt _ n) = do
   return (TBang 0 TInt, IMap.empty, emptyset)
 
--- While binding variables, a new type is generated, and bound to x
+-- While binding variables, a new type is generated, and bound to x.
 bind_pattern (PVar ref x) = do
   -- Create a new type, add some information to the flag
   a <- new_type
@@ -86,24 +86,24 @@ bind_pattern (PVar ref x) = do
   -- The binding is returned in a singleton map, and no constraints are generated
   return (a, IMap.singleton x a, emptyset)
 
--- Tuples
+-- Tuples.
 bind_pattern (PTuple _ plist) = do
   -- Bind the patterns of the tuple
   (ptypes, ctx, cset) <- List.foldr (\p rec -> do
-                                      (r, ctx, cset) <- rec
-                                      (a, ctx', cset') <- bind_pattern p
-                                      return (a:r, IMap.union ctx' ctx, cset' <> cset)) (return ([], IMap.empty, emptyset)) plist
+      (r, ctx, cset) <- rec
+      (a, ctx', cset') <- bind_pattern p
+      return (a:r, IMap.union ctx' ctx, cset' <> cset)
+    ) (return ([], IMap.empty, emptyset)) plist
 
   return (TBang 0 (TTensor ptypes), ctx, cset)
 
--- Data constructors
+-- Data constructors.
 bind_pattern (PDatacon _ dcon p) = do
   -- Retrieves the type of data constructor
   dtype <- datacon_type dcon
 
   -- Instantiate the type
   (typ, cset) <- instantiate dtype
-
   a <- new_type
 
   -- Check the arguments
@@ -125,7 +125,7 @@ bind_pattern (PDatacon _ dcon p) = do
 -- do things normally, and add a constraint on the actual type of the pattern
 bind_pattern (PConstraint p (t, typs)) = do
   (typ, ctx, cset) <- bind_pattern p
-  t' <- translate_unbound_type t $ empty_label { L.types = typs }
+  t' <- translate_unbound_type t $ Environment.empty { Environment.types = typs }
   return (typ, ctx, [typ <: t'] <> cset)
 
 

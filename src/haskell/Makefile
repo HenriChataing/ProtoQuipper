@@ -4,20 +4,47 @@ HADDOCK := haddock
 
 BUILD_DIR = _build
 
+GHC_OPTS:=-O2 -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -Werror
+GHC_PROF:= -prof -auto
+
+GHC = ghc $(GHC_OPTS) $(GHC_PROF) --make -odir $(BUILD_DIR) -hidir $(BUILD_DIR) $(INCLUDE)
+HAPPY = happy --ghc --info
+ALEX = alex
+
 MAIN = ProtoQuipper
-BUILTINS = src/cpp/Builtins.bc
 
-all: $(MAIN) $(BUILTINS)
+PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
+GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
+SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
+  Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
+  Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
+  Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
+  Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
+  ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/Environment.hs	\
+  Typing/Ordering.hs Typing/Subtyping.hs Typing/TypeInference.hs	\
+  Typing/TypingContext.hs Utils.hs \
+  Compiler/Preliminaries.hs Compiler/SimplSyntax.hs Compiler/Circ.hs Compiler/CExpr.hs Compiler/LlvmExport.hs
+MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
-$(MAIN):
-	make -C src/haskell
+all: $(MAIN)
 
-$(BUILTINS): src/cpp/Builtins.cpp src/cpp/Builtins.h
-	clang -c -emit-llvm -O2 src/cpp/Builtins.cpp -o $(BUILTINS)
+$(MAIN): $(MODULES)
+	$(GHC) $(INCLUDE) $(MAIN).hs -o $(MAIN)
+
+Parsing/Parser.hs: Parsing/Parser.y
+	$(HAPPY) Parsing/Parser.y
+
+Parsing/Lexer.hs: Parsing/Lexer.x
+	$(ALEX) Parsing/Lexer.x
 
 clean:
-	make clean -C src/haskell
-	rm -f src/cpp/Builtins.ll $(BUILTINS)
+	rm -f $(GENERATED_MODULES)
+	rm -f $(GENERATED_MODULES:%.hs=%.info)
+	rm -f $(MAIN) $(MAIN).exe $(MAIN).prof $(MAIN).aux
+	rm -rf $(BUILD_DIR)/*
+
+count: clean
+	wc -l *.hs */*.hs Parsing/Lexer.x Parsing/Parser.y foreign/*
 
 # ----------------------------------------------------------------------
 # Building documentation with source code links. This requires a

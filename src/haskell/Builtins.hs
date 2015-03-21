@@ -14,7 +14,7 @@ import Monad.QpState hiding (qubit_id)
 import Monad.Modules as M
 
 import Core.Syntax
-import Core.LabellingContext as L
+import Core.Environment as E
 
 import qualified Compiler.SimplSyntax as C
 import Compiler.Preliminaries (choose_implementation)
@@ -297,7 +297,7 @@ define_builtins = do
         lbl <- rec
         vb <- register_var (Just "Builtins") b 0
         insert_global vb (typescheme_of_type typ) (Just val)
-        return $ Map.insert b (LGlobal vb) lbl
+        return $ Map.insert b (Global vb) lbl
       ) (return Map.empty) $ ops ++ print ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
 
   -- Define a generic printing function for circuits.
@@ -307,14 +307,15 @@ define_builtins = do
   b <- fresh_type
   m <- fresh_flag
   insert_global vprint (TForall [n,m] [a,b] emptyset $ arrow (circ (TBang n $ TVar a) (TBang m $ TVar b)) unit) Nothing
-  lbl <- return $ Map.insert "print_circ" (LGlobal vprint) lbl
+  lbl <- return $ Map.insert "print_circ" (Global vprint) lbl
 
   -- Build the module.
-  let builtins = Mod {
-    labelling = LblCtx {
+  let builtins = Module {
+    environment = Environment {
       variables = lbl,
       types = Map.fromList [("list", TBang 1 $ TAlgebraic list []), ("char", TBang 1 $ TAlgebraic char [])],
-      L.datacons = Map.fromList [("_Cons", cons), ("_Nil", nil), ("_Char", dchar)] },
+      E.datacons = Map.fromList [("_Cons", cons), ("_Nil", nil), ("_Char", dchar)]
+    },
     declarations = []
   }
 

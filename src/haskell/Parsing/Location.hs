@@ -2,8 +2,7 @@
 -- A location is represented by an /extent/, which is an interval between two loci.
 module Parsing.Location where
 
--- | A /locus/ is a point in a file, identified by its line and column
--- numbers.
+-- | A /locus/ is a point in a file, identified by its line and column numbers.
 data Locus = Loc {
   line :: Int,     -- ^ Line number.
   column :: Int    -- ^ Column number.

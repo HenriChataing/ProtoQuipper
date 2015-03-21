@@ -81,8 +81,8 @@ import Classes
 import Builtins
 
 import Core.Syntax
-import Core.LabellingContext (LabellingContext, empty_label, LVariable (..))
-import qualified Core.LabellingContext as L
+import Core.Environment (Environment)
+import qualified Core.Environment as E
 import Core.Printer
 
 import Parsing.Location
@@ -170,9 +170,9 @@ variance _ _ _ _ = do
 
 -- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.Algdef]                 -- ^ A block of co-inductive type definitions.
-                -> LabellingContext           -- ^ The current labelling context.
-                -> QpState LabellingContext   -- ^ The updated labelling context.
+import_typedefs :: [S.Algdef]            -- ^ A block of co-inductive type definitions.
+                -> Environment Variable           -- ^ The current labelling context.
+                -> QpState (Environment Variable)   -- ^ The updated labelling context.
 import_typedefs dblock label = do
   -- Initialize the type definitions.
   typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
@@ -186,7 +186,7 @@ import_typedefs dblock label = do
         id <- register_algebraic typename spec
         -- Add the type to the labelling context.
         return $ Map.insert typename (TBang 0 $ TAlgebraic id []) typs
-      ) (return (L.types label)) dblock
+      ) (return (E.types label)) dblock
 
   -- Build the unfolded type definition.
   constructors <- List.foldl (\rec (S.Typedef typename args dlist) -> do
@@ -213,7 +213,7 @@ import_typedefs dblock label = do
                         return (TBang m (TAlgebraic id args), Nothing, emptyset)
                     -- If the constructor takes one argument
                     Just dt -> do
-                        dt@(TBang n _) <- translate_bound_type dt empty_label { L.types = mapargs }
+                        dt@(TBang n _) <- translate_bound_type dt E.empty { E.types = mapargs }
                         return (TBang one $ TArrow dt $ TBang m $ TAlgebraic id args, Just dt, ([], [Le m n no_info]))
 
               -- Generalize the type of the constructor over the free variables and flags
@@ -235,7 +235,7 @@ import_typedefs dblock label = do
         -- Update the specification of the type.
         update_algebraic id $ \algdef -> Just $ algdef { definition = (args, dtypes) }
 
-        return lbl) (return $ L.datacons label) dblock
+        return lbl) (return $ E.datacons label) dblock
 
 
   -- Update the variance of the type arguments of a single type.
@@ -284,8 +284,8 @@ import_typedefs dblock label = do
   List.foldl (\rec typ -> rec >> print_info typ) (return ()) dblock
 
   -- Return the updated labelling map for types, and the map for dataconstructors.
-  return $ label { L.datacons = constructors,
-                   L.types = typs }
+  return $ label { E.datacons = constructors,
+                   E.types = typs }
 
 
 
@@ -293,18 +293,18 @@ import_typedefs dblock label = do
 
 -- | Translate and import a type synonym.
 import_typesyn :: S.Syndef                    -- ^ A type synonym.
-               -> LabellingContext            -- ^ The current labelling context.
-               -> QpState LabellingContext    -- ^ The updated labelling context.
+               -> Environment Variable            -- ^ The current labelling context.
+               -> QpState (Environment Variable)    -- ^ The updated labelling context.
 import_typesyn typesyn label = do
   -- Bind the arguments to core types.
   as <- new_types $ List.length (S.arguments typesyn)
   let margs = Map.fromList $ List.zip (S.arguments typesyn) as
 
   -- Translate the synonym type.
-  syn <- translate_bound_type (S.definition typesyn) (label { L.types = Map.union margs $ L.types label })
+  syn <- translate_bound_type (S.definition typesyn) (label {E.types = Map.union margs $ E.types label })
 
   -- Determine the variance of each argument.
-  var <- variance Covariant (S.definition typesyn) [] (L.types label)
+  var <- variance Covariant (S.definition typesyn) [] (E.types label)
   let arg = List.map (\a -> case Map.lookup a var of { Nothing -> Unrelated ; Just v -> v }) $ S.arguments typesyn
 
   -- Print it.
@@ -319,7 +319,7 @@ import_typesyn typesyn label = do
   id <- register_synonym (S.name typesyn) spec
 
   -- Add the type to the labelling context and return
-  return label { L.types = Map.insert (S.name typesyn) (TBang 0 $ TSynonym id []) $ L.types label }
+  return label { E.types = Map.insert (S.name typesyn) (TBang 0 $ TSynonym id []) $ E.types label }
 
 
 
@@ -471,9 +471,9 @@ translate_type t args label = do
 
 -- | Apply the function 'Typing.TransSyntax.translate_type' to a bound type.
 -- The arguments must be null initially.
-translate_bound_type :: S.Type -> LabellingContext -> QpState Type
+translate_bound_type :: S.Type -> Environment Variable -> QpState Type
 translate_bound_type t label = do
-  (t', _) <- translate_type t [] (L.types label, True)
+  (t', _) <- translate_type t [] (E.types label, True)
   return t'
 
 
@@ -481,55 +481,55 @@ translate_bound_type t label = do
 -- | Apply the function 'Typing.TransSyntax.translate_type' to unbound types.
 -- The binding map is initially empty, and is dropped after the translation of the type.
 -- No argument is passed to the top type.
-translate_unbound_type :: S.Type -> LabellingContext -> QpState Type
+translate_unbound_type :: S.Type -> Environment Variable -> QpState Type
 translate_unbound_type t label = do
-  (t', _) <- translate_type t [] (L.types label, False)
+  (t', _) <- translate_type t [] (E.types label, False)
   return t'
 
 
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.XExpr -> LabellingContext -> QpState (Pattern, Map String LVariable)
+translate_pattern :: S.XExpr -> Environment Variable -> QpState (Pattern, Map String (E.Variable Variable))
 translate_pattern S.EUnit label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { expression = Right $ PUnit ref })
-  return (PUnit ref, L.variables label)
+  return (PUnit ref, E.variables label)
 
 translate_pattern (S.EBool b) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { expression = Right $ PBool ref b })
-  return (PBool ref b, L.variables label)
+  return (PBool ref b, E.variables label)
 
 translate_pattern (S.EInt n) label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { expression = Right $ PInt ref n })
-  return (PInt ref n, L.variables label)
+  return (PInt ref n, E.variables label)
 
 translate_pattern S.EWildcard label = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { expression = Right $ PWildcard ref })
-  return (PWildcard ref, L.variables label)
+  return (PWildcard ref, E.variables label)
 
 translate_pattern (S.EVar x) label = do
   ref <- create_ref
   mod <- current_module
   id <- register_var mod x ref
   update_ref ref (\ri -> Just ri { expression = Right $ PVar ref id })
-  return (PVar ref id, Map.insert x (LVar id) $ L.variables label)
+  return (PVar ref id, Map.insert x (E.Local id) $ E.variables label)
 
 translate_pattern (S.ETuple plist) label = do
   ref <- create_ref
   (plist', lbl) <- List.foldr (\p rec -> do
         (ps, lbl) <- rec
-        (p', lbl') <- translate_pattern p label { L.variables = lbl }
-        return ((p':ps), lbl')) (return ([], L.variables label)) plist
+        (p', lbl') <- translate_pattern p label { E.variables = lbl }
+        return ((p':ps), lbl')) (return ([], E.variables label)) plist
   update_ref ref (\ri -> Just ri { expression = Right $ PTuple ref plist' })
   return (PTuple ref plist', lbl)
 
 translate_pattern (S.EDatacon datacon p) label = do
   ref <- create_ref
-  case Map.lookup datacon $ L.datacons label of
+  case Map.lookup datacon $ E.datacons label of
     Just id -> do
         case p of
           Just p -> do
@@ -539,7 +539,7 @@ translate_pattern (S.EDatacon datacon p) label = do
 
           Nothing -> do
               update_ref ref (\ri -> Just ri { expression = Right $ PDatacon ref id Nothing })
-              return (PDatacon ref id Nothing, L.variables label)
+              return (PDatacon ref id Nothing, E.variables label)
 
     Nothing ->
         throw_UnboundDatacon datacon
@@ -550,7 +550,7 @@ translate_pattern (S.ELocated p ex) label = do
 
 translate_pattern (S.EConstraint p t) label = do
   (p', lbl) <- translate_pattern p label
-  return (PConstraint p' (t, L.types label), lbl)
+  return (PConstraint p' (t, E.types label), lbl)
 
 translate_pattern (S.EApp (S.ELocated (S.EDatacon e Nothing) ex) f) label =
   translate_pattern (S.ELocated (S.EDatacon e $ Just f) ex) label
@@ -561,7 +561,7 @@ translate_pattern p _ = do
 
 
 -- | Translate an expression, given a labelling map.
-translate_expression :: S.XExpr -> LabellingContext -> QpState Expr
+translate_expression :: S.XExpr -> Environment Variable -> QpState Expr
 translate_expression S.EUnit _ = do
   ref <- create_ref
   update_ref ref (\ri -> Just ri { expression = Left $ EUnit ref })
@@ -579,12 +579,12 @@ translate_expression (S.EInt n) _ = do
 
 translate_expression (S.EVar x) label = do
   ref <- create_ref
-  case Map.lookup x $ L.variables label of
-    Just (LVar v) -> do
+  case Map.lookup x $ E.variables label of
+    Just (E.Local v) -> do
         update_ref ref (\ri -> Just ri { expression = Left $ EVar ref v })
         return (EVar ref v)
 
-    Just (LGlobal v) -> do
+    Just (E.Global v) -> do
         update_ref ref (\ri -> Just ri { expression = Left $ EGlobal ref v })
         return (EGlobal ref v)
 
@@ -600,7 +600,7 @@ translate_expression (S.EQualified m x) _ = do
 translate_expression (S.EFun p e) label = do
   ref <- create_ref
   (p', lbl) <- translate_pattern p label
-  e' <- translate_expression e $ label { L.variables = lbl }
+  e' <- translate_expression e $ label { E.variables = lbl }
   update_ref ref (\ri -> Just ri { expression = Left $ EFun ref p' e' })
   return (EFun ref p' e')
 
@@ -611,15 +611,15 @@ translate_expression (S.ELet r p e f) label = do
 
   e' <- case r of
         Recursive -> do
-            translate_expression e $ label { L.variables = lbl }
+            translate_expression e $ label { E.variables = lbl }
         Nonrecursive -> do
             translate_expression e $ label
-  f' <- translate_expression f $ label { L.variables = lbl }
+  f' <- translate_expression f $ label { E.variables = lbl }
   return (ELet r p' e' f')
 
 translate_expression (S.EDatacon datacon e) label = do
   ref <- create_ref
-  case Map.lookup datacon $ L.datacons label of
+  case Map.lookup datacon $ E.datacons label of
     Just id -> do
         case e of
           Just e -> do
@@ -639,7 +639,7 @@ translate_expression (S.EMatch e blist) label = do
   blist' <- List.foldr (\(p, f) rec -> do
                           r <- rec
                           (p', lbl) <- translate_pattern p label
-                          f' <- translate_expression f $ label { L.variables = lbl }
+                          f' <- translate_expression f $ label { E.variables = lbl }
                           return ((p', f'):r)) (return []) blist
   return (EMatch e' blist')
 
@@ -647,7 +647,7 @@ translate_expression (S.EMatch e blist) label = do
 translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label = do
   ref <- create_ref
   e' <- translate_expression e label
-  case Map.lookup dcon $ L.datacons label of
+  case Map.lookup dcon $ E.datacons label of
     Just id -> do
         update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id $ Just e' })
         return (EDatacon ref id $ Just e')
@@ -706,7 +706,7 @@ translate_expression (S.ELocated e ex) label = do
 
 translate_expression (S.EConstraint e t) label = do
   e' <- translate_expression e label
-  return $ EConstraint e' (t, L.types label)
+  return $ EConstraint e' (t, E.types label)
 
 translate_expression (S.EError msg) _ =
   return $ EError msg

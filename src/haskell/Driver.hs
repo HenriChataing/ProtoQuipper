@@ -15,10 +15,11 @@ import Parsing.Printer
 
 import Core.Syntax
 import Core.Translate
-import Core.LabellingContext (LabellingContext, lvar_to_lglobal, LVariable (..))
-import qualified Core.LabellingContext as L
+import Core.Environment (Environment, lvar_to_lglobal)
+import qualified Core.Environment as E
 
-import Interpret.Interpret
+import Interpret.Interpret hiding (Environment)
+import qualified Interpret.Interpret as I (Environment)
 import Interpret.Values
 import Interpret.IRExport
 import Interpret.Circuits
@@ -33,7 +34,7 @@ import qualified Compiler.CExpr as C
 import Compiler.LlvmExport
 
 import Monad.QpState
-import Monad.Modules (Module (Mod))
+import Monad.Modules (Module (Module))
 import qualified Monad.Modules as M
 import Monad.QuipperError
 
@@ -55,7 +56,7 @@ lex_and_parse_implementation file = do
   contents <- liftIO $ B.readFile file
   tokens <- mylex file contents
   mod <- return $ module_of_file file
-  return $ (P.parse tokens) { S.module_name = mod, S.filepath = file }
+  return $ (P.parse tokens) { S.moduleName = mod, S.filePath = file }
 
 {-
 -- | Lex and parse the interface file at the given filepath.
@@ -139,11 +140,11 @@ explore_dependencies :: [FilePath]            -- ^ List of directories.
                      -> QpState ([S.Program], [String])
 explore_dependencies dirs prog explored sorted = do
   -- Mark the module as explored
-  explored <- return $ (S.module_name prog):explored
+  explored <- return $ (S.moduleName prog):explored
   -- Sort the dependencies
   (s,ex) <- List.foldl (\rec m -> do
         (sorted, exp) <- rec
-        case (List.elem m exp, List.find (\p -> S.module_name p == m) sorted) of
+        case (List.elem m exp, List.find (\p -> S.moduleName p == m) sorted) of
           -- Ok
           (True, Just _) ->
               return (sorted, exp)
@@ -154,7 +155,7 @@ explore_dependencies dirs prog explored sorted = do
               -- Build the loop : by removing the already sorted modules,
               -- and spliting the explored list at the first visit of this module.
               flush_logs
-              inloop <- return $ explored List.\\ (List.map S.module_name sorted)
+              inloop <- return $ explored List.\\ (List.map S.moduleName sorted)
               (loop, _) <- return $ List.span (\m' -> m' /= m) inloop
 
               throwNE $ CircularDependency m (List.reverse (m:loop))
@@ -206,7 +207,7 @@ build_set_dependencies :: [FilePath]          -- ^ List of directories.
                        -> [String]            -- ^ Main modules (by name only).
                        -> QpState [S.Program] -- ^ Returns the total list of dependencies, sorted in a topological fashion.
 build_set_dependencies dirs progs = do
-  deps <- build_dependencies dirs S.dummy_program { S.imports = progs }
+  deps <- build_dependencies dirs S.dummyProgram { S.imports = progs }
   return $ List.init deps
 
 
@@ -214,9 +215,9 @@ build_set_dependencies dirs progs = do
 
 -- | The type of /extensive contexts/, which are used during the processing of top-level declarations.
 data ExtensiveContext = Context {
-  labelling :: LabellingContext,        -- ^ A labelling context.
+  labelling :: Environment Variable,        -- ^ A labelling context.
   typing :: TypingContext,              -- ^ A typing context.
-  environment :: Environment,           -- ^ An evaluation context.
+  environment :: I.Environment,           -- ^ An evaluation context.
   constraints :: ConstraintSet          -- ^ An atomic constraint set that accumulates the constraints of all the top-level expressions.
 }
 
@@ -317,7 +318,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
           (True, Zero) -> do
               n <- variable_name x
               return $ ctx {
-                    labelling = (labelling ctx) { L.variables = Map.delete n $ L.variables (labelling ctx) },
+                    labelling = (labelling ctx) { E.variables = Map.delete n $ E.variables (labelling ctx) },
                     typing = IMap.delete x $ typing ctx,
                     environment = IMap.delete x $ environment ctx
                   }
@@ -333,7 +334,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', label') <- translate_pattern p $ labelling ctx
   e' <- case recflag of
-        Recursive -> translate_expression e $ (labelling ctx) { L.variables = label' }
+        Recursive -> translate_expression e $ (labelling ctx) { E.variables = label' }
         Nonrecursive -> translate_expression e $ labelling ctx
   fve <- return $ free_var e'
 
@@ -454,14 +455,14 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
               return $ ctx {
                     labelling = (labelling ctx) {
-                          L.variables = Map.update (\v ->
-                                let y = case v of { LVar y -> y; LGlobal y -> y } in
+                          E.variables = Map.update (\v ->
+                                let y = case v of { E.Local y -> y; E.Global y -> y } in
                                 -- The label is removed only if the matching corresponds (to avoid cases like 'let p = p')
-                                if x == y then Nothing else Just v) n $ L.variables (labelling ctx) },
+                                if x == y then Nothing else Just v) n $ E.variables (labelling ctx) },
                     typing = IMap.delete x $ typing ctx,
                     environment = IMap.delete x $ environment ctx }
           _ ->
-              return ctx) (return ctx { labelling = (labelling ctx) { L.variables = label' } }) (typing ctx)
+              return ctx) (return ctx { labelling = (labelling ctx) { E.variables = label' } }) (typing ctx)
   return (ctx, decl)
     where
       unPVar (PVar _ x) = x
@@ -491,7 +492,7 @@ explicit_datacons mod = do
         else
           -- Takes no argument -> do nothing
           return mod
-        ) (return mod) (L.datacons $ M.labelling mod)
+        ) (return mod) (E.datacons $ M.environment mod)
 
 
 
@@ -518,7 +519,7 @@ process_module opts prog = do
   set_context $ ctx {
     circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
     dependencies = S.imports prog,
-    current = Just $ S.module_name prog
+    current = Just $ S.moduleName prog
   }
 
   -- Interpret all the declarations
@@ -543,7 +544,7 @@ process_module opts prog = do
                       values = IMap.union (environment ctx) $ values qst }
 
   -- Push the definition of the new module to the stack
-  let newmod = Mod { M.labelling = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.
+  let newmod = Module { M.environment = lvar_to_lglobal $ (labelling ctx) Classes.\\ lctx,   -- Remove the variables preexistant to the module.
                      M.declarations = List.reverse decls }
 
   -- Explicit the construction of the data constructors
@@ -551,13 +552,13 @@ process_module opts prog = do
   newmod <- explicit_datacons newmod
 
   ctx <- get_context
-  set_context $ ctx { modules = (S.module_name prog, newmod):(modules ctx), circuits = old_stack }
+  set_context $ ctx { modules = (S.moduleName prog, newmod):(modules ctx), circuits = old_stack }
 
   -- Return
   return newmod
 
   where
-      unLVar (LVar id) = id
+      unLVar (E.Local id) = id
       unLVar _ = throwNE $ ProgramError "Driver:process_module: leftover global variables"
 
       unTAlgebraic (TBang _ (TAlgebraic id _)) = id
@@ -579,7 +580,7 @@ do_everything opts files = do
   -- Build the dependencies
   deps <- build_set_dependencies (includes opts) progs
   let ndeps = List.length deps
-      depend = List.map S.module_name deps
+      depend = List.map S.moduleName deps
 
   -- Build the builtin / qlib interfaces
   define_builtins
@@ -588,7 +589,7 @@ do_everything opts files = do
   mods <- List.foldl (\rec (n, p) -> do
         ms <- rec
         let mopts = MOptions { toplevel = List.elem pname progs, disp_decls = False }
-            pname = S.module_name p
+            pname = S.moduleName p
         nm <- process_module (opts, mopts) p
 
         -- Compilation
@@ -619,7 +620,7 @@ do_everything opts files = do
 
   -- Assemble the compiled files (if needed).
   if run_compiler opts then do
-    let files = List.map (\m -> " " ++ combine (output_dir opts) (S.module_name m) ++ ".bc") deps
+    let files = List.map (\m -> " " ++ combine (output_dir opts) (S.moduleName m) ++ ".bc") deps
         builtin = "foreign/Builtins.bc"
         mainbc = combine (output_dir opts) "main.bc"
         mainS = combine (output_dir opts) "main.S"

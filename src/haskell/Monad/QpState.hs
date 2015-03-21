@@ -16,8 +16,8 @@ import qualified Monad.Namespace as N
 
 import Core.Syntax
 import Core.Printer
-import Core.LabellingContext (LabellingContext, LVariable (..))
-import qualified Core.LabellingContext as L
+import Core.Environment (Environment)
+import qualified Core.Environment as L
 
 import qualified Compiler.SimplSyntax as C
 
@@ -473,13 +473,13 @@ type_name x = do
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
 global_namespace :: [String]                                                          -- ^ A list of module dependencies.
-                 -> QpState LabellingContext                                          -- ^ The resulting labelling maps.
+                 -> QpState (Environment Int)                                          -- ^ The resulting labelling maps.
 global_namespace deps = do
   mods <- get_context >>= return . modules
   return $ List.foldl (\lctx m ->
         case List.lookup m mods of
-          Just mod -> M.labelling mod <+> lctx
-          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty_label ("Builtins":deps)
+          Just mod -> M.environment mod <+> lctx
+          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty ("Builtins":deps)
 
 
 
@@ -526,9 +526,9 @@ lookup_qualified_var (mod, n) = do
   if List.elem mod $ "Builtins":(dependencies ctx) then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ L.variables $ M.labelling modi of
-            Just (LVar x) -> return x
-            Just (LGlobal x) -> return x
+          case Map.lookup n $ L.variables $ M.environment modi of
+            Just (L.Local x) -> return x
+            Just (L.Global x) -> return x
             Nothing -> do
                 throw_UnboundVariable (mod ++ "." ++ n)
 
@@ -549,7 +549,7 @@ lookup_qualified_type (mod, n) = do
   if List.elem mod $ "Builtins":(dependencies ctx) then do
     case List.lookup mod $ modules ctx of
       Just modi -> do
-          case Map.lookup n $ L.types $ M.labelling modi of
+          case Map.lookup n $ L.types $ M.environment modi of
             Just typ -> return typ
             _ -> throw_UndefinedType (mod ++ "." ++ n)
 
