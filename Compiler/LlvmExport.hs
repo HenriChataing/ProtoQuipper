@@ -29,9 +29,10 @@ import Data.Bits (bitSize, Bits)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.List as List
-import System.IO (hFlush, stdout, writeFile)
+import Data.ByteString (writeFile)
+import System.IO hiding (writeFile)
 
-import Control.Monad.Error
+import Control.Monad.Trans.Except
 
 
 -- Type of integers (related to the architecture).
@@ -52,7 +53,7 @@ malloc n s =
     isTailCall = False,
     callingConvention = C,
     returnAttributes = [],
-    function = Right $ ConstantOperand $ GlobalReference $ Name "malloc",
+    function = Right $ ConstantOperand $ GlobalReference VoidType $ Name "malloc",
     arguments = [(ConstantOperand $ make_int (n * bitSize (0 :: ArchInt) `quot` 8), [])],
     functionAttributes = [],
     metadata = []
@@ -75,19 +76,19 @@ call tail func arg =
 cast :: Operand -> Typ -> Typ -> QpState (Operand, [Named Instruction])
 cast op TyInt TyPtr = do
   tmp <- create_var "tmp"
-  let nop = LocalReference $ UnName $ fromIntegral tmp
+  let nop = LocalReference int_type $ UnName $ fromIntegral tmp
   return (nop, [UnName (fromIntegral tmp) := IntToPtr op ptr_type []])
 cast op TyInt (TyFun arg) = do
   tmp <- create_var "tmp"
-  let nop = LocalReference $ UnName $ fromIntegral tmp
+  let nop = LocalReference int_type $ UnName $ fromIntegral tmp
   return (nop, [UnName (fromIntegral tmp) := IntToPtr op (PointerType (fun_type arg) (AddrSpace 0)) []])
 cast op TyPtr TyInt = do
   tmp <- create_var "tmp"
-  let nop = LocalReference $ UnName $ fromIntegral tmp
+  let nop = LocalReference VoidType $ UnName $ fromIntegral tmp
   return (nop, [UnName (fromIntegral tmp) := PtrToInt op int_type []])
 cast op (TyFun _) TyInt = do
   tmp <- create_var "tmp"
-  let nop = LocalReference $ UnName $ fromIntegral tmp
+  let nop = LocalReference VoidType $ UnName $ fromIntegral tmp
   return (nop, [UnName (fromIntegral tmp) := PtrToInt op int_type []])
 cast op ty ty' | ty == ty' = return (op, [])
                | otherwise = fail "LlvmExport:cast: illegal argument"
@@ -163,7 +164,7 @@ define_members linkage ctx ((f, arg, cf):fs) = do
   (param, ctx) <- List.foldr (\a rec -> do
         (as,ctx) <- rec
         na <- variable_name a
-        return ((Parameter int_type (Name na) []):as, IMap.insert a (TyInt, LocalReference $ Name na) ctx)) (return ([], ctx)) arg
+        return ((Parameter int_type (Name na) []):as, IMap.insert a (TyInt, LocalReference int_type $ Name na) ctx)) (return ([], ctx)) arg
   -- Function body.
   (ins, term, blocks) <- cexpr_to_llvm ctx cf
   return $ (GlobalDefinition $ functionDefaults {
@@ -186,14 +187,14 @@ value_to_callable_operand ctx typ (VVar f) = do
     Just (typ', op) -> cast op typ' typ >>= return . \(a,b) -> (Right a, b)
     Nothing -> do
         nf <- variable_name f
-        return (Right $ ConstantOperand $ GlobalReference $ Name nf, [])
+        return (Right $ ConstantOperand $ GlobalReference VoidType $ Name nf, [])
 value_to_callable_operand ctx typ (VLabel f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ >>= return . \(a,b) -> (Right a, b)
     Nothing -> do
         nf <- variable_name f
         mod <- variable_module f
-        return (Right $ ConstantOperand $ GlobalReference $ Name (make_qualified_name mod nf), [])
+        return (Right $ ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf), [])
 value_to_callable_operand _ _ _ =
   fail "LlvmExport:value_to_callable_operand: illegal argument"
 
@@ -208,14 +209,14 @@ value_to_operand ctx typ (VVar f) = do
     Just (typ', op) -> cast op typ' typ
     Nothing -> do
         nf <- variable_name f
-        return (LocalReference $ Name nf, [])
+        return (LocalReference VoidType $ Name nf, [])
 value_to_operand ctx typ (VLabel f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ
     Nothing -> do
         nf <- variable_name f
         mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference $ Name (make_qualified_name mod nf)
+        let op = ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf)
         cast op (TyFun []) typ
 value_to_operand ctx typ (VGlobal f) = do
   case IMap.lookup f ctx of
@@ -223,7 +224,7 @@ value_to_operand ctx typ (VGlobal f) = do
     Nothing -> do
         nf <- variable_name f
         mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference $ Name (make_qualified_name mod nf)
+        let op = ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf)
         cast op TyPtr typ
 value_to_operand _ TyInt (VInt n) =
   return (ConstantOperand $ make_int n, [])
@@ -261,7 +262,7 @@ cexpr_to_llvm ctx (CApp f args x c) = do
         return (va:as, cast ++ cins)
     ) (return ([], [])) args
   nx <- variable_name x
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference $ Name nx) ctx) c
+  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference int_type $ Name nx) ctx) c
   return (cast ++ cins ++ [Name nx := call False opf args] ++ ins, term, blocks)
 
 cexpr_to_llvm ctx (CTailApp f args) = do
@@ -275,16 +276,16 @@ cexpr_to_llvm ctx (CTailApp f args) = do
     ) (return ([], [])) args
   x <- create_var "tmp"
   return (cast ++ cins ++ [UnName (fromIntegral x) := call True opf args],
-           Do $ Ret (Just $ LocalReference $ UnName $ fromIntegral x) [], [])
+           Do $ Ret (Just $ LocalReference VoidType $ UnName $ fromIntegral x) [], [])
 
 cexpr_to_llvm ctx (CTuple vlist x c) = do
   -- Allocate space for the tuple, and cast the result to int type.
   nx <- variable_name x
   addr <- create_var "tmp" >>= variable_name
   ptr <- malloc (List.length vlist) addr
-  let cast = Name nx := PtrToInt (LocalReference $ Name addr) int_type []
+  let cast = Name nx := PtrToInt (LocalReference int_type $ Name addr) int_type []
   -- Translate the continuation.
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference $ Name nx) ctx) c
+  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference int_type $ Name nx) ctx) c
   -- Store the values into the allocated array.
   ins <- List.foldl (\rec (n, v) -> do
         ins <- rec
@@ -292,12 +293,12 @@ cexpr_to_llvm ctx (CTuple vlist x c) = do
         (opv, cins) <- value_to_operand ctx TyInt v
         return $ cins ++ [UnName (fromIntegral tmp) := GetElementPtr {
           inBounds = False,
-          address = LocalReference $ Name addr,
+          address = LocalReference VoidType $ Name addr,
           indices = [ConstantOperand $ make_int n],
           metadata = []
          }, Do $ Store {
           volatile = False,
-          address = LocalReference $ UnName (fromIntegral tmp),
+          address = LocalReference VoidType $ UnName (fromIntegral tmp),
           A.value = opv,
           maybeAtomicity = Nothing,
           A.alignment = 0,
@@ -314,7 +315,7 @@ cexpr_to_llvm ctx (CAccess n x y c) = do
   (opx, cast) <- value_to_operand ctx TyPtr x
   ny <- variable_name y
   tmp <- create_var "tmp"
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert y (TyInt, LocalReference $ Name ny) ctx) c
+  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert y (TyInt, LocalReference int_type $ Name ny) ctx) c
   return (cast ++ ((UnName (fromIntegral tmp) := GetElementPtr {
     inBounds = False,
     address = opx,
@@ -322,7 +323,7 @@ cexpr_to_llvm ctx (CAccess n x y c) = do
     metadata = []
   }):(Name ny := Load {
     volatile = False,
-    address = LocalReference $ UnName (fromIntegral tmp),
+    address = LocalReference VoidType $ UnName (fromIntegral tmp),
     maybeAtomicity = Nothing,
     A.alignment = 0,
     metadata = []
@@ -400,14 +401,14 @@ cunit_to_llvm mods cu depend filepath = do
   ctx <- List.foldl (\rec (f, arg, _) -> do
         ctx <- rec
         nf <- variable_name f
-        let op = ConstantOperand $ GlobalReference $ Name nf
+        let op = ConstantOperand $ GlobalReference VoidType $ Name nf
         return $ IMap.insert f (TyFun arg, op) ctx) (return IMap.empty) $ local cu
   -- Add the extern functions.
   ctx <- List.foldl (\rec (f, arg, _) -> do
         ctx <- rec
         nf <- variable_name f
         mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference $ Name $ make_qualified_name mod nf
+        let op = ConstantOperand $ GlobalReference VoidType $ Name $ make_qualified_name mod nf
         return $ IMap.insert f (TyFun arg, op) ctx) (return ctx) $ extern cu
 
   -- Declare the global variables.
@@ -443,7 +444,7 @@ cunit_to_llvm mods cu depend filepath = do
         (igdef, ins) <- rec
         ng <- variable_name g
         (gins, term, blocks) <- cexpr_to_llvm IMap.empty cinit
-        let init = Right $ LocalReference $ Name ("init" ++ make_qualified_name mods ng)
+        let init = Right $ LocalReference VoidType $ Name ("init" ++ make_qualified_name mods ng)
         return ((GlobalDefinition functionDefaults {
           name = Name $ "init" ++ make_qualified_name mods ng,
           returnType = int_type,
@@ -475,7 +476,7 @@ cunit_to_llvm mods cu depend filepath = do
                     name =  Name ("init" ++ dep),
                     returnType = int_type
                   }
-                  let init = Right $ LocalReference $ Name ("init" ++ dep)
+                  let init = Right $ LocalReference VoidType $ Name ("init" ++ dep)
                   return (initdep:ndef,
                           (Do $ call False init []):ins)) (return ([],[])) $ List.reverse depend
             -- Body of the main.
@@ -498,11 +499,13 @@ cunit_to_llvm mods cu depend filepath = do
 
   Monad.QpState.liftIO $ withContext $ \context ->
     liftError $ withModuleFromAST context astmod $ \m -> do
-      str <- moduleString m
-      writeFile (filepath ++ ".bc") str
+      str <- moduleBitcode m
+      Data.ByteString.writeFile (filepath ++ ".bc") str
       return ()
 
     where
-      liftError :: ErrorT String IO a -> IO a
-      liftError = runErrorT >=> either fail return
+      liftError :: ExceptT String IO a -> IO a
+      liftError e = do
+        r <- runExceptT e
+        either fail return r
 
