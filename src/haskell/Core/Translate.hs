@@ -170,7 +170,7 @@ variance _ _ _ _ = do
 
 -- | Import the type definitions in the current state.
 -- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.Algdef]            -- ^ A block of co-inductive type definitions.
+import_typedefs :: [S.TypeAlgebraic]            -- ^ A block of co-inductive type definitions.
                 -> Environment Variable           -- ^ The current labelling context.
                 -> QpState (Environment Variable)   -- ^ The updated labelling context.
 import_typedefs dblock label = do
@@ -233,7 +233,7 @@ import_typedefs dblock label = do
               return $ ((id, argtyp):dtyps, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
 
         -- Update the specification of the type.
-        update_algebraic id $ \algdef -> Just $ algdef { definition = (args, dtypes) }
+        update_algebraic id $ \TypeAlgebraic -> Just $ TypeAlgebraic { definition = (args, dtypes) }
 
         return lbl) (return $ E.datacons label) dblock
 
@@ -243,8 +243,8 @@ import_typedefs dblock label = do
         let id = case Map.lookup (S.name typ) typs of
               Just (TypeAnnot _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
-        algdef <- algebraic_def id
-        let old = arguments algdef
+        TypeAlgebraic <- algebraic_def id
+        let old = arguments TypeAlgebraic
         upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.definition typ)) [] typs
         let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.arguments typ
         update_algebraic id $ \alg -> Just $ alg { arguments = new }
@@ -266,8 +266,8 @@ import_typedefs dblock label = do
         let id = case Map.lookup (S.name typ) typs of
               Just (TypeAnnot _ (TAlgebraic id _)) -> id
               _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
-        algdef <- algebraic_def id
-        newlog 0 $ List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.name typ) $ List.zip (arguments algdef) (S.arguments typ)
+        TypeAlgebraic <- algebraic_def id
+        newlog 0 $ List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.name typ) $ List.zip (arguments TypeAlgebraic) (S.arguments typ)
 
   -- Compilation specifics.
   List.foldl (\rec alg -> do
@@ -292,7 +292,7 @@ import_typedefs dblock label = do
 
 
 -- | Translate and import a type synonym.
-import_typesyn :: S.Syndef                    -- ^ A type synonym.
+import_typesyn :: S.TypeAlias                    -- ^ A type synonym.
                -> Environment Variable            -- ^ The current labelling context.
                -> QpState (Environment Variable)    -- ^ The updated labelling context.
 import_typesyn typesyn label = do

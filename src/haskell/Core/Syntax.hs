@@ -284,10 +284,10 @@ data Typedef a = Typedef {
 
 
 -- | Algebraic type definition.
-type Algdef = Typedef [(Datacon, Maybe Type)]
+type TypeAlgebraic = Typedef [(Datacon, Maybe Type)]
 
 -- | Synonym type definition.
-type Syndef = Typedef Type
+type TypeAlias = Typedef Type
 
 
 
@@ -318,7 +318,7 @@ data Datacondef = Datacondef {
 type Ref = Int
 
 -- | The information contained by the above references.
-data ReFlagInfo = RInfo {
+data RefInfo = RInfo {
   extent :: Extent,                                    -- ^ The extent of the expression in a file.
   expression :: Either Expr Pattern,                   -- ^ The referenced expression.
   rtype :: Type                                        -- ^ The type of the expression.
@@ -334,6 +334,7 @@ data ConstantValue =
   | ConstBool Bool
   | ConstUnit
   deriving Show
+
 
 -- ----------------------------------------------------------------------
 -- ** Patterns

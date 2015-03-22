@@ -39,31 +39,30 @@ import Data.IntSet as IntSet
 
 
 
--- | A data type to implement a logger. Logs can be given different priorities, depending on their importance.
--- Any log whose priority is lower than the verbose control is discarded. The logs are printed
--- to a channel, which can be, for example, 'stdout', 'stderr', or any file writing channel.
+-- | A data type to implement a logger. Logs can be given different priorities, depending on their
+-- importance. Any log whose priority is lower than the verbose control is discarded. The logs are
+-- printed to a channel, which can be, for example, 'stdout', 'stderr', or any file writing channel.
 data Logfile = Logfile {
   channel :: Handle,          -- ^ The output channel, by default stdout.
   verbose :: Int,             -- ^ The verbose level, by default nul.
   warnings :: String          -- ^ Handling of warnings (error, print, ignore).
 }
 
-
 -- | Log a message with a given priority level.
-write_log :: Logfile -> Int -> String -> IO ()
-write_log logfile lvl s = do
+log :: Logfile -> Int -> String -> IO ()
+log logfile lvl msg = do
   w <- hIsWritable $ channel logfile
   if lvl >= verbose logfile || not w then
     return ()
   else do
-    hPutStrLn (channel logfile) s
+    hPutStrLn (channel logfile) msg
     hFlush (channel logfile)
 
 
--- | Display a warning. The verbose level is ignored.
--- If the option \'Werror\' was added, all warnings are raised as errors.
-write_warning :: Logfile -> Warning -> Maybe Extent -> IO ()
-write_warning logfile warn ex = do
+-- | Display a warning. The verbose level is ignored. If the option \'Werror\' was added, all warnings
+-- are raised as errors.
+warning :: Logfile -> Warning -> Maybe Extent -> IO ()
+warning logfile warn ex = do
   w <- hIsWritable $ channel logfile
   if not w then
     return ()
@@ -81,13 +80,13 @@ write_warning logfile warn ex = do
 
 
 
--- | A list of assertions on types, that allows for control over the form of a type used in a construction.
+-- | A list of assertions on types, that allows for control over the form of a type used in a
+-- construction.
 data Assertion =
     IsDuplicable
   | IsNonduplicable
   | IsNotfun
   deriving (Show, Eq)
-
 
 
 -- | The context of implemented quantum operations. If a module uses different instances of the box, unbox, rev operators, their
@@ -112,11 +111,11 @@ empty_circOps = CircOps {
 
 
 
--- | The context of a Quipper function. This is the context in which all Quipper functions are evaluated. It is used
--- from parsing to interpretation and type inference. We prefer using a single context to using
--- several module-specific contexts, to avoid having to convey information between different kinds of state.
--- This also means that all the data structures required by each module must be included in the context, which now
--- contains:
+-- | The context of a Quipper function. This is the context in which all Quipper functions are
+-- evaluated. It is used from parsing to interpretation and type inference. We prefer using a single
+-- context to using several module-specific contexts, to avoid having to convey information between
+-- different kinds of state. This also means that all the data structures required by each module
+-- must be included in the context, which now contains:
 --
 -- *  A logfile, used for regular and debug printing.
 --
@@ -130,26 +129,21 @@ empty_circOps = CircOps {
 
 data QContext = QCtx {
 
--- Log file
   logfile :: Logfile,                                 -- ^ Log file currently in use.
-
--- Variable naming
-  namespace :: Namespace,                             -- ^ Remembers the original names of the term variables (replaced by unique ids during the translation to the core syntax).
-
--- Location
+  namespace :: Namespace,                             -- ^ Remembers the original names of the term variables.
   location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
 
--- Module related fields
+  -- Module related fields
   modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
   current :: Maybe String,                            -- ^ The name of the current module.
 
--- Type definitions
-  algebraics :: IntMap Algdef,                        -- ^ The definitions of algebraic types.
-  synonyms :: IntMap Syndef,                          -- ^ The defintion of type synonyms.
+  -- Type definitions
+  algebraics :: IntMap TypeAlgebraic,                 -- ^ The definitions of algebraic types.
+  synonyms :: IntMap TypeAlias,                       -- ^ The defintion of type synonyms.
   tagaccess :: IntMap (Variable -> C.Expr),           -- ^ Initialized as needed, indicates how to access the tag of a value of the given type.
 
--- Global variables
+  -- Global variables
   datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
                                                       -- their type, as written in the type definition.
   globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
@@ -170,7 +164,7 @@ data QContext = QCtx {
   circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
-  references :: IntMap ReFlagInfo,                       -- ^ Information about each expression.
+  references :: IntMap RefInfo,                       -- ^ Information about each expression.
 
 -- Circuit stack
   circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
@@ -384,7 +378,7 @@ register_datacon dcon ddef = do
 
 
 -- | Register a data type definition. A unique id is attributed to the type name and returned.
-register_algebraic :: String -> Algdef -> QpState Algebraic
+register_algebraic :: String -> TypeAlgebraic -> QpState Algebraic
 register_algebraic name alg = do
   ctx <- get_context
   let (id, nspace) = N.register_type name $ namespace ctx
@@ -394,7 +388,7 @@ register_algebraic name alg = do
 
 
 -- | Register a type synonym.
-register_synonym :: String -> Syndef -> QpState Synonym
+register_synonym :: String -> TypeAlias -> QpState Synonym
 register_synonym name syn = do
   ctx <- get_context
   let (id, nspace) = N.register_type name $ namespace ctx
@@ -585,7 +579,7 @@ insert_globals ts vs = do
 
 
 -- | Retrieve the definition of a type.
-algebraic_def :: Algebraic -> QpState Algdef
+algebraic_def :: Algebraic -> QpState TypeAlgebraic
 algebraic_def typ = do
   ctx <- get_context
   case IMap.lookup typ $ algebraics ctx of
@@ -597,7 +591,7 @@ algebraic_def typ = do
 
 
 -- | Update the definiton of a type.
-update_algebraic :: Algebraic -> (Algdef -> Maybe Algdef) -> QpState ()
+update_algebraic :: Algebraic -> (TypeAlgebraic -> Maybe TypeAlgebraic) -> QpState ()
 update_algebraic typ update = do
   ctx <- get_context
   set_context ctx { algebraics = IMap.update (\tdef -> update tdef) typ $ algebraics ctx }
@@ -605,7 +599,7 @@ update_algebraic typ update = do
 
 
 -- | Retrieve the definition of a type.
-synonym_def :: Synonym -> QpState Syndef
+synonym_def :: Synonym -> QpState TypeAlias
 synonym_def typ = do
   ctx <- get_context
   case IMap.lookup typ $ synonyms ctx of
@@ -617,7 +611,7 @@ synonym_def typ = do
 
 
 -- | Update the definiton of a type.
-update_synonym :: Synonym -> (Syndef -> Maybe Syndef) -> QpState ()
+update_synonym :: Synonym -> (TypeAlias -> Maybe TypeAlias) -> QpState ()
 update_synonym typ update = do
   ctx <- get_context
   set_context ctx { synonyms = IMap.update (\tdef -> update tdef) typ $ synonyms ctx }
@@ -842,7 +836,7 @@ create_ref = do
 
 
 -- | Update the value referenced by the argument.
-update_ref :: Ref -> (ReFlagInfo -> Maybe ReFlagInfo) -> QpState ()
+update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
 update_ref ref f = do
   ctx <- get_context
   set_context ctx { references = IMap.update f ref $ references ctx }
@@ -856,14 +850,14 @@ clear_references = do
 
 
 -- | Return the information referenced by the argument, if any is found (else Nothing).
-ref_info :: Ref -> QpState (Maybe ReFlagInfo)
+ref_info :: Ref -> QpState (Maybe RefInfo)
 ref_info ref = do
   ctx <- get_context
   return $ IMap.lookup ref $ references ctx
 
 
 -- | Return the information referenced by the argument, and fails if nothing is found.
-ref_info_err :: Ref -> QpState ReFlagInfo
+ref_info_err :: Ref -> QpState RefInfo
 ref_info_err ref = do
   ctx <- get_context
   case IMap.lookup ref $ references ctx of

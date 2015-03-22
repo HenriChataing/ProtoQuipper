@@ -52,18 +52,22 @@ break_composite :: ConstraintSet -> QpState ConstraintSet
 break_composite ([], lc) = return ([], lc)
 
 -- Subtype constraints
-break_composite ((Subtype (TypeAnnot n t) (TypeAnnot m TQubit) info):lc, fc) = do
+break_composite ((Subtype (TypeAnnot n t) (TypeAnnot m (TypeApply "qubit" [])) info):lc, fc) = do
   unset_flag n info
   unset_flag m info
-  break_composite ((SubLinearType t TQubit info):lc, fc)
+  break_composite ((SubLinearType t (TypeApply "qubit" []) info):lc, fc)
 
-break_composite ((Subtype (TypeAnnot n TQubit) (TypeAnnot m t) info):lc, fc) = do
+break_composite ((Subtype (TypeAnnot n (TypeApply "qubit" [])) (TypeAnnot m t) info):lc, fc) = do
   unset_flag n info
   unset_flag m info
-  break_composite ((SubLinearType TQubit t info):lc, fc)
+  break_composite ((SubLinearType (TypeApply "qubit" []) t info):lc, fc)
 
-break_composite ((Subtype (TypeAnnot _ TUnit) (TypeAnnot _ TUnit) _):lc, fc) = do
-  break_composite (lc, fc)
+break_composite ((Subtype (TypeAnnot _ (TypeApply c args)) (TypeAnnot _ (TypeApply c' args')) info):lc, fc) = do
+  if c == c' && List.length args == List.length args' then
+    break_composite (lc, fc)
+
+  else
+    throw_TypingError (TypeAnnot 0 (TypeApply c args)) (TypeAnnot 0 (TypeApply c' args')) info
 
 break_composite ((Subtype (TypeAnnot _ TBool) (TypeAnnot _ TBool) _):lc, fc) = do
   break_composite (lc, fc)

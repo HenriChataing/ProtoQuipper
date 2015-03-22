@@ -29,10 +29,10 @@ data Typedef a = Typedef {
 }
 
 -- | An algebraic data type definition.
-type Algdef = Typedef [(String, Maybe Type)]
+type TypeAlgebraic = Typedef [(String, Maybe Type)]
 
 -- | A type synonym definition, e.g., @intlist@ = @list int@.
-type Syndef = Typedef Type
+type TypeAlias = Typedef Type
 
 
 -- | A top-level declaration. A top-level declaration can be of four kinds:
@@ -49,8 +49,8 @@ type Syndef = Typedef Type
 data Declaration =
     DLet RecFlag XExpr XExpr                 -- ^ A variable declaration: @let p = e;;@.
   | DExpr XExpr                              -- ^ A simple expression: @e;;@
-  | DTypes [Algdef]                          -- ^ A list of type definitions. The types are mutually recursive.
-  | DSyn Syndef                              -- ^ A type synonym definition.
+  | DTypes [TypeAlgebraic]                          -- ^ A list of type definitions. The types are mutually recursive.
+  | DSyn TypeAlias                              -- ^ A type synonym definition.
 
 
 -- ----------------------------------------------------------------------
