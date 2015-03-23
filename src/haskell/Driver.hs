@@ -33,10 +33,8 @@ import Compiler.Preliminaries
 import qualified Compiler.CExpr as C
 import Compiler.LlvmExport
 
-import Monad.QpState
-import Monad.Modules (Module (Module))
-import qualified Monad.Modules as M
-import Monad.QuipperError
+--import Monad.QpState
+import Monad.Error
 
 import System.Directory
 import System.FilePath.Posix
@@ -342,7 +340,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
   -- -- POLYMORPHISM -- --
   -- If the expression is a VALUE, it can have a generic type.
-  gamma_p <- if is_value e' then
+  gamma_p <- if isValue e' then
     -- Generalize the types of the pattern (= polymorphism)
     IMap.foldWithKey (\x a rec -> do
           ctx <- rec

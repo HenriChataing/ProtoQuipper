@@ -17,9 +17,8 @@ import Typing.TypingContext
 import Typing.Ordering
 import Typing.Subtyping
 
-import Monad.QuipperError
-import Monad.QpState
-import Monad.Modules
+import Monad.Error
+--import Monad.QpState
 
 import Data.List ((\\))
 import qualified Data.List as List
@@ -545,7 +544,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
   -- -- POLYMORPHISM -- --
   -- If the expression is a VALUE, then the type can be generic.
-  if is_value t then do
+  if isValue t then do
 
     -- Unify the constraints produced by the typing of t (exact unification)
     cs <- break_composite (csetp <> csett)       -- Break the composite constraints

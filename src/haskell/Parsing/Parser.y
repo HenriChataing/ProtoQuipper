@@ -10,7 +10,7 @@ import Parsing.Location
 import Parsing.Lexer
 import Parsing.Syntax
 
-import Monad.QuipperError
+import Monad.Error
 
 import Data.Char
 import Data.List as List

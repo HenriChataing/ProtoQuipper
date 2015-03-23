@@ -12,7 +12,7 @@ import qualified Data.List as List
 
 -- | A data structure to hold command line options.
 data Options = Options {
-  verbose :: Int,                   -- ^ The verbosity level (default: -1).
+  verbose :: Int,                   -- ^ The verbose level (default: -1).
   warning_action :: String,         -- ^ How should warnings be handled (default: \"display\").
 
   includes :: [FilePath],           -- ^ List of include directories (default: empty).

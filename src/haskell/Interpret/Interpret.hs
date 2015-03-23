@@ -8,9 +8,8 @@ module Interpret.Interpret where
 import Classes
 import Utils
 
-import Monad.QuipperError
-import Monad.QpState hiding (rev)
-import Monad.Modules
+import Monad.Error
+import Monad.Interpreter
 
 import Parsing.Location
 

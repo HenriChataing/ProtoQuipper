@@ -7,12 +7,10 @@ import Classes
 
 import Parsing.Location (Extent, extent_unknown, file_unknown)
 
-import Monad.Modules (Module)
-import qualified Monad.Modules as M
 import Monad.QuipperError hiding (throw)
 import qualified Monad.QuipperError as Q (throw, throwNE, throwWE)
-import Monad.Namespace (Namespace)
-import qualified Monad.Namespace as N
+import Core.Namespace (Namespace)
+import qualified Core.Namespace as N
 
 import Core.Syntax
 --import Core.Printer
@@ -89,28 +87,6 @@ data Assertion =
   deriving (Show, Eq)
 
 
--- | The context of implemented quantum operations. If a module uses different instances of the box, unbox, rev operators, their
--- implementation will be placed here until it is added to the module.
-data CircOps = CircOps {
-  boxes :: Map QType Variable,              -- ^ If the box[T] operator is defined, return the associated variable.
-  unboxes :: Map CircType Variable,         -- ^ If the unbox T U operator is defined, return the associated variable.
-  rev :: Maybe Variable,                    -- ^ If the rev operator is defined, return the associated variable.
-  code :: [C.Declaration]                   -- ^ The body of the QLib module.
-}
-
--- | Empty quantum library: no operation defined.
-empty_circOps :: CircOps
-empty_circOps = CircOps {
-  boxes = Map.empty,
-  unboxes = Map.empty,
-  rev = Nothing,
-  code = []
-}
-
-
-
-
-
 -- | The context of a Quipper function. This is the context in which all Quipper functions are
 -- evaluated. It is used from parsing to interpretation and type inference. We prefer using a single
 -- context to using several module-specific contexts, to avoid having to convey information between
@@ -129,12 +105,12 @@ empty_circOps = CircOps {
 
 data QContext = QCtx {
 
-  logfile :: Logfile,                                 -- ^ Log file currently in use.
-  namespace :: Namespace,                             -- ^ Remembers the original names of the term variables.
+  --logfile :: Logfile,                                 -- ^ Log file currently in use.
+  --namespace :: Namespace,                             -- ^ Remembers the original names of the term variables.
   location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
 
   -- Module related fields
-  modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
+  --modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
   dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
   current :: Maybe String,                            -- ^ The name of the current module.
 
@@ -579,42 +555,42 @@ insert_globals ts vs = do
 
 
 -- | Retrieve the definition of a type.
-algebraic_def :: Algebraic -> QpState TypeAlgebraic
-algebraic_def typ = do
-  ctx <- get_context
-  case IMap.lookup typ $ algebraics ctx of
-    Just n ->
-        return n
-    Nothing -> do
-        n <- type_name typ
-        fail $ "QpState:type_spec: undefined type: " ++ n
+--algebraic_def :: Algebraic -> QpState TypeAlgebraic
+--algebraic_def typ = do
+--  ctx <- get_context
+--  case IMap.lookup typ $ algebraics ctx of
+--    Just n ->
+--        return n
+--    Nothing -> do
+--        n <- type_name typ
+--        fail $ "QpState:type_spec: undefined type: " ++ n
 
 
 -- | Update the definiton of a type.
-update_algebraic :: Algebraic -> (TypeAlgebraic -> Maybe TypeAlgebraic) -> QpState ()
-update_algebraic typ update = do
-  ctx <- get_context
-  set_context ctx { algebraics = IMap.update (\tdef -> update tdef) typ $ algebraics ctx }
+--update_algebraic :: Algebraic -> (TypeAlgebraic -> Maybe TypeAlgebraic) -> QpState ()
+--update_algebraic typ update = do
+--  ctx <- get_context
+--  set_context ctx { algebraics = IMap.update (\tdef -> update tdef) typ $ algebraics ctx }
 
 
 
 -- | Retrieve the definition of a type.
-synonym_def :: Synonym -> QpState TypeAlias
-synonym_def typ = do
-  ctx <- get_context
-  case IMap.lookup typ $ synonyms ctx of
-    Just n ->
-        return n
-    Nothing -> do
-        n <- type_name typ
-        fail $ "QpState:type_spec: undefined type: " ++ n
+--synonym_def :: Synonym -> QpState TypeAlias
+--synonym_def typ = do
+--  ctx <- get_context
+--  case IMap.lookup typ $ synonyms ctx of
+--    Just n ->
+--        return n
+--    Nothing -> do
+--        n <- type_name typ
+--        fail $ "QpState:type_spec: undefined type: " ++ n
 
 
 -- | Update the definiton of a type.
-update_synonym :: Synonym -> (TypeAlias -> Maybe TypeAlias) -> QpState ()
-update_synonym typ update = do
-  ctx <- get_context
-  set_context ctx { synonyms = IMap.update (\tdef -> update tdef) typ $ synonyms ctx }
+--update_synonym :: Synonym -> (TypeAlias -> Maybe TypeAlias) -> QpState ()
+--update_synonym typ update = do
+--  ctx <- get_context
+--  set_context ctx { synonyms = IMap.update (\tdef -> update tdef) typ $ synonyms ctx }
 
 
 

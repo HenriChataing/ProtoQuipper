@@ -9,8 +9,8 @@ import Prelude hiding (lookup)
 import Utils
 import Classes hiding ((<+>), (\\))
 
-import Monad.QpState
-import Monad.QuipperError
+--import Monad.QpState
+import Monad.Error
 
 import qualified Core.Syntax as CS
 

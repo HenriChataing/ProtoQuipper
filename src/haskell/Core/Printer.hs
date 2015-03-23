@@ -10,7 +10,7 @@ module Core.Printer where
 
 import Utils
 import Classes hiding ((<+>))
-import Monad.QuipperError
+import Monad.Error
 import Core.Syntax hiding ((<>))
 
 import Data.List as List
@@ -29,44 +29,44 @@ instance PPrint LinearType where
   -- Generic printing. The display of flags and type variables is specified by two option functions
   genprint _ [_, fvar, _] (TypeVar x) = fvar x
   genprint _ _ (TypeVar x) = throwNE $ ProgramError "CorePrinter:genprint(LinearType): illegal argument"
-  genprint _ _ (TypeApply name [])  = name
-  
+  genprint _ _ (TypeApply (TypeBuiltin name) [])  = name
+
   genprint (Nth 0) _ _ = "..."
 
-  genprint lv opts (TypeApply "->" [t, u]) =
+  genprint lv opts (TypeApply (TypeBuiltin "->") [t, u]) =
     let dlv = decr lv in
     let t' =
           case unannot t of
-            TypeApply "->" _ -> "(" ++ genprint dlv opts t ++ ")"
+            TypeApply (TypeBuiltin"->") _ -> "(" ++ genprint dlv opts t ++ ")"
             _ -> genprint dlv opts t
     in
     t' ++ " -> " ++ genprint dlv opts u
 
-  genprint lv opts (TypeApply "*" (t:rest)) =
+  genprint lv opts (TypeApply (TypeBuiltin "*") (t:rest)) =
     let dlv = decr lv in
     let t' =
           case unannot t of
-            TypeApply "->" _ -> "(" ++ genprint dlv opts t ++ ")"
-            TypeApply "*" _ -> "(" ++ genprint dlv opts t ++ ")"
+            TypeApply (TypeBuiltin "->") _ -> "(" ++ genprint dlv opts t ++ ")"
+            TypeApply (TypeBuiltin "*") _ -> "(" ++ genprint dlv opts t ++ ")"
             _ -> genprint dlv opts t
     in
     List.foldl (\s t ->
       case unannot t of
-        TypeApply "->" _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
-        TypeApply "*" _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
+        TypeApply (TypeBuiltin "->") _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
+        TypeApply (TypeBuiltin "*") _ -> s ++ " * (" ++ genprint dlv opts t ++ ")"
         _ -> s ++ " * " ++ genprint dlv opts t
     ) t' rest
 
   genprint lv opts@[_, _, fuser] (TypeApply c [t]) =
-    c ++ "(" ++ genprint (decr lv) opts t ++ ")"
+    show c ++ "(" ++ genprint (decr lv) opts t ++ ")"
 
   genprint lv opts@[_, _, fuser] (TypeApply c (t:rest)) =
     let dlv = decr lv in
     let args' = List.foldl (\s t -> s ++ ", " ++ genprint dlv opts t) (genprint dlv opts t) rest in
-    c ++ "(" ++ args' ++ ")"
+    show c ++ "(" ++ args' ++ ")"
 
   genprint _ _ _ = ""
-    
+
   --genprint lv opts (TCirc a b) =
   --  let dlv = decr lv in
   --  "circ(" ++ genprint dlv opts a ++ ", " ++ genprint dlv opts b ++ ")"
@@ -88,8 +88,8 @@ instance PPrint Type where
       ("", _) -> genprint (decr lv) opts a
 
       -- Flag, check whether parenthesis are necessary
-      (f, TypeApply "->" _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
-      (f, TypeApply "*" _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, TypeApply (TypeBuiltin "->") _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
+      (f, TypeApply (TypeBuiltin "*") _) -> f ++ "(" ++ genprint (decr lv) opts a ++ ")"
       (f, _) -> f ++ genprint (decr lv) opts a
   genprint lv _ (TypeAnnot n a) =
     throwNE $ ProgramError "CorePrinter:genprint(Type): illegal argument"
@@ -109,7 +109,7 @@ instance PPrint TypeScheme where
 
   genprint lv opts@[_,fvar,_] (TypeScheme ff fv cset a) =
     "forall" ++ List.foldr (\x s -> " " ++ fvar x ++ s) "" fv ++ ",\n" ++
-     genprint Inf opts ((fst cset, []) :: ConstraintSet) ++ "\n => " ++
+     genprint Inf opts (ConstraintSet (typeConstraints cset) []) ++ "\n => " ++
      genprint lv opts a
 
   genprint _ _ _ =
@@ -127,9 +127,7 @@ instance PPrint Pattern where
   genprint _ [fvar, _] (PVar _ x) = fvar x
   genprint _ _ (PVar _ x) =
     throwNE $ ProgramError "CorePrinter:genprint(Pattern): illegal argument"
-  genprint _ _ (PConstant _ ConstUnit) = "()"
-  genprint _ _ (PConstant _ (ConstBool b)) = if b then "true" else "false"
-  genprint _ _ (PConstant _ (ConstInt i)) = show i
+  genprint _ _ (PConstant _ c) = show c
   genprint _ _ (PWildcard _) = "_"
   genprint (Nth 0) _ _ = "..."
 
@@ -164,33 +162,14 @@ print_doc :: Lvl                   -- ^ Maximum depth.
           -> (Variable -> String)  -- ^ Rendering of term variables.
           -> (Variable -> String)  -- ^ Rendering of data constructors.
           -> Doc                   -- ^ Resulting PP document.
-print_doc _ (EUnit _) _ _ =
-  text "()"
-
-print_doc _ (EBool _ b) _ _ =
-  if b then text "true" else text "false"
-
-print_doc _ (EInt _ n) _ _ =
-  text $ show n
-
+print_doc _ (EConstant _ c) _ _ = text $ show c
 print_doc _ (EVar _ x) fvar _ = text $ fvar x
-
 print_doc _ (EGlobal _ x) fvar _ = text $ fvar x
-
-print_doc _ (EBox _ t) _ _=
-  text "box" <> brackets (text $ pprint t)
-
-print_doc _ (EUnbox _) _ _ =
-  text "unbox"
-
-print_doc _ (ERev _) _ _ =
-  text "rev"
-
-print_doc _ (EDatacon _ datacon Nothing) _ fdata =
-  text $ fdata datacon
-
-print_doc (Nth 0) _ _ _ =
-  text "..."
+print_doc _ (EBox _ t) _ _= text "box" <> brackets (text $ pprint t)
+print_doc _ (EUnbox _) _ _ = text "unbox"
+print_doc _ (ERev _) _ _ = text "rev"
+print_doc _ (EDatacon _ datacon Nothing) _ fdata = text $ fdata datacon
+print_doc (Nth 0) _ _ _ = text "..."
 
 print_doc lv (ELet r p e f) fvar fdata =
   let dlv = decr lv in
@@ -231,22 +210,21 @@ print_doc lv (EIf e f g) fvar fdata =
 print_doc lv (EDatacon _ datacon (Just e)) fvar fdata =
   let pe = print_doc (decr lv) e fvar fdata in
   text (fdata datacon) <+> (case e of
-                              EBool _ _ -> pe
-                              EUnit _ -> pe
+                              EConstant _ _ -> pe
                               EVar _ _ -> pe
                               _ -> parens pe)
 
 print_doc lv (EMatch e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
-  nest 2 (List.foldl (\doc (p, f) ->
+  nest 2 (List.foldl (\doc (Binding p f) ->
                         let pmatch = char '|' <+> text (genprint dlv [fvar, fdata] p) <+> text "->" <+> print_doc dlv f fvar fdata in
                         if isEmpty doc then
                           pmatch
                         else
                           doc $$ pmatch) PP.empty blist)
 
-print_doc lv (EConstraint e _) fvar fdata =
+print_doc lv (ECoerce e _) fvar fdata =
   print_doc lv e fvar fdata
 
 print_doc _ (EError msg) _ _ =
@@ -295,7 +273,7 @@ instance PPrint FlagConstraint where
 -- | Printing of constraint sets. The function 'genprint' behaves like the one from the 'PPrint' instance
 -- declaration of types and linear types.
 instance PPrint ConstraintSet where
-  genprint _ opts (lcs, fcs) =
+  genprint _ opts (ConstraintSet lcs fcs) =
     let screenw = 120 in
     let plcs = List.map (\c -> genprint Inf opts c) lcs in
     let maxw = List.maximum $ List.map List.length plcs in

@@ -13,7 +13,7 @@ module Interpret.Values where
 import Classes
 import Utils
 
-import Monad.QuipperError
+import Monad.Error
 
 import Core.Syntax
 import Core.Printer

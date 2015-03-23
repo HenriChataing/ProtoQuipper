@@ -8,8 +8,8 @@ import Classes
 
 import Compiler.CExpr as C
 
-import Monad.QpState
-import Monad.QuipperError
+--import Monad.QpState
+import Monad.Error
 
 import LLVM.General.AST as A
 import LLVM.General.AST.Global hiding (callingConvention, returnAttributes, functionAttributes)

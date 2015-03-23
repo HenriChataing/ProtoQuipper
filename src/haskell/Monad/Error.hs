@@ -4,7 +4,7 @@
 
 -- | This module provides a type enumerating the errors that can be thrown by the lexer, parser, type inference algorithm, interpreter or compiler.
 -- These errors will be divided between these categories.
-module Monad.QuipperError where
+module Monad.Error where
 
 import Prelude hiding (print)
 

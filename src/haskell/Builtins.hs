@@ -9,9 +9,8 @@ import Utils
 import Interpret.Circuits
 import Interpret.Values
 
-import Monad.QuipperError
-import Monad.QpState hiding (qubit_id)
-import Monad.Modules as M
+import Monad.Error
+--import Monad.QpState hiding (qubit_id)
 
 import Core.Syntax
 import Core.Environment as E

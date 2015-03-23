@@ -17,7 +17,7 @@ import Parsing.Syntax
 import Text.PrettyPrint.HughesPJ as PP
 import Data.List as List
 
-import Monad.QuipperError
+import Monad.Error
 
 instance PPrint Type where
   genprint lv _ t =
@@ -28,7 +28,7 @@ instance PPrint Type where
   sprintn _ TBool =   "bool"
   sprintn _ TInt =    "int"
   sprintn _ TQubit =   "qubit"
-  sprintn _ (TypeVar x) = x
+  sprintn _ (TVar x) = x
   sprintn _ (TQualified m x) = m ++ "." ++ x
   sprintn (Nth 0) _ = "..."
   sprintn lv (TCirc a b) =
@@ -56,9 +56,9 @@ instance PPrint Type where
        TArrow _ _ -> "(" ++ sprintn dlv b ++ ")"
        _ -> sprintn dlv b)
 
-  sprintn lv (TypeAnnot a) =
+  sprintn lv (TBang a) =
     "!" ++ (case a of
-              TypeAnnot a -> sprintn lv a
+              TBang a -> sprintn lv a
               TTensor _ -> "(" ++ sprintn lv a ++ ")"
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)

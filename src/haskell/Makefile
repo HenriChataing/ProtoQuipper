@@ -17,8 +17,9 @@ PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
   Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
-  Interpret/Values.hs Monad/Modules.hs Monad/Namespace.hs		\
-  Monad/QpState.hs Monad/QuipperError.hs Options.hs			\
+  Interpret/Values.hs Core/Namespace.hs		\
+  Monad/Core.hs Monad/Error.hs Monad/Typer.hs Monad/Interpreter.hs Monad/Compiler.hs \
+  Options.hs \
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
   ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/Environment.hs	\
   Typing/Ordering.hs Typing/Subtyping.hs Typing/TypeInference.hs	\

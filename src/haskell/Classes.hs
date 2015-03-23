@@ -8,6 +8,7 @@ module Classes where
 import Utils
 import Parsing.Location
 
+import Data.IntSet (IntSet)
 
 -- | This type class includes several pretty printing functions, offering some control over the
 -- size and form of the display. Four functions are defined, going from the most generic ('genprint')
@@ -57,9 +58,21 @@ class Coerced a where
 -- A limitation of this class is that it can only handle one kind of variable, whereas types, for
 -- example, have two: type variables and flag variables. This is why the set of types will be given
 -- its own class 'Typing.CoreSyntax.KType'.
-class Param a where
+class TermObject a where
   -- | List all the free variables.
-  free_var :: a -> [Int]
+  freevar :: a -> IntSet
+
+
+-- | The class of objects whose type is \'kind\'. Instances include, of course, 'LinearType' and
+-- 'Type', but also everything else that contains types: 'TypeConstraint', 'ConstraintSet',
+-- ['TypeConstraint'], etc. The only purpose of this class is to overload the functions listed below.
+class TypeObject a where
+  -- | Return the list of flag references.
+  freeflag :: a -> IntSet
+  -- | Return @True@ iff the argument is of the form \A -> B\.
+  isFunction :: a -> Bool
+  -- | Return @True@ iff the argument is a quantum data type.
+  isQuantum :: a -> Bool
 
 
 -- | A type class of objects where variables can be substituted.

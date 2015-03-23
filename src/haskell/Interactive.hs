@@ -23,9 +23,8 @@ import Typing.TypeInference
 
 import Interpret.Circuits
 
-import Monad.QuipperError
-import Monad.QpState
-import qualified Monad.Modules as M
+import Monad.Error
+--import Monad.QpState
 
 import System.IO
 

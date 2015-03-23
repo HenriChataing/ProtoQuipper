@@ -8,8 +8,7 @@ module Parsing.Lexer (Token(..), mylex) where
 
 import Parsing.Location
 
-import Monad.QuipperError
-import Monad.QpState
+import Monad.Error as QE
 
 import qualified Data.List as List
 import Data.Char as Char
@@ -359,14 +358,14 @@ locate_token_in_file f (TkInfix3 (ex, s)) = TkInfix3 (ex { file = f }, s)
 
 -- | Turn an unparsed string into a list of lexical tokens. This is the main lexing function.
 -- If the lexer encounters an unrecognized token, it fails with a 'LexicalError' exception.
-mylex :: String -> ByteString.ByteString -> QpState [Token]
+mylex :: String -> ByteString.ByteString -> IO [Token]
 mylex filename contents = do
   tokens <- return $ alexScanTokens contents
   tokens <- return $ List.map (locate_token_in_file filename) tokens
   case List.find (\tk -> case tk of
                            TkUnknownToken _ -> True
                            _ -> False) tokens of
-    Just (TkUnknownToken (ex, s)) -> throwQ (LexicalError s) ex
+    Just (TkUnknownToken (ex, s)) -> QE.throw (LexicalError s) $ Just ex
     _ -> return tokens
 }
 

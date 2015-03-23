@@ -13,11 +13,10 @@ import Classes
 import Core.Syntax
 import Core.Translate
 import qualified Core.Environment as Environment
+import Core.Namespace
 
-import Monad.QpState
-import Monad.QuipperError
-import Monad.Namespace
-import Monad.Modules
+--import Monad.QpState
+import Monad.Error
 
 import Data.List as List
 import Data.Map (Map)

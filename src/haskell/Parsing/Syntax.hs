@@ -8,7 +8,7 @@ import Utils
 
 import Parsing.Location
 
-import Monad.QuipperError
+import Monad.Error
 
 import Data.Char
 import Data.Map
@@ -86,7 +86,7 @@ instance Eq Program where
 -- | A type.
 data Type =
 -- STLC types
-    TypeVar String               -- ^ Type variable: /a/, /b/, ...
+    TVar String               -- ^ Type variable: /a/, /b/, ...
   | TQualified String String  -- ^ Qualified type name: @Module.type@.
   | TArrow Type Type          -- ^ Function type: @A -> B@.
 
@@ -132,7 +132,7 @@ bang a =
 instance Eq Type where
   (==) (TLocated t1 _) t2 = t1 == t2
   (==) t1 (TLocated t2 _) = t1 == t2
-  (==) (TypeVar x) (TypeVar y) = x == y
+  (==) (TVar x) (TVar y) = x == y
   (==) (TQualified m x) (TQualified m' x') = m == m' && x == x'
   (==) TUnit TUnit = True
   (==) TBool TBool = True

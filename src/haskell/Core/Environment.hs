@@ -3,7 +3,7 @@
 module Core.Environment where
 
 import Classes
---import Utils
+import Utils
 
 import Core.Syntax
 
@@ -11,54 +11,35 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 
--- ----------------------------------------------------------------------
--- * Labelling context.
-
-
--- | The type of variables in a labelling context; these can be either
--- local or global.
-data Variable ident =
-    Local ident     -- ^ Local variable: /x/.
-  | Global ident    -- ^ Global variable from the imported modules.
-  deriving (Show)
-
-
--- | Environment, corresponding to the variables available at one scope of the program.
-data Environment ident = Environment {
-  variables :: Map String (Variable ident),
-  datacons :: Map String ident,
-  types :: Map String Type
+-- | The environment corresponds to the variables, types and data constructors available at one point of
+-- the program.
+data Environment = Environment {
+  variables :: Map String Variable,
+  types :: Map String Variable,
+  constructors :: Map String Variable
 }
 
 
 -- | Empty environment.
-empty :: Environment ident
+empty :: Environment
 empty = Environment {
   variables = Map.empty,
-  datacons = Map.empty,
-  types = Map.empty
+  types = Map.empty,
+  constructors = Map.empty
 }
 
 
-instance Context (Environment ident) where
-  lbl <+> lbl' = Environment {
-    variables = Map.union (variables lbl) (variables lbl'),
-    datacons = Map.union (datacons lbl) (datacons lbl'),
-    types = Map.union (types lbl) (types lbl')
-  }
+instance Context Environment where
+  (Environment variables types constructors) <+> (Environment variables' types' constructors') =
+    Environment {
+      variables = Map.union variables variables',
+      types = Map.union types types',
+      constructors = Map.union constructors constructors'
+    }
 
-  lbl \\ lbl' = Environment {
-    variables = variables lbl Map.\\ variables lbl',
-    datacons = datacons lbl Map.\\ datacons lbl',
-    types = types lbl Map.\\ types lbl'
-  }
-
-
--- | Transform any local variable into a global one.
-lvar_to_lglobal :: Environment ident -> Environment ident
-lvar_to_lglobal environment = environment {
-  variables = Map.map (\l -> case l of
-      Local x -> Global x
-      _ -> l
-    ) $ variables environment
-}
+  (Environment variables types constructors) \\ (Environment variables' types' constructors') =
+    Environment {
+      variables = variables Map.\\ variables',
+      types = types Map.\\ types',
+      constructors = constructors Map.\\ constructors'
+    }

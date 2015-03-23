@@ -6,7 +6,7 @@ module Compiler.SimplSyntax where
 import Classes hiding ((<+>))
 import Utils
 
-import Monad.QuipperError
+import Monad.Error
 
 import qualified Data.List as List
 
@@ -20,7 +20,7 @@ data Expr =
     EVar Variable                                 -- ^ Variable: /x/.
   | EGlobal Variable                              -- ^ Global variable from the imported modules.
   | EFun Variable Expr                            -- ^ Function abstraction: @fun x -> t@.
-  | EFix Variable Variable Expr                -- ^ A recursive function, that binds a name (variable) in its local context.
+  | EFix Variable Variable Expr                   -- ^ A recursive function, that binds a name (variable) in its local context.
   | EApp Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor

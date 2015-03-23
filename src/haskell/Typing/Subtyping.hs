@@ -7,8 +7,8 @@ import Utils
 import Core.Syntax
 import Core.Printer
 
-import Monad.QuipperError
-import Monad.QpState
+import Monad.Typer
+import Monad.Error
 
 import qualified Data.List as List
 import Data.IntMap (IntMap)
@@ -24,7 +24,7 @@ non_trivial m n =
 -- | Using the type specifications registered in the state monad, unfold any subtyping
 -- constraints of the form  (user /a/ \<: user /a/'). This functions assumes that the two type
 -- names are the same, and that the correct number of arguments has been given.
-unfold_algebraic_constraint :: Algebraic -> [Type] -> [Type] -> QpState ConstraintSet
+unfold_algebraic_constraint :: Algebraic -> [Type] -> [Type] -> Typer ConstraintSet
 unfold_algebraic_constraint utyp arg arg' = do
   -- Retrieve the specification of the type
   typedef <- algebraic_def utyp

@@ -3,8 +3,8 @@
 -- | This is the main module of Proto-Quipper. It contains the 'main' function, which reads the command line arguments, and runs accordingly.
 module Main where
 
-import Monad.QuipperError
-import qualified Monad.QpState as Q
+import Monad.Error
+--import qualified Monad.QpState as Q
 
 import Core.Syntax
 

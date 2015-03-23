@@ -95,10 +95,8 @@ import Interpret.Circuits as C
 import qualified Compiler.SimplSyntax as CS
 import Compiler.Preliminaries (choose_implementation)
 
-import Monad.QuipperError
-import Monad.QpState
-import Monad.Modules (Module)
-import qualified Monad.Modules as M
+import Monad.Error
+--import Monad.QpState
 
 import Data.Map as Map
 import qualified Data.List as List

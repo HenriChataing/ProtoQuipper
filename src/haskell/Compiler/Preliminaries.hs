@@ -21,8 +21,8 @@ import Utils
 
 import Parsing.Location (extent_unknown)
 
-import Monad.QpState
-import Monad.QuipperError
+--import Monad.QpState
+import Monad.Error
 
 import qualified Core.Syntax as C
 

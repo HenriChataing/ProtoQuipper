@@ -16,8 +16,8 @@ module Compiler.Circ where
 import Classes
 import Utils
 
-import Monad.QpState
-import Monad.QuipperError
+import Monad.Compiler
+import Monad.Error
 
 import Compiler.SimplSyntax
 
@@ -30,18 +30,18 @@ import qualified Data.Map as Map
 
 -- | Give the implementation of the unbox operator.
 implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
-                -> QpState Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
+                -> Compiler Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
 implement_unbox (t, u) = do
-  vunencap <- lookup_qualified_var ("Builtins", "UNENCAP")
+  vunencap <- lookupVariable (Just "Builtins") "UNENCAP"
 
   -- Creation of auxiliary variables
-  x0 <- create_var "cc"
-  x1 <- create_var "q"
-  xt <- create_var "t"
-  xu <- create_var "u"
-  xc <- create_var "c"
-  xb <- create_var "b"
-  xb' <- create_var "b"
+  x0 <- createVariable "cc"
+  x1 <- createVariable "q"
+  xt <- createVariable "t"
+  xu <- createVariable "u"
+  xc <- createVariable "c"
+  xb <- createVariable "b"
+  xb' <- createVariable "b"
 
   -- Implementation of the chunks of code needed for the bindings
   (elet, b) <- implement_bind t xt x1
@@ -62,19 +62,19 @@ implement_unbox (t, u) = do
 
 -- | Give the implementation of the box[T] operator.
 implement_box :: QType                   -- ^ The type of the input value.
-              -> QpState Expr            -- ^ The code (function) implementation of the box[T] operator.
+              -> Compiler Expr            -- ^ The code (function) implementation of the box[T] operator.
 implement_box typ = do
-  vopenbox <- lookup_qualified_var ("Builtins", "OPENBOX")
-  vclosebox <- lookup_qualified_var ("Builtins", "CLOSEBOX")
+  vopenbox <- lookupVariable (Just "Builtins") "OPENBOX"
+  vclosebox <- lookupVariable (Just "Builtins") "CLOSEBOX"
 
   -- The code used to generate the specimen
   (spec, n) <- implement_spec typ
 
   -- Creation of some variables
-  x0 <- create_var "f"
-  x1 <- create_var "t"
-  x2 <- create_var "u"
-  x3 <- create_var "c"
+  x0 <- createVariable "f"
+  x1 <- createVariable "t"
+  x2 <- createVariable "u"
+  x3 <- createVariable "c"
 
   -- Implementation of box[T]
   return $ EFun x0 $
@@ -87,15 +87,15 @@ implement_box typ = do
 
 -- | Produce the implementation of the rev operator. The implementation doesn't need the type of rev.
 -- The function implemented takes in a circuit of the form @(t, c, u)@ and returns @(u, c-1, t)@
-implement_rev :: QpState Expr
+implement_rev :: Compiler Expr
 implement_rev = do
-  vrev <- lookup_qualified_var ("Builtins", "REV")
+  vrev <- lookupVariable (Just "Builtins") "REV"
 
   -- Creation of the variables needed to define the function
-  x0 <- create_var "cc"
-  x1 <- create_var "t"
-  x2 <- create_var "c"
-  x3 <- create_var "u"
+  x0 <- createVariable "cc"
+  x1 <- createVariable "t"
+  x2 <- createVariable "c"
+  x3 <- createVariable "u"
 
   -- Implementation of the function
   return $ EFun x0 $
@@ -108,7 +108,7 @@ implement_rev = do
 -- | Generate the code of the @spec[T]@ value. Be aware that @spec[T]@ is not a function, but instead a pair @(v, n)@
 -- where @v@ is a specimen of the type @T@ (with quantum addresses numbered from 0 to |qubit|-1) and @n@ the number of qubits
 -- used.
-implement_spec :: QType -> QpState (Expr, Int)
+implement_spec :: QType -> Compiler (Expr, Int)
 implement_spec typ = do
   return $ spec_n typ 0
   where
@@ -131,7 +131,7 @@ implement_spec typ = do
 -- * (1, x, x', b) if x is bound to x' (and b is the rest of the binding).
 --
 -- The other element contains the variable allocations.
-implement_bind :: QType -> Variable -> Variable -> QpState (Expr -> Expr, Expr)
+implement_bind :: QType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
 implement_bind typ x y = do
   (elet, b) <- bind typ x y
   -- Build both the final binding and let-bindings
@@ -152,8 +152,8 @@ implement_bind typ x y = do
             -- Test beforehand to known whether q holds some qubits
             if has_qubits q then do
               -- Yes: extract the nth element of x and y, and apply the function recursively
-              xn <- create_var "x"
-              yn <- create_var "y"
+              xn <- createVariable "x"
+              yn <- createVariable "y"
               (elet', b') <- bind q xn yn
               return (elet ++ [(xn, EAccess n x), (yn, EAccess n y)] ++ elet', b' ++ b)
             else
@@ -165,7 +165,7 @@ implement_bind typ x y = do
 
 
 -- | Generate the code that apply a binding to a quantum value of type the given one.
-implement_appbind :: QType -> Variable -> Variable -> QpState (Expr -> Expr, Expr)
+implement_appbind :: QType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
 implement_appbind typ b x = do
   (elet, e) <- appbind typ x
   -- Build the series of instructions
@@ -176,14 +176,14 @@ implement_appbind typ b x = do
   where
     -- In the following, b is expected of the form : EApp (EBuiltin "APPBIND") b where is a binding
     appbind QUnit _ = return ([], EUnit)
-    appbind QQubit x = lookup_qualified_var ("Builtins","APPBIND") >>= \v -> return ([], EApp (EGlobal v) (ETuple [EVar b, EVar x]))
+    appbind QQubit x = lookupVariable (Just "Builtins") "APPBIND" >>= \v -> return ([], EApp (EGlobal v) (ETuple [EVar b, EVar x]))
     appbind (QTensor qlist) x = do
       (elet, elist) <- List.foldl (\rec (n, q) -> do
             (elet, elist) <- rec
             -- Test beforehand to known whether q holds some qubits
             if has_qubits q then do
               -- Yes: extract the nth element of x, and apply the function recursively
-              xn <- create_var "x"
+              xn <- createVariable "x"
               (elet', e') <- appbind q xn
               return (elet ++ [(xn, EAccess n x)] ++ elet', e':elist)
             else
@@ -195,49 +195,36 @@ implement_appbind typ b x = do
 
 
 
--- | Request for an implementation of the unbox operator of type T, U. A reference to the implementation is passed as argument.
-request_unbox :: CircType -> QpState Variable
-request_unbox c = do
-  ops <- circuit_ops
-  case Map.lookup c $ unboxes ops of
-    Just x ->
-        return x
+-- | Request for an implementation of the unbox operator of type T, U. A reference to the
+-- implementation is passed as argument.
+request_unbox :: CircType -> Compiler Variable
+request_unbox ctyp = do
+  library <- getCircuitLibrary
+  case Map.lookup ctyp $ unboxes library of
+    Just x -> return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the circOps library.
-        x <- create_var "unbox"
-        eunbox <- implement_unbox c
-        update_circuit_ops (\ops -> ops { unboxes = Map.insert c x $ unboxes ops, code = (DLet Internal x eunbox):(code ops) })
-        return x
+      unbox <- implement_unbox ctyp
+      bindUnbox ctyp unbox
 
 
--- | Request for an implementation of the box operator of type T. A reference to the implementation is passed as argument.
-request_box :: QType -> QpState Variable
-request_box t = do
-  ops <- circuit_ops
-  case Map.lookup t $ boxes ops of
-    Just x ->
-        return x
+-- | Request for an implementation of the box operator of type T. A reference to the implementation
+-- is passed as argument.
+request_box :: QType -> Compiler Variable
+request_box qtyp = do
+  library <- getCircuitLibrary
+  case Map.lookup qtyp $ boxes library of
+    Just x -> return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the circOps library.
-        x <- create_var "box"
-        ebox <- implement_box t
-        update_circuit_ops (\ops -> ops { boxes = Map.insert t x $ boxes ops, code = (DLet Internal x ebox):(code ops) })
-        return x
+      box <- implement_box qtyp
+      bindBox qtyp box
 
 
 -- | Request for an implementation of the rev operator.
-request_rev :: QpState Variable
+request_rev :: Compiler Variable
 request_rev = do
-  ops <- circuit_ops
-  case rev ops of
-    Just x ->
-        return x
+  library <- getCircuitLibrary
+  case rev library of
+    Just x -> return x
     Nothing -> do
-        -- Implement the needed operator, and upload it to the circOps library.
-        x <- create_var "rev"
-        erev <- implement_rev
-        update_circuit_ops (\ops -> ops { rev = Just x, code = (DLet Internal x erev):(code ops) })
-        return x
-
-
-
+      rev <- implement_rev
+      bindRev rev

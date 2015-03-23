@@ -20,9 +20,9 @@ import Parsing.Location
 import Core.Syntax
 import Core.Printer
 
-import Monad.QpState
-import Monad.QuipperError
-import qualified Monad.Namespace as N
+import Monad.Typer
+import Monad.Error
+import qualified Core.Namespace as N
 
 import Data.List as List
 import Data.IntMap (IntMap)
@@ -203,7 +203,7 @@ some_cluster poset =
 find_minimum :: Cluster                     -- ^ Current cluster.
              -> [(TypeConstraint, Cluster)] -- ^ Historic of the walk (all the explored clusters, and the relations that lead to them).
              -> Poset                       -- ^ The current poset.
-             -> QpState Cluster             -- ^ A minimum cluster.
+             -> Typer Cluster             -- ^ A minimum cluster.
 find_minimum c explored poset = do
   case cluster_relations c poset of
     -- No relation, this is a minimum !
@@ -221,7 +221,7 @@ find_minimum c explored poset = do
 
 -- | An auxiliary function used by 'find_minimum'. Check whether a cluster appears in the list of explored vertices.
 -- If it does, generate an error message that traces the cycle using the list of dependencies. Otherwise, return ().
-check_cyclic :: Cluster -> [(TypeConstraint, Cluster)] -> Poset -> QpState ()
+check_cyclic :: Cluster -> [(TypeConstraint, Cluster)] -> Poset -> Typer ()
 check_cyclic c explored poset = do
   case List.span (\(_, c') -> c /= c') explored of
     -- Ok
