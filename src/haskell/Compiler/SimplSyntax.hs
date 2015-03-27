@@ -159,7 +159,7 @@ instance PPrint Expr where
     let doc = print_doc lv e fvar in
     PP.render doc
   genprint lv _ e =
-    throwNE $ ProgramError "Preliminaries:genprint(Expr): illegal argument"
+    throwNE $ ProgramError "PatternElimination:genprint(Expr): illegal argument"
 
   -- Other
   -- By default, the term variables are printed as x_n and the data constructors as D_n,
@@ -177,7 +177,7 @@ instance PPrint [Declaration] where
     genprint lv [fvar] ds
 
   genprint _ _ _ =
-    throwNE $ ProgramError "Preliminaries:genprint([Declaration]): illegal argument"
+    throwNE $ ProgramError "PatternElimination:genprint([Declaration]): illegal argument"
 
   sprintn lv e = genprint lv [prevar "%"] e
 

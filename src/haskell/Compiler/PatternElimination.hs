@@ -15,15 +15,16 @@
 -- The patterns are also removed from the let expressions and the function arguments. Note that the
 -- type constraints and location information are also removed.
 
-module Compiler.Preliminaries where
+module Compiler.PatternElimination where
 
 import Classes
 import Utils
 
-import Parsing.Location (extent_unknown)
+--import Parsing.Location
 
 import Language.Constructor
 
+import Monad.Core (getConstructorSourceType)
 import Monad.Compiler
 import Monad.Error
 
@@ -33,20 +34,18 @@ import Compiler.Overloading
 import Compiler.SimplSyntax
 import Compiler.Circuits
 
-import qualified Data.List as List
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IMap
+import Data.List as List
+import Data.Map as Map
+import Data.IntMap as IntMap
 
 
 -- | Return True iff the type contains no variables.
-is_concrete :: QuantumType -> Bool
-is_concrete QQubit = True
-is_concrete QUnit = True
-is_concrete (QVar _) = False
-is_concrete (QTensor qlist) =
-  List.and $ List.map is_concrete qlist
+--is_concrete :: QuantumType -> Bool
+--is_concrete QQubit = True
+--is_concrete QUnit = True
+--is_concrete (QVar _) = False
+--is_concrete (QTensor qlist) =
+--  List.and $ List.map is_concrete qlist
 
 
 -- | Convert back a circuit type to the type of an unbox operator.
@@ -58,77 +57,80 @@ is_concrete (QTensor qlist) =
 
 
 -- | Return the types of all the occurences of \'unbox\' in the given expression.
-unbox_types :: C.Expr -> Compiler [C.Type]
-unbox_types (C.EFun _ _ e) =
-  unbox_types e
+--unbox_types :: C.Expr -> Compiler [C.Type]
+--unbox_types (C.EFun _ _ e) =
+--  unbox_types e
 
-unbox_types (C.EApp e f) = do
-  ue <- unbox_types e
-  uf <- unbox_types f
-  return $ List.unionBy C.equalsLinear ue uf
+--unbox_types (C.EApp e f) = do
+--  ue <- unbox_types e
+--  uf <- unbox_types f
+--  return $ List.unionBy C.equalsLinear ue uf
 
-unbox_types (C.ETuple _ elist) =
-  List.foldl (\rec e -> do
-        us <- rec
-        ue <- unbox_types e
-        return $ List.unionBy C.equalsLinear ue us) (return []) elist
+--unbox_types (C.ETuple _ elist) =
+--  List.foldl (\rec e -> do
+--        us <- rec
+--        ue <- unbox_types e
+--        return $ List.unionBy C.equalsLinear ue us) (return []) elist
 
-unbox_types (C.ELet _ _ e f) = do
-  ue <- unbox_types e
-  uf <- unbox_types f
-  return $ List.union ue uf
+--unbox_types (C.ELet _ _ e f) = do
+--  ue <- unbox_types e
+--  uf <- unbox_types f
+--  return $ List.union ue uf
 
-unbox_types (C.EIf e f g) = do
-  ue <- unbox_types e
-  uf <- unbox_types f
-  ug <- unbox_types g
-  return $ List.unionBy C.equalsLinear ue $ List.union uf ug
+--unbox_types (C.EIf e f g) = do
+--  ue <- unbox_types e
+--  uf <- unbox_types f
+--  ug <- unbox_types g
+--  return $ List.unionBy C.equalsLinear ue $ List.union uf ug
 
-unbox_types (C.EDatacon _ _ (Just e)) =
-  unbox_types e
+--unbox_types (C.EDatacon _ _ (Just e)) =
+--  unbox_types e
 
-unbox_types (C.EMatch e blist) = do
-  ue <- unbox_types e
-  ulist <- List.foldl (\rec (_, e) -> do
-        us <- rec
-        ue <- unbox_types e
-        return $ List.unionBy C.equalsLinear ue us) (return []) blist
-  return $ List.union ue ulist
+--unbox_types (C.EMatch e blist) = do
+--  ue <- unbox_types e
+--  ulist <- List.foldl (\rec (_, e) -> do
+--        us <- rec
+--        ue <- unbox_types e
+--        return $ List.unionBy C.equalsLinear ue us) (return []) blist
+--  return $ List.union ue ulist
 
-unbox_types (C.EUnbox ref) = do
-  ri <- ref_info ref
-  case ri of
-    Nothing ->
-        fail $ "Preliminaries:unbox_types: undefined reference: " ++ show ref
-    Just ri -> do
-        a <- map_type $ C.rtype ri
-        return [a]
+--unbox_types (C.EUnbox ref) = do
+--  ri <- ref_info ref
+--  case ri of
+--    Nothing ->
+--        fail $ "PatternElimination:unbox_types: undefined reference: " ++ show ref
+--    Just ri -> do
+--        a <- map_type $ C.rtype ri
+--        return [a]
 
-unbox_types (C.ECoerce e _) =
-  unbox_types e
+--unbox_types (C.ECoerce e _) =
+--  unbox_types e
 
-unbox_types _ =
-  return []
+--unbox_types _ =
+--  return []
 
 
--- | Representation of a decision tree, that decides which test to do first in order to minimize the number of comparisons.
+-- | Representation of a decision tree, which describes the tests needed to solve a pattern matching.
+-- Each node represents a test to perform, and the actions to take depending on the result of the
+-- test (which can be to perform another test).
 data DecisionTree =
-    Test TestLocation [(TestResult, DecisionTree)]           -- ^ Test the nth element of a tuple (a boolean). Depending on the result, different tests are taken.
-  | Result Int                                               -- ^ The number of the matched pattern.
+  -- | The compiler will, in this case, generate the code responsible for extracting the test parameter,
+  -- and build a switch case with all targets recursively constructed.
+    Test TestLocation [(TestResult, DecisionTree)]
+  -- | Identified match success (represents the index of the case, a failed pattern matching is
+  -- represented by a negative value).
+  | Result Int
   deriving Show
 
--- | Ways of locating it self in a pattern.
--- The constructors indicate the action to take next.
+-- | Ways of locating it self in a pattern. The constructors indicate the action to take next.
 data NextStep =
     InTuple Int        -- ^ The information is the Nth element of a tuple.
   | InDatacon Datacon  -- ^ The information is the argument of a record.
-  | InTag Algebraic    -- ^ The information is the label of a record. The label is specific to a type.
+  | InTag Algebraic    -- ^ The information is the label of a record (=true pattern matching).
   deriving (Show, Eq, Ord)
-
 
 -- | Position of the information relevant to a test in a pattern.
 type TestLocation = [NextStep]
-
 
 -- | The result of a test.
 data TestResult =
@@ -140,21 +142,20 @@ data TestResult =
   deriving (Show, Eq)
 
 
--- | Return the kind of a list of results. It is typically a result of the list.
-rkind :: [TestResult] -> TestResult
-rkind [] =
-  throwNE $ ProgramError "Preliminaries:rkind: empty list"
-rkind (RInt _:_) = RInt 0
-rkind (ROtherInt _:_) = RInt 0
-rkind (RBool _:_) = RBool True
-rkind (RDatacon _:_) = RDatacon 0
-rkind (ROtherDatacon _:_) = RDatacon 0
-
+-- | Return the kind of a list of results. It is typically a result of the list, as type checking
+-- ensures no heterogenous pattern matching will occur.
+resultKind :: [TestResult] -> TestResult
+resultKind [] = throwNE $ ProgramError "PatternElimination:resultKind: empty list"
+resultKind (RInt _:_) = RInt 0
+resultKind (ROtherInt _:_) = RInt 0
+resultKind (RBool _:_) = RBool True
+resultKind (RDatacon _:_) = RDatacon 0
+resultKind (ROtherDatacon _:_) = RDatacon 0
 
 -- | On the supposion that the result is 'RInt', return the associated integer.
-int_of_result :: TestResult -> Int
-int_of_result (RInt i) = i
-int_of_result _ = 0
+intResult :: TestResult -> Int
+intResult (RInt i) = i
+intResult _ = 0
 
 -- | On the supposition that the result is 'RDatacon', return the associated constructor.
 datacon_of_result :: TestResult -> Datacon
@@ -162,40 +163,41 @@ datacon_of_result (RDatacon d) = d
 datacon_of_result _ = 0
 
 
--- | Build the list of the tests relevant to a pattern. The result of the test is returned each time.
-relevant_tests :: C.Pattern -> Compiler [(TestLocation, TestResult)]
-relevant_tests p =
-  -- The location in the pattern is passed as argument here (reversed though).
-  let ptests = \ns p ->
-        case p of
-          C.PConstant _ (C.ConstInt _ n) -> return [(List.reverse ns, RInt n)]
-          C.PConstant _ (C.ConstBool _ b) -> return [(List.reverse ns, RBool b)]
-          C.PConstant _ (C.ConstUnit _) -> return []
-          C.PWildcard _ -> return []
-          C.PVar _ _ -> return []
-          C.PDatacon _ dcon Nothing -> do
-              typ <- datacon_datatype dcon
-              all <- all_data_constructors typ
-              if List.length all == 1 then
-                return []
-              else
-                return [(List.reverse $ (InTag typ):ns, RDatacon dcon)]
-          C.PDatacon _ dcon (Just p) -> do
-              typ <- datacon_datatype dcon
-              all <- all_data_constructors typ
-              if List.length all == 1 then
-                ptests ((InDatacon dcon):ns) p
-              else do
-                tset <- ptests ((InDatacon dcon):ns) p
-                return $ (List.reverse $ (InTag typ):ns, RDatacon dcon):tset
-          C.PCoerce p _ -> ptests ns p
-          C.PTuple _ plist ->
-              List.foldl (\rec (n, p) -> do
-                            tset <- rec
-                            tset' <- ptests ((InTuple n):ns) p
-                            return $ tset' ++ tset) (return []) (List.zip [0..(List.length plist) -1] plist)
-        in
-      ptests [] p
+-- | Build the list of the tests relevant to a pattern matching case, meaning all the tests that must
+-- be checked true for the pattern matching case to be accepted.
+-- TODO: tail rec implementation.
+relevantTests :: C.Pattern -> Compiler [(TestLocation, TestResult)]
+relevantTests pattern = relevantTestsAux [] pattern
+  where
+    -- The additional argument is the reversed location in the pattern.
+    relevantTestsAux :: TestLocation -> C.Pattern -> Compiler [(TestLocation, TestResult)]
+    relevantTestsAux location (C.PConstant _ (C.ConstInt _ n)) = return [(List.reverse location, RInt n)]
+    relevantTestsAux location (C.PConstant _ (C.ConstBool _ b)) = return [(List.reverse location, RBool b)]
+    relevantTestsAux location (C.PConstant _ (C.ConstUnit _)) = return []
+    relevantTestsAux location (C.PWildcard _) = return []
+    relevantTestsAux location (C.PVar _ _) = return []
+    relevantTestsAux location (C.PDatacon _ cons arg) = do
+      typ <- runCore $ getConstructorSourceType cons
+      all <- allConstructors typ
+      -- Sub-pattern tests.
+      tests <-
+        case args of
+          Just pattern -> relevantTestsAux ((InDatacon cons):location) pattern
+          Nothing -> return []
+      -- Only one constructor: trivial pattern matching.
+      -- Else add a test to check the constructor.
+      if List.length all == 1 then return tests
+      else do
+        let test = [(List.reverse $ (InTag typ):location, RDatacon cons)]
+        return $ test:tests
+    relevantTestsAux location (C.PCoerce pattern _) = relevantTestsAux location pattern
+    relevantTestsAux location (C.PTuple _ tuple) = do
+      (_, tests) <- List.foldl (\rec (Binding binder value) -> do
+          (i, tests) <- rec
+          more <- relevantTestsAux ((InTuple i):location) binder
+          return (i+1, more ++ tests)
+        ) (return (0, [])) tuple
+      return tests
 
 
 -- | Build an optimized decision tree.
@@ -205,7 +207,7 @@ build_decision_tree plist = do
   -- For each test, the list of patterns for which it is relevant is added, along with the list of possible values.
   tset <- List.foldl (\rec (n,p) -> do
         tset <- rec
-        tlist <- relevant_tests p
+        tlist <- relevantTests p
         return $ List.foldl (\tset (test, result) ->
               case Map.lookup test tset of
                 Nothing ->
@@ -262,7 +264,7 @@ build_decision_tree plist = do
                           return results
                     -- If the result is an integer, all the possible results are the ones listed here, plus the remaining integers in ROtherInt.
                     RInt _ ->
-                       return $ (ROtherInt $ List.map int_of_result results):results
+                       return $ (ROtherInt $ List.map intResult results):results
                     -- If the result is a boolean, check that both true and false are present
                     RBool _ ->
                        return [RBool True, RBool False]
@@ -284,8 +286,8 @@ build_decision_tree plist = do
                             Nothing -> True) patterns
 
                     -- List of the tests relevant for these patterns. Also, remove the uneeded results in each of the tests.
-                    let relevant_tests = List.filter (\(_, results) -> List.intersect (fst $ List.unzip results) patterns_ok /= []) rtests
-                        relevant_tests' = List.map (\(t, results) -> (t, List.filter (\(p, _) -> List.elem p patterns_ok) results)) relevant_tests
+                    let relevantTests = List.filter (\(_, results) -> List.intersect (fst $ List.unzip results) patterns_ok /= []) rtests
+                        relevantTests' = List.map (\(t, results) -> (t, List.filter (\(p, _) -> List.elem p patterns_ok) results)) relevantTests
 
                     -- If no test is relevant to the FIRST pattern, then it passes all the tests
                     case patterns_ok of
@@ -315,14 +317,14 @@ build_decision_tree plist = do
 
                       n:_ -> do
                           -- Count the tests relevant to this particular pattern
-                          rtests <- return $ List.filter (\(_, results) -> List.elem n $ fst $ List.unzip results) relevant_tests'
+                          rtests <- return $ List.filter (\(_, results) -> List.elem n $ fst $ List.unzip results) relevantTests'
                           if List.length rtests == 0 then
                             -- No need to take other tests
                             return ((res, Result n):subtrees, unmatched)
                           else do
                             -- Else, do the normal stuff
                             -- Build the subtree
-                            (nsub, unmatched') <- build_tree relevant_tests' patterns_ok
+                            (nsub, unmatched') <- build_tree relevantTests' patterns_ok
                             -- Return the rest
                             return ((res, nsub):subtrees, unmatched'++unmatched)) (return ([], [])) results
 
@@ -364,7 +366,7 @@ build_decision_tree plist = do
       modify_pattern (C.PVar _ _) _ _ =
         C.PWildcard 0
       modify_pattern _ _ _ =
-        throwNE $ ProgramError "Preliminaries:modify_pattern: illegal arguments"
+        throwNE $ ProgramError "PatternElimination:modify_pattern: illegal arguments"
 
 
 -- | Extract the variables of a pattern, and return the sequence of functions applications necessary to retrieve them.
@@ -486,7 +488,7 @@ simplify_pattern_matching e blist = do
               (initseq, updates, var') <- extract (prefix, var, loc)
               extracted <- return $ updates ++ extracted
               -- Build the sequence of tests
-              teste <- case rkind (fst $ List.unzip results) of
+              teste <- case resultKind (fst $ List.unzip results) of
                     RInt _ -> do
                         -- Isolate the infinite case.
                         ([(_, remains)], others) <- return $ List.partition (\(r, _) ->
@@ -513,10 +515,10 @@ simplify_pattern_matching e blist = do
                     RBool _ -> do
                         rtrue <- case List.lookup (RBool True) results of
                               Just t -> return t
-                              Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case True"
+                              Nothing -> fail "PatternElimination:simplify_pattern_matching: missing case True"
                         rfalse <- case List.lookup (RBool False) results of
                               Just t -> return t
-                              Nothing -> fail "Preliminaries:simplify_pattern_matching: missing case False"
+                              Nothing -> fail "PatternElimination:simplify_pattern_matching: missing case False"
                         casetrue <- unbuild rtrue extracted
                         casefalse <- unbuild rfalse extracted
                         return $ EMatch (EVar var') [(1,casetrue)] casefalse
@@ -545,9 +547,9 @@ simplify_pattern_matching e blist = do
                               return $ EMatch (EVar var') cases e
 
                     ROtherInt _ ->
-                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'ROtherInt'"
+                        fail "PatternElimination:simplify_pattern_matching: unexpected result 'ROtherInt'"
                     ROtherDatacon _ ->
-                        fail "Preliminaries:simplify_pattern_matching: unexpected result 'ROtherDatacon'"
+                        fail "PatternElimination:simplify_pattern_matching: unexpected result 'ROtherDatacon'"
 
               -- Complete the sequence with the variable extraction
               return $ initseq teste
@@ -611,7 +613,7 @@ remove_patterns (C.ELet Recursive (C.PVar _ v) e f) = do
     EFun x e ->
         return $ ELet v (EFix v x e) f'
     _ ->
-        fail "Preliminaries:remove_patterns: unexpected recursive object"
+        fail "PatternElimination:remove_patterns: unexpected recursive object"
 
 remove_patterns (C.ELet _ (C.PVar _ v) e f) = do
   e' <- remove_patterns e
@@ -627,7 +629,7 @@ remove_patterns (C.ELet Nonrecursive p e f) = do
   remove_patterns (C.EMatch e [(p, f)])
 
 remove_patterns (C.ELet Recursive _ _ _) =
-  fail "Preliminaries:remove_patterns: unexpected recursive binding"
+  fail "PatternElimination:remove_patterns: unexpected recursive binding"
 
 remove_patterns (C.EConstant _ c) = return $ EConstant c
 

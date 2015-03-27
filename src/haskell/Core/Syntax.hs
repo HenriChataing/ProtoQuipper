@@ -162,18 +162,18 @@ quantumTypeOfType (TypeAnnot _ (TypeVar a)) = QVar a
 quantumTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "qubit") _)) = QQubit
 quantumTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "*") tuple)) =
   QTensor $ List.map quantumTypeOfType tuple
-quantumTypeOfType _ = throwNE $ UserError "Preliminaries:quantumTypeOfType: illegal argument"
+quantumTypeOfType _ = throwNE $ UserError "PatternElimination:quantumTypeOfType: illegal argument"
 
--- | Convert the type of an unbox operator (only) to 'Compiler.Preliminaries.QuantumType'.
+-- | Convert the type of an unbox operator (only) to 'Compiler.PatternElimination.QuantumType'.
 -- An exception is raised if the given type is not of the form: @Circ (QuantumType, QuantumType) -> _@.
 circuitTypeOfType :: Type -> CircuitType
 circuitTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "->") [t,_])) =
   case t of
     TypeAnnot _ (TypeApply (TypeBuiltin "circ") [t,u]) ->
       (quantumTypeOfType t, quantumTypeOfType u)
-    _ -> throwNE $ UserError "Preliminaries:circuitTypeOfType: illegal argument"
+    _ -> throwNE $ UserError "PatternElimination:circuitTypeOfType: illegal argument"
 circuitTypeOfType _ =
-  throwNE $ UserError "Preliminaries:circuitTypeOfType: illegal argument"
+  throwNE $ UserError "PatternElimination:circuitTypeOfType: illegal argument"
 
 
 -- | Bind two types, producing a mapping from type variables to types.

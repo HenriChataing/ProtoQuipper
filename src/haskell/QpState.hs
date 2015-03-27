@@ -136,7 +136,7 @@ data QContext = QCtx {
 
 -- Compiler things
   call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
-                                                      -- (see the function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more information).
+                                                      -- (see the function 'Compiler.PatternElimination.disambiguate_unbox_calls' for more information).
   --circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References

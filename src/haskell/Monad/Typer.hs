@@ -42,15 +42,15 @@ empty = TyperState {
 solveType :: Type -> Typer Type
 solveType typ = return typ
 
+
 ---------------------------------------------------------------------------------------------------
 -- * Lifting.
-
-getConstructorInfo :: Variable -> Typer (Maybe ConstructorInfo)
-getConstructorInfo constructor = lift $ Core.getConstructorInfo constructor
-
 
 log :: Int -> String -> Typer ()
 log lvl msg = lift $ Core.log lvl msg
 
 warning :: Warning -> Maybe Extent -> Typer ()
 warning warn ext = lift $ Core.warning warn ext
+
+runCore :: Core a -> Typer a
+runCore computation = lift $ computation

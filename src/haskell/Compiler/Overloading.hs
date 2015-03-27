@@ -10,6 +10,7 @@ import Parsing.Location (extent_unknown)
 
 import Language.Constructor
 
+import Monad.Typer (solveType)
 import Monad.Compiler
 import Monad.Error
 
@@ -51,7 +52,7 @@ disambiguate :: IntMap (Type, [Type]) -> Expr -> Overloading Expr
 -- The unbox reference, if of no decided type, is replaced by a variable (reference to an unbox operator
 -- with same type).
 disambiguate _ (EUnbox info) = do
-  ctyp <- lift $ solveType $ Core.typ info
+  ctyp <- lift $ runTyper $ solveType $ Core.typ info
   whichUnbox ctyp info
 
 -- For each variable, we must check whether its type has been modified to disambiguate an unbox operators.

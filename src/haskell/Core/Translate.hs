@@ -93,7 +93,7 @@ import Interpret.Values
 import Interpret.Circuits as C
 
 import qualified Compiler.SimplSyntax as CS
-import Compiler.Preliminaries (choose_implementation)
+import Compiler.PatternElimination (choose_implementation)
 
 import Monad.Error
 --import Monad.QpState

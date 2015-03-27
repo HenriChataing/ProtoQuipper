@@ -6,7 +6,7 @@ module Compiler.LlvmExport where
 import Utils
 import Classes
 
-import Compiler.CExpr as C
+import Compiler.Continuations as C
 
 --import Monad.QpState
 import Monad.Error

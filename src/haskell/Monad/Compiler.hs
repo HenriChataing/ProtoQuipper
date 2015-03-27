@@ -9,6 +9,7 @@ import Parsing.Location
 import Language.Constructor
 
 import Monad.Typer as Typer
+import Monad.Core (Core)
 import Monad.Error hiding (prefix)
 
 import Compiler.SimplSyntax (Declaration (..), Expr, Visibility (..))
@@ -45,7 +46,7 @@ data CompilerState = CompilerState {
 
 -- call :: IntMap [Type],    -- ^ The calling conventions of the global functions. For now, it
                             -- specificies the list of extra unbox operator arguments. (see the
-                            -- function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more
+                            -- function 'Compiler.PatternElimination.disambiguate_unbox_calls' for more
                             -- information).
 
 }
@@ -153,14 +154,14 @@ bindRev rev =
 ---------------------------------------------------------------------------------------------------
 -- * Lifting.
 
-getConstructorInfo :: Variable -> Compiler (Maybe ConstructorInfo)
-getConstructorInfo constructor = lift $ Typer.getConstructorInfo constructor
-
 log :: Int -> String -> Compiler ()
 log lvl msg = lift $ Typer.log lvl msg
 
 warning :: Warning -> Maybe Extent -> Compiler ()
 warning warn ext = lift $ Typer.warning warn ext
 
-solveType :: Type -> Compiler Type
-solveType typ = lift $ Typer.solveType typ
+runCore :: Core a -> Compiler a
+runCore computation = lift $ Typer.runCore computation
+
+runTyper :: Typer a -> Compiler a
+runTyper computation = lift computation

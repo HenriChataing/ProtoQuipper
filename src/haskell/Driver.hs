@@ -29,8 +29,8 @@ import Typing.Subtyping
 import Typing.TypeInference
 import Typing.TypingContext
 
-import Compiler.Preliminaries
-import qualified Compiler.CExpr as C
+import Compiler.PatternElimination
+import qualified Compiler.Continuations as C
 import Compiler.LlvmExport
 
 --import Monad.QpState

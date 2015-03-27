@@ -9,7 +9,8 @@ import Options hiding (verbose, options)
 import Utils
 import Parsing.Location
 
-import Language.Constructor (ConstructorInfo)
+import Language.Constructor (ConstructorInfo (sourceType))
+import Language.Variable as Variable
 
 import Core.Environment
 import Core.Namespace as Namespace
@@ -106,15 +107,48 @@ require name = do
   return $ List.find (\m -> moduleName m == name) modules
 
 
--- | Return the definition of a data constructor.
-getConstructorInfo :: Variable -> Core (Maybe ConstructorInfo)
-getConstructorInfo constructor =
-  gets $ ((IntMap.lookup constructor) . Namespace.constructors) . namespace
+-- | Retrieve the name of the given variable. If no match is found in the namespace, produce a standard
+-- name of the form /x_n/.
+variableName :: Variable -> Core String
+variableName x = do
+  namespace <- gets namespace
+  case IntMap.lookup x $ Namespace.variables namespace of
+    Just info -> return $ Variable.name info
+    Nothing -> return $ prevar "x" x
 
+
+-- | Return the definition of a data constructor.
+getConstructorInfo :: Variable -> Core ConstructorInfo
+getConstructorInfo constructor = do
+  info <- gets $ ((IntMap.lookup constructor) . Namespace.constructors) . namespace
+  case info of
+    Just info -> return info
+    Nothing ->
+      fail $ "Monad.Core:getConstructorInfo: undefined data constructor: " ++ prevar "D" constructor
+
+-- | Return the definition of a type.
+--getTypeInfo :: Variable -> Core TypeInfo
+--getTypeInfo typ = do
+--  info <- gets $ ((IntMap.lookup typ) . Namespace.types) . namespace
+--  case info of
+--    Just info -> return info
+--    Nothing ->
+--      fail $ "Monad.Core:getTypeInfo: undefined type: " ++ prevar "T" typ
+
+-- | Return the source type of a data constructor.
+getConstructorSourceType :: Variable -> Core Variable
+getConstructorSourceType constructor = do
+  info <- getConstructorInfo constructor
+  return $ sourceType info
+
+-- | Return the list of data constructors of a type.
+--getAllConstructors :: Variable -> Core Variable
+--getConstructorSourceType typ = do
+--  info <- getTypeInfo typ
+--  return $ sourceType info
 
 ---------------------------------------------------------------------------------------------------
 -- * Pretty printing.
-
 
 -- | This type class includes several pretty printing functions, offering some control over the
 -- size and form of the display. Four functions are defined, going from the most generic ('genprint')

@@ -11,7 +11,7 @@ import Compiler.SimplSyntax as C
 data ConstructorInfo = ConstructorInfo {
   name :: String,
   sourceModule :: String,           -- ^ Source module (empty if not relevant).
-  sourceTyple :: Int,               -- ^ Associated type.
+  sourceType :: Int,                -- ^ Associated type.
   typ :: TypeScheme,                -- ^ Type of the constructor.
   implementation :: Variable,       -- ^ Variable of the function that implements the constructor.
   tag :: Int,                       -- ^ Unique tag attributed to the constructor.

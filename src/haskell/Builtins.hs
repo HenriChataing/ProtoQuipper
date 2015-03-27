@@ -16,7 +16,7 @@ import Core.Syntax
 import Core.Environment as E
 
 import qualified Compiler.SimplSyntax as C
-import Compiler.Preliminaries (choose_implementation)
+import Compiler.PatternElimination (choose_implementation)
 
 import Data.Map as Map
 import Data.List as List
