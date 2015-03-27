@@ -1,18 +1,19 @@
-{- | This module implements a method used to simplify the original expression. In particular, the implementation of the data constructors is made explicit, and
-the patterns are destructed, through the means of:
-
-* the /n/th element of a tuple is accessed through the functions Access_1, Access_2, ..
-
-* the label or tag of a record or data constructor is accessed using Label.
-
-* the information contained in a record in accessed via Body_datacon.
-
-The tests of the case expressions are make explicit. Using a decision tree and chosen heuristics, a tree close to the optimal is produced.
-This tree can then be used to generate the series of instructions needed to discriminate the patterns.
-
-The patterns are also removed from the let expressions and the function arguments.
-Note that the type constraints and location information are also removed.
--}
+-- | This module implements a method used to simplify the original expression. In particular, the
+-- implementation of the data constructors is made explicit, and the patterns are destructed, through
+-- the means of:
+--
+-- * the /n/th element of a tuple is accessed through the functions Access_1, Access_2, ..
+--
+-- * the label or tag of a record or data constructor is accessed using Label.
+--
+-- * the information contained in a record in accessed via Body_datacon.
+--
+-- The tests of the case expressions are make explicit. Using a decision tree and chosen heuristics,
+-- a tree close to the optimal is produced. This tree can then be used to generate the series of
+-- instructions needed to discriminate the patterns.
+--
+-- The patterns are also removed from the let expressions and the function arguments. Note that the
+-- type constraints and location information are also removed.
 
 module Compiler.Preliminaries where
 
@@ -21,13 +22,16 @@ import Utils
 
 import Parsing.Location (extent_unknown)
 
---import Monad.QpState
+import Language.Constructor
+
+import Monad.Compiler
 import Monad.Error
 
 import qualified Core.Syntax as C
 
+import Compiler.Overloading
 import Compiler.SimplSyntax
-import Compiler.Circ
+import Compiler.Circuits
 
 import qualified Data.List as List
 import Data.Map (Map)
@@ -36,94 +40,8 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
 
--- | Update the tag access function of a type.
-set_tagaccess :: Algebraic -> (Variable -> Expr) -> QpState ()
-set_tagaccess id gettag = do
-  ctx <- get_context
-  set_context ctx { tagaccess = IMap.insert id gettag $ tagaccess ctx }
-
-
--- | Return the tag accessor of an algebraic type. If the tag access is undefined,
--- then the function \choose_implementation\ is called to implement it.
-get_tagaccess :: Algebraic -> QpState (Variable -> Expr)
-get_tagaccess id = do
-  ctx <- get_context
-  case IMap.lookup id $ tagaccess ctx of
-    Just gettag -> return gettag
-    Nothing -> fail "Preliminaries:get_tagaccess: undefined accessor"
-
-
-
--- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
-choose_implementation :: Algebraic -> QpState ()
-choose_implementation id = do
-  alg <- algebraic_def id
-  let (_, datas) = C.definition alg
-  case datas of
-    -- Cases with one constructor:
-    -- The tag is omitted. No definition of the function gettag is needed.
-    [(dcon, Just _)] -> do
-        update_datacon dcon (\ddef -> Just ddef { C.construct = Right (\e -> e), C.deconstruct = \v -> EVar v })
-
-    [(dcon, Nothing)] ->
-        update_datacon dcon (\def -> Just def { C.construct = Left $ EInt 0, C.deconstruct = \v -> EInt 0 })
-
-    -- Cases with several constrcutors
-    _ -> do
-        -- First thing : count the constructors taking an argument.
-        let (with_args, no_args) = List.partition ((/= Nothing) . snd) datas
-
-        List.foldl (\rec (dcon, _) -> do
-              rec
-              update_datacon dcon (\ddef -> Just ddef { C.construct = Right (\e -> ETuple [EInt (C.tag ddef),e]), C.deconstruct = \v -> EAccess 1 v })
-            ) (return ()) with_args
-        -- The constructors with no argument are represented by just their tag. The deconstruct function is not needed.
-        List.foldl (\rec (dcon, _) -> do
-              rec
-              update_datacon dcon (\ddef -> Just ddef { C.construct = Left $ ETuple [EInt (C.tag ddef)] })
-            ) (return ()) no_args
-        -- The tag is the first element of the tuple.
-        set_tagaccess id $ \v -> EAccess 0 v
-
-
-
-
--- | Convert a quantum data type written in the core syntax to 'Compiler.Preliminaries.Type'.
-convert_type :: C.Type -> QpState QType
-convert_type (C.TypeAnnot _ C.TUnit) =
-  return QUnit
-
-convert_type (C.TypeAnnot _ (C.TypeVar a)) =
-  return (QVar a)
-
-convert_type (C.TypeAnnot _ C.TQubit) =
-  return QQubit
-
-convert_type (C.TypeAnnot _ (C.TTensor alist)) = do
-  alist' <- List.foldr (\a rec -> do
-        as <- rec
-        a' <- convert_type a
-        return $ a':as) (return []) alist
-  return $ QTensor alist'
-
-convert_type typ =
-  fail $ "Preliminaries:convert_type: illegal argument: " ++ pprint typ
-
-
--- | Convert a quantum data type to a type.
-convert_qtype :: QType -> C.Type
-convert_qtype QUnit =
-  C.TypeAnnot 0 C.TUnit
-convert_qtype QQubit =
-  C.TypeAnnot 0 C.TQubit
-convert_qtype (QVar v) =
-  C.TypeAnnot 0 $ C.TypeVar v
-convert_qtype (QTensor qlist) =
-  C.TypeAnnot 0 $ C.TTensor (List.map convert_qtype qlist)
-
-
 -- | Return True iff the type contains no variables.
-is_concrete :: QType -> Bool
+is_concrete :: QuantumType -> Bool
 is_concrete QQubit = True
 is_concrete QUnit = True
 is_concrete (QVar _) = False
@@ -131,41 +49,29 @@ is_concrete (QTensor qlist) =
   List.and $ List.map is_concrete qlist
 
 
--- | Convert the type of an unbox operator (only) to 'Compiler.Preliminaries.QType'.
--- An exception is raised if the given type is not of the form: @Circ (QType, QType) -> _@.
-circuit_type :: C.Type -> QpState CircType
-circuit_type (C.TypeAnnot _ (C.TArrow (C.TypeAnnot _ (C.TCirc t u)) _)) = do
-  t' <- convert_type t
-  u' <- convert_type u
-  return (t', u')
-
-circuit_type typ =
-  fail $ "Preliminaries:circuit_type: illegal argument: " ++ show typ
-
-
 -- | Convert back a circuit type to the type of an unbox operator.
-make_unbox_type :: CircType -> C.Type
-make_unbox_type (t,u) =
-  let t' = convert_qtype t
-      u' = convert_qtype u in
-  C.TypeAnnot 0 $ C.TArrow (C.TypeAnnot 0 $ C.TCirc t' u') (C.TypeAnnot 0 $ C.TArrow t' u')
+--make_unbox_type :: CircuitType -> C.Type
+--make_unbox_type (t,u) =
+--  let t' = convert_qtype t
+--      u' = convert_qtype u in
+--  C.TypeAnnot 0 $ C.TArrow (C.TypeAnnot 0 $ C.TCirc t' u') (C.TypeAnnot 0 $ C.TArrow t' u')
 
 
 -- | Return the types of all the occurences of \'unbox\' in the given expression.
-unbox_types :: C.Expr -> QpState [C.Type]
+unbox_types :: C.Expr -> Compiler [C.Type]
 unbox_types (C.EFun _ _ e) =
   unbox_types e
 
 unbox_types (C.EApp e f) = do
   ue <- unbox_types e
   uf <- unbox_types f
-  return $ List.unionBy C.eq_skel ue uf
+  return $ List.unionBy C.equalsLinear ue uf
 
 unbox_types (C.ETuple _ elist) =
   List.foldl (\rec e -> do
         us <- rec
         ue <- unbox_types e
-        return $ List.unionBy C.eq_skel ue us) (return []) elist
+        return $ List.unionBy C.equalsLinear ue us) (return []) elist
 
 unbox_types (C.ELet _ _ e f) = do
   ue <- unbox_types e
@@ -176,7 +82,7 @@ unbox_types (C.EIf e f g) = do
   ue <- unbox_types e
   uf <- unbox_types f
   ug <- unbox_types g
-  return $ List.unionBy C.eq_skel ue $ List.union uf ug
+  return $ List.unionBy C.equalsLinear ue $ List.union uf ug
 
 unbox_types (C.EDatacon _ _ (Just e)) =
   unbox_types e
@@ -186,7 +92,7 @@ unbox_types (C.EMatch e blist) = do
   ulist <- List.foldl (\rec (_, e) -> do
         us <- rec
         ue <- unbox_types e
-        return $ List.unionBy C.eq_skel ue us) (return []) blist
+        return $ List.unionBy C.equalsLinear ue us) (return []) blist
   return $ List.union ue ulist
 
 unbox_types (C.EUnbox ref) = do
@@ -198,280 +104,11 @@ unbox_types (C.EUnbox ref) = do
         a <- map_type $ C.rtype ri
         return [a]
 
-unbox_types (C.EConstraint e _) =
+unbox_types (C.ECoerce e _) =
   unbox_types e
 
 unbox_types _ =
   return []
-
-
--- | Bind two types, producing a mapping from type variables to types.
-bind_types :: C.Type -> C.Type -> QpState (IntMap C.Type)
-bind_types (C.TypeAnnot _ (C.TypeVar v)) typ = do
-  return $ IMap.singleton v typ
-bind_types (C.TypeAnnot _ (C.TArrow t u)) (C.TypeAnnot _ (C.TArrow t' u')) = do
-  bt <- bind_types t t'
-  bu <- bind_types u u'
-  return $ IMap.union bt bu
-bind_types (C.TypeAnnot _ (C.TCirc t u)) (C.TypeAnnot _ (C.TCirc t' u')) = do
-  bt <- bind_types t t'
-  bu <- bind_types u u'
-  return $ IMap.union bt bu
-bind_types (C.TypeAnnot _ (C.TAlgebraic _ arg)) (C.TypeAnnot _ (C.TAlgebraic _ arg')) = do
-  List.foldl (\rec (a, a') -> do
-        map <- rec
-        ba <- bind_types a a'
-        return $ IMap.union ba map) (return IMap.empty) (List.zip arg arg')
-bind_types (C.TypeAnnot _ (C.TTensor alist)) (C.TypeAnnot _ (C.TTensor alist')) =
-  List.foldl (\rec (a, a') -> do
-        map <- rec
-        ba <- bind_types a a'
-        return $ IMap.union ba map) (return IMap.empty) (List.zip alist alist')
-bind_types _ _ =
-  return IMap.empty
-
-
--- | Apply the binding produced by the function 'Compiler.Preliminaries.bind_types'.
-app_bind :: IntMap C.Type -> C.Type -> C.Type
-app_bind b (C.TypeAnnot n (C.TypeVar v)) =
-  case IMap.lookup v b of
-    Just t -> t
-    Nothing -> C.TypeAnnot n $ C.TypeVar v
-app_bind b (C.TypeAnnot n (C.TTensor alist)) =
-  C.TypeAnnot n $ C.TTensor (List.map (app_bind b) alist)
-app_bind b (C.TypeAnnot n (C.TArrow t u)) =
-  C.TypeAnnot n $ C.TArrow (app_bind b t) (app_bind b u)
-app_bind b (C.TypeAnnot n (C.TCirc t u)) =
-  C.TypeAnnot n $ C.TCirc (app_bind b t) (app_bind b u)
-app_bind _ t = t
-
-
--- | Return either the original unbox operator, if the type is concrete, or one of the argument
--- given in the list that has the appropriate type.
-which_unbox :: C.Type -> [(C.Type, Variable)] -> QpState (Either C.Type Variable)
-which_unbox a arg =
-  case List.find (\(t, x) -> C.eq_skel a t) arg of
-    Just (_, x) -> return (Right x)
-    Nothing -> return (Left a)
-
-
--- | Modify an expression to disambiguate the use of the unbox operator: when the type can be inferred automically (in a non polymorphic context), then the operator is untouched,
--- else, the function using the unbox is modified to take the unbox operator as argument.
-disambiguate_unbox_calls :: [(C.Type, Variable)]                      -- ^ The unbox operators available in the current context.
-                         -> IntMap (C.Type, [C.Type])                 -- ^ Each modified (local) function, along with its polymorphic type and the arguments it expects.
-                         -> C.Expr                                    -- ^ The expression to disambiguate.
-                         -> QpState C.Expr                            -- ^ The disambiguated expression.
-disambiguate_unbox_calls arg _ (C.EUnbox ref) = do
-  ri <- ref_info_err ref
-  a <- map_type $ C.rtype ri
-  wu <- which_unbox a arg
-  case wu of
-    Left _ ->
-        return (C.EUnbox ref)
-    Right v ->
-        return (C.EVar 0 v)
-
-disambiguate_unbox_calls arg mod (C.EVar ref v) = do
-  case IMap.lookup v mod of
-    Nothing -> do
-        return (C.EVar ref v)
-
-    Just (typ, args) -> do
-        -- If the type of the variable is concrete (no leftover type variables), then
-        -- the unbox operators to apply can easily be derived.
-        ri <- ref_info_err ref
-        typ' <- map_type $ C.rtype ri
-        b <- bind_types typ typ'
-        let args' = List.map (app_bind b) args
-        -- Use the function which_unbox to decide the arguments
-        args' <- List.foldr (\a rec -> do
-              as <- rec
-              wua <- which_unbox a arg
-              case wua of
-                Left _ -> do
-                    -- The type is concrete, create a reference to store it
-                    update_ref ref (\ri -> Just ri { C.rtype = a })
-                    return $ (C.EUnbox ref):as
-
-                Right v ->
-                    -- The type os not concrete, but a variable holding the right unbox implementation has been found
-                    return $ (C.EVar 0 v):as) (return []) args'
-        -- Finish by giving the unbox operators as arguments of the variable.
-        List.foldl (\rec a -> do
-              e <- rec
-              return $ C.EApp e a) (return $ C.EVar ref v) args'
-
-disambiguate_unbox_calls arg mod (C.EGlobal ref v) = do
-  cc <- call_convention v
-  case cc of
-    Nothing -> do
-        return (C.EGlobal ref v)
-
-    Just args -> do
-        t <- global_type v
-        let typ = C.type_of_typescheme t
-        -- If the type of the variable is concrete (no leftover type variables), then
-        -- the unbox operators to apply can easily be derived.
-        ri <- ref_info_err ref
-        typ' <- map_type $ C.rtype ri
-        b <- bind_types typ typ'
-        let args' = List.map (app_bind b) args
-        -- Use the function which_unbox to decide the arguments
-        args' <- List.foldr (\a rec -> do
-              as <- rec
-              wua <- which_unbox a arg
-              case wua of
-                Left _ -> do
-                    -- The type is concrete, create a reference to store it
-                    ref <- create_ref
-                    update_ref ref (\ri -> Just ri { C.rtype = a })
-                    return $ (C.EUnbox ref):as
-
-                Right v ->
-                    -- The type os not concrete, but a variable holding the right unbox implementation has been found
-                    return $ (C.EVar 0 v):as) (return []) args'
-        -- Finish by giving the unbox operators as arguments of the variable.
-        List.foldl (\rec a -> do
-              e <- rec
-              return $ C.EApp e a) (return $ C.EGlobal ref v) args'
-
-
-disambiguate_unbox_calls arg mod (C.ELet r p e f) = do
-  -- First disambiguate the calls from e
-  e' <- disambiguate_unbox_calls arg mod e
-
-  -- Then pick up the remaining unbox calls
-  need <- unbox_types e'
-  need <- return $ List.filter (\a -> not $ C.is_concrete a) need
-
-  -- Remove the types that can already be built using the existing arguments
-  need <- return $ List.filter (\a -> List.find (\(b, _) -> C.eq_skel a b) arg == Nothing) need
-
-  -- Test whether the list is empty or not.
-  case need of
-    -- Nothing more to do
-    [] -> do
-        f' <- disambiguate_unbox_calls arg mod f
-        return (C.ELet r p e' f')
-
-    -- Add new arguments to the variable x
-    _ -> do
-        case (p, e') of
-          (C.PWildcard ref', _) -> do
-              -- Add new argument variables to the arg context
-              nargs <- List.foldr (\a rec -> do
-                    as <- rec
-                    v <- create_var "u"
-                    return $ (a, v):as) (return []) need
-              let arg' = nargs ++ arg
-
-              -- Convert the expression e using these new arguments
-              e' <- disambiguate_unbox_calls arg' mod e'
-              -- Convert the expression f (without the new arguments)
-              f' <- disambiguate_unbox_calls arg mod f
-
-              -- Assemble the final expression
-              let e'' = List.foldl (\e (_, v) ->
-                    C.EFun 0 (C.PVar 0 v) e) e' nargs
-              return (C.ELet r (C.PWildcard ref') e'' f')
-
-
-          (C.PVar ref' x, _) -> do
-              -- Retrieve the (polymorphic) type of the variable
-              ri <- ref_info_err ref'
-              typ <- map_type $ C.rtype ri
-
-              -- Check whether the variable is global or not
-              g <- is_global x
-              if g then do
-                -- Specify the calling convention for x
-                set_call_convention x need
-              else
-                -- Do nothing
-                return ()
-
-              -- Add the variable and its (new) arguments to the mod context
-              let mod' = IMap.insert x (typ, need) mod
-
-              -- Add new argument variables to the arg context
-              nargs <- List.foldr (\a rec -> do
-                    as <- rec
-                    v <- create_var "u"
-                    return $ (a, v):as) (return []) need
-              let arg' = nargs ++ arg
-
-              -- Convert the expression e using these new arguments
-              e' <- disambiguate_unbox_calls arg' mod' e'
-              -- Convert the expression f (without the new arguments)
-              f' <- disambiguate_unbox_calls arg mod' f
-
-              -- Assemble the final expression
-              let e'' = List.foldl (\e (_, v) ->
-                    C.EFun 0 (C.PVar 0 v) e) e' nargs
-              return (C.ELet r (C.PVar ref' x) e'' f')
-
-
-          (C.PTuple _ plist, C.ETuple _ elist) -> do
-              let elet = List.foldl (\f (p, e) ->
-                    C.ELet r p e f) f (List.zip plist elist)
-              disambiguate_unbox_calls arg mod elet
-
-          -- Datacon case, again, unfold the let-binding
-          (C.PDatacon _ dcon (Just p), C.EDatacon ref' dcon' (Just e)) | dcon == dcon' -> do
-              let elet = C.ELet r p e' f
-              disambiguate_unbox_calls arg mod elet
-                                                                       | otherwise -> do
-              -- This case always leads to a matching error.
-              -- Raise a warning
-              ri <- ref_info_err ref'
-              warnQ FailedMatch (C.extent ri)
-              return $ C.EError (show (C.extent ri) ++ ":pattern error")
-
-          -- All other cases should be unreachable
-          (p, _) ->
-              fail $ "Preliminaries:disambiguate_unbox_calls: unexpected pattern: " ++ pprint p
-
-
-disambiguate_unbox_calls arg mod (C.EFun ref p e) = do
-  e' <- disambiguate_unbox_calls arg mod e
-  return (C.EFun ref p e')
-
-disambiguate_unbox_calls arg mod (C.EApp e f) = do
-  e' <- disambiguate_unbox_calls arg mod e
-  f' <- disambiguate_unbox_calls arg mod f
-  return (C.EApp e' f')
-
-disambiguate_unbox_calls arg mod (C.EIf e f g) = do
-  e' <- disambiguate_unbox_calls arg mod e
-  f' <- disambiguate_unbox_calls arg mod f
-  g' <- disambiguate_unbox_calls arg mod g
-  return (C.EIf e' f' g')
-
-disambiguate_unbox_calls arg mod (C.EDatacon ref dcon (Just e)) = do
-  e' <- disambiguate_unbox_calls arg mod e
-  return (C.EDatacon ref dcon (Just e'))
-
-disambiguate_unbox_calls arg mod (C.EMatch e blist) = do
-  e' <- disambiguate_unbox_calls arg mod e
-  blist' <- List.foldr (\(p, e) rec -> do
-        bs <- rec
-        e' <- disambiguate_unbox_calls arg mod e
-        return $ (p,e'):bs) (return []) blist
-  return (C.EMatch e' blist')
-
-disambiguate_unbox_calls arg mod (C.ETuple ref elist) = do
-  elist' <- List.foldr (\e rec -> do
-        es <- rec
-        e' <- disambiguate_unbox_calls arg mod e
-        return $ e':es) (return []) elist
-  return (C.ETuple ref elist')
-
-disambiguate_unbox_calls arg mod (C.EConstraint e _) =
-  disambiguate_unbox_calls arg mod e
-
-disambiguate_unbox_calls _ _ e =
-  return e
-
 
 
 -- | Representation of a decision tree, that decides which test to do first in order to minimize the number of comparisons.
@@ -526,14 +163,14 @@ datacon_of_result _ = 0
 
 
 -- | Build the list of the tests relevant to a pattern. The result of the test is returned each time.
-relevant_tests :: C.Pattern -> QpState [(TestLocation, TestResult)]
+relevant_tests :: C.Pattern -> Compiler [(TestLocation, TestResult)]
 relevant_tests p =
   -- The location in the pattern is passed as argument here (reversed though).
   let ptests = \ns p ->
         case p of
-          C.PInt _ n -> return [(List.reverse ns, RInt n)]
-          C.PBool _ b -> return [(List.reverse ns, RBool b)]
-          C.PUnit _ -> return []
+          C.PConstant _ (C.ConstInt _ n) -> return [(List.reverse ns, RInt n)]
+          C.PConstant _ (C.ConstBool _ b) -> return [(List.reverse ns, RBool b)]
+          C.PConstant _ (C.ConstUnit _) -> return []
           C.PWildcard _ -> return []
           C.PVar _ _ -> return []
           C.PDatacon _ dcon Nothing -> do
@@ -551,7 +188,7 @@ relevant_tests p =
               else do
                 tset <- ptests ((InDatacon dcon):ns) p
                 return $ (List.reverse $ (InTag typ):ns, RDatacon dcon):tset
-          C.PConstraint p _ -> ptests ns p
+          C.PCoerce p _ -> ptests ns p
           C.PTuple _ plist ->
               List.foldl (\rec (n, p) -> do
                             tset <- rec
@@ -562,7 +199,7 @@ relevant_tests p =
 
 
 -- | Build an optimized decision tree.
-build_decision_tree :: [C.Pattern] -> QpState DecisionTree
+build_decision_tree :: [C.Pattern] -> Compiler DecisionTree
 build_decision_tree plist = do
   -- Build the relevant tests first. Patterns are numbered from left to right, from 0 to n-1.
   -- For each test, the list of patterns for which it is relevant is added, along with the list of possible values.
@@ -708,8 +345,8 @@ build_decision_tree plist = do
   where
       modify_pattern _ [] (ROtherInt ns) = C.PVar 0 0
       modify_pattern _ _ (ROtherDatacon ns) = C.PVar 0 0
-      modify_pattern _ [] (RInt n) = C.PInt 0 n
-      modify_pattern _ [] (RBool b) = C.PBool 0 b
+      modify_pattern _ [] (RInt n) = C.PConstant 0 $ C.ConstInt n
+      modify_pattern _ [] (RBool b) = C.PConstant 0 $ C.ConstBool b
       modify_pattern (C.PTuple r plist) ((InTuple n):ns) res =
         let plist' = List.map (\(m, p) ->
               if n == m then
@@ -738,7 +375,7 @@ pattern_variables p =
           C.PVar _ x -> [(List.reverse loc, x)]
           C.PDatacon _ dcon (Just p) ->
               read_vars ((InDatacon dcon):loc) p
-          C.PConstraint p _ -> read_vars loc p
+          C.PCoerce p _ -> read_vars loc p
           C.PTuple _ plist ->
               List.foldl (\vars (n, p) ->
                             let vars' = read_vars ((InTuple n):loc) p in
@@ -763,32 +400,31 @@ longest_prefix extracted test =
 
 -- | Complete the extraction of a piece of information. The argument should be the variable closest to the information we want to access.
 -- The function then applies the operations necessary to go from this variable, to the information.
-extract :: (TestLocation, Variable, TestLocation) -> QpState (Expr -> Expr, [(TestLocation, Variable)], Variable)
-extract (prefix, var, loc) =
+extractTest :: (TestLocation, Variable, TestLocation) -> Compiler (Expr -> Expr, [(TestLocation, Variable)], Variable)
+extractTest (prefix, var, loc) =
   case loc of
     -- The variable 'var' already contains what we want
     [] -> return ((\e -> e), [], var)
     -- Else
     l:ls -> do
       -- Build some intermediary variables
-      var' <- create_var "x"
+      var' <- createVariable "x"
       exp <- case l of
             InTuple n ->
                 return $ EAccess n var
             InDatacon dcon -> do
-                deconstruct <- datacon_def dcon >>= return . C.deconstruct
-                return $ deconstruct var
-            InTag typ -> do
-                gettag <- get_tagaccess typ
-                return $ gettag var
+                getConstructorInfo dcon >>= extract >>= ($ var)
+                --deconstruct <- datacon_def dcon >>= return . C.deconstruct
+                --return $ deconstruct var
+            InTag typ -> getTag typ var
 
       let nprefix = prefix ++ [l]
-      (cont, updates, endvar) <- extract (nprefix, var', ls)
+      (cont, updates, endvar) <- extractTest (nprefix, var', ls)
       return ((\e -> ELet var' exp $ cont e), (nprefix, var'):updates, endvar)
 
 
 -- | Same as extract, except that the variable holding the information is specified beforehand.
-extract_var :: (TestLocation, Variable, TestLocation) -> Variable -> QpState (Expr -> Expr, [(TestLocation, Variable)])
+extract_var :: (TestLocation, Variable, TestLocation) -> Variable -> Compiler (Expr -> Expr, [(TestLocation, Variable)])
 extract_var (prefix, var, loc) endvar =
   case loc of
     -- The variable 'var' already contains what we want
@@ -797,21 +433,20 @@ extract_var (prefix, var, loc) endvar =
     [InTuple n] -> return ((\e -> ELet endvar (EAccess n var) e), [])
     -- The LAST action is a destructor
     [InDatacon dcon] -> do
-        deconstruct <- datacon_def dcon >>= return . C.deconstruct
-        return ((\e -> ELet endvar (deconstruct var) e), [])
+        extract <- getConstructorInfo dcon >> extract
+        return ((\e -> ELet endvar (extract var) e), [])
 
     -- Else use an intermediary variable
     l:ls -> do
-        var' <- create_var "x"
+        var' <- createVariable "x"
         exp <- case l of
             InTuple n ->
                 return $ EAccess n var
             InDatacon dcon -> do
-                deconstruct <- datacon_def dcon >>= return . C.deconstruct
-                return $ deconstruct var
-            InTag typ -> do
-                gettag <- get_tagaccess typ
-                return $ gettag var
+                getConstructorInfo dcon >>= extract >>= ($ var)
+                --deconstruct <- datacon_def dcon >>= return . C.deconstruct
+                --return $ deconstruct var
+            InTag typ -> getTag typ var
 
         nprefix <- return $ prefix ++ [l]
         (cont, updates) <- extract_var (nprefix, var', ls) endvar
@@ -819,7 +454,7 @@ extract_var (prefix, var, loc) endvar =
 
 
 -- | Using a decision tree, explain the tests that have to be done to compute a pattern matching.
-simplify_pattern_matching :: C.Expr -> [(C.Pattern, C.Expr)] -> QpState Expr
+simplify_pattern_matching :: C.Expr -> [(C.Pattern, C.Expr)] -> Compiler Expr
 simplify_pattern_matching e blist = do
   patterns <- return $ fst $ List.unzip blist
   e' <- remove_patterns e
@@ -896,7 +531,8 @@ simplify_pattern_matching e blist = do
                         cases <- List.foldl (\rec (rdcon, subtree) -> do
                               cases <- rec
                               tag <- case rdcon of
-                                    RDatacon dcon -> datacon_def dcon >>= return . C.tag
+                                    RDatacon dcon -> getConstructorInfo dcon >> tag
+                                    --datacon_def dcon >>= return . C.tag
                                     _ -> return (-1)
                               e <- unbuild subtree extracted
                               return $ (tag, e):cases) (return []) others
@@ -921,14 +557,14 @@ simplify_pattern_matching e blist = do
     EVar iniTypeVar -> do
         unbuild dtree [([], iniTypeVar)]
     _ -> do
-        iniTypeVar <- create_var "x"
+        iniTypeVar <- createVariable "x"
         tests <- unbuild dtree [([], iniTypeVar)]
         return $ ELet iniTypeVar e' tests
 
 
 
 -- | Remove the patterns. Some are left in the match expressions, but should only be of the form @A _@ or @_@, where @_@ is the wildcard.
-remove_patterns :: C.Expr -> QpState Expr
+remove_patterns :: C.Expr -> Compiler Expr
 remove_patterns (C.EVar _ x) =
   return $ EVar x
 
@@ -946,12 +582,12 @@ remove_patterns (C.EFun ref p e) = do
     -- The pattern is the wildcard: do nothing (except from creating a variable for the argument).
     C.PWildcard _ -> do
       e' <- remove_patterns e
-      x <- create_var "x"
+      x <- createVariable "x"
       return $ EFun x e'
 
     -- If the pattern is more complicated, replace it by a variable
     _ -> do
-      x <- create_var "x"
+      x <- createVariable "x"
       e' <- remove_patterns $ C.ELet Nonrecursive p (C.EVar 0 x) e
       return $ EFun x e'
 
@@ -959,9 +595,6 @@ remove_patterns (C.EApp e f) = do
   e' <- remove_patterns e
   f' <- remove_patterns f
   return $ EApp e' f'
-
-remove_patterns (C.EUnit _) = do
-  return EUnit
 
 remove_patterns (C.ETuple _ elist) = do
   elist' <- List.foldl (\rec e -> do
@@ -996,11 +629,7 @@ remove_patterns (C.ELet Nonrecursive p e f) = do
 remove_patterns (C.ELet Recursive _ _ _) =
   fail "Preliminaries:remove_patterns: unexpected recursive binding"
 
-remove_patterns (C.EBool _ b) = do
-  return $ EBool b
-
-remove_patterns (C.EInt _ n) = do
-  return $ EInt n
+remove_patterns (C.EConstant _ c) = return $ EConstant c
 
 remove_patterns (C.EIf e f g) = do
   e' <- remove_patterns e
@@ -1009,25 +638,25 @@ remove_patterns (C.EIf e f g) = do
   return $ EMatch e' [(1,f')] g'
 
 remove_patterns (C.EDatacon _ dcon Nothing) = do
-  ddef <- datacon_def dcon
+  ddef <- getConstructorInfo dcon
   -- If the data constructor expected an argument, then return a pointer to an implementation
   -- of the incomplete constructor.
-  if C.implementation ddef == -1 then do
-    Left construct <- datacon_def dcon >>= return . C.construct
-    return construct
+  if implementation ddef == -1 then do
+    Left build <- getConstructorInfo dcon >> build
+    return build
   else
-    return $ EGlobal $ C.implementation ddef
+    return $ EGlobal $ implementation ddef
 
 remove_patterns (C.EDatacon _ dcon (Just e)) = do
-  Right construct <- datacon_def dcon >>= return . C.construct
+  Right build <- getConstructorInfo dcon >> build
   e' <- remove_patterns e
-  return $ construct e'
+  return $ build e'
 
 remove_patterns (C.EMatch e blist) = do
   simplify_pattern_matching e blist
 
 remove_patterns (C.EBox _ typ) = do
-  typ <- convert_type typ
+  typ <- C.quantumTypeOfType typ
   x <- request_box typ
   return (EVar x)
 
@@ -1035,7 +664,7 @@ remove_patterns (C.EUnbox ref) = do
   ri <- ref_info_err ref
   let typ = C.rtype ri
   typ <- map_type typ
-  (t, u) <- circuit_type typ
+  (t, u) <- C.circuitTypeOfType typ
   -- Check the type of the unbox operator
   if not (is_concrete t && is_concrete u) then do
     warnQ (AmbiguousUnbox) (C.extent ri)
@@ -1048,7 +677,7 @@ remove_patterns (C.ERev _) = do
   x <- request_rev
   return (EVar x)
 
-remove_patterns (C.EConstraint e t) =
+remove_patterns (C.ECoerce e t) =
   remove_patterns e
 
 remove_patterns (C.EError msg) =
@@ -1057,7 +686,7 @@ remove_patterns (C.EError msg) =
 
 -- | Modify the body of a module by applying the function 'disambiguate_unbox_calls' and 'remove_pattern'
 -- to all the top-level declarations.
-transform_declarations :: [C.Declaration] -> QpState [Declaration]
+transform_declarations :: [C.Declaration] -> Compiler [Declaration]
 transform_declarations decls = do
   (decls, _) <- List.foldl (\rec d -> do
         (decls, mod) <- rec
@@ -1073,11 +702,11 @@ transform_declarations decls = do
 
               -- Then pick up the remaining unbox calls
               need <- unbox_types e'
-              need <- return $ List.filter (\a -> not $ C.is_concrete a) need
+              need <- return $ List.filter (\a -> not $ C.isConcrete a) need
 
               -- Unresolved unbox operators
               if need /= [] then do
-                typ <- global_type x >>= return . C.type_of_typescheme
+                typ <- global_type x >>= return . C.typeOfScheme
 
                 -- Specify the calling convention for x
                 set_call_convention x need
@@ -1088,7 +717,7 @@ transform_declarations decls = do
                 -- Add new argument variables to the arg context
                 args <- List.foldr (\a rec -> do
                       as <- rec
-                      v <- create_var "u"
+                      v <- createVariable "u"
                       return $ (a, v):as) (return []) need
 
                 -- Disambiguate the calls from e again
@@ -1112,10 +741,10 @@ transform_declarations decls = do
                   -- Function.
                   (Nonrecursive, EFun v e) -> return ((DLet External x $ EFun v e):decls, mod)
                   _ -> do
-                      typ <- global_type x >>= return . C.type_of_typescheme
-                      if C.is_fun typ then do
+                      typ <- global_type x >>= return . C.typeOfScheme
+                      if isFunction typ then do
                         -- Necessary eta-expansion.
-                        a <- create_var "x"
+                        a <- createVariable "x"
                         return ((DLet External x $ EFun a (EApp e' $ EVar a)):decls, mod)
                       else
                         return ((DLet External x e'):decls, mod)

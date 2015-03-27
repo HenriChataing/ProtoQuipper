@@ -9,8 +9,10 @@ import Options hiding (verbose, options)
 import Utils
 import Parsing.Location
 
+import Language.Constructor (ConstructorInfo)
+
 import Core.Environment
-import Core.Namespace
+import Core.Namespace as Namespace
 import Core.Syntax
 
 import Monad.Error
@@ -102,6 +104,12 @@ require :: String -> Core (Maybe Module)
 require name = do
   modules <- gets modules
   return $ List.find (\m -> moduleName m == name) modules
+
+
+-- | Return the definition of a data constructor.
+getConstructorInfo :: Variable -> Core (Maybe ConstructorInfo)
+getConstructorInfo constructor =
+  gets $ ((IntMap.lookup constructor) . Namespace.constructors) . namespace
 
 
 ---------------------------------------------------------------------------------------------------

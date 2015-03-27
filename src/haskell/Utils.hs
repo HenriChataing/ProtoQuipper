@@ -156,8 +156,6 @@ instance Show RecFlag where
   show Nonrecursive = ""
   show Recursive = "rec"
 
-
--- | Type of term (and type) variables.
 type Variable = Int
 
 -- | Type of type constants.
@@ -199,20 +197,20 @@ default_lvl = Nth 2
 
 
 -- | Definition of a quantum data type.
-data QType =
+data QuantumType =
     QQubit
   | QUnit
   | QVar Int
-  | QTensor [QType]
+  | QTensor [QuantumType]
   deriving (Eq, Show, Ord)
 
 -- | The type of the associated circuits.
-type CircType =
-  (QType, QType)
+type CircuitType =
+  (QuantumType, QuantumType)
 
 
 -- | Return True if and only if the type @Qubit@ appears at least once in the given type.
-has_qubits :: QType -> Bool
+has_qubits :: QuantumType -> Bool
 has_qubits (QTensor qlist) =
   List.or $ List.map has_qubits qlist
 has_qubits QQubit = True

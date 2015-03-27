@@ -22,6 +22,7 @@ import qualified Compiler.SimplSyntax as C
 import Data.List as List
 import Data.IntSet as IntSet
 import Data.Map (Map)
+import Data.IntMap as IntMap
 
 
 -- ----------------------------------------------------------------------
@@ -154,6 +155,47 @@ tensor :: [Type] -> Type
 tensor args = apply 1 "*" args
 
 
+-- | Convert a regular type to a quantum data type.
+quantumTypeOfType :: Type -> QuantumType
+quantumTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "unit") _)) = QUnit
+quantumTypeOfType (TypeAnnot _ (TypeVar a)) = QVar a
+quantumTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "qubit") _)) = QQubit
+quantumTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "*") tuple)) =
+  QTensor $ List.map quantumTypeOfType tuple
+quantumTypeOfType _ = throwNE $ UserError "Preliminaries:quantumTypeOfType: illegal argument"
+
+-- | Convert the type of an unbox operator (only) to 'Compiler.Preliminaries.QuantumType'.
+-- An exception is raised if the given type is not of the form: @Circ (QuantumType, QuantumType) -> _@.
+circuitTypeOfType :: Type -> CircuitType
+circuitTypeOfType (TypeAnnot _ (TypeApply (TypeBuiltin "->") [t,_])) =
+  case t of
+    TypeAnnot _ (TypeApply (TypeBuiltin "circ") [t,u]) ->
+      (quantumTypeOfType t, quantumTypeOfType u)
+    _ -> throwNE $ UserError "Preliminaries:circuitTypeOfType: illegal argument"
+circuitTypeOfType _ =
+  throwNE $ UserError "Preliminaries:circuitTypeOfType: illegal argument"
+
+
+-- | Bind two types, producing a mapping from type variables to types.
+bindTypes :: Type -> Type -> IntMap Type
+bindTypes t t' = bindTypesAux t t' IntMap.empty
+  where
+    bindTypesAux (TypeAnnot _ (TypeVar v)) typ map = IntMap.insert v typ map
+    bindTypesAux (TypeAnnot _ (TypeApply c args)) (TypeAnnot _ (TypeApply c' args')) map =
+      List.foldl (\map (t, t') -> bindTypesAux t t' map) map $ List.zip args args'
+    bindTypesAux _ _ map = map
+
+
+-- | Apply the binding produced by the function 'Core.Syntax.bindTypes'.
+mapType :: IntMap Type -> Type -> Type
+mapType b (TypeAnnot n (TypeVar v)) =
+  case IntMap.lookup v b of
+    Just t -> t
+    Nothing -> TypeAnnot n $ TypeVar v
+mapType b (TypeAnnot n (TypeApply c args)) =
+  TypeAnnot n $ TypeApply c $ List.map (mapType b) args
+
+
 -- | The type of type schemes. A /type scheme/ is a type expression together with universally
 -- quantified type variables /a/1, ..., /a//n/ and flags /f/1, ..., /f//k/, which must satisfy a set
 -- of constraints /L/.
@@ -278,37 +320,13 @@ data TypeDefinition =
 
 
 -- ----------------------------------------------------------------------
--- ** Data constructors.
-
-
--- | A data constructor definition.
-data Datacondef = Datacondef {
-  datatype :: Algebraic,                               -- ^ The original data type.
-  dtype :: TypeScheme,                                 -- ^ The type of the constructor.
-  tag :: Int,                                          -- ^ A tag uniquely identifying each constructor
-                                                       -- inside of a type definition.
-  implementation :: Variable,                          -- ^ Data constructors with one argument must define a function representing
-                                                       -- the constructor when not applied to an element.
-                                                       -- For example, take the constructor \'Just\': a function is defined with the body
-                                                      -- @ fun x -> Just x @
-                                                       -- This variable records this precise definition.
-  construct :: Either C.Expr (C.Expr -> C.Expr),       -- ^ The implementation of a data constructor.
-  deconstruct :: Variable -> C.Expr                    -- ^ The deconstructor associated with a data constrcuctor.
-}
-
-
--- ----------------------------------------------------------------------
 -- ** Global references
 
--- | The type of global references. Each expression / pattern is given one of those.
-type Ref = Int
-
--- | The information contained by the above references.
-data RefInfo = RInfo {
-  extent :: Extent,                                    -- ^ The extent of the expression in a file.
-  expression :: Either Expr Pattern,                   -- ^ The referenced expression.
-  rtype :: Type                                        -- ^ The type of the expression.
-}
+-- | Genenral information about patterns or expressions.
+data Info = Info {
+  extent :: Extent,                                   -- ^ The extent of the expression in a file.
+  typ :: Type                                         -- ^ The type of the expression.
+} deriving Show
 
 
 -- ----------------------------------------------------------------------
@@ -349,15 +367,15 @@ instance Show ConstantValue where
 -- differs from the application @(fun x -> f) e@ by the presence of let-polymorphism.
 data Pattern =
   -- | The \"wildcard\" pattern: \"@_@\". This pattern matches any value, and the value is to be discarded.
-    PWildcard Ref
+    PWildcard Info
   -- | Constant values (integers, booleans ..).
-  | PConstant Ref ConstantValue
+  | PConstant Info ConstantValue
   -- | Pattern variables: /x/.
-  | PVar Ref Variable
+  | PVar Info Variable
   -- | Tuple pattern: @(/p/1, ..., /p//n/)@. By construction, must have /n/ >= 2.
-  | PTuple Ref [Pattern]
+  | PTuple Info [Pattern]
   -- | Data constructor pattern: \"@Datacon@\" or \"@Datacon /pattern/@\".
-  | PDatacon Ref Datacon (Maybe Pattern)
+  | PDatacon Info Datacon (Maybe Pattern)
   -- | Type coercion: @(p <: T)@. The type has not been converted yet.
   | PCoerce Pattern S.Type (Map String Type)
   deriving Show
@@ -397,25 +415,25 @@ instance Coerced Binding where
 -- the typing context with more variables that are duplicable anyway.
 data Expr =
   -- STLC.
-    EVar Ref Variable                                 -- ^ Variable: /x/.
-  | EGlobal Ref Variable                              -- ^ Global variable from the imported modules.
-  | EFun Ref Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
+    EVar Info Variable                                 -- ^ Variable: /x/.
+  | EGlobal Info Variable                              -- ^ Global variable from the imported modules.
+  | EFun Info Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
   | EApp Expr Expr                                    -- ^ Function application: @t u@.
   | ELet RecFlag Pattern Expr Expr                    -- ^ Let-binding: @let [rec] p = e in f@.
 
   -- Constants.
-  | EConstant Ref ConstantValue                       -- ^ Constant values (integers, booleans ..).
+  | EConstant Info ConstantValue                       -- ^ Constant values (integers, booleans ..).
 
   -- Conditionnals and pattern matchings.
   | EIf Expr Expr Expr                                -- ^ Conditional: @if e then f else g@.
   | EMatch Expr [Binding]                             -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
-  | EDatacon Ref Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
-  | ETuple Ref [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
+  | EDatacon Info Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
+  | ETuple Info [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
 
   -- Quantum rules
-  | EBox Ref Type                                     -- ^ The constant @box[T]@.
-  | EUnbox Ref                                        -- ^ The constant @unbox@.
-  | ERev Ref                                          -- ^ The constant @rev@.
+  | EBox Info Type                                     -- ^ The constant @box[T]@.
+  | EUnbox Info                                        -- ^ The constant @unbox@.
+  | ERev Info                                          -- ^ The constant @rev@.
 
   -- Unrelated
   | EError String                                     -- ^ Throw an error.
@@ -448,24 +466,6 @@ instance TermObject Expr where
   freevar (EMatch test cases) = IntSet.unions (freevar test : List.map (freevar) cases)
   freevar (ECoerce e _) = freevar e
   freevar _ = IntSet.empty
-
--- | Return the reference of an expression.
---reference :: Expr -> Ref
---reference (EVar ref _) = ref
---reference (EGlobal ref _) = ref
---reference (EFun ref _ _) = ref
---reference (EApp _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
---reference (EConstant ref _) = ref
---reference (ETuple ref _) = ref
---reference (ELet _ _ _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
---reference (EIf _ _ _) = throwNE $ ProgramError "Syntax:reference: unreferenced object"
---reference (EDatacon ref _ _) = ref
---reference (EMatch _ _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
---reference (EBox ref _) = ref
---reference (EUnbox ref) = ref
---reference (ERev ref) = ref
---reference (EConstraint e _) = reference e
---reference (EError _) = throwNE $ ProgramError "Syntax:reference: unereferenced object"
 
 
 -- | Determine whether an expression is a value or not.
@@ -502,7 +502,7 @@ data Declaration =
 -- is the actual type). It is used in type constraints and flag
 -- constraints.
 data ConstraintInfo = CInfo {
-  c_ref :: Ref,            -- ^ The reference of the expression / pattern from which originated the constraint.
+  --c_ref :: Ref,            -- ^ The reference of the expression / pattern from which originated the constraint.
   c_actual :: Bool,        -- ^ The orientation of the constraint: true means actual type is on the left.
   c_type :: Maybe Type     -- ^ The original type (actual type before reducing).
 } deriving Show
@@ -511,7 +511,7 @@ data ConstraintInfo = CInfo {
 -- | An empty 'ConstraintInfo' structure.
 no_info :: ConstraintInfo
 no_info = CInfo {
-  c_ref = 0,
+  --c_ref = 0,
   c_actual = True,
   c_type = Nothing
 }

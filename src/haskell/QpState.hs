@@ -40,41 +40,41 @@ import Data.IntSet as IntSet
 -- | A data type to implement a logger. Logs can be given different priorities, depending on their
 -- importance. Any log whose priority is lower than the verbose control is discarded. The logs are
 -- printed to a channel, which can be, for example, 'stdout', 'stderr', or any file writing channel.
-data Logfile = Logfile {
-  channel :: Handle,          -- ^ The output channel, by default stdout.
-  verbose :: Int,             -- ^ The verbose level, by default nul.
-  warnings :: String          -- ^ Handling of warnings (error, print, ignore).
-}
+--data Logfile = Logfile {
+--  channel :: Handle,          -- ^ The output channel, by default stdout.
+--  verbose :: Int,             -- ^ The verbose level, by default nul.
+--  warnings :: String          -- ^ Handling of warnings (error, print, ignore).
+--}
 
 -- | Log a message with a given priority level.
-log :: Logfile -> Int -> String -> IO ()
-log logfile lvl msg = do
-  w <- hIsWritable $ channel logfile
-  if lvl >= verbose logfile || not w then
-    return ()
-  else do
-    hPutStrLn (channel logfile) msg
-    hFlush (channel logfile)
+--log :: Logfile -> Int -> String -> IO ()
+--log logfile lvl msg = do
+--  w <- hIsWritable $ channel logfile
+--  if lvl >= verbose logfile || not w then
+--    return ()
+--  else do
+--    hPutStrLn (channel logfile) msg
+--    hFlush (channel logfile)
 
 
--- | Display a warning. The verbose level is ignored. If the option \'Werror\' was added, all warnings
--- are raised as errors.
-warning :: Logfile -> Warning -> Maybe Extent -> IO ()
-warning logfile warn ex = do
-  w <- hIsWritable $ channel logfile
-  if not w then
-    return ()
-  else do
-    let waction = warnings logfile
-    if waction == "display" then
-      case ex of
-        Just ex -> hPutStrLn (channel logfile) $ printE warn ex
-        Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
-    else if waction == "error" then
-      Q.throw warn ex
-    else
-      return ()
-    hFlush (channel logfile)
+---- | Display a warning. The verbose level is ignored. If the option \'Werror\' was added, all warnings
+---- are raised as errors.
+--warning :: Logfile -> Warning -> Maybe Extent -> IO ()
+--warning logfile warn ex = do
+--  w <- hIsWritable $ channel logfile
+--  if not w then
+--    return ()
+--  else do
+--    let waction = warnings logfile
+--    if waction == "display" then
+--      case ex of
+--        Just ex -> hPutStrLn (channel logfile) $ printE warn ex
+--        Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
+--    else if waction == "error" then
+--      Q.throw warn ex
+--    else
+--      return ()
+--    hFlush (channel logfile)
 
 
 
@@ -107,24 +107,24 @@ data QContext = QCtx {
 
   --logfile :: Logfile,                                 -- ^ Log file currently in use.
   --namespace :: Namespace,                             -- ^ Remembers the original names of the term variables.
-  location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
+  --location :: Extent,                                 -- ^ Extent of the expression \/ type \/ pattern being studied.
 
   -- Module related fields
   --modules :: [(String, Module)],                      -- ^ The list of processed modules. The module definition defines an interface to the module.
-  dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
-  current :: Maybe String,                            -- ^ The name of the current module.
+  --dependencies :: [String],                           -- ^ The list of modules currently accessible (a subset of modules).
+  --current :: Maybe String,                            -- ^ The name of the current module.
 
   -- Type definitions
-  algebraics :: IntMap TypeAlgebraic,                 -- ^ The definitions of algebraic types.
-  synonyms :: IntMap TypeAlias,                       -- ^ The defintion of type synonyms.
-  tagaccess :: IntMap (Variable -> C.Expr),           -- ^ Initialized as needed, indicates how to access the tag of a value of the given type.
+  --algebraics :: IntMap TypeAlgebraic,                 -- ^ The definitions of algebraic types.
+  --synonyms :: IntMap TypeAlias,                       -- ^ The defintion of type synonyms.
+  --tagaccess :: IntMap (Variable -> C.Expr),           -- ^ Initialized as needed, indicates how to access the tag of a value of the given type.
 
   -- Global variables
-  datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
-                                                      -- their type, as written in the type definition.
-  globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
+  --datacons :: IntMap Datacondef,                      -- ^ Data constructors are considered to be values, and so can be typed individually. This map contains
+  --                                                    -- their type, as written in the type definition.
+  --globals :: IntMap TypeScheme,                       -- ^ Typing context corresponding to the global variables imported from other modules.
 
-  values :: IntMap Value,                             -- ^ The values of the global variables.
+  --values :: IntMap Value,                             -- ^ The values of the global variables.
 
   assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
                                                       -- function values are prohibited (even type constructors).
@@ -137,7 +137,7 @@ data QContext = QCtx {
 -- Compiler things
   call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
                                                       -- (see the function 'Compiler.Preliminaries.disambiguate_unbox_calls' for more information).
-  circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
+  --circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
   references :: IntMap RefInfo,                       -- ^ Information about each expression.
@@ -146,10 +146,10 @@ data QContext = QCtx {
   circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
 
 -- Id generation
-  type_id :: Int,                                     -- ^ Used to generate fresh type variables.
-  flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
-  qubit_id :: Int,                                    -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
-  ref_id :: Int,                                      -- ^ Used to generate new references.
+  --type_id :: Int,                                     -- ^ Used to generate fresh type variables.
+  --flag_id :: Int,                                     -- ^ Used to generate fresh flag references.
+  --qubit_id :: Int,                                    -- ^ Used to generate fresh quantum addresses. This field can be reinitialized (set to 0) after every new call to box[T].
+  --ref_id :: Int,                                      -- ^ Used to generate new references.
 
 -- Substitution from type variable to types
   mappings :: IntMap LinearType                          -- ^ The result of the unification: a mapping from type variables to linear types.
@@ -157,117 +157,117 @@ data QContext = QCtx {
 
 
 
--- | The state monad associated with a 'Context'.
--- The monad runs its operations in the 'IO' monad, so it can perform input \/ output operations
--- via a simple lift.
-newtype QpState a = QpState { runS :: (QContext -> IO (QContext, a)) }
+---- | The state monad associated with a 'Context'.
+---- The monad runs its operations in the 'IO' monad, so it can perform input \/ output operations
+---- via a simple lift.
+-- newtype QpState a = QpState { runS :: (QContext -> IO (QContext, a)) }
 
-instance Monad QpState where
-  return a = QpState { runS = (\ctx -> return (ctx, a)) }
-  fail s = QpState { runS = (\ctx -> Q.throwNE $ ProgramError s) }
-  st >>= action = QpState { runS = (\ctx -> do
-                                    (ctx', a) <- runS st ctx
-                                    st' <- return $ action a
-                                    runS st' ctx') }
-
-
--- | Throw an exception of type 'QError' (exceptions specific to Quipper).
-throwQ :: QError a => a -> Extent -> QpState b
-throwQ e ex =
-  QpState { runS = (\ctx -> Q.throwWE e ex) }
+--instance Monad QpState where
+--  return a = QpState { runS = (\ctx -> return (ctx, a)) }
+--  fail s = QpState { runS = (\ctx -> Q.throwNE $ ProgramError s) }
+--  st >>= action = QpState { runS = (\ctx -> do
+--                                    (ctx', a) <- runS st ctx
+--                                    st' <- return $ action a
+--                                    runS st' ctx') }
 
 
--- | Give a warning.
-warnQ :: Warning -> Extent -> QpState ()
-warnQ w ex = do
-  ctx <- get_context
-  liftIO $ write_warning (logfile ctx) w $ Just ex
+---- | Throw an exception of type 'QError' (exceptions specific to Quipper).
+--throwQ :: QError a => a -> Extent -> QpState b
+--throwQ e ex =
+--  QpState { runS = (\ctx -> Q.throwWE e ex) }
 
 
--- | Catch any error thrown in a certain computation, and run a continuation in case
--- an error is caught.
-catchQ :: QpState a -> (QuipperError -> QpState a) -> QpState a
-catchQ st c =
-  QpState { runS = (\ctx ->
-                      (runS st ctx) `E.catch` (\e -> do
-                                                 runS (c e) ctx)) }
+---- | Give a warning.
+--warnQ :: Warning -> Extent -> QpState ()
+--warnQ w ex = do
+--  ctx <- get_context
+--  liftIO $ write_warning (logfile ctx) w $ Just ex
 
 
--- | Relay actions from the 'IO' monad to the 'QpState' monad.
-liftIO :: IO a -> QpState a
-liftIO x = QpState { runS = (\ctx -> do
-                               x' <- x
-                               return (ctx, x')) }
+---- | Catch any error thrown in a certain computation, and run a continuation in case
+---- an error is caught.
+--catchQ :: QpState a -> (QuipperError -> QpState a) -> QpState a
+--catchQ st c =
+--  QpState { runS = (\ctx ->
+--                      (runS st ctx) `E.catch` (\e -> do
+--                                                 runS (c e) ctx)) }
+
+
+---- | Relay actions from the 'IO' monad to the 'QpState' monad.
+--liftIO :: IO a -> QpState a
+--liftIO x = QpState { runS = (\ctx -> do
+--                               x' <- x
+--                               return (ctx, x')) }
 
 
 
 -- | The initial context. Except for the logfile, which is set to print on standard output (stdout) with the lowest verbose level (block everything),
 -- everything else is set to empty \/ 0 \/ [].
-empty_context :: QContext
-empty_context =  QCtx {
--- Default logfile : verbose level 0, standard output, print warnings.
-  logfile = Logfile { channel = stdout, verbose = 0, warnings = "display" },
+--empty_context :: QContext
+--empty_context =  QCtx {
+---- Default logfile : verbose level 0, standard output, print warnings.
+--  logfile = Logfile { channel = stdout, verbose = 0, warnings = "display" },
 
--- Namespace.
-  namespace = N.new_namespace,
+---- Namespace.
+--  namespace = N.new_namespace,
 
--- Location.
-  location = extent_unknown,
+---- Location.
+--  location = extent_unknown,
 
--- No modules
-  modules = [],
-  dependencies = [],
-  current = Nothing,
+---- No modules
+--  modules = [],
+--  dependencies = [],
+--  current = Nothing,
 
--- No global variables
-  globals = IMap.empty,
-  values = IMap.empty,
+---- No global variables
+--  globals = IMap.empty,
+--  values = IMap.empty,
 
--- The initial location is unknown, as well as the name of the code file
-
-
--- Types.
-  algebraics = IMap.empty,
-  synonyms = IMap.empty,
-  tagaccess = IMap.empty,
-
--- No predefined types, datacons or flags
-  datacons = IMap.empty,
-
--- No assertions
-  assertions = [],
-
--- No flag
-  flags = IMap.empty,
-
--- no conventions
-  call_conventions = IMap.empty,
-  circOps = empty_circOps,
-
--- No references
-  references = IMap.empty,
-
--- Circuit stack initialized with a void circuit.
-  circuits = [Circ { qIn = [], gates = [], qOut = [], QC.qubit_id = 0, unused_ids = [] }],
-
-  flag_id = 2,   -- Flag ids 0 and 1 are reserved
-  type_id = 0,
-  Monad.QpState.qubit_id = 0,
-  ref_id = 1,
-
-  mappings = IMap.empty
-}
+---- The initial location is unknown, as well as the name of the code file
 
 
+---- Types.
+--  algebraics = IMap.empty,
+--  synonyms = IMap.empty,
+--  tagaccess = IMap.empty,
 
--- | Return the state context.
-get_context :: QpState QContext
-get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
+---- No predefined types, datacons or flags
+--  datacons = IMap.empty,
+
+---- No assertions
+--  assertions = [],
+
+---- No flag
+--  flags = IMap.empty,
+
+---- no conventions
+--  call_conventions = IMap.empty,
+--  circOps = empty_circOps,
+
+---- No references
+--  references = IMap.empty,
+
+---- Circuit stack initialized with a void circuit.
+--  circuits = [Circ { qIn = [], gates = [], qOut = [], QC.qubit_id = 0, unused_ids = [] }],
+
+--  flag_id = 2,   -- Flag ids 0 and 1 are reserved
+--  type_id = 0,
+--  Monad.QpState.qubit_id = 0,
+--  ref_id = 1,
+
+--  mappings = IMap.empty
+--}
 
 
--- | Set the state context.
-set_context :: QContext -> QpState ()
-set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
+
+---- | Return the state context.
+--get_context :: QpState QContext
+--get_context = QpState { runS = (\ctx -> return (ctx, ctx)) }
+
+
+---- | Set the state context.
+--set_context :: QContext -> QpState ()
+--set_context ctx = QpState { runS = (\_ -> return (ctx, ())) }
 
 
 ------------------------------------------------
@@ -330,56 +330,56 @@ current_module =
 
 
 -- | Register a variable in the namespace. A new id is generated, bound to
--- the given variable, and returned.
-register_var :: Maybe String     -- ^ Optional module.
-             -> String           -- ^ Variable name.
-             -> Ref              -- ^ Reference.
-             -> QpState Variable
-register_var mod x ref = do
-  ctx <- get_context
-  (id, nspace) <- return $ N.register_var mod x ref (namespace ctx)
-  set_context $ ctx { namespace = nspace }
-  return id
+---- the given variable, and returned.
+--register_var :: Maybe String     -- ^ Optional module.
+--             -> String           -- ^ Variable name.
+--             -> Ref              -- ^ Reference.
+--             -> QpState Variable
+--register_var mod x ref = do
+--  ctx <- get_context
+--  (id, nspace) <- return $ N.register_var mod x ref (namespace ctx)
+--  set_context $ ctx { namespace = nspace }
+--  return id
 
 
 -- | Like 'register_var', but register a data constructor. Note that the variable and data constructor
 -- ids may overlap, as they are generated from a different source.
-register_datacon :: String -> Datacondef -> QpState Datacon
-register_datacon dcon ddef = do
-  ctx <- get_context
-  (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
-  set_context $ ctx { namespace = nspace,
-                      datacons = IMap.insert id ddef $ datacons ctx }
-  return id
+--register_datacon :: String -> Datacondef -> QpState Datacon
+--register_datacon dcon ddef = do
+--  ctx <- get_context
+--  (id, nspace) <- return $ N.register_datacon dcon (namespace ctx)
+--  set_context $ ctx { namespace = nspace,
+--                      datacons = IMap.insert id ddef $ datacons ctx }
+--  return id
 
 
 -- | Register a data type definition. A unique id is attributed to the type name and returned.
-register_algebraic :: String -> TypeAlgebraic -> QpState Algebraic
-register_algebraic name alg = do
-  ctx <- get_context
-  let (id, nspace) = N.register_type name $ namespace ctx
-  set_context ctx { namespace = nspace,
-                    algebraics = IMap.insert id alg $ algebraics ctx }
-  return id
+--register_algebraic :: String -> TypeAlgebraic -> QpState Algebraic
+--register_algebraic name alg = do
+--  ctx <- get_context
+--  let (id, nspace) = N.register_type name $ namespace ctx
+--  set_context ctx { namespace = nspace,
+--                    algebraics = IMap.insert id alg $ algebraics ctx }
+--  return id
 
 
 -- | Register a type synonym.
-register_synonym :: String -> TypeAlias -> QpState Synonym
-register_synonym name syn = do
-  ctx <- get_context
-  let (id, nspace) = N.register_type name $ namespace ctx
-  set_context $ ctx { namespace = nspace,
-                      synonyms = IMap.insert id syn $ synonyms ctx }
-  return id
+--register_synonym :: String -> TypeAlias -> QpState Synonym
+--register_synonym name syn = do
+--  ctx <- get_context
+--  let (id, nspace) = N.register_type name $ namespace ctx
+--  set_context $ ctx { namespace = nspace,
+--                      synonyms = IMap.insert id syn $ synonyms ctx }
+--  return id
 
 
 -- | Create a dummy variable from a new id /n/, registered under the name /x_n/.
-create_var :: String -> QpState Int
-create_var s = do
-  ctx <- get_context
-  (id, nspace) <- return $ N.create_var s (namespace ctx)
-  set_context $ ctx { namespace = nspace }
-  return id
+--create_var :: String -> QpState Int
+--create_var s = do
+--  ctx <- get_context
+--  (id, nspace) <- return $ N.create_var s (namespace ctx)
+--  set_context $ ctx { namespace = nspace }
+--  return id
 
 
 -- | Retrieve the name of the given variable. If no match is found in

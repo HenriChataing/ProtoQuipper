@@ -4,10 +4,15 @@
 module Monad.Compiler where
 
 import Utils
+import Parsing.Location
 
-import Monad.Core hiding (namespace)
+import Language.Constructor
+
+import Monad.Typer as Typer
+import Monad.Error hiding (prefix)
 
 import Compiler.SimplSyntax (Declaration (..), Expr, Visibility (..))
+import Core.Syntax(Type)
 
 import Control.Monad.Trans
 import Control.Monad.Trans.State
@@ -18,8 +23,8 @@ import Data.IntMap as IntMap
 -- | The context of implemented quantum operations. If a module uses different instances of the box,
 -- unbox, rev operators, their implementation will be placed here until added to the module.
 data CircuitLibrary = CircuitLibrary {
-  boxes :: Map QType Variable,              -- ^ Store box[T] operator implementations.
-  unboxes :: Map CircType Variable,         -- ^ Store unbox T U operator implementations.
+  boxes :: Map QuantumType Variable,        -- ^ Store box[T] operator implementations.
+  unboxes :: Map CircuitType Variable,      -- ^ Store unbox T U operator implementations.
   rev :: Maybe Variable,                    -- ^ Implementation of the rev operator, if required.
   code :: [Declaration]                     -- ^ Associated declarations.
 }
@@ -47,7 +52,7 @@ data CompilerState = CompilerState {
 
 -- | The compiler monad, runs in the typer monad, since type information is required to disambiguate
 -- the quantum operators.
-type Compiler = StateT CompilerState Core
+type Compiler = StateT CompilerState Typer
 
 
 -- | Empty state.
@@ -128,13 +133,13 @@ bindCircuit name implementation set = do
   return binder
 
 -- | Add a new box circuit.
-bindBox :: QType -> Expr -> Compiler Variable
+bindBox :: QuantumType -> Expr -> Compiler Variable
 bindBox qtyp box =
   bindCircuit "box" box $ \library x ->
     library { boxes = Map.insert qtyp x $ boxes library }
 
 -- | Add a new unbox circuit.
-bindUnbox :: (QType, QType) -> Expr -> Compiler Variable
+bindUnbox :: (QuantumType, QuantumType) -> Expr -> Compiler Variable
 bindUnbox ctyp unbox =
   bindCircuit "unbox" unbox $ \library x ->
     library { unboxes = Map.insert ctyp x $ unboxes library }
@@ -143,3 +148,19 @@ bindUnbox ctyp unbox =
 bindRev :: Expr -> Compiler Variable
 bindRev rev =
   bindCircuit "rev" rev $ \library x -> library { rev = Just x }
+
+
+---------------------------------------------------------------------------------------------------
+-- * Lifting.
+
+getConstructorInfo :: Variable -> Compiler (Maybe ConstructorInfo)
+getConstructorInfo constructor = lift $ Typer.getConstructorInfo constructor
+
+log :: Int -> String -> Compiler ()
+log lvl msg = lift $ Typer.log lvl msg
+
+warning :: Warning -> Maybe Extent -> Compiler ()
+warning warn ext = lift $ Typer.warning warn ext
+
+solveType :: Type -> Compiler Type
+solveType typ = lift $ Typer.solveType typ

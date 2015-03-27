@@ -9,13 +9,13 @@ import Prelude hiding (lookup)
 import Utils
 import Classes hiding ((<+>), (\\))
 
---import Monad.QpState
+import Monad.Compiler
 import Monad.Error
 
 import qualified Core.Syntax as CS
 
 import qualified Compiler.SimplSyntax as S
-import Compiler.Circ
+import Compiler.Circuits
 
 import Data.List ((\\))
 import qualified Data.List as List
@@ -40,9 +40,9 @@ unVVar _ = throwNE $ ProgramError "CExpr:unVVar: illegal argument"
 
 
 -- | Are considered free variables only variables bound in a local scope.
-instance Param Value where
-  free_var (VVar x) = [x]
-  free_var _ = []
+instance TermObject Value where
+  freevar (VVar x) = [x]
+  freevar _ = []
 
 
 instance Subs Value Value where
@@ -78,7 +78,7 @@ data CExpr =
 
 
 
-instance Param CExpr where
+instance TermObject CExpr where
   free_var (CFun f args cf c) =
     List.union (free_var cf \\ (f:args)) (free_var c \\ [f])
   free_var (CApp f args x c) =

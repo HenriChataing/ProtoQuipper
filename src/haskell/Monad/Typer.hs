@@ -4,7 +4,18 @@
 
 module Monad.Typer where
 
-import Monad.Core
+import Utils
+import Parsing.Location
+
+import Language.Constructor
+
+import Core.Syntax (Type)
+
+import Monad.Core as Core
+import Monad.Error
+
+import Control.Monad.Trans
+import Control.Monad.Trans.State
 
 
 -- | The typer state is able to generate fresh type and flag variables, and define the substitution
@@ -14,10 +25,32 @@ data TyperState = TyperState {
 }
 
 -- | The typer monad, runs in the core monad.
-type Typer a = ReaderT TyperState Core a
+type Typer = StateT TyperState Core
 
 
 -- | Empty state.
 empty :: TyperState
 empty = TyperState {
   }
+
+
+---------------------------------------------------------------------------------------------------
+-- * Type map.
+
+-- | Replace all mapped type variables in the given type.
+-- TODO: implement.
+solveType :: Type -> Typer Type
+solveType typ = return typ
+
+---------------------------------------------------------------------------------------------------
+-- * Lifting.
+
+getConstructorInfo :: Variable -> Typer (Maybe ConstructorInfo)
+getConstructorInfo constructor = lift $ Core.getConstructorInfo constructor
+
+
+log :: Int -> String -> Typer ()
+log lvl msg = lift $ Core.log lvl msg
+
+warning :: Warning -> Maybe Extent -> Typer ()
+warning warn ext = lift $ Core.warning warn ext

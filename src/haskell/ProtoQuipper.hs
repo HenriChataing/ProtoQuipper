@@ -23,7 +23,7 @@ import Options
 
 import Interactive
 
-import Compiler.Circ
+import Compiler.Circuits
 
 import qualified Data.Map as Map
 import qualified Data.IntMap as IMap

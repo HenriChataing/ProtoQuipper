@@ -12,7 +12,9 @@ module Core.Namespace (
 
 import Utils
 
-import Parsing.Location
+import Language.Variable as Variable
+import Language.Constructor as Constructor
+import Language.Type as Type
 
 import Core.Syntax (TypeDefinition)
 
@@ -20,27 +22,6 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import Data.Map (Map)
 import qualified Data.Map as Map
-
-
--- | Information relative to a variable.
-data VariableInfo = VariableInfo {
-  variableName :: String,
-  variableModule :: String            -- ^ Source module (empty if not relevant).
-}
-
--- | Information relative to a type constructor.
-data TypeInfo = TypeInfo {
-  typeName :: String,
-  typeModule :: String,               -- ^ Source module (empty if not relevant).
-  typeDefinition :: TypeDefinition    -- ^ The original type definition (as written in the source).
-}
-
--- | Information relative to a data constructor.
-data ConstructorInfo = ConstructorInfo {
-  constructorName :: String,
-  constructorModule :: String,        -- ^ Source module (empty if not relevant).
-  constructorType :: Int              -- ^ Associated type.
-}
 
 
 -- | The type of name spaces. A namespace includes three mappings from ids to strings, recording the

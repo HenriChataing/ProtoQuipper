@@ -11,7 +11,7 @@
 -- * @UNENCAP@: inputs a binding and a circuit, and appends this circuit to the one on top of the stack. It returns a binding that gives the renaming
 -- of the ouput wires.
 --
-module Compiler.Circ where
+module Compiler.Circuits where
 
 import Classes
 import Utils
@@ -29,7 +29,7 @@ import qualified Data.Map as Map
 
 
 -- | Give the implementation of the unbox operator.
-implement_unbox :: (QType, QType)        -- ^ The type of the input circuit.
+implement_unbox :: (QuantumType, QuantumType)        -- ^ The type of the input circuit.
                 -> Compiler Expr          -- ^ The code (function) implementation of the unbox operator for the given type.
 implement_unbox (t, u) = do
   vunencap <- lookupVariable (Just "Builtins") "UNENCAP"
@@ -61,7 +61,7 @@ implement_unbox (t, u) = do
 
 
 -- | Give the implementation of the box[T] operator.
-implement_box :: QType                   -- ^ The type of the input value.
+implement_box :: QuantumType                   -- ^ The type of the input value.
               -> Compiler Expr            -- ^ The code (function) implementation of the box[T] operator.
 implement_box typ = do
   vopenbox <- lookupVariable (Just "Builtins") "OPENBOX"
@@ -108,7 +108,7 @@ implement_rev = do
 -- | Generate the code of the @spec[T]@ value. Be aware that @spec[T]@ is not a function, but instead a pair @(v, n)@
 -- where @v@ is a specimen of the type @T@ (with quantum addresses numbered from 0 to |qubit|-1) and @n@ the number of qubits
 -- used.
-implement_spec :: QType -> Compiler (Expr, Int)
+implement_spec :: QuantumType -> Compiler (Expr, Int)
 implement_spec typ = do
   return $ spec_n typ 0
   where
@@ -131,7 +131,7 @@ implement_spec typ = do
 -- * (1, x, x', b) if x is bound to x' (and b is the rest of the binding).
 --
 -- The other element contains the variable allocations.
-implement_bind :: QType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
+implement_bind :: QuantumType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
 implement_bind typ x y = do
   (elet, b) <- bind typ x y
   -- Build both the final binding and let-bindings
@@ -165,7 +165,7 @@ implement_bind typ x y = do
 
 
 -- | Generate the code that apply a binding to a quantum value of type the given one.
-implement_appbind :: QType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
+implement_appbind :: QuantumType -> Variable -> Variable -> Compiler (Expr -> Expr, Expr)
 implement_appbind typ b x = do
   (elet, e) <- appbind typ x
   -- Build the series of instructions
@@ -197,7 +197,7 @@ implement_appbind typ b x = do
 
 -- | Request for an implementation of the unbox operator of type T, U. A reference to the
 -- implementation is passed as argument.
-request_unbox :: CircType -> Compiler Variable
+request_unbox :: CircuitType -> Compiler Variable
 request_unbox ctyp = do
   library <- getCircuitLibrary
   case Map.lookup ctyp $ unboxes library of
@@ -209,7 +209,7 @@ request_unbox ctyp = do
 
 -- | Request for an implementation of the box operator of type T. A reference to the implementation
 -- is passed as argument.
-request_box :: QType -> Compiler Variable
+request_box :: QuantumType -> Compiler Variable
 request_box qtyp = do
   library <- getCircuitLibrary
   case Map.lookup qtyp $ boxes library of
