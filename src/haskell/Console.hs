@@ -13,12 +13,14 @@
 module Console where
 
 import Monad.Core
+
 import System.IO
+import Control.Monad.Trans
 
 #if mingw32_HOST_OS
 import GHC.ConsoleHandler
 #else
-import System.Console.Readline
+import System.Console.Readline as Readline
 #endif
 
 
@@ -56,31 +58,31 @@ putStrLnC :: Color -> String -> Core ()
 #ifdef mingw32_HOST_OS
 
 prompt p = do
-  liftIO $ putStr p
-  liftIO $ hFlush stdout
-  l <- liftIO getLine
+  lift $ putStr p
+  lift $ hFlush stdout
+  l <- lift getLine
   return $ Just l
 
 addHistory _ = return ()
-putStrC _ s = liftIO $ putStr s
-putStrLnC _ s = liftIO $ putStrLn s
+putStrC _ s = lift $ putStr s
+putStrLnC _ s = lift $ putStrLn s
 
 #else
 
-prompt p = liftIO $ readline p
-addHistory c = liftIO $ addHistory c
+prompt p = lift $ readline p
+addHistory c = lift $ Readline.addHistory c
 
 putStrC c s =
   case c of
-    Yellow -> liftIO $ putStr $ "\x1b[33;1m" ++ s ++ "\x1b[0m"
-    Red -> liftIO $ putStr $ "\x1b[31;1m" ++ s ++ "\x1b[0m"
-    Blue -> liftIO $ putStr $ "\x1b[34;1m" ++ s ++ "\x1b[0m"
+    Yellow -> lift $ putStr $ "\x1b[33;1m" ++ s ++ "\x1b[0m"
+    Red -> lift $ putStr $ "\x1b[31;1m" ++ s ++ "\x1b[0m"
+    Blue -> lift $ putStr $ "\x1b[34;1m" ++ s ++ "\x1b[0m"
 
 putStrLnC c s =
   case c of
-    Yellow -> liftIO $ putStrLn $ "\x1b[33;1m" ++ s ++ "\x1b[0m"
-    Red -> liftIO $ putStrLn $ "\x1b[31;1m" ++ s ++ "\x1b[0m"
-    Blue -> liftIO $ putStrLn $ "\x1b[34;1m" ++ s ++ "\x1b[0m"
+    Yellow -> lift $ putStrLn $ "\x1b[33;1m" ++ s ++ "\x1b[0m"
+    Red -> lift $ putStrLn $ "\x1b[31;1m" ++ s ++ "\x1b[0m"
+    Blue -> lift $ putStrLn $ "\x1b[34;1m" ++ s ++ "\x1b[0m"
 
 #endif
 

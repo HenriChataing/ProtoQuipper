@@ -5,7 +5,7 @@ module Monad.QpState where
 import Utils
 import Classes
 
-import Parsing.Location (Extent, extent_unknown, file_unknown)
+import Parsing.Location (Extent, unknownExtent, file_unknown)
 
 import Monad.QuipperError hiding (throw)
 import qualified Monad.QuipperError as Q (throw, throwNE, throwWE)
@@ -19,9 +19,9 @@ import qualified Core.Environment as L
 
 import qualified Compiler.SimplSyntax as C
 
-import Interpret.Circuits hiding (rev, qubit_id)
-import qualified Interpret.Circuits as QC (qubit_id)
-import Interpret.Values
+import Interpreter.Circuits hiding (rev, qubit_id)
+import qualified Interpreter.Circuits as QC (qubit_id)
+import Interpreter.Values
 
 import System.IO
 import Control.Exception as E
@@ -69,7 +69,7 @@ import Data.IntSet as IntSet
 --    if waction == "display" then
 --      case ex of
 --        Just ex -> hPutStrLn (channel logfile) $ printE warn ex
---        Nothing -> hPutStrLn (channel logfile) $ printE warn extent_unknown
+--        Nothing -> hPutStrLn (channel logfile) $ printE warn unknownExtent
 --    else if waction == "error" then
 --      Q.throw warn ex
 --    else
@@ -130,9 +130,9 @@ data QContext = QCtx {
                                                       -- function values are prohibited (even type constructors).
 
 -- Information relevant to flags
-  flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
-                                                      -- also about the type itself, for example the expression it is the type of. Such information is useful to send
-                                                      -- unambiguous error messages when the type inference fails.
+  --flags :: IntMap FlagInfo,                           -- ^ Flags from types are references to this map, which holds information about the value of the flag, but
+  --                                                    -- also about the type itself, for example the expression it is the type of. Such information is useful to send
+  --                                                    -- unambiguous error messages when the type inference fails.
 
 -- Compiler things
   call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
@@ -142,8 +142,8 @@ data QContext = QCtx {
 -- References
   references :: IntMap RefInfo,                       -- ^ Information about each expression.
 
--- Circuit stack
-  circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
+---- Circuit stack
+--  circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
 
 -- Id generation
   --type_id :: Int,                                     -- ^ Used to generate fresh type variables.
@@ -152,7 +152,7 @@ data QContext = QCtx {
   --ref_id :: Int,                                      -- ^ Used to generate new references.
 
 -- Substitution from type variable to types
-  mappings :: IntMap LinearType                          -- ^ The result of the unification: a mapping from type variables to linear types.
+  --mappings :: IntMap LinearType                          -- ^ The result of the unification: a mapping from type variables to linear types.
 }
 
 
@@ -212,7 +212,7 @@ data QContext = QCtx {
 --  namespace = N.new_namespace,
 
 ---- Location.
---  location = extent_unknown,
+--  location = unknownExtent,
 
 ---- No modules
 --  modules = [],
@@ -691,64 +691,64 @@ flag_value ref =
               return Unknown
 
 
--- | Set the value of a flag to one.
--- If the previously recorded value is incompatible with the new one, generate an error (i.e.., old val = Zero).
-set_flag :: Flag -> ConstraintInfo -> QpState ()
-set_flag ref info = do
-  case ref of
-    0 -> do
-        throw_NonDuplicableError info
-    1 -> return ()
-    _ -> do
-        ctx <- get_context
-        case IMap.lookup ref $ flags ctx of
-          Just i -> do
-              case flagValue i of
-                Zero -> do
-                    case c_type info of
-                      Just a -> do
-                          let a0 = subs ref (0 :: Variable) a
-                              a1 = subs ref (1 :: Variable) a
-                          throw_TypingError a0 a1 info { c_actual = True }
-                      Nothing ->
-                          throw_NonDuplicableError info
-                Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = One }) $ flags ctx }
-                _ ->
-                    return ()  -- Includes anyflag and one
+---- | Set the value of a flag to one.
+---- If the previously recorded value is incompatible with the new one, generate an error (i.e.., old val = Zero).
+--setFlag :: Flag -> ConstraintInfo -> QpState ()
+--setFlag ref info = do
+--  case ref of
+--    0 -> do
+--        throwNonDuplicableError info
+--    1 -> return ()
+--    _ -> do
+--        ctx <- get_context
+--        case IMap.lookup ref $ flags ctx of
+--          Just i -> do
+--              case flagValue i of
+--                Zero -> do
+--                    case c_type info of
+--                      Just a -> do
+--                          let a0 = subs ref (0 :: Variable) a
+--                              a1 = subs ref (1 :: Variable) a
+--                          throwTypingError a0 a1 info { c_actual = True }
+--                      Nothing ->
+--                          throwNonDuplicableError info
+--                Unknown ->
+--                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = One }) $ flags ctx }
+--                _ ->
+--                    return ()  -- Includes anyflag and one
 
-          Nothing ->
-              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = One } $ flags ctx }
+--          Nothing ->
+--              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = One } $ flags ctx }
 
 
--- | Set the value of a flag to zero.
--- If the previously recorded value is incompatible with the new one, generate an error (i.e., old val = One).
-unset_flag :: Flag -> ConstraintInfo -> QpState ()
-unset_flag ref info = do
-  case ref of
-    0 -> return ()
-    1 -> do
-        throw_NonDuplicableError info
-    _ -> do
-        ctx <- get_context
-        case IMap.lookup ref $ flags ctx of
-          Just i -> do
-              case flagValue i of
-                One ->
-                    case c_type info of
-                      Just a -> do
-                          let a0 = subs ref (0 :: Variable) a
-                              a1 = subs ref (1 :: Variable) a
-                          throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
-                      Nothing ->
-                          throw_NonDuplicableError info
-                Unknown ->
-                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = Zero }) $ flags ctx }
-                _ ->
-                    return ()  -- Includes anyflag and zero
+---- | Set the value of a flag to zero.
+---- If the previously recorded value is incompatible with the new one, generate an error (i.e., old val = One).
+--unsetFlag :: Flag -> ConstraintInfo -> QpState ()
+--unsetFlag ref info = do
+--  case ref of
+--    0 -> return ()
+--    1 -> do
+--        throwNonDuplicableError info
+--    _ -> do
+--        ctx <- get_context
+--        case IMap.lookup ref $ flags ctx of
+--          Just i -> do
+--              case flagValue i of
+--                One ->
+--                    case c_type info of
+--                      Just a -> do
+--                          let a0 = subs ref (0 :: Variable) a
+--                              a1 = subs ref (1 :: Variable) a
+--                          throwTypingError a0 a1 info { c_actual = False, c_type = Nothing }
+--                      Nothing ->
+--                          throwNonDuplicableError info
+--                Unknown ->
+--                    set_context $ ctx { flags = IMap.insert ref (i { flagValue = Zero }) $ flags ctx }
+--                _ ->
+--                    return ()  -- Includes anyflag and zero
 
-          Nothing ->
-              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = Zero } $ flags ctx }
+--          Nothing ->
+--              set_context ctx { flags = IMap.insert ref FlagInfo { flagValue = Zero } $ flags ctx }
 
 
 
@@ -959,13 +959,13 @@ ref_expression ref = do
     Just i ->
         case expression i of
           Left e -> do
-              pe <- pprint_expr_noref e
+              pe <- printExpr e
               return (extent i, pe)
           Right p -> do
-              pp <- pprint_pattern_noref p
+              pp <- printPattern p
               return (extent i, pp)
     Nothing ->
-        return (extent_unknown, "?")
+        return (unknownExtent, "?")
 
 
 -- | Specify the call convention of a global variable.
@@ -1020,29 +1020,29 @@ profile = do
 
 -- | Throw a typing error, based on the reference flags of the faulty types.
 -- The return type can be anything, since an exception will be thrown in any case.
-throw_TypingError :: Type -> Type -> ConstraintInfo -> QpState a
-throw_TypingError t u info = do
-  -- Print the types t and u
-  prt <- pprint_type_noref t
-  pru <- pprint_type_noref u
+--throwTypingError :: Type -> Type -> ConstraintInfo -> QpState a
+--throwTypingError t u info = do
+--  -- Print the types t and u
+--  prt <- printType t
+--  pru <- printType u
 
-  -- Get the location / expression
-  let ref = c_ref info
-  (ex, expr) <- ref_expression ref
+--  -- Get the location / expression
+--  let ref = c_ref info
+--  (ex, expr) <- ref_expression ref
 
-  -- Get the original type
-  ori <- case c_type info of
-           Just a -> do
-               p <- pprint_type_noref a
-               return $ Just p
-           Nothing ->
-               return $ Nothing
+--  -- Get the original type
+--  ori <- case c_type info of
+--           Just a -> do
+--               p <- printType a
+--               return $ Just p
+--           Nothing ->
+--               return $ Nothing
 
-  -- Check which of the type is the actual one
-  if c_actual info then
-    throwQ (DetailedTypingError prt pru ori expr) ex
-  else
-    throwQ (DetailedTypingError pru prt ori expr) ex
+--  -- Check which of the type is the actual one
+--  if c_actual info then
+--    throwQ (DetailedTypingError prt pru ori expr) ex
+--  else
+--    throwQ (DetailedTypingError pru prt ori expr) ex
 
 
 
@@ -1083,11 +1083,11 @@ throw_UndefinedBuiltin n =
   throw_UnboundValue n UndefinedBuiltin
 
 
--- | Throw a non-duplicability error, based on the faulty reference flag.
-throw_NonDuplicableError :: ConstraintInfo -> QpState a
-throw_NonDuplicableError info = do
-  (ex, expr) <- ref_expression (c_ref info)
-  throwQ (NonDuplicableError expr Nothing) ex
+---- | Throw a non-duplicability error, based on the faulty reference flag.
+--throwNonDuplicableError :: ConstraintInfo -> QpState a
+--throwNonDuplicableError info = do
+--  (ex, expr) <- ref_expression (c_ref info)
+--  throwQ (NonDuplicableError expr Nothing) ex
 
 
 
@@ -1133,7 +1133,7 @@ map_type :: Type -> QpState Type
 map_type (TypeAnnot f t) = do
   t' <- map_LinearType t
   case t' of
-    TypeApply "qubit" _ -> unset_flag f no_info
+    TypeApply "qubit" _ -> unsetFlag f noInfo
     _ -> return ()
   return $ TypeAnnot f t'
 
@@ -1172,8 +1172,8 @@ display_typvar fv = do
 
 
 -- | Pre-defined variable printing function.
-display_var :: QpState (Variable -> String)
-display_var = do
+displayVar :: QpState (Variable -> String)
+displayVar = do
   nspace <- get_context >>= return . namespace
   return (\x -> case IMap.lookup x $ N.varcons nspace of
                   Just n -> n
@@ -1182,8 +1182,8 @@ display_var = do
 
 -- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
 -- if the value is one, and \"\" else.
-display_flag :: QpState (Flag -> String)
-display_flag = do
+displayFlag :: QpState (Flag -> String)
+displayFlag = do
   refs <- get_context >>= return . flags
   return (\f -> case f of
                   1 -> "!"
@@ -1194,11 +1194,11 @@ display_flag = do
                     | otherwise -> "")
 
 
--- | Display a reference flag. This function is similar to 'Monad.QpState.display_flag', but
+-- | Display a reference flag. This function is similar to 'Monad.QpState.displayFlag', but
 -- displays the reference flag when the value is unknown. The argument gives the reference flags that may appear in the final
 -- type. Each reference is then associated with a name.
-display_ref :: [Flag] -> QpState (Flag -> String)
-display_ref ff = do
+displayRefFlag :: [Flag] -> QpState (Flag -> String)
+displayRefFlag ff = do
   attr <- return $ List.zip ff available_flags
   refs <- get_context >>= return . flags
   return (\f -> case f of
@@ -1215,8 +1215,8 @@ display_ref ff = do
 
 -- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
 -- prevar \'T\' t if not found.
-display_algebraic :: QpState (Variable -> String)
-display_algebraic = do
+displayUserType :: QpState (Variable -> String)
+displayUserType = do
   nspace <- get_context >>= return . namespace
   return (\t -> case IMap.lookup t $ N.typecons nspace of
                   Just n -> n
@@ -1224,8 +1224,8 @@ display_algebraic = do
 
 -- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
 -- prevar \'D\' dcon if not found.
-display_datacon :: QpState (Datacon -> String)
-display_datacon = do
+displayConstructor :: QpState (Datacon -> String)
+displayConstructor = do
   nspace <- get_context >>= return . namespace
   return (\d -> case IMap.lookup d $ N.datacons nspace of
                   Just n -> n
@@ -1234,19 +1234,19 @@ display_datacon = do
 
 -- | Complementary printing function for patterns, which
 -- replaces the references by their original name.
-pprint_pattern_noref :: Pattern -> QpState String
-pprint_pattern_noref p = do
-  fvar <- display_var
-  fdata <- display_datacon
+printPattern :: Pattern -> QpState String
+printPattern p = do
+  fvar <- displayVar
+  fdata <- displayConstructor
 
   return $ genprint Inf [fvar, fdata] p
 
 
--- | Like 'pprint_pattern_noref', but for expressions.
-pprint_expr_noref :: Expr -> QpState String
-pprint_expr_noref e = do
-  fvar <- display_var
-  fdata <- display_datacon
+-- | Like 'printPattern', but for expressions.
+printExpr :: Expr -> QpState String
+printExpr e = do
+  fvar <- displayVar
+  fdata <- displayConstructor
 
   return $ genprint Inf [fvar, fdata] e
 
@@ -1254,46 +1254,46 @@ pprint_expr_noref e = do
 
 -- | Type variables are attributed random names before being printed, and the flags are
 -- printed with their actual value: only if the flag is set will it be displayed as '!', else it will appear as ''.
-pprint_type_noref :: Type -> QpState String
-pprint_type_noref t = do
+printType :: Type -> QpState String
+printType t = do
   -- Printing of type variables, flags and types
   fvar <- display_typvar (IntSet.toList $ freevar t)
-  fflag <- display_flag
-  fuser <- display_algebraic
+  fflag <- displayFlag
+  fuser <- displayUserType
 
   return $ genprint Inf [fflag, fvar, fuser] t
 
 
 
--- | Like 'pprint_type_noref', but for linear types.
-pprint_LinearType_noref :: LinearType -> QpState String
-pprint_LinearType_noref a = do
+-- | Like 'printType', but for linear types.
+printLinearType :: LinearType -> QpState String
+printLinearType a = do
   -- Printing of type variables, flags and types
   fvar <- display_typvar (IntSet.toList $ freevar a)
-  fflag <- display_flag
-  fuser <- display_algebraic
+  fflag <- displayFlag
+  fuser <- displayUserType
 
   return $ genprint Inf [fflag, fvar, fuser] a
 
 
 
--- | Like 'pprint_type_noref', but for typing schemes.
-pprint_typescheme_noref :: TypeScheme -> QpState String
-pprint_typescheme_noref (TypeScheme ff fv cset typ) = do
+-- | Like 'printType', but for typing schemes.
+printScheme :: TypeScheme -> QpState String
+printScheme (TypeScheme ff fv cset typ) = do
   -- Printing of type variables, flags and types
   fvar <- display_typvar fv
-  fflag <- display_flag
-  fuser <- display_algebraic
+  fflag <- displayFlag
+  fuser <- displayUserType
 
   return $ genprint Inf [fflag, fvar, fuser] (TypeScheme ff fv cset typ)
 
 
 
--- | Like 'pprint_expr_noref', but for values.
-pprint_value_noref :: Value -> QpState String
-pprint_value_noref v = do
+-- | Like 'printExpr', but for values.
+printValue :: Value -> QpState String
+printValue v = do
   -- Printing of data constructors
-  fdata <- display_datacon
+  fdata <- displayConstructor
 
   return $ genprint Inf [fdata] v
 

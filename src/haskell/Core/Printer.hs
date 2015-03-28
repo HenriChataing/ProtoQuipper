@@ -214,7 +214,7 @@ print_doc lv (EDatacon _ datacon (Just e)) fvar fdata =
                               EVar _ _ -> pe
                               _ -> parens pe)
 
-print_doc lv (EMatch e blist) fvar fdata =
+print_doc lv (EMatch _ e blist) fvar fdata =
   let dlv = decr lv in
   text "match" <+> print_doc dlv e fvar fdata <+> text "with" $$
   nest 2 (List.foldl (\doc (Binding p f) ->

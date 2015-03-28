@@ -1,8 +1,8 @@
--- | This module defines a tool for exporting circuits to the Intermediate Representation. The main function, 'export_to_IR', inputs a circuit (defined in module "Interpret.Circuits")
+-- | This module defines a tool for exporting circuits to the Intermediate Representation. The main function, 'export_to_IR', inputs a circuit (defined in module "Interpreter.Circuits")
 -- and outputs a string that contains the IR specification of the circuit.
-module Interpret.IRExport where
+module Interpreter.IRExport where
 
-import Interpret.Circuits
+import Interpreter.Circuits
 
 import qualified Data.List as List
 
@@ -83,7 +83,7 @@ append_outputs (w:wires) irdoc =
 
 
 -- | Export a circuit to IR format.
--- Before the export, the circuit is reallocated via a call to 'Interpret.Circuits.allocate' that optimizes the use of
+-- Before the export, the circuit is reallocated via a call to 'Interpreter.Circuits.allocate' that optimizes the use of
 -- wires.
 export_to_IR :: Circuit -> IRDoc
 export_to_IR circ =

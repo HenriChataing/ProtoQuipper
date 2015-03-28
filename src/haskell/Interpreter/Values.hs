@@ -8,7 +8,7 @@
 --    of the evaluation of the function.
 --
 -- *   Qubits and circuits, which were not included in the input syntax, are added.
-module Interpret.Values where
+module Interpreter.Values where
 
 import Classes
 import Utils
@@ -18,7 +18,7 @@ import Monad.Error
 import Core.Syntax
 import Core.Printer
 
-import Interpret.Circuits
+import Interpreter.Circuits
 
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
@@ -28,32 +28,28 @@ import qualified Data.List as List
 -- | The type of values.
 data Value =
     VFun (IntMap Value) Pattern Expr     -- ^ @fun p -> e@ (in the given context).
-  | VBuiltin (Value -> Value)            -- ^ Built-in function: these are defined as functions on 'Interpret.Values.Value', but not in terms of
+  | VBuiltin (Value -> Value)            -- ^ Built-in function: these are defined as functions on 'Interpreter.Values.Value', but not in terms of
                                          -- values.
   | VTuple [Value]                       -- ^ (v1, .. , vn)
   | VCirc Value Circuit Value            -- ^ (t, c, u)
-  | VBool Bool                           -- ^ True and false.
-  | VInt Int                             -- ^ Integers.
+  | VConstant ConstantValue              -- ^ Primitive values.
   | VBox Type                            -- ^ @box [T]@
   | VUnbox                               -- ^ @Unbox@.
   | VUnboxed Value                       -- ^ Unboxed circuits (can't be reduced any further). Note that the type of the value is not checked
                                          -- until application of the unboxed circuit.
-  | VUnit                                -- ^ @()@
   | VDatacon Datacon (Maybe Value)       -- ^ @Datacon v@
   | VRev                                 -- ^ Reverse function.
   | VQubit Int                            -- ^ Quantum addresses.
 
 
 instance PPrint Value where
-  genprint _ _ VUnit = "()"
+  genprint _ _ (VConstant c) = show c
   genprint _ _ VRev = "rev"
   genprint _ _ VUnbox = "unbox"
   genprint _ _ (VBuiltin _) = "<fun>"
   genprint _ _ (VQubit q) = prevar "q" q
-  genprint _ _ (VBool b)  = if b then "true" else "false"
   genprint _ _ (VUnboxed _) = "<fun>"
   genprint _ _ (VBox t) = "<fun>"
-  genprint _ _ (VInt n) = show n
   genprint _ _ (VFun _ _ _) = "<fun>"
   genprint _ _ (VCirc _ c _) = pprint c
 
@@ -92,7 +88,7 @@ instance PPrint Value where
 -- quantum addresses are ignored.
 instance Eq Value where
   (==) (VQubit _) (VQubit _) = True
-  (==) VUnit VUnit = True
+  (==) (VConstant c) (VConstant c') = c == c'
   (==) (VTuple vlist) (VTuple vlist') =
     if List.length vlist == List.length vlist' then
       List.and $ List.map (\(v, v') -> v == v') (List.zip vlist vlist')

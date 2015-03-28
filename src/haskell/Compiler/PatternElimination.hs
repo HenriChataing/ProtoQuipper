@@ -296,7 +296,7 @@ build_decision_tree plist = do
                           -- Build a sample pattern that corresponds to the unmatched case
                           let pcase = modify_pattern (plist !! List.head patterns) (fst next) res
                           -- Printing
-                          fdata <- display_datacon
+                          fdata <- displayConstructor
                           let prcase = genprint Inf [\_ -> "x", fdata] pcase
                           -- In case the expected result is 'ROtherInt' or 'ROtherDatacon', display the list of non-admissible integers as well
                           let prcase' =
@@ -694,7 +694,7 @@ transform_declarations decls = do
         (decls, mod) <- rec
         case d of
           C.DExpr e -> do
-              warnQ NakedExpressionToplevel extent_unknown
+              warnQ NakedExpressionToplevel unknownExtent
               return (decls, mod)
 
           C.DLet recflag x e -> do

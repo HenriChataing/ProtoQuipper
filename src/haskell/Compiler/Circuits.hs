@@ -21,7 +21,7 @@ import Monad.Error
 
 import Compiler.SimplSyntax
 
-import Interpret.Circuits (unary_gates, binary_gates)
+import Interpreter.Circuits (unary_gates, binary_gates)
 
 import qualified Data.List as List
 import Data.Map (Map)

@@ -7,18 +7,20 @@ module Monad.Core where
 import Options hiding (verbose, options)
 
 import Utils
+import Classes
 import Parsing.Location
 
-import Language.Constructor (ConstructorInfo (sourceType))
+import Language.Constructor as Constructor
 import Language.Variable as Variable
+import Language.Type as Type
 
 import Core.Environment
 import Core.Namespace as Namespace
-import Core.Syntax
+import Core.Syntax hiding (sourceType)
 
 import Monad.Error
 
-import Interpret.Values (Value)
+import Interpreter.Values (Value)
 
 import System.IO
 import Control.Monad.Trans
@@ -85,7 +87,7 @@ warning warn ex = do
     if waction == "display" then
       case ex of
         Just ex -> lift $ hPutStrLn (channel logfile) $ printE warn ex
-        Nothing -> lift $ hPutStrLn (channel logfile) $ printE warn extent_unknown
+        Nothing -> lift $ hPutStrLn (channel logfile) $ printE warn unknownExtent
     else if waction == "error" then
       throw warn ex
     else
@@ -127,13 +129,19 @@ getConstructorInfo constructor = do
       fail $ "Monad.Core:getConstructorInfo: undefined data constructor: " ++ prevar "D" constructor
 
 -- | Return the definition of a type.
---getTypeInfo :: Variable -> Core TypeInfo
---getTypeInfo typ = do
---  info <- gets $ ((IntMap.lookup typ) . Namespace.types) . namespace
---  case info of
---    Just info -> return info
---    Nothing ->
---      fail $ "Monad.Core:getTypeInfo: undefined type: " ++ prevar "T" typ
+getTypeInfo :: Variable -> Core TypeInfo
+getTypeInfo typ = do
+  info <- gets $ ((IntMap.lookup typ) . Namespace.types) . namespace
+  case info of
+    Just info -> return info
+    Nothing ->
+      fail $ "Monad.Core:getTypeInfo: undefined type: " ++ prevar "T" typ
+
+-- | Return the definition of a type.
+getTypeDefinition :: Variable -> Core TypeDefinition
+getTypeDefinition typ = do
+  info <- getTypeInfo typ
+  return $ definition info
 
 -- | Return the source type of a data constructor.
 getConstructorSourceType :: Variable -> Core Variable
@@ -147,31 +155,57 @@ getConstructorSourceType constructor = do
 --  info <- getTypeInfo typ
 --  return $ sourceType info
 
+
 ---------------------------------------------------------------------------------------------------
 -- * Pretty printing.
 
--- | This type class includes several pretty printing functions, offering some control over the
--- size and form of the display. Four functions are defined, going from the most generic ('genprint')
--- down to the default one ('pprint'), with 'sprintn' and 'sprint' as intermediaries. At least
--- 'genprint' and 'sprintn' must be defined in an instance.
-class Printable a where
-  -- | The most generic function of the 'PPrint' class.
-  genprint :: Lvl           -- ^ The depth limit.
-    -> a                    -- ^ The object to print.
-    -> Core String          -- ^ The result.
+-- | Pre-defined variable printing function.
+displayVar :: Core (Variable -> String)
+displayVar = do
+  variables <- gets $ Namespace.variables . namespace
+  return $ \x ->
+      case IntMap.lookup x variables of
+        Just info -> Variable.name info
+        Nothing -> prevar "x" x
 
-  -- | Less generic than 'genprint'. It is still possible to control the size of the output, but the
-  -- rendering of variables and such is fixed.
-  sprintn :: Lvl -> a -> Core String
+-- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
+-- prevar \'T\' t if not found.
+displayUserType :: Core (Variable -> String)
+displayUserType = do
+  types <- gets $ Namespace.types . namespace
+  return $ \t ->
+      case IntMap.lookup t types of
+        Just info -> Type.name info
+        Nothing -> prevar "T" t
 
-  -- | Same as 'sprintn', but with the default level 2.
-  sprint  :: a -> Core String
+-- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
+-- prevar \'D\' dcon if not found.
+displayConstructor :: Core (Datacon -> String)
+displayConstructor = do
+  constructors <- gets $ Namespace.constructors . namespace
+  return $ \d ->
+      case IntMap.lookup d constructors of
+        Just info -> Constructor.name info
+        Nothing -> prevar "D" d
 
-  -- | Basic printing function. It prints everything, and provides default rendering functions for
-  -- the variables. Typically, they will be rendered as /c_n/, where /n/ is the unique id, and /c/
-  -- a character that changes depending on the kind of variable (/x/ for term variables, /X/ for type
-  -- variables, ! for flag variables, /D/ for data constructors, /A/ for algebraic or synonym types).
-  pprint :: a -> Core String
 
-  pprint a = sprintn Inf a
-  sprint a = sprintn (Nth 2) a
+-- | Complementary printing function for patterns, which
+-- replaces the references by their original name.
+printPattern :: Pattern -> Core String
+printPattern pattern = do
+  pVar <- displayVar
+  pCons <- displayConstructor
+  return $ genprint Inf [pVar, pCons] pattern
+
+-- | Like 'printPattern', but for expressions.
+printExpr :: Expr -> Core String
+printExpr expr = do
+  pVar <- displayVar
+  pCons <- displayConstructor
+  return $ genprint Inf [pVar, pCons] expr
+
+-- | Like 'printExpr', but for values.
+printValue :: Value -> Core String
+printValue value = do
+  pCons <- displayConstructor
+  return $ genprint Inf [pCons] value

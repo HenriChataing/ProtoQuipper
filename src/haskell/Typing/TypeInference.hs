@@ -43,10 +43,10 @@ filter fc = do
 
                   -- Direct
                   Le 1 n info -> do
-                      set_flag n info
+                      setFlag n info
                       return r
                   Le n 0 info -> do
-                      unset_flag n info
+                      unsetFlag n info
                       return r
 
                   -- Everything else
@@ -117,7 +117,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
 
   let initf = List.filter keepref $ IMap.keys g
   cs <- walk_all initf g keepref (\_ _ -> return ())
-  let fc' = List.map (\(n,m) -> Le n m no_info) cs
+  let fc' = List.map (\(n,m) -> Le n m noInfo) cs
 
   -- Types
   let g = List.foldl (\g c ->
@@ -131,7 +131,7 @@ make_polymorphic_type typ (lc, fc) (isref, isvar) = do
   let initv = List.filter keepvar $ IMap.keys g
   cs' <- walk_all initv g keepvar (\a b ->
         mapsto a (TypeVar $ List.head fv))
-  let lc' = List.map (\(n,m) -> SubLinearType (TypeVar n) (TypeVar m) no_info) cs'
+  let lc' = List.map (\(n,m) -> SubLinearType (TypeVar n) (TypeVar m) noInfo) cs'
 
   -- Build the polymorphic type
   genfv <- return $ List.filter isvar fv
@@ -236,7 +236,7 @@ constraint_typing gamma (EUnit ref) cst = do
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EUnit
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
   update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TUnit })
 
   return $ ((TypeAnnot 1 TUnit <:: cst) & info, [])
@@ -253,7 +253,7 @@ constraint_typing gamma (EBool ref b) cst = do
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
   update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TBool })
 
   return $ ((TypeAnnot 1 TBool <:: cst) & info, [])
@@ -270,7 +270,7 @@ constraint_typing gamma (EInt ref p) cst = do
   duplicable_context gamma
 
   -- Generates a referenced flag of the actual type of EBool
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
   update_ref ref (\ri -> Just ri { rtype = TypeAnnot 1 TInt })
 
   return $ ((TypeAnnot 1 TInt <:: cst) & info, [])
@@ -292,7 +292,7 @@ constraint_typing gamma (EVar ref x) cst = do
   duplicable_context gamma_nx
 
   -- Information
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
   update_ref ref (\ri -> Just ri { rtype = a })
 
   return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
@@ -307,7 +307,7 @@ constraint_typing gamma (EGlobal ref x) cst = do
   duplicable_context gamma
 
   -- Information
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
   update_ref ref (\ri -> Just ri { rtype = a })
 
   return $ ((a <:: cst) & info) <> (csetx & info { c_type = Just a })
@@ -331,7 +331,7 @@ constraint_typing gamma (EBox ref a) cst = do
   duplicable_context gamma
 
   -- Information
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Build the type of box
   b <- new_type
@@ -354,7 +354,7 @@ constraint_typing gamma (ERev ref) cst = do
   duplicable_context gamma
 
   -- Information
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Build the type of rev
   a <- new_type
@@ -378,7 +378,7 @@ constraint_typing gamma (EUnbox ref) cst = do
   duplicable_context gamma
 
   -- Flag reference
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Build the type of unbox
   a <- new_type
@@ -435,7 +435,7 @@ constraint_typing gamma (EApp t u) cst = do
 constraint_typing gamma (EFun ref p e) cst = do
   -- Detailed information on the type of the function
   n <- fresh_flag
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Context annotations (without the pattern's bindings)
   flags <- context_annotation gamma
@@ -466,7 +466,7 @@ constraint_typing gamma (EFun ref p e) cst = do
 constraint_typing gamma (ETuple ref elist) cst = do
   -- Detailed information of the type of the tuple
   p <- fresh_flag
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Create n new types
   tlist <- List.foldr (\_ rec -> do
@@ -624,7 +624,7 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
 constraint_typing gamma (EDatacon ref dcon e) cst = do
   -- Extent of the expression
-  info <- return $ no_info { c_ref = ref }
+  info <- return $ noInfo { c_ref = ref }
 
   -- Retrieve the definition of the data constructor, and instantiate its typing scheme
   dtype <- datacon_type dcon
@@ -674,7 +674,7 @@ constraint_typing gamma (EMatch e blist) cst = do
 
                                      -- p must have a non functional type
                                      ext <- get_location
-                                     Monad.QpState.assert IsNotfun a no_info { c_ref = reference e }
+                                     Monad.QpState.assert IsNotfun a noInfo { c_ref = reference e }
 
                                      -- Type the associated expression, with the same constraints cst as the original expression
                                      -- Refer to the case of 'if' for more clarity.
@@ -898,7 +898,7 @@ unify_with_poset exact poset (lc, fc) = do
                                 mapsto x leftend) (return ()) cx
 
                   -- Add the constraint  leftend <: rightend
-                  cset' <- break_composite ([SubLinearType leftend rightend no_info], [])
+                  cset' <- break_composite ([SubLinearType leftend rightend noInfo], [])
                   poset <- return $ register_constraints (fst cset') poset
 
                   -- Unify the rest
@@ -1001,15 +1001,15 @@ apply_flag_constraints [] = do
 apply_flag_constraints (c:cc) = do
   case c of
     Le 1 0 info -> do
-        throw_NonDuplicableError info
+        throwNonDuplicableError info
 
     Le n 0 info -> do
-        unset_flag n info
+        unsetFlag n info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
     Le 1 m info -> do
-        set_flag m info
+        setFlag m info
         (_, cc') <- apply_flag_constraints cc
         return (True, cc')
 
@@ -1022,18 +1022,18 @@ apply_flag_constraints (c:cc) = do
                 Just a -> do
                     let a0 = subs m (0 :: Variable) a
                         a1 = subs n (1 :: Variable) a
-                    throw_TypingError a0 a1 info { c_actual = False, c_type = Nothing }
+                    throwTypingError a0 a1 info { c_actual = False, c_type = Nothing }
 
                 Nothing ->
-                    throw_NonDuplicableError info
+                    throwNonDuplicableError info
 
           (Unknown, Zero) -> do
-              unset_flag m info
+              unsetFlag m info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
 
           (One, Unknown) -> do
-              set_flag n info
+              setFlag n info
               (_, cc') <- apply_flag_constraints cc
               return (True, cc')
 

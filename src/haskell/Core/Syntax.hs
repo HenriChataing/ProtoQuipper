@@ -51,22 +51,6 @@ zero :: Flag
 zero = 0
 
 
--- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except for some
--- that are imposed to 'Zero' or 'One' by the typing rules.
-data FlagValue =
-    Unknown   -- ^ The value of the flag has not been decided yet.
-  | One       -- ^ The value 1.
-  | Zero      -- ^ The value 0.
-  deriving Show
-
-
--- | Information relevant to a flag. This contains the flag value. Eventually, it will also contain
--- various things such as reversibility, control, etc.
-data FlagInfo = FlagInfo {
-  flagValue :: FlagValue      -- ^ The value of the flag.
-}
-
-
 -- ----------------------------------------------------------------------
 -- ** Types
 
@@ -278,48 +262,6 @@ instance TypeObject TypeScheme where
 
 
 -- ----------------------------------------------------------------------
--- ** Data type definitions
-
-
--- | Describe the variability of an argument.
-data Variance =
-    Unrelated         -- ^ No clue.
-  | Covariant         -- ^ The argument is covariant.
-  | Contravariant     -- ^ The argument is contravariant.
-  | Equal             -- ^ The argument is both covariant and contravariant.
-  deriving Eq
-
-
-instance Show Variance where
-  show Unrelated = ""
-  show Equal = "="
-  show Covariant = "+"
-  show Contravariant = "-"
-
-
--- | Return the least precise indication of the two arguments.
-join :: Variance -> Variance -> Variance
-join Unrelated v = v
-join v Unrelated = v
-join Covariant Covariant = Covariant
-join Contravariant Contravariant = Contravariant
-join _ _ = Equal
-
-
--- Return the opposite variance.
-opposite :: Variance -> Variance
-opposite Covariant = Contravariant
-opposite Contravariant = Covariant
-opposite var = var
-
-
--- | A generic type definition.
-data TypeDefinition =
-    Algebraic { arguments :: [(Int, Variance)], definition :: [(Datacon, Maybe Type)] }
-  | Synonym { arguments :: [(Int, Variance)], alias :: Type }
-
-
--- ----------------------------------------------------------------------
 -- ** Global references
 
 -- | Genenral information about patterns or expressions.
@@ -337,6 +279,7 @@ data ConstantValue =
     ConstInt Int
   | ConstBool Bool
   | ConstUnit
+  deriving Eq
 
 instance Show ConstantValue where
   show (ConstInt i) = show i
@@ -396,6 +339,16 @@ instance TermObject Pattern where
   freevar _ = IntSet.empty
 
 
+-- | Return information about a pattern.
+patternInfo :: Pattern -> Info
+patternInfo (PVar i _) = i
+patternInfo (PDatacon i _ _) = i
+patternInfo (PTuple i _) = i
+patternInfo (PConstant i _) = i
+patternInfo (PWildcard i) = i
+patternInfo (PCoerce p _ _) = patternInfo p
+
+
 -- ----------------------------------------------------------------------
 -- * Value bindings.
 
@@ -418,15 +371,15 @@ data Expr =
     EVar Info Variable                                 -- ^ Variable: /x/.
   | EGlobal Info Variable                              -- ^ Global variable from the imported modules.
   | EFun Info Pattern Expr                             -- ^ Function abstraction: @fun p -> t@.
-  | EApp Expr Expr                                    -- ^ Function application: @t u@.
-  | ELet RecFlag Pattern Expr Expr                    -- ^ Let-binding: @let [rec] p = e in f@.
+  | EApp Expr Expr                                     -- ^ Function application: @t u@.
+  | ELet RecFlag Pattern Expr Expr                     -- ^ Let-binding: @let [rec] p = e in f@.
 
   -- Constants.
   | EConstant Info ConstantValue                       -- ^ Constant values (integers, booleans ..).
 
   -- Conditionnals and pattern matchings.
-  | EIf Expr Expr Expr                                -- ^ Conditional: @if e then f else g@.
-  | EMatch Expr [Binding]                             -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
+  | EIf Expr Expr Expr                                 -- ^ Conditional: @if e then f else g@.
+  | EMatch Info Expr [Binding]                         -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@.
   | EDatacon Info Datacon (Maybe Expr)                 -- ^ Data constructor: @Datacon e@. The argument is optional. The data constructors are considered and manipulated as values.
   | ETuple Info [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
 
@@ -448,7 +401,7 @@ instance Coerced Expr where
   uncoerce (ELet r p e f) = ELet r (uncoerce p) (uncoerce e) (uncoerce f)
   uncoerce (EIf e f g) = EIf (uncoerce e) (uncoerce f) (uncoerce g)
   uncoerce (EDatacon ref dcon (Just e)) = EDatacon ref dcon $ Just (uncoerce e)
-  uncoerce (EMatch test cases) = EMatch (uncoerce test) (List.map uncoerce cases)
+  uncoerce (EMatch info test cases) = EMatch info (uncoerce test) (List.map uncoerce cases)
   uncoerce (ECoerce e _) = uncoerce e
   uncoerce e = e
 
@@ -463,10 +416,28 @@ instance TermObject Expr where
   freevar (EIf cond true false) = IntSet.unions [freevar cond, freevar true, freevar false]
   freevar (EDatacon _ _ Nothing) = IntSet.empty
   freevar (EDatacon _ _ (Just e)) = freevar e
-  freevar (EMatch test cases) = IntSet.unions (freevar test : List.map (freevar) cases)
+  freevar (EMatch _ test cases) = IntSet.unions (freevar test : List.map (freevar) cases)
   freevar (ECoerce e _) = freevar e
   freevar _ = IntSet.empty
 
+
+-- | Return information about an expression.
+exprInfo :: Expr -> Info
+exprInfo (ECoerce e _) = exprInfo e
+exprInfo (EVar i _) = i
+exprInfo (EGlobal i _) = i
+exprInfo (EFun i _ _) = i
+exprInfo (ETuple i _) = i
+exprInfo (EDatacon i _ _) = i
+exprInfo (EMatch i _ _) = i
+exprInfo (EConstant i _) = i
+exprInfo (ELet _ _ _ _) = Info { extent = unknownExtent, typ = unit }
+exprInfo (EApp _ _) = Info { extent = unknownExtent, typ = unit }
+exprInfo (EIf _ _ _) = Info { extent = unknownExtent, typ = unit }
+exprInfo (EError _) = Info { extent = unknownExtent, typ = unit }
+exprInfo (EBox i _) = i
+exprInfo (EUnbox i) = i
+exprInfo (ERev i) = i
 
 -- | Determine whether an expression is a value or not.
 isValue :: Expr -> Bool
@@ -497,23 +468,31 @@ data Declaration =
 -- ----------------------------------------------------------------------
 -- * Subtyping constraints.
 
+-- | Expression at the source of a typing constraint.
+data ConstraintSource =
+    InExpr Expr
+  | InPattern Pattern
+  | Unidentified
+  deriving Show
+
+
 -- | Information about a constraint. This includes the original
 -- expression, location, and orientation (which side of the constraint
 -- is the actual type). It is used in type constraints and flag
 -- constraints.
-data ConstraintInfo = CInfo {
-  --c_ref :: Ref,            -- ^ The reference of the expression / pattern from which originated the constraint.
-  c_actual :: Bool,        -- ^ The orientation of the constraint: true means actual type is on the left.
-  c_type :: Maybe Type     -- ^ The original type (actual type before reducing).
+data ConstraintInfo = ConstraintInfo {
+  actual :: Bool,        -- ^ The orientation of the constraint: true means actual type is on the left.
+  sourceType :: Maybe Type,        -- ^ The original type (actual type before reducing).
+  sourceExpr :: ConstraintSource   -- ^ The original expression / pattern.
 } deriving Show
 
 
 -- | An empty 'ConstraintInfo' structure.
-no_info :: ConstraintInfo
-no_info = CInfo {
-  --c_ref = 0,
-  c_actual = True,
-  c_type = Nothing
+noInfo :: ConstraintInfo
+noInfo = ConstraintInfo {
+  actual = True,
+  sourceType = Nothing,
+  sourceExpr = Unidentified
 }
 
 
@@ -533,7 +512,7 @@ instance Eq TypeConstraint where
 
 -- | A useful operator for writing sub-typing constraints.
 (<:) :: Type -> Type -> TypeConstraint
-t <: u = Subtype t u no_info
+t <: u = Subtype t u noInfo
 
 -- | A useful operator for writing a set of constraints of the form @T1, ..., Tn <: U@.
 (<<:) :: [Type] -> Type -> [TypeConstraint]
@@ -577,10 +556,12 @@ class WithDebugInfo a where
   -- | Append debug information to an object.
   (&) :: a -> ConstraintInfo -> a
 
+instance WithDebugInfo TypeConstraint where
+  (Subtype t u _) & info = Subtype t u info
+  (SubLinearType t u _) & info = SubLinearType t u info
+
 instance WithDebugInfo [TypeConstraint] where
-  cset & info = List.map (\c -> case c of
-                            SubLinearType a b _ -> SubLinearType a b info
-                            Subtype t u _ -> Subtype t u info) cset
+  cset & info = List.map (& info) cset
 
 instance WithDebugInfo [FlagConstraint] where
   cset & info = List.map (\(Le n m _) -> (Le n m info)) cset
@@ -604,6 +585,9 @@ instance Constraints [TypeConstraint] [FlagConstraint] where
 
 instance Constraints [TypeConstraint] ConstraintSet where
   lc <> (ConstraintSet lc' fc) = ConstraintSet (lc ++ lc') fc
+
+instance Constraints FlagConstraint ConstraintSet where
+  f <> (ConstraintSet lc fc) = ConstraintSet lc $ f:fc
 
 instance Constraints [FlagConstraint] [TypeConstraint] where
   fc <> lc = ConstraintSet lc fc

@@ -43,8 +43,8 @@ locus_unknown =
 
 
 -- | The default extent: delimited by the default locus.
-extent_unknown :: Extent
-extent_unknown =
+unknownExtent :: Extent
+unknownExtent =
   Ext { lbegin = locus_unknown, lend = locus_unknown, file = file_unknown }
 
 

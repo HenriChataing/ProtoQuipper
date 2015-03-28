@@ -8,7 +8,7 @@
 --
 -- * Circuits are represented by: lists of input and output wires, and a list of gates.
 --
-module Interpret.Circuits where
+module Interpreter.Circuits where
 
 import Data.List as List
 import Data.Map as Map
@@ -310,8 +310,8 @@ unused_addresses qubits =
 
 
 -- | Create a circuit based on a list of input wires.
-create_circuit :: [Qubit] -> Circuit
-create_circuit input =
+createCircuit :: [Qubit] -> Circuit
+createCircuit input =
   Circ {
     qIn = input,
     qOut = input,

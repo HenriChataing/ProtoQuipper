@@ -16,8 +16,6 @@ import Language.Variable as Variable
 import Language.Constructor as Constructor
 import Language.Type as Type
 
-import Core.Syntax (TypeDefinition)
-
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import Data.Map (Map)
@@ -44,7 +42,7 @@ data Namespace = Namespace {
 empty :: Namespace
 empty = Namespace {
   variables = IMap.empty,
-  constructors = IMap.empty,
+  Core.Namespace.constructors = IMap.empty,
   types = IMap.empty,
 
   vargen = 0,

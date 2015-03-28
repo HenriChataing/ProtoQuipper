@@ -6,7 +6,7 @@ module Compiler.Overloading where
 import Classes
 import Utils
 
-import Parsing.Location (extent_unknown)
+import Parsing.Location (unknownExtent)
 
 import Language.Constructor
 
@@ -63,7 +63,7 @@ disambiguate modified (EVar info x) =
     Just (typ, args) -> do
       -- If the type of the variable is concrete (no leftover type variables), then the unbox operators
       -- to apply can easily be derived.
-      typ' <- lift $ solveType $ Core.typ info
+      typ' <- lift $ runTyper $ solveType $ Core.typ info
       let b = bindTypes typ typ'
       let args' = List.map (mapType b) args
       -- Use the function whichUnbox to find the arguments, and build the application of the variable
@@ -94,13 +94,13 @@ disambiguate modified (EDatacon info cons (Just e)) = do
   e' <- disambiguate modified e
   return $ EDatacon info cons $ Just e'
 
-disambiguate modified (EMatch test cases) = do
+disambiguate modified (EMatch info test cases) = do
   test' <- disambiguate modified test
   cases' <- List.foldr (\(Binding p e) rec -> do
       cases <- rec
       e' <- disambiguate modified e
       return $ (Binding p e'):cases) (return []) cases
-  return $ EMatch test' cases'
+  return $ EMatch info test' cases'
 
 disambiguate modified (ETuple info tuple) = do
   tuple' <- List.foldr (\e rec -> do
@@ -173,7 +173,7 @@ disambiguate modified (ELet r binder value body) = do
 
         (PVar info x, _) -> do
           -- Retrieve the (polymorphic) type of the variable
-          qtyp <- lift $ solveType $ Core.typ info
+          qtyp <- lift $ runTyper $ solveType $ Core.typ info
 
           -- Check whether the variable is global or not
           --g <- is_global x

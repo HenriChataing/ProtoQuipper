@@ -4,9 +4,12 @@ module Typing.Subtyping where
 import Classes
 import Utils
 
+import Language.Type
+
 import Core.Syntax
 import Core.Printer
 
+import Monad.Core as Core
 import Monad.Typer
 import Monad.Error
 
@@ -14,201 +17,146 @@ import qualified Data.List as List
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 
+
 -- | Check whether a given flag constraint is trivial.
-non_trivial :: Flag -> Flag -> Bool
-non_trivial m n =
+nonTrivial :: Flag -> Flag -> Bool
+nonTrivial m n =
   (m /= n && n /= 1 && m /= 0)
 
 
-
--- | Using the type specifications registered in the state monad, unfold any subtyping
--- constraints of the form  (user /a/ \<: user /a/'). This functions assumes that the two type
--- names are the same, and that the correct number of arguments has been given.
-unfold_algebraic_constraint :: Algebraic -> [Type] -> [Type] -> Typer ConstraintSet
-unfold_algebraic_constraint utyp arg arg' = do
-  -- Retrieve the specification of the type
-  typedef <- algebraic_def utyp
-
-  -- Build the constraints based on the variance of the type arguments
-  let cset = List.foldl (\cset (var, a, a') ->
-        case var of
-          Covariant -> [a <: a'] <> cset
-          Contravariant -> [a' <: a] <> cset
-          Equal -> [a <: a', a' <: a] <> cset
+-- | Using the type specifications registered in the state monad, unfold any subtyping constraints
+-- of the form  (user /a/ \<: user /a/'). This functions assumes that the two type names are the same,
+-- and that the correct number of arguments has been given.
+unfoldTypeConstraint :: [(Type, Variance)] -> [Type] -> [Type] -> ConstraintInfo -> Typer ConstraintSet
+unfoldTypeConstraint typargs args args' info = do
+  let revinfo = info { actual = not $ actual info } -- For contravariant arguments.
+  -- Build the constraints based on the variance of the type arguments.
+  let cset = List.foldl (\cset ((_, variance), a, a') ->
+        case variance of
+          Covariant -> [(a <: a') & info] <> cset
+          Contravariant -> [(a' <: a) & revinfo] <> cset
+          Equal -> [(a <: a') & info, (a' <: a)  & revinfo] <> cset
           Unrelated -> cset
-        ) emptyset $ List.zip3 (arguments typedef) arg arg'
-
-  -- Return the complete set
+        ) emptyset $ List.zip3 typargs args args'
+  -- Return the complete set.
   return cset
 
 
+-- | Expand a type synonym.
+expandSynonym :: [(Type, Variance)] -> Type -> [Type] -> Type
+expandSynonym [] alias [] = alias
+expandSynonym ((a, _):args) alias (a':args') =
+  case (a, a') of
+    (TypeAnnot n (TypeVar a), TypeAnnot n' a') ->
+      let alias' = subs a a' $ subs n n' alias in
+      expandSynonym args alias' args'
+    _ -> throwNE $ ProgramError "Subtyping:expandSynonym: inadequate type arguments in type alias"
+expandSynonym [] _ _ = throwNE $ ProgramError "Subtyping:expandSynonym: too many type arguments"
+expandSynonym _ _ [] = throwNE $ ProgramError "Subtyping:expandSynonym: missing type arguments"
 
 
--- | Reduce the composite constraints of a constraint set, leaving only atomic
--- and semi-composite constraints.
-break_composite :: ConstraintSet -> QpState ConstraintSet
-
--- Nothing to do
-break_composite ([], lc) = return ([], lc)
-
--- Subtype constraints
-break_composite ((Subtype (TypeAnnot n t) (TypeAnnot m (TypeApply "qubit" [])) info):lc, fc) = do
-  unset_flag n info
-  unset_flag m info
-  break_composite ((SubLinearType t (TypeApply "qubit" []) info):lc, fc)
-
-break_composite ((Subtype (TypeAnnot n (TypeApply "qubit" [])) (TypeAnnot m t) info):lc, fc) = do
-  unset_flag n info
-  unset_flag m info
-  break_composite ((SubLinearType (TypeApply "qubit" []) t info):lc, fc)
-
-break_composite ((Subtype (TypeAnnot _ (TypeApply c args)) (TypeAnnot _ (TypeApply c' args')) info):lc, fc) = do
-  if c == c' && List.length args == List.length args' then
-    break_composite (lc, fc)
-
-  else
-    throw_TypingError (TypeAnnot 0 (TypeApply c args)) (TypeAnnot 0 (TypeApply c' args')) info
-
-break_composite ((Subtype (TypeAnnot _ TBool) (TypeAnnot _ TBool) _):lc, fc) = do
-  break_composite (lc, fc)
-
-break_composite ((Subtype (TypeAnnot _ TInt) (TypeAnnot _ TInt) _):lc, fc) = do
-  break_composite (lc, fc)
-
-break_composite ((Subtype (TypeAnnot _ t@(TCirc _ _)) (TypeAnnot _ u@(TCirc _ _)) info):lc, fc) = do
-  break_composite ((SubLinearType t u info):lc, fc)
-
--- Unit against unit : removed
-break_composite ((SubLinearType TUnit TUnit _):lc, fc) = do
-  break_composite (lc, fc)
+-- | Try expanding a type synonym: if the type argument is indeed a type synonym, the function will
+-- expand the definition and return true. Else, the result will be false.
+tryExpandSynonym :: ConstantType -> [Type] -> Typer (LinearType, Bool)
+tryExpandSynonym (TypeBuiltin s) args = return (TypeApply (TypeBuiltin s) args, False)
+tryExpandSynonym (TypeUser typ) args = do
+  typedef <- runCore $ getTypeDefinition typ
+  case typedef of
+    Synonym typargs _ alias -> do
+      let TypeAnnot _ exptyp = expandSynonym typargs alias args
+      return (exptyp, True)
+    Algebraic _ _ _ -> return (TypeApply (TypeUser typ) args, False)
 
 
--- Bool against bool : removed
-break_composite ((SubLinearType TBool TBool _):lc, fc) = do
-  break_composite (lc, fc)
+-- | Reduce a single type constraint from a constraint set, and return the smaller constraints
+-- resulting from the breakdown. The function is recursive, and the constraint set returned
+-- should only contain atomic and semi-atomic constraints.
+breakConstraint :: TypeConstraint -> Typer ConstraintSet
+-- For type constraints with constructors: clearly identify each constructor before deciding what
+-- to do with the flags. In particular, if the type is a qubit, we must unset the flags associated
+-- with each type.
+breakConstraint (Subtype t @ (TypeAnnot n (TypeApply c args)) u @ (TypeAnnot m (TypeApply c' args')) info) = do
+  -- In the unlikely event that the constructor are already identical, immediatly deal with the
+  -- constraint with expanding synonyms.
+  if c == c' && List.length args == List.length args' then do
+    -- Update the constraint information if needed.
+    let info' = case sourceType info of
+          Just a -> info
+          Nothing -> info { sourceType = Just $ if actual info then t else u }
+    case (c, args, args') of
+      -- Deal with builtins directly.
+      (TypeBuiltin "qubit", [], []) -> do
+        unsetFlag n info'
+        unsetFlag m info'
+        return emptyset
+      (TypeBuiltin "int", [], []) -> return emptyset
+      (TypeBuiltin "bool", [], []) -> return emptyset
+      (TypeBuiltin "unit", [], []) -> return emptyset
+      (TypeBuiltin "circ", [t, u], [t', u']) -> do
+        cset <- breakConstraint (Subtype t t' info')
+        cset' <- breakConstraint (Subtype u u' info')
+        return $ cset <> cset'
+      (TypeBuiltin "->", [t, u], [t', u']) -> do
+        cset <- breakConstraint (Subtype t' t info' { actual = not $ actual info'}) -- Contravariant.
+        cset' <- breakConstraint (Subtype u u' info') -- Covariant.
+        return $ (Le m n info') <> cset <> cset'
+      (TypeBuiltin "*", _, _) ->
+        List.foldl (\rec (t, t') -> do
+            cset <- rec
+            cset' <- breakConstraint (Subtype t t' info') -- Covariant.
+            return $ cset <> cset'
+          ) (return $ (Le m n info') <> emptyset) $ List.zip args args'
+      (TypeBuiltin s, _, _) ->
+        throwNE $ ProgramError $ "Subtyping:breakConstraint: undefined builtin type " ++ s
+      -- For type constructors (algebraic or alias), we must fetch the definition.
+      (TypeUser c, args, args') -> do
+        typedef <- runCore $ getTypeDefinition c
+        cset <- unfoldTypeConstraint (arguments typedef) args args' info'
+        return $ (Le m n info') <> cset
 
-
--- Int against int : removed
-break_composite ((SubLinearType TInt TInt _):lc, fc) = do
-  break_composite (lc, fc)
-
--- Qubit against QBit : removed
-break_composite ((SubLinearType TQubit TQubit _):lc, fc) = do
-  break_composite (lc, fc)
-
-
--- Arrow against arrow
-  -- T -> U <: T' -> U'
--- Into
-  -- T' <: T && U <: U'
-break_composite ((SubLinearType (TArrow t u) (TArrow t' u') info):lc, fc) = do
-  intype <- case c_type info of
-              Just a -> return $ Just a
-              Nothing -> return $ Just $ if c_actual info then TypeAnnot 0 $ TArrow t u else TypeAnnot 0 $ TArrow t' u'
-
-  break_composite ((Subtype t' t info { c_actual = not $ c_actual info,
-                                           c_type = intype }):
-                      (Subtype u u' info { c_type = intype }):lc, fc)
-
-
--- Tensor against tensor
-  -- T * U <: T' * U'
--- Into
-  -- T <: T' && U <: U'
-break_composite ((SubLinearType (TTensor tlist) (TTensor tlist') info):lc, fc) = do
-  if List.length tlist == List.length tlist' then do
-    intype <- case c_type info of
-                Just a -> return $ Just a
-                Nothing -> return $ Just $ if c_actual info then TypeAnnot 0 $ TTensor tlist else TypeAnnot 0 $ TTensor tlist'
-
-    comp <- return $ List.map (\(t, u) -> Subtype t u info { c_type = intype }) $ List.zip tlist tlist'
-    break_composite (comp ++ lc, fc)
-
+  -- If the type arguments are not equal, try expanding type synonyms until the type are equals, or
+  -- the types cannot be expanded anymore.
   else do
-    throw_TypingError (TypeAnnot 0 $ TTensor tlist) (TypeAnnot 0 $ TTensor tlist') info
+    (t', expt) <- tryExpandSynonym c args
+    (u', expu) <- tryExpandSynonym c' args'
+    -- One of the two was indeed a synonym: make a recursive call with the produced types.
+    if expt || expu then breakConstraint $ Subtype (TypeAnnot n t') (TypeAnnot m u') info
+    -- Both were NOT synonyms: this is a typing error.
+    else throwTypingError t u info
 
+-- In the two following cases, we must still check the type constructor: if it corresponds to a qubit,
+-- we must unset the flags attached to each type.
+breakConstraint (Subtype t @ (TypeAnnot n (TypeVar x)) u @ (TypeAnnot m (TypeApply c args)) info) = do
+  let info' = case sourceType info of
+        Just a -> info
+        Nothing -> info { sourceType = Just u }
+  case c of
+    TypeBuiltin "qubit" -> do
+      unsetFlag n info'
+      unsetFlag m info'
+    _ -> return ()
+  let constraint = SubLinearType (TypeVar x) (TypeApply c args) info'
+  return $ ConstraintSet [constraint] []
 
--- With type synonyms
-break_composite ((SubLinearType (TSynonym utyp arg) u info):lc, fc) = do
-  spec <- synonym_def utyp
+breakConstraint (Subtype t @ (TypeAnnot n (TypeApply c args)) u @ (TypeAnnot m (TypeVar x)) info) = do
+  let info' = case sourceType info of
+        Just a -> info
+        Nothing -> info { sourceType = Just t }
+  case c of
+    TypeBuiltin "qubit" -> do
+      unsetFlag n info'
+      unsetFlag m info'
+    _ -> return ()
+  let constraint = SubLinearType (TypeApply c args) (TypeVar x) info'
+  return $ ConstraintSet [constraint] []
 
-  let (arg', typ) = definition spec
-  let typ' = List.foldl (\typ (a, a') -> do
-        case (a, a') of
-          (TypeAnnot n (TypeVar a), TypeAnnot n' a') -> subs a a' (subs n n' typ)
-          _ -> throwNE $ ProgramError "Subtyping:break_composite: inadequate type arguments in type synonym definition") typ (List.zip arg' arg)
+-- Hidden atomic constraint.
+breakConstraint (Subtype (TypeAnnot n (TypeVar x)) (TypeAnnot m (TypeVar y)) info) = do
+  let constraint = SubLinearType (TypeVar x) (TypeVar y) info
+  return $ ConstraintSet [constraint] [Le m n info]
 
-  break_composite ((SubLinearType (no_bang typ') u info):lc, fc)
-
-break_composite ((SubLinearType t (TSynonym utyp arg) info):lc, fc) = do
-  spec <- synonym_def utyp
-
-  let (arg', typ) = definition spec
-  let typ' = List.foldl (\typ (a, a') -> do
-        case (a, a') of
-          (TypeAnnot n (TypeVar a), TypeAnnot n' a') -> subs a a' (subs n n' typ)
-          _ -> throwNE $ ProgramError "Subtyping:break_composite: inadequate type arguments in type synonym definition") typ (List.zip arg' arg)
-
-  break_composite ((SubLinearType t (no_bang typ') info):lc, fc)
-
-
--- Algebraic type against algebraic type
--- The result of breaking this kind of constraints has been placed in the specification of the user type
--- It need only be instantiated with the current type arguments
-break_composite ((SubLinearType (TAlgebraic utyp arg) (TAlgebraic utyp' arg') info):lc, fc) = do
-  -- If the two types are the same (either two type synonyms or two algebraic types)
-  if utyp == utyp' then do
-    intype <- case c_type info of
-          Just a -> return $ Just a
-          Nothing -> return $ Just $ if c_actual info then TypeAnnot 0 $ TAlgebraic utyp arg else TypeAnnot 0 $ TAlgebraic utyp' arg'
-
-    cset <- unfold_algebraic_constraint utyp arg arg'
-
-    -- This one may be reversed : will have to check
-    break_composite $ (cset & info { c_type = intype }) <> (lc, fc)
-  else
-    throw_TypingError (TypeAnnot 0 $ TAlgebraic utyp arg) (TypeAnnot 0 $ TAlgebraic utyp' arg') info
-
-
--- Circ against Circ
-  -- circ (T, U) <: circ (T', U')
--- Into
-  -- T' <: T && U <: U'
--- The flags don't really matter, as they can take any value, so no constraint m <= n is generated
-break_composite ((SubLinearType (TCirc t u) (TCirc t' u') info):lc, fc) = do
-  intype <- case c_type info of
-              Just a -> return $ Just a
-              Nothing -> return $ Just $ if c_actual info then TypeAnnot 0 $ TCirc t u else TypeAnnot 0 $ TCirc t' u'
-
-  break_composite ((Subtype t' t info { c_actual = not $ c_actual info,
-                                           c_type = intype }):(Subtype u u' info):lc, fc)
-
-
--- Semi composite (unbreakable) constraints
-break_composite (c@(SubLinearType (TypeVar _) _ _):lc, fc) = do
-  (lc', fc') <- break_composite (lc, fc)
-  return (c:lc', fc')
-
-break_composite (c@(SubLinearType _ (TypeVar _) _):lc, fc) = do
-  (lc', fc') <- break_composite (lc, fc)
-  return (c:lc', fc')
-
-break_composite ((Subtype (TypeAnnot n a) (TypeAnnot m b) info):lc, fc) = do
-  if non_trivial m n then do
-    intype <- case c_type info of
-                Nothing -> return $ Just $ if c_actual info then TypeAnnot n a else TypeAnnot m b
-                Just a -> return $ Just a
-    break_composite ((SubLinearType a b info):lc, (Le m n info):fc)
-  else do
-    break_composite ((SubLinearType a b info):lc, fc)
-
-
--- Everything else is a typing error
-break_composite ((SubLinearType t u info):lc, fc) = do
-  throw_TypingError (TypeAnnot 0 t) (TypeAnnot 0 u) info
-
-
-
-
-
-
+-- Linear constraints. Note: we shouldn't have to break linear constraints on type applications, so
+-- we will ignore these cases and suppose only atomic and semi-atomic constraints remain, which will
+-- allow us to return immediatly with a singleton set.
+breakConstraint c @ (SubLinearType _ _ _) =
+  return $ ConstraintSet [c] []

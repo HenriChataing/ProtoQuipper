@@ -89,8 +89,8 @@ import Parsing.Location
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 
-import Interpret.Values
-import Interpret.Circuits as C
+import Interpreter.Values
+import Interpreter.Circuits as C
 
 import qualified Compiler.SimplSyntax as CS
 import Compiler.PatternElimination (choose_implementation)
@@ -212,7 +212,7 @@ import_typedefs dblock label = do
                     -- If the constructor takes one argument
                     Just dt -> do
                         dt@(TypeAnnot n _) <- translate_bound_type dt E.empty { E.types = mapargs }
-                        return (TypeAnnot one $ TArrow dt $ TypeAnnot m $ TAlgebraic id args, Just dt, ([], [Le m n no_info]))
+                        return (TypeAnnot one $ TArrow dt $ TypeAnnot m $ TAlgebraic id args, Just dt, ([], [Le m n noInfo]))
 
               -- Generalize the type of the constructor over the free variables and flags
               -- Those variables must also respect the constraints from the construction of the type.
@@ -678,7 +678,7 @@ translate_expression (S.EBox t) label = do
   t' <- translate_bound_type t label
   -- Check that the type of the box is a quantum data type
   if not (is_qdata t') then do
-    prt <- pprint_type_noref t'
+    prt <- printType t'
     throwQ (BadBoxType prt) ex
 
   else do

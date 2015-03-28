@@ -21,7 +21,7 @@ import Typing.Subtyping
 import qualified Typing.TypeInference (filter)
 import Typing.TypeInference
 
-import Interpret.Circuits
+import Interpreter.Circuits
 
 import Monad.Error
 --import Monad.QpState
@@ -168,7 +168,7 @@ run_interactive opts ctx buffer = do
                       rec
                       let (TypeScheme _ _ _ (TypeAnnot f b)) = a
                       v <- flag_value f
-                      t <- pprint_type_noref (TypeAnnot f b)
+                      t <- printType (TypeAnnot f b)
                       nm <- variable_name x
                       liftIO $ putStr "~ "
                       case v of
@@ -211,7 +211,7 @@ run_interactive opts ctx buffer = do
                               (gamma_e, _) <- sub_context fve gamma
                               cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (exact opts) (cset <> constraints ctx)
-                              inferred <- map_type a >>= pprint_type_noref
+                              inferred <- map_type a >>= printType
 
                               -- Display the type
                               liftIO $ putStrLn $ "-: " ++ inferred)
@@ -292,8 +292,8 @@ run_interactive opts ctx buffer = do
 
                               -- Display the type
                               fvar <- display_typvar fv
-                              fflag <- display_ref (n:ff)
-                              fuser <- display_algebraic
+                              fflag <- displayRefFlag (n:ff)
+                              fuser <- displayUserType
 
                               pinf <- return $ genprint Inf [fflag, fvar, fuser] a
                               pcset <- return $ genprint Inf [fflag, fvar, fuser] cset

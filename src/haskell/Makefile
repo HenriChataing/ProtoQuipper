@@ -16,8 +16,8 @@ MAIN = ProtoQuipper
 PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
 SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
-  Interpret/Circuits.hs Interpret/Interpret.hs Interpret/IRExport.hs	\
-  Interpret/Values.hs Core/Namespace.hs		\
+  Interpreter/Circuits.hs Interpreter/Interpreter.hs Interpreter/IRExport.hs	\
+  Interpreter/Values.hs Core/Namespace.hs		\
   Monad/Core.hs Monad/Error.hs Monad/Typer.hs Monad/Interpreter.hs Monad/Compiler.hs \
   Options.hs \
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\

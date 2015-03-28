@@ -9,7 +9,7 @@ import Builtins
 
 import Parsing.Lexer
 import qualified Parsing.Parser as P
-import Parsing.Location (clear_location, extent_unknown)
+import Parsing.Location (clear_location, unknownExtent)
 import qualified Parsing.Syntax as S
 import Parsing.Printer
 
@@ -18,11 +18,11 @@ import Core.Translate
 import Core.Environment (Environment, lvar_to_lglobal)
 import qualified Core.Environment as E
 
-import Interpret.Interpret hiding (Environment)
-import qualified Interpret.Interpret as I (Environment)
-import Interpret.Values
-import Interpret.IRExport
-import Interpret.Circuits
+import Interpreter.Interpreter hiding (Environment)
+import qualified Interpreter.Interpreter as I (Environment)
+import Interpreter.Values
+import Interpreter.IRExport
+import Interpreter.Circuits
 
 import Typing.Ordering
 import Typing.Subtyping
@@ -217,14 +217,14 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   a@(TypeAnnot n _) <- new_type
 
   -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE :
-  set_flag n no_info { c_ref = reference e' }
+  setFlag n noInfo { c_ref = reference e' }
 
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
   (gamma_e, _) <- sub_context fve gamma
   cset <- constraint_typing gamma_e e' [a] >>= break_composite
   cset' <- unify (exact opts) (cset <> constraints ctx)
-  inferred <- map_type a >>= pprint_type_noref
+  inferred <- map_type a >>= printType
 
   -- Resolve the constraints (BECAUSE MAP_TYPE CAN CHANGE THE FLAGS)
   fc'' <- unify_flags $ snd cset'
@@ -242,7 +242,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- If interpretation, interpret, and display the result
   if run_interpret opts && toplevel mopts then do
     v <- interpret (environment ctx) e'
-    pv <- pprint_value_noref v
+    pv <- printValue v
     case (v, circuit_format opts) of
       (VCirc _ c _, "ir") -> do
           irdoc <- return $ export_to_IR c
@@ -364,7 +364,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
           nx <- variable_name x
           case a of
             TypeScheme _ _ _ a -> do
-                pa <- pprint_type_noref a
+                pa <- printType a
                 liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
           return ()) (return ()) gamma_p
   else
@@ -379,11 +379,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     env <- case (recflag, v, uncoerce p') of
           (Recursive, VFun ev arg body, PVar _ x) -> do
               let ev' = IMap.insert x (VFun ev' arg body) ev
-              Interpret.Interpret.bind_pattern p' (VFun ev' arg body) (environment ctx)
+              Interpreter.Interpreterer.bind_pattern p' (VFun ev' arg body) (environment ctx)
 
           _ -> do
               -- Bind it to the pattern p in the current context
-              Interpret.Interpret.bind_pattern p' v (environment ctx)
+              Interpreter.Interpreterer.bind_pattern p' v (environment ctx)
     -- End, at last
     return $ ctx {
           typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
@@ -465,7 +465,7 @@ process_module opts prog = do
   ctx <- get_context
   old_stack <- return $ circuits ctx
   set_context $ ctx {
-    circuits = [Circ { qIn = [], gates = [], qOut = [], Interpret.Circuits.qubit_id = 0, unused_ids = [] }],
+    circuits = [Circ { qIn = [], gates = [], qOut = [], Interpreter.Circuits.qubit_id = 0, unused_ids = [] }],
     dependencies = S.imports prog,
     current = Just $ S.moduleName prog
   }
@@ -552,7 +552,7 @@ do_everything opts files = do
 
           if show_intermediate opts then do
             liftIO $ putStrLn $ "======   " ++ pname ++ "   ======"
-            fvar <- display_var
+            fvar <- displayVar
             liftIO $ putStrLn $ genprint Inf [fvar] cunit
           else
             return ()

@@ -22,7 +22,7 @@ class Show a => QError a where
   printE :: a -> Extent -> String             -- ^ Display the error, with the additionnal extent information.
 
   printE err ext =
-    if ext == extent_unknown then
+    if ext == unknownExtent then
       prefix err ++ ": " ++ show err
     else
       prefix err ++ ":" ++ show ext ++ ": " ++ show err
@@ -52,7 +52,7 @@ throw :: QError a => a      -- ^ An error.
 throw err ext =
   case ext of
     Nothing ->
-        E.throw $ QuipperError $ printE err extent_unknown
+        E.throw $ QuipperError $ printE err unknownExtent
     Just ext ->
         E.throw $ QuipperError $ printE err ext
 

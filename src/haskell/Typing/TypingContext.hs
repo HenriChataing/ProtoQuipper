@@ -148,7 +148,7 @@ duplicable_context ctx = do
       aux x (TypeScheme _ _ _ (TypeAnnot f _)) rec = do
         rec
         ref <- variable_reference x
-        set_flag f no_info { c_ref = ref }
+        setFlag f noInfo { c_ref = ref }
 
 
 instance Context TypingContext where

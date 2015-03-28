@@ -6,8 +6,8 @@ module Builtins (
 
 import Utils
 
-import Interpret.Circuits
-import Interpret.Values
+import Interpreter.Circuits
+import Interpreter.Values
 
 import Monad.Error
 --import Monad.QpState hiding (qubit_id)
@@ -39,7 +39,7 @@ define_list = do
   }
   let an = TypeAnnot n $ TypeVar a
       acons = TypeAnnot p $ TTensor [an, TypeAnnot q $ TAlgebraic list [an]]
-      tcons = TypeScheme [n,m,p,q] [a] ([],[Le m p no_info]) (TypeAnnot one $ TArrow acons (TypeAnnot m $ TAlgebraic list [an]))
+      tcons = TypeScheme [n,m,p,q] [a] ([],[Le m p noInfo]) (TypeAnnot one $ TArrow acons (TypeAnnot m $ TAlgebraic list [an]))
       tnil = TypeScheme [n,m] [a] emptyset (TypeAnnot m $ TAlgebraic list [an])
 
   cons <- register_datacon "_Cons" Datacondef {
@@ -187,7 +187,7 @@ binary_value g =
 --
 -- * One ternary gate is defined: TOFFOLI.
 --
--- Note that the list of unary and binary gates is actually provided by the "Interpret.Circuits" module.
+-- Note that the list of unary and binary gates is actually provided by the "Interpreter.Circuits" module.
 
 
 
