@@ -10,7 +10,7 @@ import Parsing.Location
 
 import Core.Syntax -- (Type, LinearType, Flag, ConstraintInfo (..), ConstraintSource (..))
 
-import Monad.Core as Core hiding (sourceType)
+import Monad.Core as Core hiding (sourceType, typemap)
 import Monad.Error
 
 import Control.Monad.Trans
@@ -40,6 +40,8 @@ data FlagInfo = FlagInfo {
 -- | The typer state is able to generate fresh type and flag variables, and define the substitution
 -- solution of the type constraints.
 data TyperState = TyperState {
+  -- | Maps global variables to their respective type scheme.
+  typemap :: IntMap TypeScheme,
   -- | The result of the unification: a mapping from type variables to linear types.
   mapping :: IntMap LinearType,
   -- | Flags from types are references to this map, which holds information about the value of the
@@ -55,6 +57,7 @@ type Typer = StateT TyperState Core
 -- | Empty state.
 empty :: TyperState
 empty = TyperState {
+    typemap = IntMap.empty,
     mapping = IntMap.empty,
     flags = IntMap.empty
   }
@@ -125,6 +128,18 @@ unsetFlag flag info = do
         _ -> return ()
 
     Nothing -> setFlagInfo flag $ FlagInfo Zero
+
+
+---------------------------------------------------------------------------------------------------
+-- * Type map.
+
+-- | Return the type of a global variable (or fails if not found).
+typeOf :: Variable -> Typer TypeScheme
+typeOf x = do
+  typemap <- gets typemap
+  case IntMap.lookup x typemap of
+    Just scheme -> return scheme
+    Nothing -> fail $ "Typer:typeOf: missing type of variable " ++ show x
 
 
 ---------------------------------------------------------------------------------------------------

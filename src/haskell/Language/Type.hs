@@ -4,7 +4,7 @@ module Language.Type where
 import Utils
 
 import Core.Syntax
-
+import qualified Compiler.SimplSyntax as C (Expr)
 
 -- ----------------------------------------------------------------------
 -- ** Data type definitions
@@ -61,5 +61,5 @@ data TypeInfo = TypeInfo {
   name :: String,
   sourceModule :: String,         -- ^ Source module (empty if not relevant).
   definition :: TypeDefinition,   -- ^ The original type definition (as written in the source).
-  tag :: Int                      -- ^ For the compilation : indicates the location of the tag.
+  tag :: Variable -> C.Expr       -- ^ For the compilation : indicates the location of the tag.
 }

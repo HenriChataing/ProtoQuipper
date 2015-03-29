@@ -24,14 +24,12 @@ data Expr =
   | EApp Expr Expr                                -- ^ Function application: @t u@.
 
 -- Introduction of the tensor
-  | EUnit                                         -- ^ Unit term: @()@.
   | ETuple [Expr]                                 -- ^ Tuple: @(/t/1, .. , /t//n/)@. By construction, must have /n/ >= 2.
   | ELet Variable Expr Expr                       -- ^ Let-binding: @let p = e in f@. We have no more use for the recursive flag, so it has been dropped.
   | ESeq Expr Expr                                -- ^ The expression @e; f@, semantically equivalent to @let _ = e in f@.
 
 -- Custom union types
-  | EBool Bool                                    -- ^ Boolean constant: @true@ or @false@.
-  | EInt Int                                      -- ^ Integer constant.
+  | EConstant ConstantValue
   | EMatch Expr [(Int, Expr)] Expr                -- ^ Case distinction: @match e with (p1 -> f1 | .. | pn -> fn)@. The last expression is the default case.
 
 -- Unrelated
@@ -71,6 +69,14 @@ imports (EMatch e clist def) = List.union (imports e) $ List.foldl (\imp (n,c) -
 imports _ = []
 
 
+---------------------------------------------------------------------------------------------------
+-- * Helper functions.
+
+int :: Int -> Expr
+int i = EConstant $ ConstInt i
+
+unit :: Expr
+unit = EConstant $ ConstUnit
 
 -- * Printing functions.
 
@@ -84,21 +90,10 @@ print_doc :: Lvl                   -- ^ Maximum depth.
 print_doc _ (EAccess n v) fvar =
   text ("#" ++ show n) <+> text (fvar v)
 
-print_doc _ EUnit _ =
-  text "()"
-
-print_doc _ (EBool b) _ =
-  if b then text "true" else text "false"
-
-print_doc _ (EInt n) _ =
-  text $ show n
-
+print_doc _ (EConstant c) _ = text $ show c
 print_doc _ (EVar x) fvar = text $ fvar x
-
 print_doc _ (EGlobal x) fvar = text $ fvar x
-
-print_doc (Nth 0) _ _ =
-  text "..."
+print_doc (Nth 0) _ _ = text "..."
 
 print_doc lv (ESeq e f) fvar =
   (print_doc lv e fvar) <+> text ";" $$

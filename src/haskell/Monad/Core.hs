@@ -15,8 +15,10 @@ import Language.Variable as Variable
 import Language.Type as Type
 
 import Core.Environment
-import Core.Namespace as Namespace
+import Core.Namespace (Namespace)
+import qualified Core.Namespace as Namespace
 import Core.Syntax hiding (sourceType)
+import qualified Compiler.SimplSyntax as C
 
 import Monad.Error
 
@@ -96,11 +98,12 @@ warning warn ex = do
 
 
 ---------------------------------------------------------------------------------------------------
--- * Accessors
+-- * Core
 
 -- | Return the global options.
 getOptions :: Core Options
 getOptions = gets options
+
 
 -- | Return the required module.
 require :: String -> Core (Maybe Module)
@@ -108,6 +111,9 @@ require name = do
   modules <- gets modules
   return $ List.find (\m -> moduleName m == name) modules
 
+
+---------------------------------------------------------------------------------------------------
+-- * Variables.
 
 -- | Retrieve the name of the given variable. If no match is found in the namespace, produce a standard
 -- name of the form /x_n/.
@@ -119,14 +125,14 @@ variableName x = do
     Nothing -> return $ prevar "x" x
 
 
--- | Return the definition of a data constructor.
-getConstructorInfo :: Variable -> Core ConstructorInfo
-getConstructorInfo constructor = do
-  info <- gets $ ((IntMap.lookup constructor) . Namespace.constructors) . namespace
-  case info of
-    Just info -> return info
-    Nothing ->
-      fail $ "Monad.Core:getConstructorInfo: undefined data constructor: " ++ prevar "D" constructor
+-- | Set the calling convention for a variable in the namespace.
+setCallingConvention :: Variable -> [Type] -> Core ()
+setCallingConvention x typs =
+  modify $ \core -> core { namespace = Namespace.setCallingConvention x typs $ namespace core }
+
+
+---------------------------------------------------------------------------------------------------
+-- * Type implementation.
 
 -- | Return the definition of a type.
 getTypeInfo :: Variable -> Core TypeInfo
@@ -137,11 +143,83 @@ getTypeInfo typ = do
     Nothing ->
       fail $ "Monad.Core:getTypeInfo: undefined type: " ++ prevar "T" typ
 
+
 -- | Return the definition of a type.
 getTypeDefinition :: Variable -> Core TypeDefinition
 getTypeDefinition typ = do
   info <- getTypeInfo typ
   return $ definition info
+
+
+-- | Return the tag accessor of an algebraic type.
+getTag :: Variable -> Variable -> Core C.Expr
+getTag typ x = do
+  info <- getTypeInfo typ
+  return $ Type.tag info x
+
+
+-- | Set the tag accessor of an algebraic type.
+setTag :: Variable -> (Variable -> C.Expr) -> Core ()
+setTag typ accessor =
+  modify $ \core -> core { namespace = Namespace.setTag typ accessor $ namespace core }
+
+
+-- | Settle the implementation (machine representation) of all the constructors of an algebraic type.
+-- The implementation will depend on the number of constructors and the number of constructors with
+-- arguments. This method will decide where the tag should be inserted, as well as the structure of
+-- each constructor.
+setTypeImplementation :: Variable -> Core ()
+setTypeImplementation typ = do
+  definition <- getTypeDefinition typ
+  case definition of
+    -- Synonym type: nothing to do here.
+    Synonym _ _ _ -> return ()
+    -- Cases with one constructor: The tag is omitted. No definition of the function getTag is needed.
+    -- The data is a pointer reference if the constructors takes an argument, the value 0 else.
+    Algebraic _ _ [(cons, Just _)] -> setConstructorFormat cons (\_ -> Right id) (\v -> C.EVar v)
+    Algebraic _ _ [(cons, Nothing)] -> setConstructorFormat cons (\tag -> Left $ C.int 0) (\v -> C.int 0)
+    -- Cases with several constrcutors.
+    Algebraic _ _ constructors -> do
+      List.foldl (\rec (cons, arg) -> do
+          rec
+          case arg of
+            Just _ ->
+              setConstructorFormat cons
+                (\tag -> Right $ \e -> C.ETuple [C.int tag, e])
+                (\v -> C.EAccess 1 v)
+            Nothing ->
+              setConstructorFormat cons
+                (\tag -> Left $ C.ETuple [C.int tag])
+                (\v -> C.int 0)
+        ) (return ()) constructors
+      -- The tag is the first element of the tuple.
+      Monad.Core.setTag typ $ \v -> C.EAccess 0 v
+
+
+---------------------------------------------------------------------------------------------------
+-- * Data constructors.
+
+-- | Return the definition of a data constructor.
+getConstructorInfo :: Variable -> Core ConstructorInfo
+getConstructorInfo constructor = do
+  info <- gets $ ((IntMap.lookup constructor) . Namespace.constructors) . namespace
+  case info of
+    Just info -> return info
+    Nothing ->
+      fail $ "Monad.Core:getConstructorInfo: undefined data constructor: " ++ prevar "D" constructor
+
+
+-- | Specify the constructor's builder and destructor. The builder gets the constructor's tag as
+-- additional argument.
+setConstructorFormat :: Variable
+                    -> (Int -> Either C.Expr (C.Expr -> C.Expr))
+                    -> (Variable -> C.Expr)
+                    -> Core ()
+setConstructorFormat constructor build extract =
+  modify $ \core -> core {
+      namespace = Namespace.setConstructorFormat constructor build extract $ namespace core
+    }
+
 
 -- | Return the source type of a data constructor.
 getConstructorSourceType :: Variable -> Core Variable
@@ -149,11 +227,14 @@ getConstructorSourceType constructor = do
   info <- getConstructorInfo constructor
   return $ sourceType info
 
+
 -- | Return the list of data constructors of a type.
---getAllConstructors :: Variable -> Core Variable
---getConstructorSourceType typ = do
---  info <- getTypeInfo typ
---  return $ sourceType info
+getAllConstructors :: Variable -> Core [Datacon]
+getAllConstructors typ = do
+  info <- getTypeInfo typ
+  case definition info of
+    Algebraic _ _ constructors -> return $ List.map fst constructors
+    Synonym _ _ _ -> return []
 
 
 ---------------------------------------------------------------------------------------------------

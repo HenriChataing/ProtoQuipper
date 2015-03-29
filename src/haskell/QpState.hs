@@ -135,12 +135,12 @@ data QContext = QCtx {
   --                                                    -- unambiguous error messages when the type inference fails.
 
 -- Compiler things
-  call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
+  --call_conventions :: IntMap [Type],                  -- ^ The calling conventions of the global functions. For now, it specificies the list of extra unbox operator arguments.
                                                       -- (see the function 'Compiler.PatternElimination.disambiguate_unbox_calls' for more information).
   --circOps :: CircOps,                                 -- ^ The qlib module, from which unbox and box operations are accessed.
 
 -- References
-  references :: IntMap RefInfo,                       -- ^ Information about each expression.
+  --references :: IntMap RefInfo,                       -- ^ Information about each expression.
 
 ---- Circuit stack
 --  circuits :: [Circuit],                              -- ^ The circuit stack used by the interpreter.
@@ -384,60 +384,60 @@ current_module =
 
 -- | Retrieve the name of the given variable. If no match is found in
 -- the namespace, produce a standard name /x_n/.
-variable_name :: Variable -> QpState String
-variable_name x = do
-  ctx <- get_context
-  case IMap.lookup x $ N.varcons (namespace ctx) of
-    Just n ->
-        return n
+--variable_name :: Variable -> QpState String
+--variable_name x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ N.varcons (namespace ctx) of
+--    Just n ->
+--        return n
 
-    Nothing ->
-        return $ prevar "x" x
+--    Nothing ->
+--        return $ prevar "x" x
 
 
 -- | Retrieve the reference the vairable was given at its declaration.
-variable_reference :: Variable -> QpState Ref
-variable_reference x = do
-  ctx <- get_context
-  case IMap.lookup x $ N.varref (namespace ctx) of
-    Just ref -> return ref
-    Nothing -> return 0
+--variable_reference :: Variable -> QpState Ref
+--variable_reference x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ N.varref (namespace ctx) of
+--    Just ref -> return ref
+--    Nothing -> return 0
 
 
 -- | Retrieve the module of definition of a global variable.
-variable_module :: Variable -> QpState String
-variable_module x = do
-  nspace <- get_context >>= return . namespace
-  n <- variable_name x
-  case IMap.lookup x $ N.varmod nspace of
-    Just mod -> return mod
-    Nothing -> fail $ "QpState:variable_module: undefined module " ++ n
+--variable_module :: Variable -> QpState String
+--variable_module x = do
+--  nspace <- get_context >>= return . namespace
+--  n <- variable_name x
+--  case IMap.lookup x $ N.varmod nspace of
+--    Just mod -> return mod
+--    Nothing -> fail $ "QpState:variable_module: undefined module " ++ n
 
 
 -- | Retrieve the name of the given data constructor. If no match is found in
 -- the namespace, produce a standard name /D_n/.
-datacon_name :: Variable -> QpState String
-datacon_name x = do
-  ctx <- get_context
-  case IMap.lookup x $ N.datacons (namespace ctx) of
-    Just n ->
-        return n
+--datacon_name :: Variable -> QpState String
+--datacon_name x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ N.datacons (namespace ctx) of
+--    Just n ->
+--        return n
 
-    Nothing ->
-        return $ prevar "D" x
+--    Nothing ->
+--        return $ prevar "D" x
 
 
--- | Retrieve the name of the given type. If no match is found in
--- the namespace, produce a standard name /A_n/.
-type_name :: Variable -> QpState String
-type_name x = do
-  ctx <- get_context
-  case IMap.lookup x $ N.typecons (namespace ctx) of
-    Just n ->
-        return n
+---- | Retrieve the name of the given type. If no match is found in
+---- the namespace, produce a standard name /A_n/.
+--type_name :: Variable -> QpState String
+--type_name x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ N.typecons (namespace ctx) of
+--    Just n ->
+--        return n
 
-    Nothing ->
-        return $ prevar "A" x
+--    Nothing ->
+--        return $ prevar "A" x
 
 
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
@@ -454,16 +454,16 @@ global_namespace deps = do
 
 
 
--- | Look up the type of a global variable.
-global_type :: Variable -> QpState TypeScheme
-global_type x = do
-  ctx <- get_context
-  case IMap.lookup x $ globals ctx of
-    Just t ->
-        return t
-    Nothing -> do
-        n <- variable_name x
-        fail $ "QpState:global_type: undefined global variable " ++ n
+---- | Look up the type of a global variable.
+--global_type :: Variable -> QpState TypeScheme
+--global_type x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ globals ctx of
+--    Just t ->
+--        return t
+--    Nothing -> do
+--        n <- variable_name x
+--        fail $ "QpState:global_type: undefined global variable " ++ n
 
 
 -- | Return the value of a global variable.
@@ -595,56 +595,56 @@ insert_globals ts vs = do
 
 
 -- | Retrieve the definition of a data constructor.
-datacon_def :: Datacon -> QpState Datacondef
-datacon_def id = do
-  ctx <- get_context
-  case IMap.lookup id $ datacons ctx of
-    Just def ->
-        return def
+--datacon_def :: Datacon -> QpState Datacondef
+--datacon_def id = do
+--  ctx <- get_context
+--  case IMap.lookup id $ datacons ctx of
+--    Just def ->
+--        return def
 
-    Nothing ->
-        -- The sound definition of the data constructors has already been checked
-        -- during the translation into the core syntax
-        fail $ "QpState:datacon_def: undefined data constructor: " ++ prevar "D" id
-
-
--- | Retrieve the reference of the algebraic type of a data constructor.
-datacon_datatype :: Datacon -> QpState Variable
-datacon_datatype dcon =
-  datacon_def dcon >>= return . datatype
+--    Nothing ->
+--        -- The sound definition of the data constructors has already been checked
+--        -- during the translation into the core syntax
+--        fail $ "QpState:datacon_def: undefined data constructor: " ++ prevar "D" id
 
 
--- | Retrieve the reference of the algebraic type of a data constructor.
-datacon_type :: Datacon -> QpState TypeScheme
-datacon_type dcon =
-  datacon_def dcon >>= return . dtype
+---- | Retrieve the reference of the algebraic type of a data constructor.
+--datacon_datatype :: Datacon -> QpState Variable
+--datacon_datatype dcon =
+--  datacon_def dcon >>= return . datatype
 
 
--- | Return the local identifier of a data constructor.
-datacon_tag :: Datacon -> QpState Int
-datacon_tag dcon =
-  datacon_def dcon >>= return . tag
+---- | Retrieve the reference of the algebraic type of a data constructor.
+--datacon_type :: Datacon -> QpState TypeScheme
+--datacon_type dcon =
+--  datacon_def dcon >>= return . dtype
 
 
--- | Update the definition of a data contructor.
-update_datacon :: Datacon -> (Datacondef -> Maybe Datacondef) -> QpState ()
-update_datacon dcon update = do
-  ctx <- get_context
-  set_context ctx { datacons = IMap.update update dcon $ datacons ctx }
+---- | Return the local identifier of a data constructor.
+--datacon_tag :: Datacon -> QpState Int
+--datacon_tag dcon =
+--  datacon_def dcon >>= return . tag
 
 
--- | Retrieve the list of the data constructors from a type definition.
-all_data_constructors :: Algebraic -> QpState [Datacon]
-all_data_constructors typ = do
-  def <- algebraic_def typ
-  return $ fst $ List.unzip $ snd $ definition def
+---- | Update the definition of a data contructor.
+--update_datacon :: Datacon -> (Datacondef -> Maybe Datacondef) -> QpState ()
+--update_datacon dcon update = do
+--  ctx <- get_context
+--  set_context ctx { datacons = IMap.update update dcon $ datacons ctx }
 
 
--- | Return the list of the constructors' labels of a type definition.
-constructors_tags :: Algebraic -> QpState [Int]
-constructors_tags typ = do
-  alg <- algebraic_def typ
-  return $ [0 .. (List.length $ snd $ definition alg) -1]
+---- | Retrieve the list of the data constructors from a type definition.
+--all_data_constructors :: Algebraic -> QpState [Datacon]
+--all_data_constructors typ = do
+--  def <- algebraic_def typ
+--  return $ fst $ List.unzip $ snd $ definition def
+
+
+---- | Return the list of the constructors' labels of a type definition.
+--constructors_tags :: Algebraic -> QpState [Int]
+--constructors_tags typ = do
+--  alg <- algebraic_def typ
+--  return $ [0 .. (List.length $ snd $ definition alg) -1]
 
 
 -- | Add an assertion on a type.
@@ -676,19 +676,19 @@ check_assertions = do
 
 -- | Access the information held by a flag.
 -- Returns the current value of the flag given by its reference.
-flag_value :: Flag -> QpState FlagValue
-flag_value ref =
-  case ref of
-    0 -> return Zero
-    1 -> return One
-    _ -> do
-        ctx <- get_context
-        case IMap.lookup ref $ flags ctx of
-          Just info ->
-              return $ flagValue info
+--flag_value :: Flag -> QpState FlagValue
+--flag_value ref =
+--  case ref of
+--    0 -> return Zero
+--    1 -> return One
+--    _ -> do
+--        ctx <- get_context
+--        case IMap.lookup ref $ flags ctx of
+--          Just info ->
+--              return $ flagValue info
 
-          Nothing ->
-              return Unknown
+--          Nothing ->
+--              return Unknown
 
 
 ---- | Set the value of a flag to one.

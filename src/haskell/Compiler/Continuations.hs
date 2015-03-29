@@ -9,9 +9,10 @@ module Compiler.Continuations where
 import Prelude hiding (lookup)
 
 import Utils
-import Classes hiding ((<+>), (\\))
+import Classes hiding (Context (..))
 
 import Monad.Core (variableName)
+import Monad.Typer (typeOf)
 import Monad.Compiler
 import Monad.Error
 
@@ -43,8 +44,8 @@ getVar _ = throwNE $ ProgramError "Instruction:getVar: illegal argument"
 
 -- | Are considered free variables only variables bound in a local scope.
 instance TermObject Value where
-  freevar (VVar x) = IntMap.singleton x
-  freevar _ = []
+  freevar (VVar x) = IntSet.singleton x
+  freevar _ = IntSet.empty
 
 instance Subs Value Value where
   subs x v (VVar y) = if x == y then v else VVar y
@@ -87,11 +88,11 @@ instance TermObject Instruction where
     let arrayVars = IntSet.unions $ List.map freevar array in
     IntSet.union (IntSet.delete x $ freevar c) arrayVars
   freevar (Access _ v x c) = IntSet.union (IntSet.delete x $ freevar c) (freevar v)
-  freevar (Switch v cases def) = IntSet.union $ List.map (freevar . snd) $ (0,def):cases
+  freevar (Switch v cases def) = IntSet.unions $ List.map (freevar . snd) $ (0,def):cases
   freevar (Set x v) = freevar v -- x is ignored here because a global variable.
   freevar (Ret v) = freevar v
   freevar (TailCall f args) = IntSet.unions $ List.map freevar (f:args)
-  freevar (Error _) = []
+  freevar (Error _) = IntSet.empty
 
 
 instance Subs Instruction Value where
@@ -133,12 +134,13 @@ type GlobalDef = (Variable, Instruction)
 
 -- | Fetch the value of a bound variable.
 value :: Variable -> Context -> Value
-value x = do
-  context <- ask
+value x context = do
   case IntMap.lookup x context of
     Just v -> v
     Nothing -> VVar x
 
+-- | Valuation map.
+type Context = IntMap Value
 
 -- | Type of continuations.
 type Continuation = Value -> Compiler Instruction
@@ -151,32 +153,32 @@ type Continuation = Value -> Compiler Instruction
 -- defined in this module).
 cpsConversion :: Context -> Continuation -> Expr -> Compiler Instruction
 cpsConversion ctx cont (EVar x) = do
-  v <- value x
+  let v = value x ctx
   case v of
     -- global functions when handled as objects must be boxed.
     VLabel gx -> do
-      closure <- lift $ createVariable "f"      -- function closure
-      let c = cont $ VVar closure
+      closure <- createVariable "f"      -- function closure
+      c <- cont $ VVar closure
       return $ Array [VLabel gx] closure c
     -- global variables when handled as objects must be unboxed.
     VGlobal gx -> do
       ref <- createVariable "ug"
-      let c = cont $ VVar ref
+      c <- cont $ VVar ref
       return $ Access 0 (VGlobal gx) ref c
     -- Normal case.
     v -> cont v
 
 cpsConversion ctx cont (EGlobal x) = cpsConversion ctx cont $ EVar x
-cpsConversion _ cont (EInt n) = cont $ VInt n
-cpsConversion _ cont (EBool b) = cont $ if b then VInt 1 else VInt 0
-cpsConversion _ cont EUnit = cont $ VInt 0
+cpsConversion _ cont (EConstant (ConstInt n)) = cont $ VInt n
+cpsConversion _ cont (EConstant (ConstBool b)) = cont $ if b then VInt 1 else VInt 0
+cpsConversion _ cont (EConstant ConstUnit) = cont $ VInt 0
 cpsConversion _ cont (ETuple []) = cont $ VInt 0
 cpsConversion _ _ (EError msg) = return $ Error msg
 
 cpsConversion ctx cont (ETuple tuple) = do
   x <- createVariable "x"
   c <- cont $ VVar x
-  fold (\array -> return $ Array array x c) cont tuple []
+  fold (\array -> return $ Array array x c) tuple []
   where
     fold cont [] array = cont $ List.reverse array
     fold cont (e:es) array = cpsConversion ctx (\v -> fold cont es (v:array)) e
@@ -184,7 +186,7 @@ cpsConversion ctx cont (ETuple tuple) = do
 cpsConversion ctx cont (EAccess n x) = do
   y <- createVariable "x"
   c <- cont $ VVar y
-  v <- value x
+  let v = value x ctx
   return $ Access n v y c
 
 cpsConversion ctx cont (EFun x e) = do
@@ -288,16 +290,16 @@ wcpsConversion ctx cont (EVar x) =
     v -> cont v
 
 wcpsConversion ctx cont (EGlobal x) = wcpsConversion ctx cont $ EVar x
-wcpsConversion _ cont (EInt n) = cont $ VInt n
-wcpsConversion _ cont (EBool b) = cont $ if b then VInt 1 else VInt 0
-wcpsConversion _ cont EUnit = cont $ VInt 0
+wcpsConversion _ cont (EConstant (ConstInt n)) = cont $ VInt n
+wcpsConversion _ cont (EConstant (ConstBool b)) = cont $ if b then VInt 1 else VInt 0
+wcpsConversion _ cont (EConstant ConstUnit) = cont $ VInt 0
 wcpsConversion _ cont (ETuple []) = cont $ VInt 0
 wcpsConversion _ _ (EError msg) = return $ Error msg
 
 wcpsConversion ctx cont (ETuple tuple) = do
   x <- createVariable "x"
   c <- cont $ VVar x
-  fold (\array -> return $ Array array x c) cont tuple []
+  fold (\array -> return $ Array array x c) tuple []
   where
     fold cont [] array = cont $ List.reverse array
     fold cont (e:es) array = wcpsConversion ctx (\v -> fold cont es (v:array)) e
@@ -305,7 +307,7 @@ wcpsConversion ctx cont (ETuple tuple) = do
 wcpsConversion ctx cont (EAccess n x) = do
   y <- createVariable "x"
   c <- cont $ VVar y
-  return $ Access n (value ctx x) y c
+  return $ Access n (value x ctx) y c
 
 wcpsConversion ctx cont (EFun x e) = do
   f <- createVariable "f"       -- Function name.
@@ -462,7 +464,7 @@ computeUsage info (Error msg) =
 -- variables of a function. Optimally, all the free variables could be passed as addtional arguments,
 -- but this is not always possible (when the function escapes the scope by being returned by a function).
 -- The rest of the time, a closure (local environment) is built and passed as argument.
-closureConversion :: IntMap (Usage, Information) -> Instruction -> Compiler (Instruction, IntSet Variable)
+closureConversion :: IntMap (Usage, Information) -> Instruction -> Compiler (Instruction, IntSet)
 closureConversion info (Function f args body c) = do
   -- Check the usage of the function [f].
   case IntMap.lookup f info of
@@ -484,7 +486,7 @@ closureConversion info (Function f args body c) = do
       -- Extraction of the closure's variables (code added at the beginning of the function block).
       -- The closure argument has the same name as the function (variable f here).
       let (_, body'') = List.foldl (\(n, body) x ->
-            Access n (VVar f) x body) body' closure
+            (n+1, Access n (VVar f) x body)) (0, body') closure
       -- Construction of the closure (with continuation c' and name f).
       let c'' = Array (VVar f:(List.map VVar closure)) f c'
       -- Re-definition of the function f.
@@ -497,7 +499,7 @@ closureConversion info (Call (VVar f) args x c) = do
     -- the free variables added to the list of arguments.
     Just (Usage { escapes = 0 }, IFun closure _) -> do
       (c', envc) <- closureConversion info c
-      let envl = f:(IntSet.unions $ (IntSet.fromList closure):(List.map freevar args))
+      let envl = IntSet.insert f $ IntSet.unions $ (IntSet.fromList closure):(List.map freevar args)
       let env = IntSet.union (IntSet.delete x envc) envl
       return (Call (VVar f) (args ++ List.map VVar closure) x c', env)
     -- Not this luck, the function must first be extracted from the closure, before being called.
@@ -505,7 +507,7 @@ closureConversion info (Call (VVar f) args x c) = do
     _ -> do
       (c', envc) <- closureConversion info c
       f' <- createVariable "f"
-      let envl = f:(IntSet.unions $ List.map freevar args)
+      let envl = IntSet.insert f $ IntSet.unions $ List.map freevar args
       let env = IntSet.union (IntSet.delete x envc) envl
       return ( Access 0 (VVar f) f' $ Call (VVar f') (VVar f:args) x c', env)
 
@@ -522,13 +524,13 @@ closureConversion info (TailCall (VVar f) args) = do
     -- The function is known: no closure argument, instead
     -- the free variables added to the list of arguments.
     Just (Usage { escapes = 0 }, IFun closure _) -> do
-      let env = f:(IntSet.unions $ (IntSet.fromList closure):(List.map freevar args))
+      let env = IntSet.insert f $ IntSet.unions $ (IntSet.fromList closure):(List.map freevar args)
       return (TailCall (VVar f) (args ++ List.map VVar closure), env)
     -- Not this luck, the function must first be extracted from the closure, before being called.
     -- The function is the first element of the closure.
     _ -> do
       f' <- createVariable "f"
-      let env = f:(IntSet.unions $ List.map freevar args)
+      let env = IntSet.insert f $ IntSet.unions $ List.map freevar args
       return ( Access 0 (VVar f) f' $ TailCall (VVar f') (VVar f:args), env)
 
 -- Since global functions are already closed, only a dummy closure is passed as argument.
@@ -572,10 +574,10 @@ convert_declarations_to_cps :: [Declaration]            -- ^ List of declaratio
                             -> Compiler CompilationUnit              -- ^ Resulting compile unit.
 convert_declarations_to_cps decls = do
   -- build the list of imported variables
-  let imported = List.foldl (\imp (DLet _ _ e) -> List.union (imported e) imp) [] decls
+  let imports = List.foldl (\imp (DLet _ _ e) -> List.union (imported e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
         (ivals, imported) <- rec
-        tix <- global_type ix
+        tix <- runTyper $ typeOf ix
         if isFunction tix then
           return (IntMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else
@@ -639,7 +641,7 @@ convert_declarations_to_wcps decls = do
   let imported = List.foldl (\imp (DLet _ _ e) -> List.union (imported e) imp) [] decls
   (ivals, imported) <- List.foldl (\rec ix -> do
         (ivals, imported) <- rec
-        tix <- global_type ix
+        tix <- runTyper $ typeOf ix
         if isFunction tix then
           return (IntMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
         else

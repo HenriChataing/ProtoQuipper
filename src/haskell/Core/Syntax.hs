@@ -270,22 +270,9 @@ data Info = Info {
   typ :: Type                                         -- ^ The type of the expression.
 } deriving Show
 
-
--- ----------------------------------------------------------------------
--- ** Constants
-
--- | Union of the language constants. May yet be extended in the future with other values.
-data ConstantValue =
-    ConstInt Int
-  | ConstBool Bool
-  | ConstUnit
-  deriving Eq
-
-instance Show ConstantValue where
-  show (ConstInt i) = show i
-  show (ConstBool b) = if b then "true" else "false"
-  show ConstUnit = "()"
-
+-- | Empty information.
+noTermInfo :: Info
+noTermInfo = Info { extent = unknownExtent, typ = unit }
 
 -- ----------------------------------------------------------------------
 -- ** Patterns
@@ -461,8 +448,8 @@ isValue _ = False
 -- | Type of the module declarations. Once the type definitions have been taken care of,
 -- there remains only top-level expressions and declarations.
 data Declaration =
-    DExpr Expr                   -- ^ A top-level expression.
-  | DLet RecFlag Variable Expr   -- ^ A top-level declaration.
+    DExpr Info Expr                   -- ^ A top-level expression.
+  | DLet Info RecFlag Variable Expr   -- ^ A top-level declaration.
 
 
 -- ----------------------------------------------------------------------

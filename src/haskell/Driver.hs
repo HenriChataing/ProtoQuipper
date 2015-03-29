@@ -543,7 +543,7 @@ do_everything opts files = do
         -- Compilation
         if run_compiler opts then do
           liftIO $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ pname
-          decls <- transform_declarations (M.declarations nm)
+          decls <- transformDeclarations (M.declarations nm)
 
           cunit <- case conversion_format opts of
                 "cps" -> C.convert_declarations_to_cps decls

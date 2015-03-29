@@ -79,9 +79,9 @@ implement_box typ = do
   -- Implementation of box[T]
   return $ EFun x0 $
         ELet x1 spec $                                -- Create the specimen
-        ESeq (EApp (EGlobal vopenbox) (EInt n)) $     -- Open a new box
+        ESeq (EApp (EGlobal vopenbox) (int n)) $      -- Open a new box
         ELet x2 (EApp (EVar x0) (EVar x1)) $          -- Apply the argument function to the specimen
-        ELet x3 (EApp (EGlobal vclosebox) EUnit) $    -- Close the box
+        ELet x3 (EApp (EGlobal vclosebox) unit) $     -- Close the box
         ETuple [EVar x1, EVar x3, EVar x2]            -- Build the resulting circuit
 
 
@@ -112,8 +112,8 @@ implement_spec :: QuantumType -> Compiler (Expr, Int)
 implement_spec typ = do
   return $ spec_n typ 0
   where
-    spec_n QQubit n = (EInt n, n+1)
-    spec_n QUnit n = (EUnit, n)
+    spec_n QQubit n = (int n, n+1)
+    spec_n QUnit n = (unit, n)
     spec_n (QTensor qlist) n =
       let (qlist', n') = List.foldl (\(ql, n) q ->
             let (q', n') = spec_n q n in
@@ -135,7 +135,7 @@ implement_bind :: QuantumType -> Variable -> Variable -> Compiler (Expr -> Expr,
 implement_bind typ x y = do
   (elet, b) <- bind typ x y
   -- Build both the final binding and let-bindings
-  let b' = List.foldl (\e (x, y) -> ETuple [EInt 1, EVar x, EVar y, e]) (ETuple [EInt 0]) b
+  let b' = List.foldl (\e (x, y) -> ETuple [int 1, EVar x, EVar y, e]) (ETuple [int 0]) b
   let elet' = List.foldr (\(x, ex) e ->
         \f -> e (ELet x ex f)) (\f -> f) elet
   return (elet', b')
@@ -175,7 +175,7 @@ implement_appbind typ b x = do
 
   where
     -- In the following, b is expected of the form : EApp (EBuiltin "APPBIND") b where is a binding
-    appbind QUnit _ = return ([], EUnit)
+    appbind QUnit _ = return ([], unit)
     appbind QQubit x = lookupVariable (Just "Builtins") "APPBIND" >>= \v -> return ([], EApp (EGlobal v) (ETuple [EVar b, EVar x]))
     appbind (QTensor qlist) x = do
       (elet, elist) <- List.foldl (\rec (n, q) -> do

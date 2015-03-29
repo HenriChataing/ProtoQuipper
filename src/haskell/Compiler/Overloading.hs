@@ -10,7 +10,8 @@ import Parsing.Location (unknownExtent)
 
 import Language.Constructor
 
-import Monad.Typer (solveType)
+import Monad.Core (setCallingConvention)
+import Monad.Typer (solveType, typeOf)
 import Monad.Compiler
 import Monad.Error
 
@@ -188,9 +189,11 @@ disambiguate modified (ELet r binder value body) = do
           let value'' = List.foldl (\value (_, x) -> EFun info (PVar info x) value) value' require
           return $ ELet r binder value'' body'
 
-        -- Tuples can generally not be transformed, except in this case where we can explode the tuple.
+        -- Tuples can generally not be transformed, except in this case where we can explode
+        -- the tuple.
         (PTuple _ plist, ETuple _ elist) -> do
-          let elet = List.foldl (\body (binder, value) -> ELet r binder value body) body (List.zip plist elist)
+          let elet = List.foldl (\body (binder, value) ->
+                ELet r binder value body) body (List.zip plist elist)
           disambiguate modified elet
 
         -- Same thing for data constructors.
@@ -207,12 +210,41 @@ disambiguate modified (ELet r binder value body) = do
 disambiguate _ e = return e
 
 
--- |  Modify an expression to disambiguate the use of the unbox operator: when the type can be inferred
--- automically (in a non polymorphic context), then the operator is untouched, else, the function
--- using the unbox is modified to take the unbox operator as argument.
-disambiguateUnboxCalls :: Expr -> Compiler Expr
-disambiguateUnboxCalls code = do
-  (code', context) <- runStateT (disambiguate IntMap.empty code) [] -- Run the disambiguation in a initially empty context.
-  if (context /= []) then -- Some unbox operators could not be resolved, abort.
-    fail $ "Overloading:disambiguate: unable to resolve all unbox operators"
-  else return code
+-- | Modify a single declaration. The context of modified global functions is passed as argument.
+transform :: IntMap (Type, [Type]) -> Declaration -> Compiler (Declaration, IntMap (Type, [Type]))
+-- Toplevel expressions are simply ignored (they will be removed in a later pass).
+transform modified d @ (DExpr _ _) = return (d, modified)
+-- Toplevel expressions are simply ignored (they will be removed in a later pass).
+transform modified (DLet info recflag x value) = do
+  -- DISAMBIGUATION: First disambiguate the calls from e. The returned list contains the
+  -- box elements that could not be resolved inside of the expression.
+  (value', context) <- runStateT (disambiguate modified value) []
+  -- Add the unresolved unbox arguments to the calling convention of this particular function.
+  if context /= [] then do
+    let required = List.map fst context
+    scheme <- runTyper $ typeOf x
+    let typ = typeOfScheme scheme
+    -- Specify the calling convention for x.
+    runCore $ setCallingConvention x required
+    -- Add the variable and its (new) arguments to the modified context.
+    let modified' = IntMap.insert x (typ, required) modified
+    -- Transform the value into a function taking as extra arguments the variables of the context.
+    let value'' = List.foldl (\e (_, x) -> EFun info (PVar info x) e) value' context
+    -- Return the updated declaration and context.
+    return (DLet info recflag x value'', modified')
+  -- All unbox operators were resolved, the declaration does not need to be modified.
+  else return (DLet info recflag x value, modified)
+
+
+-- | Apply unbox overloading to the functions defined at toplevel. As is not the case with local
+-- functions, the new configuration will have to be exported so that other modules can use these
+-- functions correctly.
+transformDeclarations :: [Declaration] -> Compiler [Declaration]
+transformDeclarations decls = do
+  -- Transform all the declarations.
+  (decls', _) <- List.foldl (\rec declaration -> do
+      (decls, modified) <- rec
+      (declaration', modified') <- transform modified declaration
+      return (declaration':decls, modified')
+    ) (return ([], IntMap.empty)) decls
+  return $ List.reverse decls'

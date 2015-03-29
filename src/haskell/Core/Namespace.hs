@@ -4,8 +4,11 @@
 
 module Core.Namespace (
   Namespace (..),
-  empty,
+  Core.Namespace.empty,
 
+  setTag,
+  setCallingConvention,
+  setConstructorFormat,
   registerVariable,
   createVariable
 ) where
@@ -14,12 +17,13 @@ import Utils
 
 import Language.Variable as Variable
 import Language.Constructor as Constructor
-import Language.Type as Type
+import Language.Type as Type hiding (constructors)
 
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IMap
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Core.Syntax (Type)
+import qualified Compiler.SimplSyntax as C (Expr)
+
+import Data.IntMap as IntMap
+import Data.Map as Map
 
 
 -- | The type of name spaces. A namespace includes three mappings from ids to strings, recording the
@@ -41,9 +45,9 @@ data Namespace = Namespace {
 -- | Create a new namespace, with the counters initialized to zero and all the mappings empty.
 empty :: Namespace
 empty = Namespace {
-  variables = IMap.empty,
-  Core.Namespace.constructors = IMap.empty,
-  types = IMap.empty,
+  variables = IntMap.empty,
+  constructors = IntMap.empty,
+  types = IntMap.empty,
 
   vargen = 0,
   typegen = 0,
@@ -59,10 +63,10 @@ registerVariable moduleName name namespace =
   let id = vargen namespace in
   let info =
         case moduleName of
-          Nothing -> VariableInfo name ""
-          Just moduleName -> VariableInfo name moduleName
+          Nothing -> VariableInfo name "" []
+          Just moduleName -> VariableInfo name moduleName []
         in
-  (id, namespace { variables = IMap.insert id info $ variables namespace, vargen = id+1 })
+  (id, namespace { variables = IntMap.insert id info $ variables namespace, vargen = id+1 })
 
 
 -- | Create a new variable. If the name provided already exists, a number is appended to differenciate
@@ -72,15 +76,46 @@ createVariable name namespace =
   let id = vargen namespace in
   case Map.lookup name $ prefix namespace of
     Just n ->
-      let info = VariableInfo (prevar name n) "" in
+      let info = VariableInfo (prevar name n) "" [] in
       (id, namespace {
-            variables = IMap.insert id info $ variables namespace,
+            variables = IntMap.insert id info $ variables namespace,
             vargen = id+1, prefix = Map.insert name (n+1) $ prefix namespace
           })
     Nothing ->
-      let info = VariableInfo (prevar name 0) "" in
+      let info = VariableInfo (prevar name 0) "" [] in
       (id, namespace {
-            variables = IMap.insert id info $ variables namespace,
+            variables = IntMap.insert id info $ variables namespace,
             vargen = id+1,
             prefix = Map.insert name 1 $ prefix namespace
           })
+
+
+-- | Set the calling convention for a variable in the namespace.
+setCallingConvention :: Variable -> [Type] -> Namespace -> Namespace
+setCallingConvention x typs namespace =
+  namespace {
+    variables = IntMap.adjust (\info ->
+        info { callingConvention = typs }
+      ) x $ variables namespace }
+
+
+-- | Specify the constructor's builder and destructor.
+setConstructorFormat :: Variable
+                    -> (Int -> Either C.Expr (C.Expr -> C.Expr))
+                    -> (Variable -> C.Expr)
+                    -> Namespace
+                    -> Namespace
+setConstructorFormat constructor build extract namespace =
+  namespace {
+    constructors = IntMap.adjust (\info ->
+        info { build = build $ Constructor.tag info, extract = extract }
+      ) constructor $ constructors namespace
+    }
+
+
+-- | Set the tag accessor of an algebraic type.
+setTag :: Variable -> (Variable -> C.Expr) -> Namespace -> Namespace
+setTag typ accessor namespace =
+  namespace {
+    types = IntMap.adjust (\info -> info { Type.tag = accessor }) typ $ types namespace
+  }

@@ -140,6 +140,21 @@ string_ends_with :: String -> String -> Bool
 string_ends_with suffix string = List.isSuffixOf suffix (trim_end string)
 
 
+-- ----------------------------------------------------------------------
+-- ** Constants
+
+-- | Union of the language constants. May yet be extended in the future with other values.
+data ConstantValue =
+    ConstInt Int
+  | ConstBool Bool
+  | ConstUnit
+  deriving Eq
+
+instance Show ConstantValue where
+  show (ConstInt i) = show i
+  show (ConstBool b) = if b then "true" else "false"
+  show ConstUnit = "()"
+
 
 -------------------------------------------------
 -- ** General types.

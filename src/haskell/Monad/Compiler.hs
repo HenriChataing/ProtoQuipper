@@ -56,15 +56,18 @@ data CompilerState = CompilerState {
 type Compiler = StateT CompilerState Typer
 
 
+-- | Empty circuit library.
+emptyLibrary = CircuitLibrary {
+    boxes = Map.empty,
+    unboxes = Map.empty,
+    rev = Nothing,
+    code = []
+  }
+
 -- | Empty state.
 empty :: CompilerState
 empty = CompilerState {
-    circuitLibrary = CircuitLibrary {
-      boxes = Map.empty,
-      unboxes = Map.empty,
-      rev = Nothing,
-      code = []
-    },
+    circuitLibrary = emptyLibrary,
     namespace = LocalNamespace {
       vargen = 0, -- Caution : this field should be initialized using the value in the core namespace.
       variables = IntMap.empty,
@@ -149,6 +152,14 @@ bindUnbox ctyp unbox =
 bindRev :: Expr -> Compiler Variable
 bindRev rev =
   bindCircuit "rev" rev $ \library x -> library { rev = Just x }
+
+
+-- | Clear the circuit library, returning all the constructed operators.
+clearCircuitLibrary :: Compiler [Declaration]
+clearCircuitLibrary = do
+  library <- gets circuitLibrary
+  modify $ \compiler -> compiler { circuitLibrary = emptyLibrary }
+  return $ code library
 
 
 ---------------------------------------------------------------------------------------------------
