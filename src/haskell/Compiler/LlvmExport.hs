@@ -8,13 +8,14 @@ import Classes
 
 import Compiler.Continuations as C
 
---import Monad.QpState
+import Monad.Core (variableName, variableModule)
+import Monad.Compiler
 import Monad.Error
 
 import LLVM.General.AST as A
 import LLVM.General.AST.Global hiding (callingConvention, returnAttributes, functionAttributes)
 import qualified LLVM.General.AST.Global as G
-import LLVM.General.AST.Constant (Constant(Int, GlobalReference), integerBits, integerValue)
+import LLVM.General.AST.Constant as AC (Constant(Int, GlobalReference), integerBits, integerValue)
 import LLVM.General.AST.CallingConvention
 import LLVM.General.AST.Linkage
 import LLVM.General.AST.AddrSpace
@@ -32,6 +33,7 @@ import qualified Data.List as List
 import Data.ByteString (writeFile)
 import System.IO hiding (writeFile)
 
+import Control.Monad.Trans
 import Control.Monad.Trans.Except
 
 
@@ -47,22 +49,22 @@ import Control.Monad.Trans.Except
 
 
 -- | Malloc function.
-malloc :: Int -> String -> QpState (Named Instruction)
-malloc n s =
-  return $ Name s := Call {
+malloc :: Int -> String -> Compiler (Named A.Instruction)
+malloc size retval =
+  return $ Name retval := A.Call {
     isTailCall = False,
     callingConvention = C,
     returnAttributes = [],
     function = Right $ ConstantOperand $ GlobalReference VoidType $ Name "malloc",
-    arguments = [(ConstantOperand $ make_int (n * bitSize (0 :: ArchInt) `quot` 8), [])],
+    arguments = [(ConstantOperand $ makeInt (size * bitSize (0 :: ArchInt) `quot` 8), [])],
     functionAttributes = [],
     metadata = []
   }
 
 -- | Create a Call instruction.
-call :: Bool -> CallableOperand -> [Operand] -> Instruction
+call :: Bool -> CallableOperand -> [Operand] -> A.Instruction
 call tail func arg =
-  Call {
+  A.Call {
     isTailCall = tail,
     callingConvention = C,
     returnAttributes = [],
@@ -73,56 +75,56 @@ call tail func arg =
   }
 
 -- | Cast an operand of some type into another.
-cast :: Operand -> Typ -> Typ -> QpState (Operand, [Named Instruction])
+cast :: Operand -> Typ -> Typ -> Compiler (Operand, [Named A.Instruction])
 cast op TyInt TyPtr = do
-  tmp <- create_var "tmp"
-  let nop = LocalReference int_type $ UnName $ fromIntegral tmp
-  return (nop, [UnName (fromIntegral tmp) := IntToPtr op ptr_type []])
+  tmp <- createVariable "tmp"
+  let nop = LocalReference intType $ UnName $ fromIntegral tmp
+  return (nop, [UnName (fromIntegral tmp) := IntToPtr op ptrType []])
 cast op TyInt (TyFun arg) = do
-  tmp <- create_var "tmp"
-  let nop = LocalReference int_type $ UnName $ fromIntegral tmp
-  return (nop, [UnName (fromIntegral tmp) := IntToPtr op (PointerType (fun_type arg) (AddrSpace 0)) []])
+  tmp <- createVariable "tmp"
+  let nop = LocalReference intType $ UnName $ fromIntegral tmp
+  return (nop, [UnName (fromIntegral tmp) := IntToPtr op (PointerType (funType arg) (AddrSpace 0)) []])
 cast op TyPtr TyInt = do
-  tmp <- create_var "tmp"
+  tmp <- createVariable "tmp"
   let nop = LocalReference VoidType $ UnName $ fromIntegral tmp
-  return (nop, [UnName (fromIntegral tmp) := PtrToInt op int_type []])
+  return (nop, [UnName (fromIntegral tmp) := PtrToInt op intType []])
 cast op (TyFun _) TyInt = do
-  tmp <- create_var "tmp"
+  tmp <- createVariable "tmp"
   let nop = LocalReference VoidType $ UnName $ fromIntegral tmp
-  return (nop, [UnName (fromIntegral tmp) := PtrToInt op int_type []])
+  return (nop, [UnName (fromIntegral tmp) := PtrToInt op intType []])
 cast op ty ty' | ty == ty' = return (op, [])
                | otherwise = fail "LlvmExport:cast: illegal argument"
 
 
 -- | Build an integer of the correct size.
-make_int :: Int -> Constant
-make_int n =
+makeInt :: Int -> AC.Constant
+makeInt n =
   Int { integerBits = fromIntegral (bitSize (0 :: ArchInt)), integerValue = fromIntegral n }
 
 -- | Create the name of a qualified function.
-make_qualified_name :: String -> String -> String
-make_qualified_name mod s =
+makeQualifiedName :: String -> String -> String
+makeQualifiedName mod s =
   "_" ++ mod ++ "_" ++ remove_specials s
 
 -- | Return the LLVM integer type of the correct size.
-int_type :: Type
-int_type =
+intType :: Type
+intType =
   IntegerType { typeBits = fromIntegral (bitSize (0 :: ArchInt)) :: Word32 }
 
 -- | Return the LLVM int ptr type (of the correct size).
-ptr_type :: Type
-ptr_type =
+ptrType :: Type
+ptrType =
   PointerType {
-    pointerReferent = int_type,
+    pointerReferent = intType,
     pointerAddrSpace = AddrSpace 0
   }
 
 -- | Return the LLVM type of a function taking [args] arguments.
-fun_type :: [a] -> Type
-fun_type args =
+funType :: [a] -> Type
+funType args =
   FunctionType {
-    resultType = int_type,
-    argumentTypes = List.replicate (List.length args) int_type,
+    resultType = intType,
+    argumentTypes = List.replicate (List.length args) intType,
     isVarArg = False
   }
 
@@ -130,46 +132,46 @@ fun_type args =
 
 
 -- | Proceed to the declaration of the global variables.
-define_globals :: [Variable] -> QpState [Definition]
-define_globals [] =
+defineGlobals :: [Variable] -> Compiler [Definition]
+defineGlobals [] =
   return []
-define_globals (gx:gxs) = do
-  ngx <- variable_name gx
-  mod <- variable_module gx
-  gxs <- define_globals gxs
-  let gname = make_qualified_name mod ngx
+defineGlobals (gx:gxs) = do
+  ngx <- runCore $ variableName gx
+  mod <- runCore $ variableModule gx
+  gxs <- defineGlobals gxs
+  let gname = makeQualifiedName mod ngx
   return $ (GlobalDefinition globalVariableDefaults {
     name = Name gname,
     linkage = External,
     isConstant = False,
-    G.type' = int_type
+    G.type' = intType
   }):gxs
 
 
 
 -- | Proceed to the declaration of the module fucntions.
-define_members :: Linkage -> IntMap (Typ, Operand) -> [(Variable, [Variable], CExpr)] -> QpState [Definition]
-define_members _ _ [] =
+defineMembers :: Linkage -> IntMap (Typ, Operand) -> [(Variable, [Variable], C.Instruction)] -> Compiler [Definition]
+defineMembers _ _ [] =
   return []
-define_members linkage ctx ((f, arg, cf):fs) = do
-  nf <- variable_name f
-  fs <- define_members linkage ctx fs
+defineMembers linkage ctx ((f, arg, cf):fs) = do
+  nf <- runCore $ variableName f
+  fs <- defineMembers linkage ctx fs
   -- Function name.
   fname <- case linkage of
         External -> do
-            mod <- variable_module f
-            return $ make_qualified_name mod nf
+            mod <- runCore $ variableModule f
+            return $ makeQualifiedName mod nf
         _ -> return $ remove_specials nf
   -- Function arguments.
   (param, ctx) <- List.foldr (\a rec -> do
         (as,ctx) <- rec
-        na <- variable_name a
-        return ((Parameter int_type (Name na) []):as, IMap.insert a (TyInt, LocalReference int_type $ Name na) ctx)) (return ([], ctx)) arg
+        na <- runCore $ variableName a
+        return ((Parameter intType (Name na) []):as, IMap.insert a (TyInt, LocalReference intType $ Name na) ctx)) (return ([], ctx)) arg
   -- Function body.
-  (ins, term, blocks) <- cexpr_to_llvm ctx cf
+  (ins, term, blocks) <- instructionToLlvm ctx cf
   return $ (GlobalDefinition $ functionDefaults {
     linkage = linkage,
-    returnType = int_type,
+    returnType = intType,
     name = Name fname,
     parameters = (param, False),
     basicBlocks = (BasicBlock (Name "_Mn") ins term):blocks
@@ -178,58 +180,58 @@ define_members linkage ctx ((f, arg, cf):fs) = do
 
 
 -- | Convert a continuation value to a callable operand.
-value_to_callable_operand :: IntMap (Typ, Operand)
+valueToCallableOperand :: IntMap (Typ, Operand)
                           -> Typ
                           -> Value
-                          -> QpState (CallableOperand, [Named Instruction])
-value_to_callable_operand ctx typ (VVar f) = do
+                          -> Compiler (CallableOperand, [Named A.Instruction])
+valueToCallableOperand ctx typ (VVar f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ >>= return . \(a,b) -> (Right a, b)
     Nothing -> do
-        nf <- variable_name f
+        nf <- runCore $ variableName f
         return (Right $ ConstantOperand $ GlobalReference VoidType $ Name nf, [])
-value_to_callable_operand ctx typ (VLabel f) = do
+valueToCallableOperand ctx typ (VLabel f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ >>= return . \(a,b) -> (Right a, b)
     Nothing -> do
-        nf <- variable_name f
-        mod <- variable_module f
-        return (Right $ ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf), [])
-value_to_callable_operand _ _ _ =
-  fail "LlvmExport:value_to_callable_operand: illegal argument"
+        nf <- runCore $ variableName f
+        mod <- runCore $ variableModule f
+        return (Right $ ConstantOperand $ GlobalReference VoidType $ Name (makeQualifiedName mod nf), [])
+valueToCallableOperand _ _ _ =
+  fail "LlvmExport:valueToCallableOperand: illegal argument"
 
 
 -- | Convert a continuation value to an operand.
-value_to_operand :: IntMap (Typ, Operand)
+valueToOperand :: IntMap (Typ, Operand)
                  -> Typ
                  -> Value
-                 -> QpState (Operand, [Named Instruction])
-value_to_operand ctx typ (VVar f) = do
+                 -> Compiler (Operand, [Named A.Instruction])
+valueToOperand ctx typ (VVar f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ
     Nothing -> do
-        nf <- variable_name f
+        nf <- runCore $ variableName f
         return (LocalReference VoidType $ Name nf, [])
-value_to_operand ctx typ (VLabel f) = do
+valueToOperand ctx typ (VLabel f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ
     Nothing -> do
-        nf <- variable_name f
-        mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf)
+        nf <- runCore $ variableName f
+        mod <- runCore $ variableModule f
+        let op = ConstantOperand $ GlobalReference VoidType $ Name (makeQualifiedName mod nf)
         cast op (TyFun []) typ
-value_to_operand ctx typ (VGlobal f) = do
+valueToOperand ctx typ (VGlobal f) = do
   case IMap.lookup f ctx of
     Just (typ', op) -> cast op typ' typ
     Nothing -> do
-        nf <- variable_name f
-        mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference VoidType $ Name (make_qualified_name mod nf)
+        nf <- runCore $ variableName f
+        mod <- runCore $ variableModule f
+        let op = ConstantOperand $ GlobalReference VoidType $ Name (makeQualifiedName mod nf)
         cast op TyPtr typ
-value_to_operand _ TyInt (VInt n) =
-  return (ConstantOperand $ make_int n, [])
-value_to_operand _ _ _ =
-  fail "LlvmExport:value_to_operand: illegal argument"
+valueToOperand _ TyInt (VInt n) =
+  return (ConstantOperand $ makeInt n, [])
+valueToOperand _ _ _ =
+  fail "LlvmExport:valueToOperand: illegal argument"
 
 -- | An indication of the type of objects.
 data Typ =
@@ -246,55 +248,56 @@ instance Eq Typ where
 
 
 -- | Convert a CPS expression to LLVM code.
-cexpr_to_llvm :: IntMap (Typ,Operand)                                              -- ^ The type and operand of the objects in context.
-              -> CExpr                                                             -- ^ Continuation expression.
-              -> QpState ([Named Instruction], Named Terminator, [BasicBlock])     -- ^ The result is a terminating llvm code, along with a list of completed blocks.
-cexpr_to_llvm _ (CFun _ _ _ _) =
-  fail "LlvmExport:cexpr_to_llvm: illegal argument"
+instructionToLlvm :: IntMap (Typ,Operand)                                              -- ^ The type and operand of the objects in context.
+              -> C.Instruction                                                             -- ^ Continuation expression.
+              -> Compiler ([Named A.Instruction], Named Terminator, [BasicBlock])     -- ^ The result is a terminating llvm code, along with a list of completed blocks.
+instructionToLlvm _ (C.Function _ _ _ _) =
+  fail "LlvmExport:instructionToLlvm: illegal argument"
 
-cexpr_to_llvm ctx (CApp f args x c) = do
+instructionToLlvm ctx (C.Call f args x c) = do
   -- If needed, cast the operand f into a function type.
-  (opf,cast) <- value_to_callable_operand ctx (TyFun args) f
+  (opf,cast) <- valueToCallableOperand ctx (TyFun args) f
   -- The arguments may have to be casted into integers to match the type of the function.
   (args, cins) <- List.foldr (\a rec -> do
         (as, cins) <- rec
-        (va, cast) <- value_to_operand ctx TyInt a
+        (va, cast) <- valueToOperand ctx TyInt a
         return (va:as, cast ++ cins)
     ) (return ([], [])) args
-  nx <- variable_name x
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference int_type $ Name nx) ctx) c
+  nx <- runCore $ variableName x
+  (ins, term, blocks) <- instructionToLlvm (IMap.insert x (TyInt, LocalReference intType $ Name nx) ctx) c
   return (cast ++ cins ++ [Name nx := call False opf args] ++ ins, term, blocks)
 
-cexpr_to_llvm ctx (CTailApp f args) = do
+instructionToLlvm ctx (C.TailCall f args) = do
   -- Same as CApp.
-  (opf, cast) <- value_to_callable_operand ctx (TyFun args) f
+  (opf, cast) <- valueToCallableOperand ctx (TyFun args) f
   -- Same as CApp.
   (args, cins) <- List.foldr (\a rec -> do
         (as, cins) <- rec
-        (va, cast) <- value_to_operand ctx TyInt a
+        (va, cast) <- valueToOperand ctx TyInt a
         return (va:as, cast ++ cins)
     ) (return ([], [])) args
-  x <- create_var "tmp"
+  x <- createVariable "tmp"
   return (cast ++ cins ++ [UnName (fromIntegral x) := call True opf args],
-           Do $ Ret (Just $ LocalReference VoidType $ UnName $ fromIntegral x) [], [])
+           Do $ A.Ret (Just $ LocalReference VoidType $ UnName $ fromIntegral x) [], [])
 
-cexpr_to_llvm ctx (CTuple vlist x c) = do
+instructionToLlvm ctx (C.Array vlist x c) = do
   -- Allocate space for the tuple, and cast the result to int type.
-  nx <- variable_name x
-  addr <- create_var "tmp" >>= variable_name
+  nx <- runCore $ variableName x
+  tmp <- createVariable "tmp"
+  addr <- runCore $ variableName tmp
   ptr <- malloc (List.length vlist) addr
-  let cast = Name nx := PtrToInt (LocalReference int_type $ Name addr) int_type []
+  let cast = Name nx := PtrToInt (LocalReference intType $ Name addr) intType []
   -- Translate the continuation.
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert x (TyInt, LocalReference int_type $ Name nx) ctx) c
+  (ins, term, blocks) <- instructionToLlvm (IMap.insert x (TyInt, LocalReference intType $ Name nx) ctx) c
   -- Store the values into the allocated array.
   ins <- List.foldl (\rec (n, v) -> do
         ins <- rec
-        tmp <- create_var "tmp"
-        (opv, cins) <- value_to_operand ctx TyInt v
+        tmp <- createVariable "tmp"
+        (opv, cins) <- valueToOperand ctx TyInt v
         return $ cins ++ [UnName (fromIntegral tmp) := GetElementPtr {
           inBounds = False,
           address = LocalReference VoidType $ Name addr,
-          indices = [ConstantOperand $ make_int n],
+          indices = [ConstantOperand $ makeInt n],
           metadata = []
          }, Do $ Store {
           volatile = False,
@@ -306,20 +309,15 @@ cexpr_to_llvm ctx (CTuple vlist x c) = do
         }] ++ ins) (return ins) $ List.zip [0..List.length vlist-1] vlist
   return (ptr:cast:ins, term, blocks)
 
-cexpr_to_llvm ctx (CFree x c) = do
-  -- vx <- value_to_operand x
-  -- XXX The free instruction is ignored for the moment. XXX --
-  cexpr_to_llvm ctx c
-
-cexpr_to_llvm ctx (CAccess n x y c) = do
-  (opx, cast) <- value_to_operand ctx TyPtr x
-  ny <- variable_name y
-  tmp <- create_var "tmp"
-  (ins, term, blocks) <- cexpr_to_llvm (IMap.insert y (TyInt, LocalReference int_type $ Name ny) ctx) c
+instructionToLlvm ctx (C.Access n x y c) = do
+  (opx, cast) <- valueToOperand ctx TyPtr x
+  ny <- runCore $ variableName y
+  tmp <- createVariable "tmp"
+  (ins, term, blocks) <- instructionToLlvm (IMap.insert y (TyInt, LocalReference intType $ Name ny) ctx) c
   return (cast ++ ((UnName (fromIntegral tmp) := GetElementPtr {
     inBounds = False,
     address = opx,
-    indices = [ConstantOperand $ make_int n],
+    indices = [ConstantOperand $ makeInt n],
     metadata = []
   }):(Name ny := Load {
     volatile = False,
@@ -329,34 +327,34 @@ cexpr_to_llvm ctx (CAccess n x y c) = do
     metadata = []
   }):ins), term, blocks)
 
-cexpr_to_llvm ctx (CSwitch x clist def) = do
+instructionToLlvm ctx (C.Switch x clist def) = do
   -- Translate the value v. [vx] should already be of type int.
-  (vx,_) <- value_to_operand ctx TyInt x
+  (vx,_) <- valueToOperand ctx TyInt x
   -- Build the block corresponding to the default case.
-  ndef <- create_var "_def"
-  ndef <- variable_name ndef
-  (ins, term, blocks) <- cexpr_to_llvm ctx def
+  ndef <- createVariable "_def"
+  ndef <- runCore $ variableName ndef
+  (ins, term, blocks) <- instructionToLlvm ctx def
   let dblocks = (BasicBlock (Name ndef) ins term):blocks
   -- Build the blocks corresponding to the other cases.
   (dests, blocks) <- List.foldl (\rec (n, c) -> do
         (dests, bs) <- rec
-        (ins, term, blocks) <- cexpr_to_llvm ctx c
-        nc <- create_var $ "_L" ++ show n ++ "_"
-        nc <- variable_name nc
-        return ((make_int n, Name nc):dests,
+        (ins, term, blocks) <- instructionToLlvm ctx c
+        nc <- createVariable $ "_L" ++ show n ++ "_"
+        nc <- runCore $ variableName nc
+        return ((makeInt n, Name nc):dests,
                 [BasicBlock (Name nc) ins term] ++ blocks ++ bs)) (return ([], dblocks)) clist
-  return ([], Do $ Switch {
+  return ([], Do $ A.Switch {
     operand0' = vx,
     defaultDest = Name ndef,
     dests = dests,
     metadata' = []
   }, blocks)
 
-cexpr_to_llvm ctx (CSet x v) = do
+instructionToLlvm ctx (C.Set x v) = do
   -- [x] is already a pointer, no need for a cast.
-  (vx,_) <- value_to_operand ctx TyPtr (VVar x)
+  (vx,_) <- valueToOperand ctx TyPtr (VVar x)
   -- Cast [v] to int.
-  (vv, cast) <- value_to_operand ctx TyInt v
+  (vv, cast) <- valueToOperand ctx TyInt v
   return (cast ++ [Do $ Store {
     volatile = False,
     address = vx,
@@ -364,106 +362,106 @@ cexpr_to_llvm ctx (CSet x v) = do
     maybeAtomicity = Nothing,
     A.alignment = 0,
     metadata = []
-  }], Do $ Ret {
-    returnOperand = Just $ ConstantOperand $ make_int 0,
+  }], Do $ A.Ret {
+    returnOperand = Just $ ConstantOperand $ makeInt 0,
     metadata' = []
   }, [])
 
-cexpr_to_llvm ctx (CRet v) = do
+instructionToLlvm ctx (C.Ret v) = do
   -- Cast [v] to int.
-  (vv, cast) <- value_to_operand ctx TyInt v
-  return (cast, Do $ Ret {
+  (vv, cast) <- valueToOperand ctx TyInt v
+  return (cast, Do $ A.Ret {
     returnOperand = Just vv,
     metadata' = []
   }, [])
 
-cexpr_to_llvm _ (CError msg) = do
+instructionToLlvm _ (C.Error msg) = do
 --  withStringNul msg $ \msg -> do
 --    err <- externFunction "_Builtins_ERROR" :: CodeGenFunction r (Function (Ptr Word8 -> IO ArchInt))
 --    tmp <- getElementPtr0 msg (0 :: Word32, ())
 --    _ <- call err tmp
 --    ret (fromIntegral 0 :: ArchInt)
-  return ([], Do $ Ret {
-    returnOperand = Just $ ConstantOperand $ make_int 0,
+  return ([], Do $ A.Ret {
+    returnOperand = Just $ ConstantOperand $ makeInt 0,
     metadata' = []
   }, [])
 
 
 
 -- | Convert a whole compilation unit to llvm.
-cunit_to_llvm :: String     -- ^ Module name.
-              -> CUnit      -- ^ Body of the module.
+unitToLlvm :: String     -- ^ Module name.
+              -> CompilationUnit      -- ^ Body of the module.
               -> [String]   -- ^ Module dependencies.
               -> String     -- ^ Output file.
-              -> QpState ()
-cunit_to_llvm mods cu depend filepath = do
+              -> Compiler ()
+unitToLlvm mods cu depend filepath = do
   -- Form a map with the local function definitions.
   ctx <- List.foldl (\rec (f, arg, _) -> do
         ctx <- rec
-        nf <- variable_name f
+        nf <- runCore $ variableName f
         let op = ConstantOperand $ GlobalReference VoidType $ Name nf
-        return $ IMap.insert f (TyFun arg, op) ctx) (return IMap.empty) $ local cu
+        return $ IMap.insert f (TyFun arg, op) ctx) (return IMap.empty) $ localFunctions cu
   -- Add the extern functions.
   ctx <- List.foldl (\rec (f, arg, _) -> do
         ctx <- rec
-        nf <- variable_name f
-        mod <- variable_module f
-        let op = ConstantOperand $ GlobalReference VoidType $ Name $ make_qualified_name mod nf
-        return $ IMap.insert f (TyFun arg, op) ctx) (return ctx) $ extern cu
+        nf <- runCore $ variableName f
+        mod <- runCore $ variableModule f
+        let op = ConstantOperand $ GlobalReference VoidType $ Name $ makeQualifiedName mod nf
+        return $ IMap.insert f (TyFun arg, op) ctx) (return ctx) $ externFunctions cu
 
   -- Declare the global variables.
-  gdef <- define_globals $ List.map fst $ vglobals cu
+  gdef <- defineGlobals $ List.map fst $ globalVariables cu
   -- Define the functions, local and extern.
-  ldef <- define_members Private ctx $ local cu
-  edef <- define_members External ctx $ extern cu
+  ldef <- defineMembers Private ctx $ localFunctions cu
+  edef <- defineMembers External ctx $ externFunctions cu
   -- Define the imported members.
   idef <- List.foldl (\rec f -> do
         idef <- rec
         case f of
           VLabel f -> do
-              nf <- variable_name f
-              mod <- variable_module f
+              nf <- runCore $ variableName f
+              mod <- runCore $ variableModule f
               return $ (GlobalDefinition functionDefaults {
-                name = Name $ make_qualified_name mod nf,
+                name = Name $ makeQualifiedName mod nf,
                 linkage = External,
-                parameters = ([Parameter int_type (UnName 0) [], Parameter int_type (UnName 1) []], False),
-                returnType = int_type
+                parameters = ([Parameter intType (UnName 0) [], Parameter intType (UnName 1) []], False),
+                returnType = intType
               }):idef
           VGlobal g -> do
-              ng <- variable_name g
-              mod <- variable_module g
+              ng <- runCore $ variableName g
+              mod <- runCore $ variableModule g
               return $ (GlobalDefinition globalVariableDefaults {
-                name = Name $ make_qualified_name mod ng,
+                name = Name $ makeQualifiedName mod ng,
                 linkage = External,
-                G.type' = int_type
+                G.type' = intType
               }):idef
-          _ -> fail "LlvmExport:cunit_to_llvm: illegal import"
+          _ -> fail "LlvmExport:unitToLlvm: illegal import"
     ) (return []) $ C.imports cu
   -- Define the module initializer.
   (igdef, ins) <- List.foldl (\rec (g, cinit) -> do
         (igdef, ins) <- rec
-        ng <- variable_name g
-        (gins, term, blocks) <- cexpr_to_llvm IMap.empty cinit
-        let init = Right $ LocalReference VoidType $ Name ("init" ++ make_qualified_name mods ng)
+        ng <- runCore $ variableName g
+        (gins, term, blocks) <- instructionToLlvm IMap.empty cinit
+        let init = Right $ LocalReference VoidType $ Name ("init" ++ makeQualifiedName mods ng)
         return ((GlobalDefinition functionDefaults {
-          name = Name $ "init" ++ make_qualified_name mods ng,
-          returnType = int_type,
+          name = Name $ "init" ++ makeQualifiedName mods ng,
+          returnType = intType,
           basicBlocks = (BasicBlock (Name "_Mn") gins term):blocks
-        }):igdef, (Do $ call False init []):ins) ) (return ([], [])) $ vglobals cu
+        }):igdef, (Do $ call False init []):ins) ) (return ([], [])) $ globalVariables cu
   let initdef = GlobalDefinition functionDefaults {
     name = Name $ "init" ++ mods,
-    returnType = int_type,
-    basicBlocks = [BasicBlock (Name "_Mn") ins (Do $ Ret { returnOperand = Just $ ConstantOperand $ make_int 0, metadata' = [] })]
+    returnType = intType,
+    basicBlocks = [BasicBlock (Name "_Mn") ins (Do $ A.Ret { returnOperand = Just $ ConstantOperand $ makeInt 0, metadata' = [] })]
   }
   -- Define malloc and free.
   let cdef = [GlobalDefinition functionDefaults {
       name = Name "malloc",
-      returnType = ptr_type,
-      parameters = ([Parameter int_type (Name "") []], False)
+      returnType = ptrType,
+      parameters = ([Parameter intType (Name "") []], False)
     }, GlobalDefinition functionDefaults {
       name = Name "free",
-      returnType = int_type,
-      parameters = ([Parameter ptr_type (Name "") []], False)
+      returnType = intType,
+      parameters = ([Parameter ptrType (Name "") []], False)
     }]
 
   -- Define the main function.
@@ -474,17 +472,17 @@ cunit_to_llvm mods cu depend filepath = do
                   (ndef, ins) <- rec
                   let initdep = GlobalDefinition functionDefaults {
                     name =  Name ("init" ++ dep),
-                    returnType = int_type
+                    returnType = intType
                   }
                   let init = Right $ LocalReference VoidType $ Name ("init" ++ dep)
                   return (initdep:ndef,
                           (Do $ call False init []):ins)) (return ([],[])) $ List.reverse depend
             -- Body of the main.
-            (bins, term, blocks) <- cexpr_to_llvm IMap.empty body
+            (bins, term, blocks) <- instructionToLlvm IMap.empty body
 
             return $ (GlobalDefinition functionDefaults {
               name = Name "main",
-              returnType = int_type,
+              returnType = intType,
               basicBlocks = (BasicBlock (Name "_Mn") (dins ++ bins) term):blocks
             }):ndef
         Nothing -> return []
@@ -497,7 +495,7 @@ cunit_to_llvm mods cu depend filepath = do
     moduleDefinitions = cdef ++ idef ++ gdef ++ ldef ++ edef ++ igdef ++ [initdef] ++ mdef
   }
 
-  Monad.QpState.liftIO $ withContext $ \context ->
+  runCore $ lift $ withContext $ \context ->
     liftError $ withModuleFromAST context astmod $ \m -> do
       str <- moduleBitcode m
       Data.ByteString.writeFile (filepath ++ ".bc") str

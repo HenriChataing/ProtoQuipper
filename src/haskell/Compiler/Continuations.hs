@@ -16,7 +16,7 @@ import Monad.Typer (typeOf)
 import Monad.Compiler
 import Monad.Error
 
-import Compiler.SimplSyntax
+import Compiler.SimplSyntax as SimplSyntax
 import Compiler.Circuits
 
 import Control.Monad.Trans
@@ -113,7 +113,7 @@ instance Subs Instruction Value where
 
 -- | Compilation unit.
 data CompilationUnit = CompilationUnit {
-  imported :: [Value],          -- ^ List of functions and variables imported from extern modules.
+  imports :: [Value],           -- ^ List of functions and variables imported from extern modules.
   strings :: [Variable],        -- ^ List of constant strings used by the compile unit.
   localFunctions :: [FunctionDef],       -- ^ List of local functions.
   externFunctions :: [FunctionDef],      -- ^ List of functions accessible outside of the module.
@@ -121,6 +121,18 @@ data CompilationUnit = CompilationUnit {
   main :: Maybe Instruction     -- ^ The definition of the main function, if the module is \'Main\'.
 }
 
+
+-- | Create a new compilation unit initialized with imported variables.
+createUnit :: [Value] -> CompilationUnit
+createUnit imports =
+  CompilationUnit {
+      localFunctions = [],
+      externFunctions = [],
+      globalVariables = [],
+      imports = imports,
+      strings = [],
+      main = Nothing
+    }
 
 -- | The type of function declarations.
 type FunctionDef = (Variable, [Variable], Instruction)
@@ -570,182 +582,200 @@ closure_conversion e = do
 -- * Module transformations.
 
 -- | Convert the toplevel declarations into CPS form.
-convert_declarations_to_cps :: [Declaration]            -- ^ List of declarations.
-                            -> Compiler CompilationUnit              -- ^ Resulting compile unit.
+convert_declarations_to_cps :: [Declaration]             -- ^ List of declarations.
+                            -> Compiler CompilationUnit  -- ^ Resulting compilation unit.
 convert_declarations_to_cps decls = do
-  -- build the list of imported variables
-  let imports = List.foldl (\imp (DLet _ _ e) -> List.union (imported e) imp) [] decls
-  (ivals, imported) <- List.foldl (\rec ix -> do
-        (ivals, imported) <- rec
-        tix <- runTyper $ typeOf ix
-        if isFunction tix then
-          return (IntMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
-        else
-          return (IntMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IntMap.empty, [])) imported
+  -- Build the list of imported variables.
+  let imported = List.foldl (\imp (DLet _ _ e) -> List.union (SimplSyntax.imported e) imp) [] decls
+  -- Build the intial context of the transformation.
+  (context, imported) <- List.foldl (\rec x -> do
+      (context, imported) <- rec
+      typ <- runTyper $ typeOf x
+      if isFunction typ then return (IntMap.insert x (VLabel x) context, (VLabel x):imported)
+      else return (IntMap.insert x (VGlobal x) context, (VGlobal x):imported)
+    ) (return (IntMap.empty, [])) imported
 
-  -- translate the declarations
-  (cu, _) <- List.foldl (\rec (DLet vis f e) -> do
-        (cu, vals) <- rec
-        n <- runCore $ variableName f
-        -- TODO XXX Check the type of the main function.
-        case (n,e) of
-          ("main", EFun _ c) -> do
-              body <- cpsConversion vals (\z -> return $ Ret z) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { main = Just body, local = funs ++ local cu }, vals)
+  -- Translate the declarations.
+  (unit, _) <- List.foldl (\rec (DLet visibility f e) -> do
+      (unit, context) <- rec
+      name <- runCore $ variableName f
+      -- TODO XXX Check the type of the main function.
+      case (name, e) of
+        ("main", EFun _ body) -> do
+          body <- cpsConversion context (\z -> return $ Ret z) body
+          body <- return $ constant_folding 3 body
+          (funs, body) <- closure_conversion body >>= return . liftFunctions
+          return (unit {
+              main = Just body,
+              localFunctions = funs ++ localFunctions unit
+            }, context)
 
-          (_, EFun x c) -> do
-              k <- createVariable "k"       -- continuation argument
-              fc <- createVariable "fc"     -- closure argument
-              body <- cpsConversion vals (\z -> return $ TailCall (VVar k) [z]) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = (f, [fc,x,k], body)
-              case vis of
-                Internal ->
-                    return (cu { local = funs ++ [fdef] ++ local cu }, IntMap.insert f (VLabel f) vals)
-                External ->
-                    return (cu { local = funs ++ local cu, externFunctions = fdef:(externFunctions cu) }, IntMap.insert f (VLabel f) vals)
+        (_, EFun x body) -> do
+            k <- createVariable "k"       -- Continuation argument.
+            fc <- createVariable "fc"     -- Closure argument.
+            body <- cpsConversion context (\z -> return $ TailCall (VVar k) [z]) body
+            body <- return $ constant_folding 3 body
+            (funs, body) <- closure_conversion body >>= return . liftFunctions
+            let fdef = (f, [fc,x,k], body)
+            case visibility of
+              Internal ->
+                return (unit {
+                    localFunctions = funs ++ [fdef] ++ localFunctions unit
+                  }, IntMap.insert f (VLabel f) context)
+              External ->
+                return (unit {
+                    localFunctions = funs ++ localFunctions unit,
+                    externFunctions = fdef:(externFunctions unit)
+                  }, IntMap.insert f (VLabel f) context)
 
-          (_, EFix _ x c) -> do
-              k <- createVariable "k"       -- continuation argument
-              fc <- createVariable "fc"     -- closure argument
-              let vals' = IntMap.insert f (VLabel f) vals
-              body <- cpsConversion vals' (\z -> return $ TailCall (VVar k) [z]) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = (f, [fc,x,k], body)
-              case vis of
-                Internal ->
-                    return (cu { local = funs ++ [fdef] ++ local cu }, vals')
-                External ->
-                    return (cu { local = funs ++ local cu, externFunctions = fdef:(externFunctions cu) }, vals')
+        (_, EFix _ x body) -> do
+            k <- createVariable "k"       -- Continuation argument.
+            fc <- createVariable "fc"     -- Closure argument.
+            let context' = IntMap.insert f (VLabel f) context
+            body <- cpsConversion context' (\z -> return $ TailCall (VVar k) [z]) body
+            body <- return $ constant_folding 3 body
+            (funs, body) <- closure_conversion body >>= return . liftFunctions
+            let fdef = (f, [fc,x,k], body)
+            case visibility of
+              Internal ->
+                return (unit { localFunctions = funs ++ [fdef] ++ localFunctions unit }, context')
+              External ->
+                return (unit {
+                    localFunctions = funs ++ localFunctions unit,
+                    externFunctions = fdef:(externFunctions unit)
+                  }, context')
+        _ -> do
+            -- Translate the computation of the global variable g (initializer).
+            init <- cpsConversion context (\z -> return $ Set f z) e
+            (funs, init) <- closure_conversion init >>= return . liftFunctions
+            -- Return the extended compilation unit.
+            return (unit {
+                localFunctions = funs ++ localFunctions unit,
+                globalVariables = (f, init):(globalVariables unit)
+              }, IntMap.insert f (VGlobal f) context)
 
-          _ -> do
-              -- translate the computation of g
-              init <- cpsConversion vals (\z -> return $ Set f z) e
-              (funs,init) <- closure_conversion init >>= return . lift_functions
-              -- return the extend compile unit
-              return (cu { local = funs ++ local cu, globalVariables = (f, init):(globalVariables cu) }, IntMap.insert f (VGlobal f) vals)
-
-    ) (return (CompilationUnit { local = [], externFunctions = [], globalVariables = [], imported = imported, strings = [], main = Nothing }, ivals)) decls
-  return cu { externFunctions = List.reverse $ externFunctions cu, globalVariables = List.reverse $ globalVariables cu }
+    ) (return (createUnit imported, context)) decls
+  -- Reorganize the declarations and return the compilation unit.
+  return unit {
+      externFunctions = List.reverse $ externFunctions unit,
+      globalVariables = List.reverse $ globalVariables unit
+    }
 
 
 -- | Convert the toplevel declarations into wCPS form.
 convert_declarations_to_wcps :: [Declaration]            -- ^ List of declarations.
                              -> Compiler CompilationUnit              -- ^ Resulting compile unit.
 convert_declarations_to_wcps decls = do
-  -- build the list of imported variables
-  let imported = List.foldl (\imp (DLet _ _ e) -> List.union (imported e) imp) [] decls
-  (ivals, imported) <- List.foldl (\rec ix -> do
-        (ivals, imported) <- rec
-        tix <- runTyper $ typeOf ix
-        if isFunction tix then
-          return (IntMap.insert ix (VLabel ix) ivals, (VLabel ix):imported)
-        else
-          return (IntMap.insert ix (VGlobal ix) ivals, (VGlobal ix):imported)) (return (IntMap.empty, [])) imported
+  -- Build the list of imported variables.
+  let imported = List.foldl (\imp (DLet _ _ e) -> List.union (SimplSyntax.imported e) imp) [] decls
+  -- Build the intial context of the transformation.
+  (context, imported) <- List.foldl (\rec x -> do
+      (context, imported) <- rec
+      typ <- runTyper $ typeOf x
+      if isFunction typ then return (IntMap.insert x (VLabel x) context, (VLabel x):imported)
+      else return (IntMap.insert x (VGlobal x) context, (VGlobal x):imported)
+    ) (return (IntMap.empty, [])) imported
 
-  -- translate the declarations
-  (cu, _) <- List.foldl (\rec (DLet vis f e) -> do
-        (cu, vals) <- rec
-        n <-  runCore $ variableName f
-        case (n, e) of
-          ("main", EFun _ c) -> do
-              body <- wcpsConversion vals (\z -> return $ Ret z) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              return (cu { main = Just body, local = funs ++ local cu }, vals)
+  -- Translate the declarations.
+  (unit, _) <- List.foldl (\rec (DLet visibility f e) -> do
+      (unit, context) <- rec
+      name <-  runCore $ variableName f
+      case (name, e) of
+        ("main", EFun _ body) -> do
+          body <- wcpsConversion context (\z -> return $ Ret z) body
+          body <- return $ constant_folding 3 body
+          (funs, body) <- closure_conversion body >>= return . liftFunctions
+          return (unit {
+              main = Just body,
+              localFunctions = funs ++ localFunctions unit
+            }, context)
 
-          (_, EFun x c) -> do
-              fc <- createVariable "fc"     -- closure argument
-              body <- wcpsConversion vals (\z -> return $ Ret z) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = (f, [fc,x], body)
-              case vis of
-                Internal ->
-                    return (cu { local = funs ++ [fdef] ++ local cu },
-                            IntMap.insert f (VLabel f) vals)
-                External ->
-                    return (cu { local = funs ++ local cu, externFunctions = fdef:(externFunctions cu) },
-                            IntMap.insert f (VLabel f) vals)
+        (_, EFun x body) -> do
+            fc <- createVariable "fc"     -- Closure argument.
+            body <- wcpsConversion context (\z -> return $ Ret z) body
+            body <- return $ constant_folding 3 body
+            (funs, body) <- closure_conversion body >>= return . liftFunctions
+            let fdef = (f, [fc,x], body)
+            case visibility of
+              Internal ->
+                return (unit {
+                    localFunctions = funs ++ [fdef] ++ localFunctions unit
+                  }, IntMap.insert f (VLabel f) context)
+              External ->
+                return (unit {
+                    localFunctions = funs ++ localFunctions unit,
+                    externFunctions = fdef:(externFunctions unit)
+                  }, IntMap.insert f (VLabel f) context)
 
-          (_, EFix _ x c) -> do
-              fc <- createVariable "fc"     -- closure argument
-              let vals' = IntMap.insert f (VLabel f) vals
-              body <- wcpsConversion vals' (\z -> return $ Ret z) c
-              body <- return $ constant_folding 3 body
-              (funs, body) <- closure_conversion body >>= return . lift_functions
-              let fdef = (f, [fc,x], body)
-              case vis of
-                Internal ->
-                    return (cu { local = funs ++ [fdef] ++ local cu }, vals')
-                External ->
-                    return (cu { local = funs ++ local cu, externFunctions = fdef:(externFunctions cu) }, vals')
+        (_, EFix _ x body) -> do
+            fc <- createVariable "fc"     -- closure argument
+            let context' = IntMap.insert f (VLabel f) context
+            body <- wcpsConversion context' (\z -> return $ Ret z) body
+            body <- return $ constant_folding 3 body
+            (funs, body) <- closure_conversion body >>= return . liftFunctions
+            let fdef = (f, [fc,x], body)
+            case visibility of
+              Internal ->
+                return (unit { localFunctions = funs ++ [fdef] ++ localFunctions unit }, context')
+              External ->
+                return (unit {
+                    localFunctions = funs ++ localFunctions unit,
+                    externFunctions = fdef:(externFunctions unit)
+                  }, context')
 
-          _ -> do
-              -- translate the computation of g
-              init <- wcpsConversion vals (\z -> return $ Set f z) e
-              (funs,init) <- closure_conversion init >>= return . lift_functions
-              -- return the extend compile unit
-              return (cu { local = funs ++ local cu, globalVariables = (f, init):(globalVariables cu) }, IntMap.insert f (VGlobal f) vals)
+        _ -> do
+          -- Translate the computation of the global variable g.
+          init <- wcpsConversion context (\z -> return $ Set f z) e
+          (funs, init) <- closure_conversion init >>= return . liftFunctions
+          -- Return the extended compilation unit.
+          return (unit {
+              localFunctions = funs ++ localFunctions unit,
+              globalVariables = (f, init):(globalVariables unit)
+            }, IntMap.insert f (VGlobal f) context)
 
-    ) (return (CompilationUnit { local = [], externFunctions = [], globalVariables = [], imported = imported, strings = [], main = Nothing }, ivals)) decls
-  return cu { externFunctions = List.reverse $ externFunctions cu, globalVariables = List.reverse $ globalVariables cu }
-
-
-
+    ) (return (createUnit imported, context)) decls
+  -- Reorganize the declarations and return the compilation unit.
+  return unit {
+      externFunctions = List.reverse $ externFunctions unit,
+      globalVariables = List.reverse $ globalVariables unit
+    }
 
 
 -- | Lift the function definitions to the top of the module.
 -- This function separates the function definitions from the rest of the continuation expression.
 -- Since this operation is sound only if the functions are closed, this has to be done after the closure conversion.
-lift_functions :: Instruction -> ([FunctionDef], Instruction)
-lift_functions (Function f args cf c) =
-  let (funs, c') = lift_functions c
-      (funs', cf') = lift_functions cf in
-  ((f,args,cf'):(funs' ++ funs), c')
+liftFunctions :: Instruction -> ([FunctionDef], Instruction)
+liftFunctions (Function f args body c) =
+  let (funs, c') = liftFunctions c
+      (funs', body') = liftFunctions body in
+  ((f,args,body'):(funs' ++ funs), c')
 
-lift_functions (Array vlist x c) =
-  let (funs, c') = lift_functions c in
-  (funs, Array vlist x c')
+liftFunctions (Array array x c) =
+  let (funs, c') = liftFunctions c in
+  (funs, Array array x c')
 
-lift_functions (Access n x y c) =
-  let (funs, c') = lift_functions c in
+liftFunctions (Access n x y c) =
+  let (funs, c') = liftFunctions c in
   (funs, Access n x y c')
 
-lift_functions (Switch v clist def) =
-  let (funs, clist') = List.foldl (\(fs, cl) (n,c) ->
-        let (fs', c') = lift_functions c in
-        (fs' ++ fs, (n,c'):cl)) ([], []) clist
-      (funs', def') = lift_functions def in
+liftFunctions (Switch v cases def) =
+  let (funs, cases') = List.foldl (\(fs, cl) (n, c) ->
+        let (fs', c') = liftFunctions c in
+        (fs' ++ fs, (n,c'):cl)) ([], []) cases
+      (funs', def') = liftFunctions def in
 
-  (funs ++ funs', Switch v (List.reverse clist') def')
+  (funs ++ funs', Switch v (List.reverse cases') def')
 
-lift_functions (Call f args x c) =
-  let (funs, c') = lift_functions c in
+liftFunctions (Call f args x c) =
+  let (funs, c') = liftFunctions c in
   (funs, Call f args x c')
 
-lift_functions c =
+liftFunctions c =
  ([], c)
 
 
-
--- | Check a value.
-check_value :: [Variable] -> Value -> Compiler ()
-check_value scope (VVar v) =
-  if List.elem v scope then return ()
-  else do
-    n <-  runCore $ variableName v
-    fail $ "Instruction:check_value: undefined variable " ++ n
-check_value scope _ =
-  return ()
-
-
--- * This section is dedicated to code optimization.
-
+---------------------------------------------------------------------------------------------------
+-- * Code optimization.
 
 -- | Perform a certain number of optimization passes of constant folding.
 -- These include:
@@ -811,135 +841,124 @@ constant_folding n c =
 
 
 -- | Check the scope of the variables of the continuation expression.
-check_cexpr :: [Variable] -> Instruction -> Compiler ()
-check_cexpr scope (Function g arg body c) = do
-  let nscope = List.union scope arg
-  check_cexpr nscope body
-  check_cexpr (g:scope) c
-check_cexpr scope (TailCall f arg) = do
-  check_value scope f
-  List.foldl (\rec a -> do
-        rec
-        check_value scope a) (return ()) arg
-check_cexpr scope (Call f arg x c) = do
-  check_value scope f
-  List.foldl (\rec a -> do
-        rec
-        check_value scope a) (return ()) arg
-  check_cexpr (x:scope) c
-check_cexpr scope (Array vals x c) = do
-  List.foldl (\rec v -> do
-        rec
-        check_value scope v) (return ()) vals
-  check_cexpr (x:scope) c
-check_cexpr scope (Access n v x c) = do
-  check_value scope v
-  check_cexpr (x:scope) c
-check_cexpr scope (Switch v clist c) = do
-  check_value scope v
-  List.foldl (\rec (_,c) -> do
-        rec
-        check_cexpr scope c) (return ()) clist
-  check_cexpr scope c
-check_cexpr scope (Ret v) =
-  check_value scope v
-check_cexpr scope (Set x v) =
-  check_value scope v
-check_cexpr scope (Error msg) =
-  return ()
+--check_cexpr :: [Variable] -> Instruction -> Compiler ()
+--check_cexpr scope (Function g arg body c) = do
+--  let nscope = List.union scope arg
+--  check_cexpr nscope body
+--  check_cexpr (g:scope) c
+--check_cexpr scope (TailCall f arg) = do
+--  check_value scope f
+--  List.foldl (\rec a -> do
+--        rec
+--        check_value scope a) (return ()) arg
+--check_cexpr scope (Call f arg x c) = do
+--  check_value scope f
+--  List.foldl (\rec a -> do
+--        rec
+--        check_value scope a) (return ()) arg
+--  check_cexpr (x:scope) c
+--check_cexpr scope (Array vals x c) = do
+--  List.foldl (\rec v -> do
+--        rec
+--        check_value scope v) (return ()) vals
+--  check_cexpr (x:scope) c
+--check_cexpr scope (Access n v x c) = do
+--  check_value scope v
+--  check_cexpr (x:scope) c
+--check_cexpr scope (Switch v clist c) = do
+--  check_value scope v
+--  List.foldl (\rec (_,c) -> do
+--        rec
+--        check_cexpr scope c) (return ()) clist
+--  check_cexpr scope c
+--check_cexpr scope (Ret v) =
+--  check_value scope v
+--check_cexpr scope (Set x v) =
+--  check_value scope v
+--check_cexpr scope (Error msg) =
+--  return ()
 
 
 -- | Check the scope of the variables of a compile unit.
-check_cunit :: CompilationUnit -> Compiler ()
-check_cunit cu = do
-  let scope = List.map (\(f,_,_) -> f) (local cu) ++ List.map (\(f,_,_) -> f) (externFunctions cu) ++ List.map fst (globalVariables cu)
-  List.foldl (\rec (_, arg, c) -> do
-        rec
-        check_cexpr (List.union arg scope) c) (return ()) (local cu ++ externFunctions cu)
-  case main cu of
-    Just c -> check_cexpr scope c
-    Nothing -> return ()
+--check_cunit :: CompilationUnit -> Compiler ()
+--check_cunit cu = do
+--  let scope = List.map (\(f,_,_) -> f) (local cu) ++ List.map (\(f,_,_) -> f) (externFunctions cu) ++ List.map fst (globalVariables cu)
+--  List.foldl (\rec (_, arg, c) -> do
+--        rec
+--        check_cexpr (List.union arg scope) c) (return ()) (local cu ++ externFunctions cu)
+--  case main cu of
+--    Just c -> check_cexpr scope c
+--    Nothing -> return ()
 
--- | Pretty-print a value using Hughes's and Peyton Jones's
--- pretty printer combinators. The type 'Doc' is defined in the library
--- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
-print_value :: (Variable -> String)  -- ^ Rendering of term variables.
+-- | Pretty-print a value using Hughes's and Peyton Jones's pretty printing combinators. The type
+-- 'Doc' is defined in the library "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+valueToDoc :: (Variable -> String)  -- ^ Rendering of term variables.
             -> Value                 -- ^ Instruction to print.
             -> Doc                   -- ^ Resulting PP document.
-print_value _ (VInt n) =
-  text (show n)
-print_value fvar (VVar v) =
-  text (fvar v)
-print_value fvar (VGlobal v) =
-  text (fvar v)
-print_value fvar (VLabel v) =
-  text (fvar v)
+valueToDoc _ (VInt n) = text $ show n
+valueToDoc pVar (VVar v) = text $ pVar v
+valueToDoc pVar (VGlobal v) = text $ pVar v
+valueToDoc pVar (VLabel v) = text $ pVar v
 
--- | Pretty-print an expression using Hughes's and Peyton Jones's
--- pretty printer combinators. The type 'Doc' is defined in the library
--- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
-print_cfun :: (Variable -> String)                      -- ^ Rendering of term variables.
-           -> (Variable, [Variable], Instruction)             -- ^ Function to print.
+-- | Pretty-print an expression using Hughes's and Peyton Jones's pretty printing combinators. The
+-- type 'Doc' is defined in the library "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+functionToDoc :: (Variable -> String)                   -- ^ Rendering of term variables.
+           -> (Variable, [Variable], Instruction)       -- ^ Function to print.
            -> Doc                                       -- ^ Resulting PP document.
-print_cfun fvar (f, [], cf) =
-  text (fvar f ++ "() {") $$
-  nest 2 (print_cexpr Inf fvar cf) $$
+functionToDoc pVar (f, [], body) =
+  text (pVar f ++ "() {") $$
+  nest 2 (instructionToDoc Inf pVar body) $$
   text "}"
-print_cfun fvar (f, args, cf) =
-  let pargs = List.map (text . fvar) args
-      sargs = punctuate comma pargs in
-  text (fvar f ++ "(") <> hsep sargs <> text ") {" $$
-  nest 2 (print_cexpr Inf fvar cf) $$
+functionToDoc pVar (f, args, body) =
+  let args' = punctuate comma $ List.map (text . pVar) args in
+  text (pVar f ++ "(") <> hsep args' <> text ") {" $$
+  nest 2 (instructionToDoc Inf pVar body) $$
   text "}"
 
 
--- | Pretty-print a continuation function using Hughes's and Peyton Jones's
--- pretty printer combinators. The type 'Doc' is defined in the library
--- "Text.PrettyPrint.HughesPJ" and allows for nested documents.
-print_cexpr :: Lvl                   -- ^ Maximum depth.
+-- | Pretty-print a continuation function using Hughes's and Peyton Jones's pretty printing combinators.
+-- The type 'Doc' is defined in the library "Text.PrettyPrint.HughesPJ" and allows for nested documents.
+instructionToDoc :: Lvl              -- ^ Maximum depth.
             -> (Variable -> String)  -- ^ Rendering of term variables.
-            -> Instruction                 -- ^ Instruction to print.
+            -> Instruction           -- ^ Instruction to print.
             -> Doc                   -- ^ Resulting PP document.
-print_cexpr _ fvar (Call f args x c) =
-  let pargs = List.map (print_value fvar) args
-      sargs = punctuate comma pargs in
-  text (fvar x) <+> text ":=" <+> print_value fvar f <> text "(" <> hsep sargs <> text ");" $$
-  print_cexpr Inf fvar c
-print_cexpr _ fvar (TailCall f args) =
-  let pargs = List.map (print_value fvar) args
-      sargs = punctuate comma pargs in
-  print_value fvar f <> text "(" <> hsep sargs <> text ");"
-print_cexpr _ fvar (Array vals x c) =
-  let pvals = List.map (print_value fvar) vals
-      svals = punctuate comma pvals in
-  text (fvar x ++ " := [") <> hsep svals <> text "];" $$
-  print_cexpr Inf fvar c
-print_cexpr _ fvar (Access n x y c) =
-  text (fvar y ++ " :=") <+> print_value fvar x <> text ("[" ++ show n ++ "];") $$
-  print_cexpr Inf fvar c
-print_cexpr _ fvar (Switch v clist def) =
-  let pcs = List.map (\(n,c) -> (n,print_cexpr Inf fvar c)) clist
-      pdef = text "default:" $$ nest 2 (print_cexpr Inf fvar def) in
-  text "switch" <+> print_value fvar v <+> text "with" $$
+instructionToDoc _ pVar (Call f args x c) =
+  let args' = punctuate comma $ List.map (valueToDoc pVar) args in
+  text (pVar x) <+> text ":=" <+> valueToDoc pVar f <> text "(" <> hsep args' <> text ");" $$
+  instructionToDoc Inf pVar c
+instructionToDoc _ pVar (TailCall f args) =
+  let args' = punctuate comma $ List.map (valueToDoc pVar) args in
+  valueToDoc pVar f <> text "(" <> hsep args' <> text ");"
+instructionToDoc _ pVar (Array array x c) =
+  let array' = punctuate comma $ List.map (valueToDoc pVar) array in
+  text (pVar x ++ " := [") <> hsep array' <> text "];" $$
+  instructionToDoc Inf pVar c
+instructionToDoc _ pVar (Access n x y c) =
+  text (pVar y ++ " :=") <+> valueToDoc pVar x <> text ("[" ++ show n ++ "];") $$
+  instructionToDoc Inf pVar c
+instructionToDoc _ pVar (Switch v cases def) =
+  let cases' = List.map (\(n,c) -> (n, instructionToDoc Inf pVar c)) cases
+      def' = text "default:" $$ nest 2 (instructionToDoc Inf pVar def) in
+  text "switch" <+> valueToDoc pVar v <+> text "with" $$
   nest 2 (List.foldl (\doc (tag, c) ->
-        doc $$
-        text (show tag ++ ":") $$
-        nest 2 c) PP.empty pcs $$ pdef)
-print_cexpr _ fvar (Function f arg cf c) =
-  print_cfun fvar (f, arg, cf) $$
-  print_cexpr Inf fvar c
-print_cexpr _ fvar (Set x v) =
-  text (fvar x) <+> text ":=" <+> print_value fvar v
-print_cexpr _ fvar (Ret v) =
-  text "ret" <+> print_value fvar v
-print_cexpr _ fvar (Error msg) =
+      doc $$
+      text (show tag ++ ":") $$
+      nest 2 c) PP.empty cases' $$ def')
+instructionToDoc _ pVar (Function f args body c) =
+  functionToDoc pVar (f, args, body) $$
+  instructionToDoc Inf pVar c
+instructionToDoc _ pVar (Set x v) =
+  text (pVar x) <+> text ":=" <+> valueToDoc pVar v
+instructionToDoc _ pVar (Ret v) =
+  text "ret" <+> valueToDoc pVar v
+instructionToDoc _ pVar (Error msg) =
   text "error \"" <> text msg <> text "\""
 
 
 instance PPrint Instruction where
   -- Generic printing
-  genprint lv [fvar] e =
-    let doc = print_cexpr lv fvar e in
+  genprint lv [pVar] e =
+    let doc = instructionToDoc lv pVar e in
     PP.render doc
   genprint lv _ e =
     throwNE $ ProgramError "CPS:genprint(Instruction): illegal argument"
@@ -950,27 +969,29 @@ instance PPrint Instruction where
   sprintn lv e = genprint lv [prevar "%"] e
 
 
-
 instance PPrint CompilationUnit where
-  genprint _ [fvar] cu =
-    let pcfuns = List.map (print_cfun fvar) (externFunctions cu ++ local cu) in
+  genprint _ [pVar] unit =
+    let funs = List.map (functionToDoc pVar) (externFunctions unit ++ localFunctions unit) in
     let (gdef, ginit) = List.unzip $ List.map (\(g, e) ->
-          (text (fvar g), print_cexpr Inf fvar e)) (globalVariables cu) in
-    let pimport = List.map (\v -> case v of
-          VLabel x -> text $ fvar x
-          VGlobal x -> text $ fvar x
-          _ -> text "WATWATWAT") (imported cu) in
-    let pmain = case main cu of
-          Just m -> text "main () {" $$ nest 2 (print_cexpr Inf fvar m) $$ text "}" $$ text " "
+          (text (pVar g), instructionToDoc Inf pVar e)) $ globalVariables unit in
+    let imports' = List.map (\v -> case v of
+          VLabel x -> text $ pVar x
+          VGlobal x -> text $ pVar x
+          _ -> text "WATWATWAT") $ imports unit in
+    let main' = case main unit of
+          Just m ->
+            text "main () {" $$
+            nest 2 (instructionToDoc Inf pVar m) $$
+            text "}" $$ text " "
           Nothing -> text " " in
-
     let all =
-          text "extern" <+> hsep (punctuate comma pimport) $$
+          text "extern" <+> hsep (punctuate comma imports') $$
           text "globals" <+> hsep (punctuate comma gdef) $$ text " " $$
           text "init () {" $$ nest 2 (vcat ginit) $$ text "}" $$ text " " $$
-          pmain $$
-          vcat pcfuns in
+          main' $$
+          vcat funs in
     PP.render all
+
   genprint _ _ _ =
     throwNE $ ProgramError "CPS:genprint(CompilationUnit): illegal argument"
 

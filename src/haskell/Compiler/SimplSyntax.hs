@@ -57,16 +57,16 @@ data Declaration =
 
 
 -- | Return the list of imported variables of an expression.
-imports :: Expr -> [Variable]
-imports (EGlobal x) = [x]
-imports (EFun _ e) = imports e
-imports (EFix _ _ e) = imports e
-imports (EApp e f) = List.union (imports e) (imports f)
-imports (ETuple elist) = List.nub $ List.concat $ List.map imports elist
-imports (ELet _ e f) = List.union (imports e) (imports f)
-imports (ESeq e f) = List.union (imports e) (imports f)
-imports (EMatch e clist def) = List.union (imports e) $ List.foldl (\imp (n,c) -> List.union (imports c) imp) [] $ (0,def):clist
-imports _ = []
+imported :: Expr -> [Variable]
+imported (EGlobal x) = [x]
+imported (EFun _ e) = imported e
+imported (EFix _ _ e) = imported e
+imported (EApp e f) = List.union (imported e) (imported f)
+imported (ETuple elist) = List.nub $ List.concat $ List.map imported elist
+imported (ELet _ e f) = List.union (imported e) (imported f)
+imported (ESeq e f) = List.union (imported e) (imported f)
+imported (EMatch e clist def) = List.union (imported e) $ List.foldl (\imp (n,c) -> List.union (imported c) imp) [] $ (0,def):clist
+imported _ = []
 
 
 ---------------------------------------------------------------------------------------------------

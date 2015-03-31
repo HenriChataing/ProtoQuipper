@@ -125,6 +125,15 @@ variableName x = do
     Nothing -> return $ prevar "x" x
 
 
+-- | Retrieve the module of definition of the given variable.
+variableModule :: Variable -> Core String
+variableModule x = do
+  namespace <- gets namespace
+  case IntMap.lookup x $ Namespace.variables namespace of
+    Just info -> return $ Variable.sourceModule info
+    Nothing -> fail $ "QpState:variableModule: undefined variable " ++ (show x)
+
+
 -- | Set the calling convention for a variable in the namespace.
 setCallingConvention :: Variable -> [Type] -> Core ()
 setCallingConvention x typs =
