@@ -191,20 +191,20 @@ process_declaration :: (Options, ModuleOptions)       -- ^ The command line and 
 
 -- TYPE SYNONYMS
 process_declaration (opts, mopts) prog ctx (S.DSyn typesyn) = do
-  label <- import_typesyn typesyn $ labelling ctx
+  label <- importSynonym typesyn $ labelling ctx
   return (ctx { labelling = label }, Nothing)
 
 
 -- DATA TYPE BLOCKS
 process_declaration (opts, mopts) prog ctx (S.DTypes typedefs) = do
-  label <- import_typedefs typedefs $ labelling ctx
+  label <- importAlgebraic typedefs $ labelling ctx
   return (ctx { labelling = label }, Nothing)
 
 
 -- EXPRESSIONS
 process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Translation of the expression into internal syntax.
-  e' <- translate_expression e $ labelling ctx
+  e' <- translateExpression e $ labelling ctx
 
   -- Remember the body of the module
   let decl = if run_compiler opts then
@@ -282,8 +282,8 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Translate pattern and expression into the internal syntax
   (p', label') <- translate_pattern p $ labelling ctx
   e' <- case recflag of
-        Recursive -> translate_expression e $ (labelling ctx) { E.variables = label' }
-        Nonrecursive -> translate_expression e $ labelling ctx
+        Recursive -> translateExpression e $ (labelling ctx) { E.variables = label' }
+        Nonrecursive -> translateExpression e $ labelling ctx
   fve <- return $ free_var e'
 
   -- Remember the body of the module

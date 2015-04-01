@@ -9,8 +9,12 @@ module Core.Namespace (
   setTag,
   setCallingConvention,
   setConstructorFormat,
+  changeTypeDefinition,
   registerVariable,
-  createVariable
+  registerTypeDefinition,
+  registerConstructor,
+  createVariable,
+  freshFlag, freshType
 ) where
 
 import Utils
@@ -37,6 +41,7 @@ data Namespace = Namespace {
   vargen :: Int,                      -- ^ Used to generate new variables ids.
   typegen :: Int,                     -- ^ Used to generate new type ids.
   datagen :: Int,                     -- ^ Used to generate new constructor ids.
+  flaggen :: Int,                     -- ^ Used to generate new flag ids.
 
   prefix :: Map String Int
 }
@@ -52,6 +57,7 @@ empty = Namespace {
   vargen = 0,
   typegen = 0,
   datagen = 0,
+  flaggen = 2,
 
   prefix = Map.empty
 }
@@ -90,6 +96,26 @@ createVariable name namespace =
           })
 
 
+-- | Register a new type definition (with an optional module), and return a newly assigned type id.
+registerTypeDefinition :: TypeInfo -> Namespace -> (Variable, Namespace)
+registerTypeDefinition definition namespace =
+  let id = typegen namespace in
+  (id, namespace { types = IntMap.insert id definition $ types namespace, typegen = id+1 })
+
+
+-- | Update the definition of a type.
+changeTypeDefinition :: Variable -> (TypeInfo -> TypeInfo) -> Namespace -> Namespace
+changeTypeDefinition typ change namespace =
+  namespace { types = IntMap.adjust change typ $ types namespace }
+
+
+-- | Register a new data constructor.
+registerConstructor :: ConstructorInfo -> Namespace -> (Variable, Namespace)
+registerConstructor definition namespace =
+  let id = datagen namespace in
+  (id, namespace { constructors = IntMap.insert id definition $ constructors namespace, datagen = id+1 })
+
+
 -- | Set the calling convention for a variable in the namespace.
 setCallingConvention :: Variable -> [Type] -> Namespace -> Namespace
 setCallingConvention x typs namespace =
@@ -117,5 +143,17 @@ setConstructorFormat constructor build extract namespace =
 setTag :: Variable -> (Variable -> C.Expr) -> Namespace -> Namespace
 setTag typ accessor namespace =
   namespace {
-    types = IntMap.adjust (\info -> info { Type.tag = accessor }) typ $ types namespace
-  }
+    types = IntMap.adjust (\info -> info { Type.tag = accessor }) typ $ types namespace }
+
+
+-- | Return a fresh flag.
+freshFlag :: Namespace -> (Variable, Namespace)
+freshFlag namespace =
+  let id = flaggen namespace in
+  (id, namespace { flaggen = id+1 })
+
+-- | Return a fresh type variable.
+freshType :: Namespace -> (Variable, Namespace)
+freshType namespace =
+  let id = typegen namespace in
+  (id, namespace { typegen = id+1 })

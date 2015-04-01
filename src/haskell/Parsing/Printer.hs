@@ -63,7 +63,7 @@ instance PPrint Type where
               TArrow _ _ -> "(" ++ sprintn lv a ++ ")"
               _ -> sprintn lv a)
 
-  sprintn lv (TypeScheme a typ) =
+  sprintn lv (TScheme a typ) =
     "forall " ++ a ++ "  " ++ sprintn (decr lv) typ
 
   sprintn lv (TLocated a _) = sprintn lv a
@@ -149,7 +149,7 @@ print_expr (EMatch e plist) =
                             doc $$ pmatch) PP.empty plist)
 
 
-print_expr (EConstraint e t) = print_expr e
+print_expr (ECoerce e t) = print_expr e
 print_expr (ELocated e _) = print_expr e
 print_expr (EError msg) = text "error" <+> text msg
 

@@ -733,7 +733,7 @@ constraint_typing gamma (EIf e f g) cst = do
 --      e <: T   <==>   type of e <: T
 -- The translation of the constraint type has been delayed up until there
 -- to be able to generalize over the free variables of this type in the let-polymorphism
-constraint_typing gamma (EConstraint e (t, typs)) cst = do
+constraint_typing gamma (ECoerce e (t, typs)) cst = do
   t' <- translate_unbound_type t $ E.empty { E.types = typs }
   csete <- constraint_typing gamma e (t':cst)
   return csete

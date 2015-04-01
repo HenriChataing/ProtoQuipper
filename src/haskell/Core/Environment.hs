@@ -11,10 +11,15 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 
+data Trace a =
+    Local a
+  | Global a
+
+
 -- | The environment corresponds to the variables, types and data constructors available at one point of
 -- the program.
 data Environment = Environment {
-  variables :: Map String Variable,
+  variables :: Map String (Trace Variable),
   types :: Map String Variable,
   constructors :: Map String Variable
 }

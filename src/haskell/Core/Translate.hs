@@ -68,42 +68,143 @@
 --
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Core.Translate (
-  translate_type,
-  translate_bound_type,
-  translate_unbound_type,
-  translate_expression,
-  translate_pattern,
-  import_typedefs,
-  import_typesyn) where
+  translateType,
+  translateBoundType,
+  translateUnboundType,
+  translateExpression,
+  translatePattern,
+  importAlgebraic,
+  importSynonym) where
 
 import Utils
 import Classes
 import Builtins
 
 import Core.Syntax
-import Core.Environment (Environment)
-import qualified Core.Environment as E
+import Core.Environment as Environment hiding (types)
+import qualified Core.Environment as Environment (types)
 import Core.Printer
 
-import Parsing.Location
+import Language.Type as Type
+import Language.Constructor as Constructor
+
 import qualified Parsing.Syntax as S
+import Parsing.Location hiding (location)
 import Parsing.Printer
 
-import Interpreter.Values
 import Interpreter.Circuits as C
 
+import Compiler.SimplSyntax (tagAccessor)
 import qualified Compiler.SimplSyntax as CS
-import Compiler.PatternElimination (choose_implementation)
 
 import Monad.Error
---import Monad.QpState
+import Monad.Core as Core hiding (environment)
+import qualified Monad.Core as Core (environment)
 
 import Data.Map as Map
 import qualified Data.List as List
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IMap
+import qualified Data.IntMap as IntMap
+import qualified Data.IntSet as IntSet
+
+import Control.Monad.Trans
+import Control.Monad.Trans.State
+import Control.Monad.Trans.Reader
 
 
+-- ------------------------------------------------------------------------------------------------
+-- * Translation context.
+
+-- Contains the local namespace along with some options.
+data TranslateState = TranslateState {
+  bound :: Bool,                -- ^ Raise errors if unbound types are found.
+  location :: Extent,           -- ^ Current file location.
+  environment :: Environment,   -- ^ Toplevel environment.
+  types :: Map String Type,         -- ^ Local type context.
+  currentModule :: String           -- ^ Current module.
+  --constraints :: ConstraintSet -- ^ Structural constraints.
+}
+
+-- | Monad of the translation algorithm.
+type Translate = StateT TranslateState Core
+
+
+-- | Return term informaton (with a dummy type).
+getInfo :: Translate Info
+getInfo = do
+  ext <- gets location
+  return $ Info ext unit
+
+-- | Perform a piece of computation before restoring the types to its previous state.
+localType :: Translate a -> Translate a
+localType comp = do
+  types <- gets types
+  r <- comp
+  modify $ \state -> state { types = types }
+  return r
+
+-- | Perform a piece of computation before restoring the variablemap to its previous state.
+localVar :: Translate a -> Translate a
+localVar comp = do
+  variables <- gets (Environment.variables . environment)
+  r <- comp
+  modify $ \state ->
+      state { environment = (environment state) { Environment.variables = variables } }
+  return r
+
+
+-- | Look up a variable in a specific module (typically used with a qualified variable). The input
+-- pair is (Module, Var).
+lookupQualified :: String -> String -> (Module -> Map String a) -> Translate a
+lookupQualified modname n inside = do
+  mod <- lift $ Core.require modname
+  -- Check that the module is part of the dependencies.
+  case mod of
+    Just mod ->
+      case Map.lookup n $ inside mod of
+        Just x -> return x
+        Nothing -> throwUnboundVariable n
+    Nothing -> throwUnboundModule modname
+
+
+-- | Generic error for unbound values (variables, data constructors, types, builtins).
+throwUnboundValue :: QError a => String -> (String -> a) -> Translate b
+throwUnboundValue v err = do
+  ext <- gets location
+  throwNE (err v) ext
+
+-- | Throw an unbound module error.
+throwUnboundModule :: String -> Translate a
+throwUnboundModule mod =
+  throwUnboundValue mod UnboundModule
+
+
+-- | Throw an unbound variable error.
+throwUnboundVariable :: String -> Translate a
+throwUnboundVariable n =
+  throwUnboundValue n UnboundVariable
+
+
+-- | Throw an unbound data constructor error.
+throwUnboundDatacon :: String -> Translate a
+throwUnboundDatacon n =
+  throwUnboundValue n UnboundDatacon
+
+
+-- | Throw an undefined type error.
+throwUndefinedType :: String -> Translate a
+throwUndefinedType n =
+  throwUnboundValue n UndefinedType
+
+
+-- | Throw an undefined builtin error.
+throwUndefinedBuiltin :: String -> Translate a
+throwUndefinedBuiltin n =
+  throwUnboundValue n UndefinedBuiltin
+
+
+-- ------------------------------------------------------------------------------------------------
+-- * Type definitions.
 
 -- | From a given type written in the parsing syntax, produce a map that associates each free
 -- variable with its variance.
@@ -111,606 +212,528 @@ variance :: Variance                        -- ^ The variance of the current typ
          -> S.Type                          -- ^ The type to check.
          -> [S.Type]                        -- ^ The type arguments.
          -> Map String Type                 -- ^ A partial labelling context.
-         -> QpState (Map String Variance)   -- ^ The resulting map.
-variance var (S.TypeVar a) [] typs = do
-  -- The variance of a variance is the global variance.
-  return $ Map.singleton a var
-variance var (S.TypeVar a) arg typs = do
+         -> Core (Map String Variance)      -- ^ The resulting map.
+-- The variance of a variance is the global variance.
+variance var (S.TVar a) [] typs = return $ Map.singleton a var
+variance var (S.TVar a) args typs = do
   -- The variance of each of the type arguments depends upon the variance imposed by the type.
   vars <- case Map.lookup a typs of
-        Just (TypeAnnot _ (TAlgebraic id _)) ->
-            algebraic_def id >>= return . arguments
-        Just (TypeAnnot _ (TSynonym id _)) ->
-            synonym_def id >>= return . arguments
-        _ ->
-            fail "Translate:variance: undefined type"
+      Just (TypeAnnot _ (TypeApply (TypeUser typ) [])) -> do
+        def <- getTypeDefinition typ
+        return $ List.map snd $ arguments def
+      _ -> fail "Translate:variance: undefined type"
+  -- Infer the variance for all type arguments.
   List.foldl (\rec (vara, a) -> do
-        m <- rec
-        let var' = case vara of
-              Unrelated -> Unrelated
-              Equal -> Equal
-              Covariant -> var
-              Contravariant -> opposite var
-        va <- variance var' a [] typs
-        return $ Map.unionWith join va m
-      ) (return Map.empty) $ List.zip vars arg
-variance var (S.TTensor tlist) [] typs =
-  -- The variance is unchanged.
+      map <- rec
+      let var' = case vara of
+            Unrelated -> Unrelated
+            Equal -> Equal
+            Covariant -> var
+            Contravariant -> opposite var
+      vara <- variance var' a [] typs
+      return $ Map.unionWith join vara map
+    ) (return Map.empty) $ List.zip vars args
+-- The tensor is covariant for all arguments.
+variance var (S.TTensor tensor) [] typs =
   List.foldl (\rec a -> do
-        m <- rec
-        va <- variance var a [] typs
-        return $ Map.unionWith join va m) (return Map.empty) tlist
-variance var (S.TypeAnnot t) [] typs =
-  -- The variance is unchanged.
-  variance var t [] typs
+      map <- rec
+      vara <- variance var a [] typs
+      return $ Map.unionWith join vara map
+    ) (return Map.empty) tensor
+-- Idem, the variance is unchanged.
+variance var (S.TBang t) [] typs = variance var t [] typs
+-- Just flatten the application.
+variance var (S.TApp t u) arg typs = variance var t (u:arg) typs
+-- Ignore the extent.
+variance var (S.TLocated t _) arg typs = variance var t arg typs
+-- Contravariant in the domain, covariant in the codomain.
+-- This applies to circ and arrow types.
 variance var (S.TCirc t u) [] typs = do
-  -- The argument has its variance reversed, the other has the same variance.
   vt <- variance (opposite var) t [] typs
   vu <- variance var u [] typs
   return $ Map.unionWith join vt vu
 variance var (S.TArrow t u) [] typs = do
-  -- The argument has its variance reversed, the other has the same variance.
   vt <- variance (opposite var) t [] typs
   vu <- variance var u [] typs
   return $ Map.unionWith join vt vu
-variance var (S.TApp t u) arg typs =
-  -- Nothing to do.
-  variance var t (u:arg) typs
-variance var (S.TLocated t _) arg typs =
-  -- Nothing to do.
-  variance var t arg typs
-variance _ _ _ _ = do
-  -- Other types, with no type variables.
-  return Map.empty
+-- Other types, with no type variables.
+variance _ _ _ _ = return Map.empty
 
 
-
-
--- | Import the type definitions in the current state.
--- The data constructors are labelled during this operation, their associated type translated, and themselves included in the field datacons of the state.
-import_typedefs :: [S.TypeAlgebraic]            -- ^ A block of co-inductive type definitions.
-                -> Environment Variable           -- ^ The current labelling context.
-                -> QpState (Environment Variable)   -- ^ The updated labelling context.
-import_typedefs dblock label = do
-  -- Initialize the type definitions.
-  typs <- List.foldl (\rec def@(S.Typedef typename args _) -> do
-        typs <- rec
-        let spec = Typedef {
-          arguments = List.map (const Unrelated) args,     -- All type arguments are by default unrelated.
-          definition = ([], [])
-        }
-
-        -- Register the type in the current context.
-        id <- register_algebraic typename spec
-        -- Add the type to the labelling context.
-        return $ Map.insert typename (TypeAnnot 0 $ TAlgebraic id []) typs
-      ) (return (E.types label)) dblock
+-- | Import a block of mutually recursive algebraic type definitions in the current state. The data
+-- constructors are labelled during this operation, their associated type translated, and themselves
+-- included in the field datacons of the state.
+importAlgebraic :: [S.TypeAlgebraic]              -- ^ A block of co-inductive type definitions.
+                -> Translate ()
+importAlgebraic block = do
+  -- Create the type definitions (empty initially), and import the type constructors in the context.
+  block' <- List.foldl (\rec def @ (S.Typedef typename args _) -> do
+      block <- rec
+      let arguments = List.map (\a -> (unit, Unrelated)) args
+      mod <- gets currentModule
+      let def' = TypeInfo typename mod (Algebraic False arguments []) tagAccessor
+      -- Register the type in the current context.
+      id <- lift $ registerTypeDefinition def'
+      -- Add the type to the labelling context.
+      let typ = TypeAnnot 0 $ TypeApply (TypeUser id) []
+      modify $ \state -> state { types = Map.insert typename typ $ types state }
+      return $ (id, def, Algebraic False arguments []):block
+    ) (return []) block
 
   -- Build the unfolded type definition.
-  constructors <- List.foldl (\rec (S.Typedef typename args dlist) -> do
-        lbl <- rec
-        -- Type id needed for updates.
-        id <- case Map.lookup typename typs of
-            Just (TypeAnnot _ (TAlgebraic id _)) -> return id
-            _ -> fail "TransSyntax:import_typedefs: unexpected non-algebraic type"
+  List.foldl (\rec (S.Typedef typename args constructors) -> do
+      rec
+      -- Type id needed for updates.
+      types <- gets types
+      typid <- case Map.lookup typename types of
+          Just (TypeAnnot _ (TypeApply (TypeUser id) _)) -> return id
+          _ -> fail "TransSyntax:importAlgebraic: unexpected non-algebraic type"
+      -- Bind the arguments of the type. For each string argument a, a type !n a is created and bound
+      -- locally in the monad state.
+      (args, types') <- List.foldr (\x rec -> do
+          (args, map) <- rec
+          a <- lift newType
+          return (a:args, Map.insert x a map)
+        ) (return ([], types)) args
+      modify $ \state -> state { types = types' }
 
-        -- Bind the arguments of the type.
-        -- For each string argument a, a type !n a is created and bound in the map mapargs.
-        (args, mapargs) <- List.foldr (\x rec -> do
-              (as, map) <- rec
-              a <- new_type
-              return (a:as, Map.insert x a map)) (return ([], typs)) args
-
-        -- Translate the type of the data constructors.
-        (dtypes, lbl) <- List.foldl (\rec (tag, (dcon, dtype)) -> do
-              (dtyps, lbl) <- rec
-              m <- fresh_flag
-              (dtyp, argtyp, cset) <- case dtype of
-                    -- If the constructor takes no argument
-                    Nothing -> do
-                        return (TypeAnnot m (TAlgebraic id args), Nothing, emptyset)
-                    -- If the constructor takes one argument
-                    Just dt -> do
-                        dt@(TypeAnnot n _) <- translate_bound_type dt E.empty { E.types = mapargs }
-                        return (TypeAnnot one $ TArrow dt $ TypeAnnot m $ TAlgebraic id args, Just dt, ([], [Le m n noInfo]))
-
-              -- Generalize the type of the constructor over the free variables and flags
-              -- Those variables must also respect the constraints from the construction of the type.
-              let (fv, ff) = (free_typ_var dtyp, free_flag dtyp)
-              dtyp <- return $ TypeScheme ff fv cset dtyp
-
-              -- Register the datacon.
-              id <- register_datacon dcon Datacondef {
-                dtype = dtyp,
-                datatype = id,
-                tag = tag,
-                implementation = -1,
-                construct = Left CS.EUnit,
-                deconstruct = \x -> CS.EVar x
-              }
-              return $ ((id, argtyp):dtyps, Map.insert dcon id lbl)) (return ([], lbl)) (List.zip [0..(List.length dlist)-1] dlist)
-
-        -- Update the specification of the type.
-        update_algebraic id $ \TypeAlgebraic -> Just $ TypeAlgebraic { definition = (args, dtypes) }
-
-        return lbl) (return $ E.datacons label) dblock
-
+      -- Translate the type of the data constructors.
+      (_, dtypes) <- List.foldl (\rec (cons, argtyp) -> do
+          (tag, dtyps) <- rec
+          m <- lift freshFlag
+          (ctyp, argtyp, cset) <- case argtyp of
+              -- If the constructor takes no argument.
+              Nothing -> return (TypeAnnot m $ TypeApply (TypeUser typid) args, Nothing, emptyset)
+              -- If the constructor takes one argument.
+              Just atyp -> do
+                atyp @ (TypeAnnot n _) <- translateBoundType atyp
+                return (
+                      arrow atyp $ TypeAnnot m $ TypeApply (TypeUser typid) args,
+                      Just atyp,
+                      ConstraintSet [] [Le m n noInfo])
+          -- Generalize the type of the constructor over the free variables and flags. Those variables
+          -- must also respect the constraints from the construction of the type.
+          let ctyp' = TypeScheme (IntSet.toList $ freeflag ctyp) (IntSet.toList $ freevar ctyp) cset ctyp
+          -- Register the datacon.
+          id <- lift $ registerConstructor $ Constructor.init cons "" typid ctyp' tag
+          modify $ \state ->
+              let constrs = Environment.constructors $ environment state in
+              state {
+                  environment = (environment state) {
+                      Environment.constructors = Map.insert cons id constrs }
+                    }
+          return (tag+1, (id, argtyp):dtyps)
+        ) (return (0, [])) constructors
+      -- Update the specification of the type.
+      lift $ changeTypeDefinition typid $ \info ->
+        case definition info of
+          Algebraic dup vars _ ->
+            let args' = List.map (\((_, v), a) -> (a, v)) $ List.zip vars args in
+            info { definition = Algebraic dup args' dtypes }
+          _ -> info
+      -- Reset the type map (effectively remove the type variables).
+      modify $ \state -> state { types = types }
+    ) (return ()) block
 
   -- Update the variance of the type arguments of a single type.
-  let update_variance typ = do
-        let id = case Map.lookup (S.name typ) typs of
-              Just (TypeAnnot _ (TAlgebraic id _)) -> id
-              _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
-        TypeAlgebraic <- algebraic_def id
-        let old = arguments TypeAlgebraic
-        upd <- variance Covariant (S.TTensor $ List.map (\(_,t) -> case t of { Nothing -> S.TUnit ; Just t -> t }) (S.definition typ)) [] typs
-        let new = List.map (\a -> case Map.lookup a upd of { Nothing -> Unrelated ; Just var -> var }) $ S.arguments typ
-        update_algebraic id $ \alg -> Just $ alg { arguments = new }
-        return $ old == new
+  let updateVariance (typid, def, def') = do
+        let (args, old) = List.unzip $ arguments def'
+        let dotest = List.map (\(_, t) ->
+              case t of { Nothing -> S.TUnit ; Just t -> t }) $ S.definition def
+        types <- gets types
+        varmap <- lift $ variance Covariant (S.TTensor dotest) [] types
+        let new = List.map (\a ->
+              case Map.lookup a varmap of { Nothing -> Unrelated ; Just var -> var }) $ S.arguments def
+            newargs = List.zip args new
+        lift $ changeTypeDefinition typid $ \info ->
+          case definition info of
+            Algebraic dup _ constrs -> info { definition = Algebraic dup newargs constrs }
+            _ -> info
+        return (old == new, (typid, def, def' { arguments = newargs }))
 
-  -- Apply the function update_variance to a group of type definitions.
-  let update_variances dblock = do
-        end <- List.foldl (\rec typ -> do
-              end <- rec
-              upd <- update_variance typ
-              return $ end && upd) (return True) dblock
-        if end then
-          return ()
-        else
-          update_variances dblock
+  -- Apply the function updateVariance to a group of type definitions.
+  let updateVariances block = do
+        (end, block) <- List.foldl (\rec typ -> do
+            (end, block) <- rec
+            (upd, typ') <- updateVariance typ
+            return (end && upd, typ':block)
+          ) (return (True, [])) block
+        if end then return block
+        else updateVariances block
 
   -- Print the information relevant to a type (constructors, ...).
-  let print_info typ = do
-        let id = case Map.lookup (S.name typ) typs of
-              Just (TypeAnnot _ (TAlgebraic id _)) -> id
-              _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
-        TypeAlgebraic <- algebraic_def id
-        newlog 0 $ List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("alg: " ++ S.name typ) $ List.zip (arguments TypeAlgebraic) (S.arguments typ)
+  let printInfo (typid, def, def') = do
+        lift $ Core.log 0 $ List.foldl (\s ((_, var), a) ->
+            s ++ " " ++ show var ++ a
+          ) ("alg: " ++ S.name def) $ List.zip (arguments def') (S.arguments def)
 
   -- Compilation specifics.
-  List.foldl (\rec alg -> do
-        rec
-        case Map.lookup (S.name alg) typs of
-          Just (TypeAnnot _ (TAlgebraic id _)) -> choose_implementation id
-          _ -> throwNE $ ProgramError "Translate:update_variance: undefined algebraic type"
-      ) (return ()) dblock
-
-  -- Apply the function update_variances
-  update_variances dblock
-
-  -- Print some information about the inferred variance
-  List.foldl (\rec typ -> rec >> print_info typ) (return ()) dblock
-
-  -- Return the updated labelling map for types, and the map for dataconstructors.
-  return $ label { E.datacons = constructors,
-                   E.types = typs }
+  List.foldl (\rec (typid, _, _) -> do
+      rec
+      lift $ setTypeImplementation typid
+    ) (return ()) block'
+  -- Apply the function updateVariances.
+  block' <- updateVariances block'
+  -- Print some information about the inferred variance.
+  List.foldl (\rec typ -> rec >> printInfo typ) (return ()) block'
+  return ()
 
 
-
-
-
--- | Translate and import a type synonym.
-import_typesyn :: S.TypeAlias                    -- ^ A type synonym.
-               -> Environment Variable            -- ^ The current labelling context.
-               -> QpState (Environment Variable)    -- ^ The updated labelling context.
-import_typesyn typesyn label = do
+-- | Import a single type alias definition.
+importSynonym :: S.TypeAlias          -- ^ A type synonym.
+              -> Translate ()         -- ^ The updated labelling context.
+importSynonym synonym = do
+  -- Save the types.
+  types <- gets types
   -- Bind the arguments to core types.
-  as <- new_types $ List.length (S.arguments typesyn)
-  let margs = Map.fromList $ List.zip (S.arguments typesyn) as
-
+  let args = S.arguments synonym
+  args' <- lift $ newTypes $ List.length args
+  let map = List.foldl (\map (a, a') -> Map.insert a a' map) types $ List.zip args args'
+  modify $ \state -> state { types = map }
   -- Translate the synonym type.
-  syn <- translate_bound_type (S.definition typesyn) (label {E.types = Map.union margs $ E.types label })
-
+  alias <- translateBoundType (S.definition synonym)
   -- Determine the variance of each argument.
-  var <- variance Covariant (S.definition typesyn) [] (E.types label)
-  let arg = List.map (\a -> case Map.lookup a var of { Nothing -> Unrelated ; Just v -> v }) $ S.arguments typesyn
-
+  types' <- gets Core.Translate.types
+  varmap <- lift $ variance Covariant (S.definition synonym) [] types'
+  let vars = List.map (\a ->
+          case Map.lookup a varmap of
+            Nothing -> Unrelated
+            Just v -> v
+        ) args
   -- Print it.
-  newlog 0 (List.foldl (\s (var, a) -> s ++ " " ++ show var ++ a) ("syn: " ++ S.name typesyn) $ List.zip arg (S.arguments typesyn))
-
-  -- Build the type specification
-  spec <- return $ Typedef {
-        arguments = arg,
-        definition = (as, syn) }
-
-  -- Register the type synonym
-  id <- register_synonym (S.name typesyn) spec
-
-  -- Add the type to the labelling context and return
-  return label { E.types = Map.insert (S.name typesyn) (TypeAnnot 0 $ TSynonym id []) $ E.types label }
-
+  lift $ Core.log 0 $ List.foldl (\s (var, a) ->
+      s ++ " " ++ show var ++ a
+    ) ("syn: " ++ S.name synonym) $ List.zip vars args
+  -- Build and save the type definition.
+  let arguments = List.zip args' vars
+  mod <- gets currentModule
+  let def' = TypeInfo (S.name synonym) mod (Synonym arguments False alias) tagAccessor
+  typid <- lift $ registerTypeDefinition def'
+  -- Reset the types and insert the new type alias.
+  let typ = TypeAnnot 0 $ TypeApply (TypeUser typid) []
+  modify $ \state -> state { types = Map.insert (S.name synonym) typ types }
 
 
+-- ------------------------------------------------------------------------------------------------
+-- * Translation of types.
 
+-- | Translate a type, given a labelling. The type context is passed around in the dedicated
+-- monad Translate.
+translateType :: S.Type
+              -> [Type]              -- ^ List of type arguments.
+              -> Translate Type      -- ^ Translated type.
+-- Builtin types.
+translateType S.TUnit [] = return unit
+translateType S.TBool [] = return bool
+translateType S.TInt [] = return int
+translateType S.TQubit [] = return qubit
 
--- | Translate a type, given a labelling.
--- The output includes a set of structural constraints: e.g., !^p (!^n a * !^m b) imposes p <= n and p <= m.
-translate_type :: S.Type
-               -> [Type]                  -- ^ List of type arguments. Only when the type is algebraic may this list not be empty.
-               -> (Map String Type, Bool) -- ^ A map of bound type variables. The boolean flag indicates how to deal with unbound variables:
-                                          -- they can either:
-                                          --
-                                          -- * generate a typing error (the definition of algebraic types doesn't allow for unbound variables).
-                                          --
-                                          -- * be bound in the map (all other cases).
-               -> QpState (Type, Map String Type)
-translate_type S.TUnit [] m = do
-  return (TypeAnnot one TUnit, fst m)
+translateType (S.TLocated t ext) args = do
+  modify $ \state -> state { location = ext }
+  translateType t args
 
-translate_type S.TBool [] m = do
-  return (TypeAnnot one TBool, fst m)
+translateType (S.TCirc t u) [] = do
+  t' <- translateType t []
+  u' <- translateType u []
+  return $ circ t' u'
 
-translate_type S.TInt [] m = do
-  return (TypeAnnot one TInt, fst m)
+translateType (S.TArrow t u) [] = do
+  t' <- translateType t []
+  u' <- translateType u []
+  n <- lift freshFlag
+  return $ apply n "->" [t', u']
 
-translate_type S.TQubit [] m = do
-  return (TypeAnnot zero TQubit, fst m)
+translateType (S.TTensor ts) [] = do
+  n <- lift freshFlag
+  ts' <- List.foldl (\rec t -> do
+      ts <- rec
+      t' <- translateType t []
+      return $ t':ts) (return []) ts
+  return $ apply n "*" $ List.reverse ts'
 
-translate_type (S.TypeVar x) arg (label, bound) = do
-  case Map.lookup x label of
+-- Case of type application: the argument is pushed onto the arg list.
+translateType (S.TApp t u) args = do
+  u' <- translateType u []
+  translateType t (u':args)
 
-    -- The variable is an algebraic type.
-    Just (TypeAnnot _ (TAlgebraic id as)) -> do
-        spec <- algebraic_def id
-        let nexp = List.length $ arguments spec
-            nact = List.length as + List.length arg
+-- Bang type. The annotation associated with t is just ignored.
+translateType (S.TBang t) [] = do
+  TypeAnnot _ t' <- translateType t []
+  return $ TypeAnnot 1 t'
 
-        if nexp == nact then do
-          n <- fresh_flag
-          return (TypeAnnot n $ TAlgebraic id (as ++ arg), label)
-        else do
-          ex <- get_location
-          throwQ (WrongTypeArguments x nexp nact) ex
+-- The context is updated locally only.
+translateType (S.TScheme a typ) [] = do
+  a' <- lift newType
+  localType $ do
+    modify $ \state -> state { types = Map.insert a a' $ types state }
+    translateType typ []
 
-    -- The variable is a type synonym.
-    Just (TypeAnnot _ (TSynonym id as)) -> do
-        spec <- synonym_def id
-        let nexp = List.length $ arguments spec
-        let nact = List.length as + List.length arg
+translateType (S.TVar x) args = do
+  types <- gets types
+  case Map.lookup x types of
 
-        if nexp == nact then do
-          n <- fresh_flag
-          return (TypeAnnot n $ TSynonym id (as ++ arg), label)
-        else do
-          ex <- get_location
-          throwQ (WrongTypeArguments x nexp nact) ex
-
+    -- The variable is an algebraic / synonym type.
+    Just (TypeAnnot _ (TypeApply (TypeUser id) args')) -> do
+      def <- lift $ getTypeDefinition id
+      -- Check the number of arguments against the expected number.
+      -- Could be refined by doing an overall kind analysis.
+      let expected = List.length $ arguments def
+          actual = List.length args' + List.length args
+      if expected == actual then do
+        n <- lift freshFlag
+        return $ TypeAnnot n $ TypeApply (TypeUser id) (args' ++ args)
+      else do
+        ext <- gets location
+        throwNE (WrongTypeArguments x expected actual) ext
 
     -- The variable is just a bound type.
     Just typ ->
-        if arg == [] then
-          return (typ, label)
-        else do
-          ex <- get_location
-          throwQ (WrongTypeArguments (pprint typ) 0 (List.length arg)) ex
+      if args == [] then return typ
+      else do
+        ext <- gets location
+        throwNE (WrongTypeArguments (pprint typ) 0 (List.length args)) ext
 
-    -- If the variable is not found, it can be a free variable (depending on the boolean arg)
+    -- If the variable is not found, it can be a free variable (depending on the bound option).
     Nothing -> do
-        if bound then do
-          -- If the type variables are supposed to be bound, this one isn't.
-          ex <- get_location
-          throwQ (UnboundVariable x) ex
+      bound <- gets bound
+      -- If the type variables are supposed to be bound, this one isn't.
+      if bound then do
+        ext <- gets location
+        throwNE (UnboundVariable x) ext
+      -- Last case, if the type authorize free variables, register this one with a new type.
+      else do
+        t <- lift newType
+        modify $ \state -> state { types = Map.insert x t types }
+        return t
 
-        else do
-          -- Last case, if the type authorize free variables, register this one with a new type
-          t <- new_type
-          return (t, Map.insert x t label)
-
-translate_type (S.TQualified m x) arg lbl = do
-  typ <- lookup_qualified_type (m, x)
-
-  -- Expected number of arguments
-  nexp <- case typ of
-        TypeAnnot _ (TAlgebraic alg _) -> do
-          dalg <- algebraic_def alg
-          return $ List.length $ arguments dalg
-        TypeAnnot _ (TSynonym syn _) -> do
-          dsyn <- synonym_def syn
-          return $ List.length $ arguments dsyn
-        _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
-
-  -- Actual number
-  nact <- return $ List.length arg
-
-  if nexp == nact then do
-    n <- fresh_flag
-    case typ of
-      TypeAnnot _ (TAlgebraic alg _) -> return (TypeAnnot n (TAlgebraic alg arg), fst lbl)
-      TypeAnnot _ (TSynonym syn _) -> return (TypeAnnot n (TSynonym syn arg), fst lbl)
-      _ -> fail $ "TransSyntax:translate_type: unexpected type in module interface: " ++ pprint typ
+translateType (S.TQualified m x) args = do
+  -- Expected number of arguments.
+  typid <- lookupQualified m x (Environment.types . Core.environment)
+  def <- lift $ getTypeDefinition typid
+  let expected = List.length $ Type.arguments def
+  -- Actual number.
+  let actual = List.length args
+  -- Compare.
+  if expected == actual then do
+    n <- lift freshFlag
+    return $ TypeAnnot n $ TypeApply (TypeUser typid) args
   else do
-    ex <- get_location
-    throwQ (WrongTypeArguments x nexp nact) ex
+    ext <- gets location
+    throwNE (WrongTypeArguments x expected actual) ext
 
-translate_type (S.TArrow t u) [] (label, bound) = do
-  (t', lblt) <- translate_type t [] (label, bound)
-  (u', lblu) <- translate_type u [] (lblt, bound)
-  n <- fresh_flag
-  return (TypeAnnot n (TArrow t' u'), lblu)
-
-translate_type (S.TTensor tlist) [] (label, bound) = do
-  n <- fresh_flag
-  (tlist', lbl) <- List.foldr (\t rec -> do
-                                 (r, lbl) <- rec
-                                 (t', lbl') <- translate_type t [] (lbl, bound)
-                                 return (t':r, lbl')) (return ([], label)) tlist
-  return (TypeAnnot n (TTensor tlist'), lbl)
-
-translate_type (S.TypeAnnot t) [] label = do
-  (TypeAnnot _ t, lbl) <- translate_type t [] label
-  return (TypeAnnot 1 t, lbl)
-
-translate_type (S.TCirc t u) [] (label, bound) = do
-  (t', lblt) <- translate_type t [] (label, bound)
-  (u', lblu) <- translate_type u [] (lblt, bound)
-  return (TypeAnnot one (TCirc t' u'), lblu)
-
--- Case of type application: the argument is pushed onto the arg list
-translate_type (S.TApp t u) args (label, bound) = do
-  (u', lblt) <- translate_type u [] (label, bound)
-  (t', lblu) <- translate_type t (u':args) (lblt, bound)
-  return (t', lblu)
-
-translate_type (S.TLocated t ex) args label = do
-  set_location ex
-  translate_type t args label
-
-translate_type (S.TypeScheme a typ) [] (label, bound) = do
-  a' <- new_type
-  label' <- return $ Map.insert a a' label
-  translate_type typ [] (label', bound)
-
--- Remaining cases: of types applied to an argument when they are not generic
-translate_type t args label = do
-  ex <- get_location
-  throwQ (WrongTypeArguments (pprint t) 0 (List.length args)) ex
+-- Remaining cases: of types applied to an argument when they are not generic.
+translateType t args = do
+  ext <- gets location
+  throwNE (WrongTypeArguments (pprint t) 0 (List.length args)) ext
 
 
+-- | Apply the function 'Typing.TransSyntax.translateType' to a bound type. The arguments must be
+-- null initially.
+translateBoundType :: S.Type -> Translate Type
+translateBoundType t = do
+  -- Set option in monad's state.
+  modify $ \state -> state { bound = True }
+  translateType t []
 
--- | Apply the function 'Typing.TransSyntax.translate_type' to a bound type.
--- The arguments must be null initially.
-translate_bound_type :: S.Type -> Environment Variable -> QpState Type
-translate_bound_type t label = do
-  (t', _) <- translate_type t [] (E.types label, True)
-  return t'
 
-
-
--- | Apply the function 'Typing.TransSyntax.translate_type' to unbound types.
--- The binding map is initially empty, and is dropped after the translation of the type.
--- No argument is passed to the top type.
-translate_unbound_type :: S.Type -> Environment Variable -> QpState Type
-translate_unbound_type t label = do
-  (t', _) <- translate_type t [] (E.types label, False)
-  return t'
-
+-- | Apply the function 'Typing.TransSyntax.translateType' to unbound types. The binding map is
+-- initially empty, and is dropped after the translation of the type. No argument is passed to the
+-- top type.
+translateUnboundType :: S.Type -> Translate Type
+translateUnboundType t = do
+  -- Set option in monad's state.
+  modify $ \state -> state { bound = False }
+  translateType t []
 
 
 -- | Translate a pattern, given a labelling map.
 -- The map is updated as variables are bound in the pattern.
-translate_pattern :: S.XExpr -> Environment Variable -> QpState (Pattern, Map String (E.Variable Variable))
-translate_pattern S.EUnit label = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Right $ PUnit ref })
-  return (PUnit ref, E.variables label)
+translatePattern :: S.XExpr -> Translate Pattern
+translatePattern S.EUnit = do
+  info <- getInfo
+  return $ PConstant info ConstUnit
 
-translate_pattern (S.EBool b) label = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Right $ PBool ref b })
-  return (PBool ref b, E.variables label)
+translatePattern (S.EBool b) = do
+  info <- getInfo
+  return $ PConstant info $ ConstBool b
 
-translate_pattern (S.EInt n) label = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Right $ PInt ref n })
-  return (PInt ref n, E.variables label)
+translatePattern (S.EInt n) = do
+  info <- getInfo
+  return $ PConstant info $ ConstInt n
 
-translate_pattern S.EWildcard label = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Right $ PWildcard ref })
-  return (PWildcard ref, E.variables label)
+translatePattern S.EWildcard = do
+  info <- getInfo
+  return $ PWildcard info
 
-translate_pattern (S.EVar x) label = do
-  ref <- create_ref
-  mod <- current_module
-  id <- register_var mod x ref
-  update_ref ref (\ri -> Just ri { expression = Right $ PVar ref id })
-  return (PVar ref id, Map.insert x (E.Local id) $ E.variables label)
+translatePattern (S.EVar x) = do
+  info <- getInfo
+  mod <- gets currentModule
+  id <- lift $ registerVariable (Just mod) x
+  modify $ \state ->
+      let variables = Environment.variables $ environment state in
+      state { environment = (environment state) { variables = Map.insert x (Local id) variables } }
+  return $ PVar info id
 
-translate_pattern (S.ETuple plist) label = do
-  ref <- create_ref
-  (plist', lbl) <- List.foldr (\p rec -> do
-        (ps, lbl) <- rec
-        (p', lbl') <- translate_pattern p label { E.variables = lbl }
-        return ((p':ps), lbl')) (return ([], E.variables label)) plist
-  update_ref ref (\ri -> Just ri { expression = Right $ PTuple ref plist' })
-  return (PTuple ref plist', lbl)
+translatePattern (S.ETuple tuple) = do
+  info <- getInfo
+  tuple' <- List.foldl (\rec p -> do
+      tuple <- rec
+      p' <- translatePattern p
+      return $ p':tuple) (return []) tuple
+  return $ PTuple info tuple'
 
-translate_pattern (S.EDatacon datacon p) label = do
-  ref <- create_ref
-  case Map.lookup datacon $ E.datacons label of
+translatePattern (S.EDatacon cons p) = do
+  info <- getInfo
+  constructors <- gets (Environment.constructors . environment)
+  case Map.lookup cons constructors of
     Just id -> do
-        case p of
-          Just p -> do
-              (p', lbl) <- translate_pattern p label
-              update_ref ref (\ri -> Just ri { expression = Right $ PDatacon ref id (Just p') })
-              return (PDatacon ref id (Just p'), lbl)
+      case p of
+        Just p -> do
+          p' <- translatePattern p
+          return $ PDatacon info id $ Just p'
+        Nothing -> return $ PDatacon info id Nothing
+    Nothing -> throwUnboundDatacon cons
 
-          Nothing -> do
-              update_ref ref (\ri -> Just ri { expression = Right $ PDatacon ref id Nothing })
-              return (PDatacon ref id Nothing, E.variables label)
+translatePattern (S.ELocated p ext) = do
+  modify $ \state -> state { location = ext }
+  translatePattern p
 
-    Nothing ->
-        throw_UnboundDatacon datacon
+translatePattern (S.ECoerce p t) = do
+  p' <- translatePattern p
+  types <- gets types
+  return $ PCoerce p' t types
 
-translate_pattern (S.ELocated p ex) label = do
-  set_location ex
-  translate_pattern p label
+translatePattern (S.EApp (S.ELocated (S.EDatacon e Nothing) ex) f) =
+  translatePattern (S.ELocated (S.EDatacon e $ Just f) ex)
 
-translate_pattern (S.EConstraint p t) label = do
-  (p', lbl) <- translate_pattern p label
-  return (PConstraint p' (t, E.types label), lbl)
-
-translate_pattern (S.EApp (S.ELocated (S.EDatacon e Nothing) ex) f) label =
-  translate_pattern (S.ELocated (S.EDatacon e $ Just f) ex) label
-
-translate_pattern p _ = do
-  ref <- get_location
-  throwQ (ParsingError (pprint p)) ref
+translatePattern p = do
+  ext <- gets location
+  throwNE (ParsingError (pprint p)) ext
 
 
--- | Translate an expression, given a labelling map.
-translate_expression :: S.XExpr -> Environment Variable -> QpState Expr
-translate_expression S.EUnit _ = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Left $ EUnit ref })
-  return (EUnit ref)
+-- | Translate an expression in a local context given by the translation monad.
+translateExpression :: S.XExpr -> Translate Expr
+translateExpression S.EUnit = do
+  info <- getInfo
+  return $ EConstant info ConstUnit
 
-translate_expression (S.EBool b) _ = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Left $ EBool ref b })
-  return (EBool ref b)
+translateExpression (S.EBool b) = do
+  info <- getInfo
+  return $ EConstant info $ ConstBool b
 
-translate_expression (S.EInt n) _ = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Left $ EInt ref n })
-  return (EInt ref n)
+translateExpression (S.EInt n) = do
+  info <- getInfo
+  return $ EConstant info $ ConstInt n
 
-translate_expression (S.EVar x) label = do
-  ref <- create_ref
-  case Map.lookup x $ E.variables label of
-    Just (E.Local v) -> do
-        update_ref ref (\ri -> Just ri { expression = Left $ EVar ref v })
-        return (EVar ref v)
+translateExpression S.EUnbox = do
+  info <- getInfo
+  return $ EUnbox info
 
-    Just (E.Global v) -> do
-        update_ref ref (\ri -> Just ri { expression = Left $ EGlobal ref v })
-        return (EGlobal ref v)
+translateExpression S.ERev = do
+  info <- getInfo
+  return $ ERev info
 
-    Nothing -> do
-        throw_UnboundVariable x
+translateExpression (S.ELocated e ext) = do
+  modify $ \state -> state { location = ext }
+  translateExpression e
 
-translate_expression (S.EQualified m x) _ = do
-  ref <- create_ref
-  id <- lookup_qualified_var (m, x)
-  update_ref ref (\ri -> Just ri { expression = Left $ EGlobal ref id })
-  return $ EGlobal ref id
+translateExpression (S.ECoerce e t) = do
+  e' <- translateExpression e
+  types <- gets types
+  return $ ECoerce e' (t, types)
 
-translate_expression (S.EFun p e) label = do
-  ref <- create_ref
-  (p', lbl) <- translate_pattern p label
-  e' <- translate_expression e $ label { E.variables = lbl }
-  update_ref ref (\ri -> Just ri { expression = Left $ EFun ref p' e' })
-  return (EFun ref p' e')
-
-translate_expression (S.ELet r p e f) label = do
-  -- At his point, p may be an applicative pattern,
-  -- The arguments should be passed to the expression e.
-  (p', lbl) <- translate_pattern p label
-
-  e' <- case r of
-        Recursive -> do
-            translate_expression e $ label { E.variables = lbl }
-        Nonrecursive -> do
-            translate_expression e $ label
-  f' <- translate_expression f $ label { E.variables = lbl }
-  return (ELet r p' e' f')
-
-translate_expression (S.EDatacon datacon e) label = do
-  ref <- create_ref
-  case Map.lookup datacon $ E.datacons label of
-    Just id -> do
-        case e of
-          Just e -> do
-              e' <- translate_expression e label
-              update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id $ Just e' })
-              return (EDatacon ref id $ Just e')
-
-          Nothing -> do
-              update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id Nothing })
-              return (EDatacon ref id Nothing)
-
-    Nothing -> do
-        throw_UnboundDatacon datacon
-
-translate_expression (S.EMatch e blist) label = do
-  e' <- translate_expression e label
-  blist' <- List.foldr (\(p, f) rec -> do
-                          r <- rec
-                          (p', lbl) <- translate_pattern p label
-                          f' <- translate_expression f $ label { E.variables = lbl }
-                          return ((p', f'):r)) (return []) blist
-  return (EMatch e' blist')
-
--- Convert the application of a data constructor to a data constrcutor with an argument.
-translate_expression (S.EApp (S.ELocated (S.EDatacon dcon Nothing) _) e) label = do
-  ref <- create_ref
-  e' <- translate_expression e label
-  case Map.lookup dcon $ E.datacons label of
-    Just id -> do
-        update_ref ref (\ri -> Just ri { expression = Left $ EDatacon ref id $ Just e' })
-        return (EDatacon ref id $ Just e')
-    Nothing -> do
-        throw_UnboundDatacon dcon
-
-translate_expression (S.EApp e f) label = do
-  e' <- translate_expression e label
-  f' <- translate_expression f label
-  return (EApp e' f')
-
-translate_expression (S.ETuple elist) label = do
-  ref <- create_ref
-  elist' <- List.foldr (\e rec -> do
-                          r <- rec
-                          e' <- translate_expression e label
-                          return (e':r)) (return []) elist
-  update_ref ref (\ri -> Just ri { expression = Left $ ETuple ref elist' })
-  return (ETuple ref elist')
-
-translate_expression (S.EIf e f g) label = do
-  e' <- translate_expression e label
-  f' <- translate_expression f label
-  g' <- translate_expression g label
-  return (EIf e' f' g')
-
-translate_expression (S.EBox t) label = do
-  ex <- get_location
-  ref <- create_ref
-  t' <- translate_bound_type t label
-  -- Check that the type of the box is a quantum data type
-  if not (is_qdata t') then do
-    prt <- printType t'
-    throwQ (BadBoxType prt) ex
-
-  else do
-    -- The translation of the type of the box in the core syntax produces
-    -- some constraints that needs to be conveyed to the type inference
-    -- Using a scheme is a way of doing it
-    update_ref ref (\ri -> Just ri { expression = Left $ EBox ref t' })
-    return (EBox ref t')
-
-translate_expression S.EUnbox _ = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Left $ EUnbox ref })
-  return (EUnbox ref)
-
-translate_expression S.ERev _ = do
-  ref <- create_ref
-  update_ref ref (\ri -> Just ri { expression = Left $ ERev ref })
-  return (ERev ref)
-
-translate_expression (S.ELocated e ex) label = do
-  set_location ex
-  translate_expression e label
-
-translate_expression (S.EConstraint e t) label = do
-  e' <- translate_expression e label
-  return $ EConstraint e' (t, E.types label)
-
-translate_expression (S.EError msg) _ =
+translateExpression (S.EError msg) =
   return $ EError msg
 
-translate_expression e _ = do
-  ref <- get_location
-  throwQ (ParsingError (pprint e)) ref
+translateExpression (S.EVar x) = do
+  info <- getInfo
+  variables <- gets (Environment.variables . environment)
+  case Map.lookup x variables of
+    Just (Local v) -> return $ EVar info v
+    Just (Global v) -> return $ EGlobal info v
+    Nothing -> throwUnboundVariable x
 
+translateExpression (S.EQualified m x) = do
+  info <- getInfo
+  id <- lookupQualified m x (Environment.variables . Core.environment)
+  case id of
+    Local id -> return $ EGlobal info id
+    Global id -> return $ EGlobal info id
 
+translateExpression (S.EFun arg body) = do
+  info <- getInfo
+  localVar $ do
+    arg' <- translatePattern arg
+    body' <- translateExpression body
+    return $ EFun info arg' body'
+
+translateExpression (S.ELet r binder value body) = do
+  -- At his point, p may be an applicative pattern,
+  -- The arguments should be passed to the expression e.
+  localVar $ do
+    (binder', value') <- case r of
+        Recursive -> do
+          binder' <- translatePattern binder
+          value' <- translateExpression value
+          return (binder', value')
+        Nonrecursive -> do
+          value' <- translateExpression value
+          binder' <- translatePattern binder
+          return (binder', value')
+    body' <- translateExpression body
+    return $ ELet r binder' value' body'
+
+translateExpression (S.EDatacon cons e) = do
+  info <- getInfo
+  constructors <- gets (Environment.constructors . environment)
+  case Map.lookup cons constructors of
+    Just id ->
+      case e of
+        Just e -> do
+          e' <- translateExpression e
+          return $ EDatacon info id $ Just e'
+        Nothing ->  return $ EDatacon info id Nothing
+    Nothing -> throwUnboundDatacon cons
+
+translateExpression (S.EMatch e cases) = do
+  info <- getInfo
+  e' <- translateExpression e
+  cases' <- List.foldl (\rec (p, f) -> do
+      cases <- rec
+      localVar $ do
+        p' <- translatePattern p
+        f' <- translateExpression f
+        return $ (Binding p' f'):cases) (return []) cases
+  return $ EMatch info e' $ List.reverse cases'
+
+translateExpression (S.EApp e f) = do
+  info <- getInfo
+  e' <- translateExpression e
+  f' <- translateExpression f
+  -- Intercept constructor applications.
+  case e' of
+    EDatacon i cons Nothing -> return $ EDatacon info cons $ Just f'
+    _ -> return $ EApp e' f'
+
+translateExpression (S.ETuple tuple) = do
+  info <- getInfo
+  tuple' <- List.foldl (\rec e -> do
+      tuple <- rec
+      e' <- translateExpression e
+      return $ e':tuple) (return []) tuple
+  return $ ETuple info $ List.reverse tuple'
+
+translateExpression (S.EIf e f g) = do
+  e' <- translateExpression e
+  f' <- translateExpression f
+  g' <- translateExpression g
+  return $ EIf e' f' g'
+
+translateExpression (S.EBox t) = do
+  info <- getInfo
+  t' <- translateBoundType t
+  return (EBox info t')
+
+translateExpression e = do
+  ext <- gets location
+  throwNE (ParsingError (pprint e)) ext

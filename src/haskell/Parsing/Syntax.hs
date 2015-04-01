@@ -49,8 +49,8 @@ type TypeAlias = Typedef Type
 data Declaration =
     DLet RecFlag XExpr XExpr                 -- ^ A variable declaration: @let p = e;;@.
   | DExpr XExpr                              -- ^ A simple expression: @e;;@
-  | DTypes [TypeAlgebraic]                          -- ^ A list of type definitions. The types are mutually recursive.
-  | DSyn TypeAlias                              -- ^ A type synonym definition.
+  | DTypes [TypeAlgebraic]                   -- ^ A list of type definitions. The types are mutually recursive.
+  | DSyn TypeAlias                           -- ^ A type synonym definition.
 
 
 -- ----------------------------------------------------------------------
@@ -107,7 +107,7 @@ data Type =
   | TInt                      -- ^ The basic type /int/.
 
 -- Generic types
-  | TypeScheme String Type       -- ^ A type generalized over a single variable. This constructor is not readily accessible to the user.
+  | TScheme String Type       -- ^ A type generalized over a single variable. This constructor is not readily accessible to the user.
 
 -- Unrelated
   | TLocated Type Extent      -- ^ A located type.
@@ -169,25 +169,22 @@ instance Located Type where
 
 
 
--- ----------------------------------------------------------------------
+-- ------------------------------------------------------------------------------------------------
 -- ** X-expressions
 
--- $ An /X-expression/ is an expression that may possibly contain
--- wildcards. X-expressions are used by the parser before they are
--- converted either to expressions or to patterns.
+-- $ An /X-expression/ is an expression that may possibly contain wildcards. X-expressions are used
+-- by the parser before they are converted either to expressions or to patterns.
 
 
--- | The type of X-expressions. The type argument /a/ determines
--- whether wildcards are permitted or not. If /a/ is non-empty, then
--- wildcards are allowed. If /a/ is empty, wildcards are not allowed,
--- and therefore, 'XExpr' 'Empty' is just the type of ordinary
--- expressions.
+-- | The type of X-expressions. The type argument /a/ determines whether wildcards are permitted or
+-- not. If /a/ is non-empty, then wildcards are allowed. If /a/ is empty, wildcards are not allowed,
+-- and therefore, 'XExpr' 'Empty' is just the type of ordinary expressions.
 
 data XExpr =
-    EWildcard                      -- ^ A \"wildcard\": \"@_@\". This is only permitted when /a/ is non-empty, so actual
-                                   -- expressions, which are of type 'XExpr' 'Empty', contain no wildcards. However,
-                                   -- wildcards are temporarily permitted during parsing, for expressions that are to be
-                                   -- converted to patterns.
+  -- | A \"wildcard\": \"@_@\". This is only permitted when /a/ is non-empty, so actual expressions,
+  -- which are of type 'XExpr' 'Empty', contain no wildcards. However, wildcards are temporarily
+  -- permitted during parsing, for expressions that are to be converted to patterns.
+    EWildcard
 
 -- STLC
   | EVar String                    -- ^ Variable: @x@.
@@ -213,7 +210,7 @@ data XExpr =
   | ERev                           -- ^ The constant @rev@.
 
 -- Unrelated
-  | EConstraint XExpr Type         -- ^ Expression with type constraint: @(e <: A)@.
+  | ECoerce XExpr Type             -- ^ Expression with type constraint: @(e <: A)@.
   | EError String                  -- ^ Throw an error.
   | ELocated XExpr Extent          -- ^ A located expression.
   deriving Show
@@ -243,7 +240,7 @@ instance Located XExpr where
 
   -- | Recursively removes all location annotations.
   clear_location (ELocated e _) = clear_location e
-  clear_location (EConstraint e t) = EConstraint (clear_location e) t
+  clear_location (ECoerce e t) = ECoerce (clear_location e) t
   clear_location (EFun p e) = EFun (clear_location p) (clear_location e)
   clear_location (ELet r p e f) = ELet r (clear_location p) (clear_location e) (clear_location f)
   clear_location (EApp e f) = EApp (clear_location e) (clear_location f)

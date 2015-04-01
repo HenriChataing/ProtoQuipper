@@ -46,8 +46,8 @@ data Module = Module {
   moduleName :: String,       -- ^ The module name.
   filePath :: String,         -- ^ Path to the module implementation.
   environment :: Environment, -- ^ Names of the toplevel variables, types and data constructors.
-  typemap :: IntMap Type,     -- ^ Inferred types for each module exported expressions.
-  valuation :: IntMap Value   -- ^ (optional) valuation of the toplevel members.
+  typemap :: IntMap TypeScheme,   -- ^ Inferred types for each module exported expressions.
+  valuation :: IntMap Value       -- ^ (optional) valuation of the toplevel members.
 }
 
 -- | The core monad keeps track of module information, and contains all module dependencies.
@@ -112,8 +112,22 @@ require name = do
   return $ List.find (\m -> moduleName m == name) modules
 
 
+-- | Insert the definition of a module.
+define :: Module -> Core ()
+define mod =
+  modify $ \core -> core { modules = mod:(modules core) }
+
 ---------------------------------------------------------------------------------------------------
 -- * Variables.
+
+-- | Register a new variable.
+registerVariable :: Maybe String -> String -> Core Variable
+registerVariable moduleName name = do
+  namespace <- gets namespace
+  let (x, namespace') = Namespace.registerVariable moduleName name namespace
+  modify $ \core -> core { namespace = namespace' }
+  return x
+
 
 -- | Retrieve the name of the given variable. If no match is found in the namespace, produce a standard
 -- name of the form /x_n/.
@@ -160,6 +174,30 @@ getTypeDefinition typ = do
   return $ definition info
 
 
+-- | Register a new type definition.
+registerTypeDefinition :: TypeInfo -> Core Variable
+registerTypeDefinition definition = do
+  namespace <- gets namespace
+  let (x, namespace') = Namespace.registerTypeDefinition definition namespace
+  modify $ \core -> core { namespace = namespace' }
+  return x
+
+
+-- | Change the definition of a type.
+changeTypeDefinition :: Variable -> (TypeInfo -> TypeInfo) -> Core ()
+changeTypeDefinition typ change =
+  modify $ \core -> core { namespace = Namespace.changeTypeDefinition typ change $ namespace core }
+
+
+-- | Register a new data constructor.
+registerConstructor :: ConstructorInfo -> Core Variable
+registerConstructor definition = do
+  namespace <- gets namespace
+  let (x, namespace') = Namespace.registerConstructor definition namespace
+  modify $ \core -> core { namespace = namespace' }
+  return x
+
+
 -- | Return the tag accessor of an algebraic type.
 getTag :: Variable -> Variable -> Core C.Expr
 getTag typ x = do
@@ -171,6 +209,39 @@ getTag typ x = do
 setTag :: Variable -> (Variable -> C.Expr) -> Core ()
 setTag typ accessor =
   modify $ \core -> core { namespace = Namespace.setTag typ accessor $ namespace core }
+
+
+-- | Create a fresh flag.
+freshFlag :: Core Flag
+freshFlag = do
+  namespace <- gets namespace
+  let (f, namespace') = Namespace.freshFlag namespace
+  modify $ \core -> core { namespace = namespace' }
+  return f
+
+-- | Create a fresh type variable.
+freshType :: Core Variable
+freshType = do
+  namespace <- gets namespace
+  let (x, namespace') = Namespace.freshType namespace
+  modify $ \core -> core { namespace = namespace' }
+  return x
+
+-- | Create a new type !n a.
+newType :: Core Type
+newType = do
+  f <- freshFlag
+  a <- freshType
+  return $ TypeAnnot f $ TypeVar a
+
+-- | Create a list of fresh types.
+newTypes :: Int -> Core [Type]
+newTypes n =
+  if n <= 0 then return []
+  else do
+    t <- newType
+    ts <- newTypes (n-1)
+    return $ t:ts
 
 
 -- | Settle the implementation (machine representation) of all the constructors of an algebraic type.

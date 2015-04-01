@@ -18,3 +18,11 @@ data ConstructorInfo = ConstructorInfo {
   build :: Either C.Expr (C.Expr -> C.Expr),   -- ^ Builder (compiler specific).
   extract :: Variable -> C.Expr                -- ^ Value extraction (compiler specific).
 }
+
+
+-- | Initial constructor definition.
+init :: String -> String -> Variable -> TypeScheme -> Int -> ConstructorInfo
+init name sourceModule sourceType typ tag =
+  ConstructorInfo name sourceModule sourceType typ 0 tag
+      (Left $ C.EError "not implemented")
+      (\x -> C.EError "not implemented")

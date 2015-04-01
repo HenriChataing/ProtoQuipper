@@ -119,13 +119,13 @@ qubit :: Type
 qubit = constant 0 "qubit"
 
 unit :: Type
-unit = constant 0 "unit"
+unit = constant 1 "unit"
 
 int :: Type
-int = constant 0 "int"
+int = constant 1 "int"
 
 bool :: Type
-bool = constant 0 "bool"
+bool = constant 1 "bool"
 
 circ :: Type -> Type -> Type
 circ t u = apply 1 "circ" [t, u]
@@ -137,6 +137,10 @@ arrow t u = apply 1 "->" [t, u]
 -- | Build the type !1 T1 * .. * Tn.
 tensor :: [Type] -> Type
 tensor args = apply 1 "*" args
+
+-- | Build the type !0 T1 * .. * Tn.
+tensor0 :: [Type] -> Type
+tensor0 args = apply 0 "*" args
 
 
 -- | Convert a regular type to a quantum data type.

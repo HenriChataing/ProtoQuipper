@@ -308,20 +308,20 @@ flush_logs = do
 
 
 -- | Set the location marker.
-set_location :: Extent -> QpState ()
-set_location ex = do
-  get_context >>= \c -> set_context c { location = ex }
+--set_location :: Extent -> QpState ()
+--set_location ex = do
+--  get_context >>= \c -> set_context c { location = ex }
 
 
--- | Return the current location marker.
-get_location :: QpState Extent
-get_location =
-  get_context >>= return . location
+---- | Return the current location marker.
+--get_location :: QpState Extent
+--get_location =
+--  get_context >>= return . location
 
 
-current_module :: QpState (Maybe String)
-current_module =
-  get_context >>= return . current
+--current_module :: QpState (Maybe String)
+--current_module =
+--  get_context >>= return . current
 
 
 ------------------------------------------------
@@ -522,13 +522,13 @@ lookup_qualified_type (mod, n) = do
       Just modi -> do
           case Map.lookup n $ L.types $ M.environment modi of
             Just typ -> return typ
-            _ -> throw_UndefinedType (mod ++ "." ++ n)
+            _ -> throwUndefinedType (mod ++ "." ++ n)
 
       Nothing ->
           fail $ "QpState:lookup_qualified_type: missing module interface: " ++ mod
 
   else do
-    throw_UndefinedType (mod ++ "." ++ n)
+    throwUndefinedType (mod ++ "." ++ n)
 
 
 -- | Add the definition of a new global variable.
@@ -800,45 +800,45 @@ duplicate_flag ref = do
 
 
 -- | Create a new reference, with the current location.
-create_ref :: QpState Ref
-create_ref = do
-  ctx <- get_context
-  ex <- get_location
-  let id = ref_id ctx
-  set_context ctx {
-    ref_id = id + 1,
-    references = IMap.insert id RInfo { extent = ex, expression = Left (EUnit 0), rtype = unit } $ references ctx }
-  return id
+--create_ref :: QpState Ref
+--create_ref = do
+--  ctx <- get_context
+--  ex <- get_location
+--  let id = ref_id ctx
+--  set_context ctx {
+--    ref_id = id + 1,
+--    references = IMap.insert id RInfo { extent = ex, expression = Left (EUnit 0), rtype = unit } $ references ctx }
+--  return id
 
 
--- | Update the value referenced by the argument.
-update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
-update_ref ref f = do
-  ctx <- get_context
-  set_context ctx { references = IMap.update f ref $ references ctx }
+---- | Update the value referenced by the argument.
+--update_ref :: Ref -> (RefInfo -> Maybe RefInfo) -> QpState ()
+--update_ref ref f = do
+--  ctx <- get_context
+--  set_context ctx { references = IMap.update f ref $ references ctx }
 
 
--- | Clear the references map.
-clear_references :: QpState ()
-clear_references = do
-  ctx <- get_context
-  set_context ctx { references = IMap.empty }
+---- | Clear the references map.
+--clear_references :: QpState ()
+--clear_references = do
+--  ctx <- get_context
+--  set_context ctx { references = IMap.empty }
 
 
--- | Return the information referenced by the argument, if any is found (else Nothing).
-ref_info :: Ref -> QpState (Maybe RefInfo)
-ref_info ref = do
-  ctx <- get_context
-  return $ IMap.lookup ref $ references ctx
+---- | Return the information referenced by the argument, if any is found (else Nothing).
+--ref_info :: Ref -> QpState (Maybe RefInfo)
+--ref_info ref = do
+--  ctx <- get_context
+--  return $ IMap.lookup ref $ references ctx
 
 
--- | Return the information referenced by the argument, and fails if nothing is found.
-ref_info_err :: Ref -> QpState RefInfo
-ref_info_err ref = do
-  ctx <- get_context
-  case IMap.lookup ref $ references ctx of
-    Nothing -> fail "QpState:ref_info_err: null reference"
-    Just ri -> return ri
+---- | Return the information referenced by the argument, and fails if nothing is found.
+--ref_info_err :: Ref -> QpState RefInfo
+--ref_info_err ref = do
+--  ctx <- get_context
+--  case IMap.lookup ref $ references ctx of
+--    Nothing -> fail "QpState:ref_info_err: null reference"
+--    Just ri -> return ri
 
 
 
@@ -969,39 +969,39 @@ ref_expression ref = do
 
 
 -- | Specify the call convention of a global variable.
-set_call_convention :: Variable -> [Type] -> QpState ()
-set_call_convention v args = do
-  ctx <- get_context
-  set_context ctx { call_conventions = IMap.insert v args $ call_conventions ctx }
+--set_call_convention :: Variable -> [Type] -> QpState ()
+--set_call_convention v args = do
+--  ctx <- get_context
+--  set_context ctx { call_conventions = IMap.insert v args $ call_conventions ctx }
 
 
--- | Return the call convention of the given variable (function), if one is specified, and Nothing else.
-call_convention :: Variable -> QpState (Maybe [Type])
-call_convention v = do
-  ctx <- get_context
-  return $ IMap.lookup v $ call_conventions ctx
+---- | Return the call convention of the given variable (function), if one is specified, and Nothing else.
+--call_convention :: Variable -> QpState (Maybe [Type])
+--call_convention v = do
+--  ctx <- get_context
+--  return $ IMap.lookup v $ call_conventions ctx
 
 
 -- | Return the set of implemented circuit operators.
-circuit_ops :: QpState CircOps
-circuit_ops =
-  get_context >>= return . circOps
+--circuit_ops :: QpState CircOps
+--circuit_ops =
+--  get_context >>= return . circOps
 
 
--- | Update the set of circuit operators.
-update_circuit_ops :: (CircOps -> CircOps) -> QpState ()
-update_circuit_ops upd = do
-  ctx <- get_context
-  set_context ctx { circOps = upd $ circOps ctx }
+---- | Update the set of circuit operators.
+--update_circuit_ops :: (CircOps -> CircOps) -> QpState ()
+--update_circuit_ops upd = do
+--  ctx <- get_context
+--  set_context ctx { circOps = upd $ circOps ctx }
 
 
--- | Empty the set of circuit operators, and return the previous code.
-clear_circuit_ops :: QpState [C.Declaration]
-clear_circuit_ops = do
-  ctx <- get_context
-  let c = code $ circOps ctx
-  set_context ctx { circOps = empty_circOps }
-  return c
+---- | Empty the set of circuit operators, and return the previous code.
+--clear_circuit_ops :: QpState [C.Declaration]
+--clear_circuit_ops = do
+--  ctx <- get_context
+--  let c = code $ circOps ctx
+--  set_context ctx { circOps = empty_circOps }
+--  return c
 
 
 
@@ -1046,41 +1046,41 @@ profile = do
 
 
 
--- | Generic error for unbound values (variables, data constructors, types, builtins).
-throw_UnboundValue :: QError a => String -> (String -> a) -> QpState b
-throw_UnboundValue v err = do
-  ex <- get_location
-  throwQ (err v) ex
+---- | Generic error for unbound values (variables, data constructors, types, builtins).
+--throw_UnboundValue :: QError a => String -> (String -> a) -> QpState b
+--throw_UnboundValue v err = do
+--  ex <- get_location
+--  throwQ (err v) ex
 
 
--- | Throw an unbound module error.
-throw_UnboundModule :: String -> QpState a
-throw_UnboundModule mod =
-  throw_UnboundValue mod UnboundModule
+---- | Throw an unbound module error.
+--throw_UnboundModule :: String -> QpState a
+--throw_UnboundModule mod =
+--  throw_UnboundValue mod UnboundModule
 
 
--- | Throw an unbound variable error.
-throw_UnboundVariable :: String -> QpState a
-throw_UnboundVariable n =
-  throw_UnboundValue n UnboundVariable
+---- | Throw an unbound variable error.
+--throw_UnboundVariable :: String -> QpState a
+--throw_UnboundVariable n =
+--  throw_UnboundValue n UnboundVariable
 
 
--- | Throw an unbound data constructor error.
-throw_UnboundDatacon :: String -> QpState a
-throw_UnboundDatacon n =
-  throw_UnboundValue n UnboundDatacon
+---- | Throw an unbound data constructor error.
+--throw_UnboundDatacon :: String -> QpState a
+--throw_UnboundDatacon n =
+--  throw_UnboundValue n UnboundDatacon
 
 
--- | Throw an undefined type error.
-throw_UndefinedType :: String -> QpState a
-throw_UndefinedType n =
-  throw_UnboundValue n UndefinedType
+---- | Throw an undefined type error.
+--throwUndefinedType :: String -> QpState a
+--throwUndefinedType n =
+--  throw_UnboundValue n UndefinedType
 
 
--- | Throw an undefined builtin error.
-throw_UndefinedBuiltin :: String -> QpState a
-throw_UndefinedBuiltin n =
-  throw_UnboundValue n UndefinedBuiltin
+---- | Throw an undefined builtin error.
+--throwUndefinedBuiltin :: String -> QpState a
+--throwUndefinedBuiltin n =
+--  throw_UnboundValue n UndefinedBuiltin
 
 
 ---- | Throw a non-duplicability error, based on the faulty reference flag.

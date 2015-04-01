@@ -69,6 +69,11 @@ imported (EMatch e clist def) = List.union (imported e) $ List.foldl (\imp (n,c)
 imported _ = []
 
 
+-- | Dummy tag accessor.
+tagAccessor :: Variable -> Expr
+tagAccessor = \v -> EError "undefined tag accessor"
+
+
 ---------------------------------------------------------------------------------------------------
 -- * Helper functions.
 

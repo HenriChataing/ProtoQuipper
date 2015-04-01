@@ -9,6 +9,7 @@ import Classes
 import Utils
 
 import Monad.Error
+import Monad.Core (variableName)
 import Monad.Interpreter
 
 import Parsing.Location
@@ -51,7 +52,7 @@ specimen (TypeAnnot _ t) = linspec t
 -- different contexts: from a beta reduction (the argument of the function is a pattern), from a let
 -- binding, of from a pattern matching.
 bindPattern :: Pattern -> Value -> Environment -> Environment
-bindPattern (PCoerce p _) v env = bindPattern p v env
+bindPattern (PCoerce p _ _) v env = bindPattern p v env
 bindPattern (PWildcard _) _ env = env
 bindPattern (PVar _ x) v env = IntMap.insert x v env
 bindPattern p @ (PConstant _ c) v @ (VConstant c') env =
@@ -75,7 +76,7 @@ bindPattern p v _ = throwNE $ MatchingError (sprint p) (sprint v)
 
 -- | Try matching a pattern and a value. Return 'True' iff the value matches.
 matchValue :: Pattern -> Value -> Bool
-matchValue (PCoerce p _) v = matchValue p v
+matchValue (PCoerce p _ _) v = matchValue p v
 matchValue (PWildcard _) _ = True
 matchValue (PVar _ _) _  = True
 matchValue (PConstant _ c) (VConstant c') = c == c'
@@ -102,7 +103,7 @@ bindQuantum v v' = bind [] v v'
     bind map v @ (VTuple tuple) v' @ (VTuple tuple') = do
       if (List.length tuple /= List.length tuple') then throwNE $ MatchingError (sprint v) (sprint v')
       else List.foldl (\map (v, v') -> bind map v v') map $ List.zip tuple tuple'
-    bind map (VConstant _ ConstUnit) (VConstant _ ConstUnit) = map
+    bind map (VConstant ConstUnit) (VConstant ConstUnit) = map
     bind _ v v' = do
       throwNE $ MatchingError (sprint v) (sprint v')
 
@@ -167,7 +168,7 @@ reduceApplication env f arg =
     -- using the returned qubit mapping.
     (VUnboxed (VCirc u c u'), t) -> do
       map' <- unencap c $ bindQuantum u t
-      return $ readdress u' map'
+      return $ readdress map' u'
     -- Circuit boxing.
     (VBox typ, _) -> do
       -- Creation of a new specimen of type type, with qubits ranging from 0, 1 .. to n, n the
@@ -176,7 +177,7 @@ reduceApplication env f arg =
       resetQubit
       input <- specimen typ
       -- Open a new circuit, initialized with the quantum addresses of the specimen.
-      wires <- extract input
+      let wires = extract input
       openBox wires
       -- Build the circuit by applying the function argument to the specimen.
       output <- reduceApplication env arg input
@@ -187,7 +188,7 @@ reduceApplication env f arg =
       return $ VCirc input circ output
 
     -- The function was called with something not a function: unreducable application.
-    _ -> throwWE (NotFunctionError (sprint f)) Nothing
+    _ -> throwWE (NotFunctionError (sprint f)) unknownExtent
 
 
 
@@ -200,7 +201,7 @@ reduceApplication env f arg =
 interpret :: Environment -> Expr -> Interpreter Value
 -- Simple translations.
 interpret _ (EError msg) = throwNE $ UserError msg
-interpret _ (EConstant c) = return $ VConstant c
+interpret _ (EConstant _ c) = return $ VConstant c
 interpret _ (EUnbox _) = return VUnbox
 interpret _ (ERev _) = return VRev
 interpret _ (EBox _ typ) = return $ VBox typ
@@ -211,7 +212,8 @@ interpret env (EVar info x) = do
     Just v -> return v
     Nothing -> do
       -- This kind of errors should have been eliminated during the translation to the internal syntax.
-      throwWE (UnboundVariable $ EVar info x) $ Just $ extent info
+      name <- runCore $ variableName x
+      throwWE (UnboundVariable name) $ extent info
 
 -- Global variables, their values have to be retrieved from the module dependencies.
 interpret env (EGlobal _ x) = getValue x
@@ -253,7 +255,7 @@ interpret env (EMatch info test cases) = do
   match test' cases
   where
     match :: Value -> [Binding] -> Interpreter Value
-    match test [] = throwWE (NoMatchError (sprint test)) $ Just $ extent info
+    match test [] = throwWE (NoMatchError (sprint test)) $ extent info
     match test ((Binding binder e):cases) =
       if matchValue binder test then do
         let env' = bindPattern binder test env
@@ -273,9 +275,9 @@ interpret env (ETuple _ tuple) = do
 interpret env (EIf test btrue bfalse) = do
   test' <- interpret env test
   case test' of
-    VConstant _ (ConstBool True) -> interpret env btrue
-    VConstant _ (ConstBool False) -> interpret env bfalse
-    _ -> throwWE (NotBoolError (sprint test')) Nothing
+    VConstant (ConstBool True) -> interpret env btrue
+    VConstant (ConstBool False) -> interpret env bfalse
+    _ -> throwWE (NotBoolError (sprint test')) unknownExtent
 
 interpret env (ECoerce e _) = interpret env e
 

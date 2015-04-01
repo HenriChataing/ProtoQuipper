@@ -200,7 +200,7 @@ run_interactive opts ctx buffer = do
                               S.DExpr e <- return $ List.head (S.body p)
 
                               -- Translation of the expression into internal syntax.
-                              e' <- translate_expression e $ labelling ctx
+                              e' <- translateExpression e $ labelling ctx
 
                               -- Free variables of the new expression
                               fve <- return $ free_var e'
@@ -268,7 +268,7 @@ run_interactive opts ctx buffer = do
                               S.DExpr e <- return $ List.head (S.body p)
 
                               -- Translation of the expression into internal syntax.
-                              e' <- translate_expression e $ labelling ctx
+                              e' <- translateExpression e $ labelling ctx
 
                               -- Free variables of the new expression
                               fve <- return $ free_var e'

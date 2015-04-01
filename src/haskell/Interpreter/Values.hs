@@ -42,6 +42,19 @@ data Value =
   | VQubit Int                            -- ^ Quantum addresses.
 
 
+-- | Create an integer value.
+int :: Int -> Value
+int i = VConstant $ ConstInt i
+
+-- | Create a boolean value.
+bool :: Bool -> Value
+bool i = VConstant $ ConstBool i
+
+-- | Return the unit value.
+unit :: Value
+unit = VConstant $ ConstUnit
+
+
 instance PPrint Value where
   genprint _ _ (VConstant c) = show c
   genprint _ _ VRev = "rev"
@@ -96,5 +109,3 @@ instance Eq Value where
       False
   (==) (VDatacon dcon v) (VDatacon dcon' v') = (dcon == dcon') && (v == v')
   (==) _ _ = throwNE $ ProgramError "Values:==: illegal argument"
-
-
