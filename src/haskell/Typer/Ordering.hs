@@ -10,7 +10,7 @@
 -- and the relations between variables are changed into relations between the associated clusters.
 -- The algorithm for finding the youngest cluster has a complexity of /O/(/n/), where /n/ is the number
 -- of variables.
-module Typing.Ordering where
+module Typer.Ordering where
 
 import Parsing.Location (unknownExtent)
 import Classes

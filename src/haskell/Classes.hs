@@ -57,7 +57,7 @@ class Coerced a where
 -- | A type class for objects parameterized over some integer variables.
 -- A limitation of this class is that it can only handle one kind of variable, whereas types, for
 -- example, have two: type variables and flag variables. This is why the set of types will be given
--- its own class 'Typing.CoreSyntax.KType'.
+-- its own class 'Typer.CoreSyntax.KType'.
 class TermObject a where
   -- | List all the free variables.
   freevar :: a -> IntSet

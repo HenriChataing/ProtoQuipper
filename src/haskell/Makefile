@@ -22,8 +22,8 @@ SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
   Options.hs \
   Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
   ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/Environment.hs	\
-  Typing/Ordering.hs Typing/Subtyping.hs Typing/TypeInference.hs	\
-  Typing/TypingContext.hs Utils.hs \
+  Typer/Ordering.hs Typer/Subtyping.hs Typer/TypeInference.hs	\
+  Typer/TypingContext.hs Utils.hs \
   Compiler/PatternElimination.hs Compiler/SimplSyntax.hs Compiler/Circuits.hs \
   Compiler/Continuations.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)

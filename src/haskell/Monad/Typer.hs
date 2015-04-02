@@ -80,6 +80,12 @@ setFlagInfo :: Flag -> FlagInfo -> Typer ()
 setFlagInfo flag info =
   modify $ \typer -> typer { flags = IntMap.insert flag info $ flags typer }
 
+-- | Return the information associated with a flag.
+getFlagInfo :: Flag -> Typer (Maybe FlagInfo)
+getFlagInfo flag = do
+  flags <- gets flags
+  return $ IntMap.lookup flag flags
+
 
 -- | Set the value of a flag to one. If the previously recorded value is incompatible with the new
 -- one, generate an error (i.e.., old val = Zero).
@@ -130,6 +136,21 @@ unsetFlag flag info = do
     Nothing -> setFlagInfo flag $ FlagInfo Zero
 
 
+-- | Create a new flag reference, initialized with the information of the argument flag.
+duplicateFlag :: Flag -> Typer Flag
+duplicateFlag ref = do
+  case ref of
+    0 -> return 0
+    1 -> return 1
+    _ -> do
+      info <- getFlagInfo ref
+      newref <- runCore freshFlag
+      case info of
+        Just i -> setFlagInfo newref i
+        Nothing -> return ()
+      return newref
+
+
 ---------------------------------------------------------------------------------------------------
 -- * Type map.
 
@@ -140,6 +161,25 @@ typeOf x = do
   case IntMap.lookup x typemap of
     Just scheme -> return scheme
     Nothing -> fail $ "Typer:typeOf: missing type of variable " ++ show x
+
+
+
+-- | Generic type instantiation. Produce a new variable for every one generalized over, and substitute
+-- it for the old ones in the type and the constraints.
+instantiate :: TypeScheme -> Typer (Type, ConstraintSet)
+instantiate (TypeScheme refs vars cset typ) = do
+  -- Replace the flag references by new ones.
+  (typ, cset) <- List.foldl (\rec ref -> do
+      (typ, cset) <- rec
+      nref <- duplicateFlag ref
+      return (subs ref nref typ, subs ref nref cset)
+    ) (return (typ, cset)) refs
+  -- Replace the type variables.
+  List.foldl (\rec var -> do
+      (typ, cset) <- rec
+      nvar <- runCore freshType
+      return (subs var (TypeVar nvar) typ, subs var (TypeVar nvar) cset)
+    ) (return (typ, cset)) vars
 
 
 ---------------------------------------------------------------------------------------------------

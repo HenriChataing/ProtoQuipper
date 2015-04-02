@@ -1,5 +1,5 @@
 -- | This module provides functions that manipulate constraint sets, for the most part to reduce them.
-module Typing.Subtyping where
+module Typer.Subtyping where
 
 import Classes
 import Utils

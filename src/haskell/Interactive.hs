@@ -16,10 +16,10 @@ import Core.Syntax
 import Core.Translate
 import Core.Environment as E
 
-import Typing.TypingContext
-import Typing.Subtyping
-import qualified Typing.TypeInference (filter)
-import Typing.TypeInference
+import Typer.TypingContext
+import Typer.Subtyping
+import qualified Typer.TypeInference (filter)
+import Typer.TypeInference
 
 import Interpreter.Circuits
 
@@ -208,7 +208,7 @@ run_interactive opts ctx buffer = do
 
                               -- Type e. The constraints from the context are added for the unification.
                               gamma <- return $ typing ctx
-                              (gamma_e, _) <- sub_context fve gamma
+                              (gamma_e, _) <- subContext fve gamma
                               cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (exact opts) (cset <> constraints ctx)
                               inferred <- map_type a >>= printType
@@ -279,7 +279,7 @@ run_interactive opts ctx buffer = do
                               limflag <- get_context >>= return . flag_id
 
                               gamma <- return $ typing ctx
-                              (gamma_e, _) <- sub_context fve gamma
+                              (gamma_e, _) <- subContext fve gamma
                               cset <- constraint_typing gamma_e e' [a] >>= break_composite
                               cset' <- unify (exact opts) (cset <> constraints ctx)
                               inferred <- map_type a

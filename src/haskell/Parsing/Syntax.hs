@@ -1,5 +1,5 @@
 -- | This module defines the /surface syntax/ of types, patterns, and expressions, as parsed by the
--- parser. This should not be confused with the /internal syntax/ defined in "Typing.CoreSyntax",
+-- parser. This should not be confused with the /internal syntax/ defined in "Typer.CoreSyntax",
 -- which is used internally by the interpreter and type checker.
 module Parsing.Syntax where
 

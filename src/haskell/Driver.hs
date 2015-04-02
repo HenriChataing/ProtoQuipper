@@ -24,10 +24,10 @@ import Interpreter.Values
 import Interpreter.IRExport
 import Interpreter.Circuits
 
-import Typing.Ordering
-import Typing.Subtyping
-import Typing.TypeInference
-import Typing.TypingContext
+import Typer.Ordering
+import Typer.Subtyping
+import Typer.TypeInference
+import Typer.TypingContext
 
 import Compiler.PatternElimination
 import qualified Compiler.Continuations as C
@@ -221,7 +221,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
 
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
-  (gamma_e, _) <- sub_context fve gamma
+  (gamma_e, _) <- subContext fve gamma
   cset <- constraint_typing gamma_e e' [a] >>= break_composite
   cset' <- unify (exact opts) (cset <> constraints ctx)
   inferred <- map_type a >>= printType
@@ -294,13 +294,13 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
   -- Give the corresponding sub contexts
   gamma <- return $ typing ctx
-  (gamma_e, _) <- sub_context fve gamma
+  (gamma_e, _) <- subContext fve gamma
 
   -- Mark the limit free variables / bound variables used in the typing of t
   limtype <- get_context >>= return . type_id
   limflag <- get_context >>= return . flag_id
   -- Create the type of the pattern
-  (a, gamma_p, csetp) <- Typing.TypingContext.bind_pattern p'
+  (a, gamma_p, csetp) <- Typer.TypingContext.bindPattern p'
   -- Type e with this type
   csete <- case recflag of
         Recursive -> do
@@ -379,11 +379,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     env <- case (recflag, v, uncoerce p') of
           (Recursive, VFun ev arg body, PVar _ x) -> do
               let ev' = IMap.insert x (VFun ev' arg body) ev
-              Interpreter.Interpreterer.bind_pattern p' (VFun ev' arg body) (environment ctx)
+              Interpreter.Interpreterer.bindPattern p' (VFun ev' arg body) (environment ctx)
 
           _ -> do
               -- Bind it to the pattern p in the current context
-              Interpreter.Interpreterer.bind_pattern p' v (environment ctx)
+              Interpreter.Interpreterer.bindPattern p' v (environment ctx)
     -- End, at last
     return $ ctx {
           typing = gamma_p <+> gamma,  -- Typing context updated with the bindings of p
@@ -483,7 +483,7 @@ process_module opts prog = do
                            constraints = emptyset }, [])) $ S.body prog
 
   -- All the variables that haven't been used must be duplicable
-  duplicable_context (typing ctx)
+  duplicableContext (typing ctx)
   _ <- unify True $ constraints ctx
 
   -- Import everything to the qstate fields

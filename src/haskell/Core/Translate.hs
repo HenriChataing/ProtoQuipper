@@ -68,6 +68,7 @@
 --
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Core.Translate (
+  TranslateState (..),
   translateType,
   translateBoundType,
   translateUnboundType,
@@ -527,7 +528,7 @@ translateType t args = do
   throwNE (WrongTypeArguments (pprint t) 0 (List.length args)) ext
 
 
--- | Apply the function 'Typing.TransSyntax.translateType' to a bound type. The arguments must be
+-- | Apply the function 'Typer.TransSyntax.translateType' to a bound type. The arguments must be
 -- null initially.
 translateBoundType :: S.Type -> Translate Type
 translateBoundType t = do
@@ -536,7 +537,7 @@ translateBoundType t = do
   translateType t []
 
 
--- | Apply the function 'Typing.TransSyntax.translateType' to unbound types. The binding map is
+-- | Apply the function 'Typer.TransSyntax.translateType' to unbound types. The binding map is
 -- initially empty, and is dropped after the translation of the type. No argument is passed to the
 -- top type.
 translateUnboundType :: S.Type -> Translate Type

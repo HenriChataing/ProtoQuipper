@@ -755,12 +755,12 @@ check_assertions = do
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
 -- The flag is not immediatly added to the state, as its value is initially unknown.
-fresh_flag :: QpState Flag
-fresh_flag = do
-  ctx <- get_context
-  let id = flag_id ctx
-  set_context $ ctx { flag_id = id + 1 }
-  return id
+--fresh_flag :: QpState Flag
+--fresh_flag = do
+--  ctx <- get_context
+--  let id = flag_id ctx
+--  set_context $ ctx { flag_id = id + 1 }
+--  return id
 
 
 -- | Generate a new flag reference, and add its accompanying binding to the flags map.
@@ -778,8 +778,8 @@ fresh_flag_with_value v = do
 
 -- | Create a new flag reference, initialized with the information
 -- of the argument flag.
-duplicate_flag :: Flag -> QpState Flag
-duplicate_flag ref = do
+duplicateFlag :: Flag -> QpState Flag
+duplicateFlag ref = do
   case ref of
     0 -> return 0
     1 -> return 1
@@ -849,7 +849,7 @@ instantiate_scheme refs vars cset typ = do
   -- Replace the flag references by new ones
   (typ', cset') <- List.foldl (\rec ref -> do
                                  (typ, cset) <- rec
-                                 nref <- duplicate_flag ref
+                                 nref <- duplicateFlag ref
                                  typ' <- return $ subs ref nref typ
                                  cset' <- return $ subs ref nref cset
                                  return (typ', cset')) (return (typ, cset)) refs

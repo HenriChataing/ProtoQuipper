@@ -1,5 +1,5 @@
 -- | This module implements the constraint typing algorithm and the unification algorithm.
-module Typing.TypeInference where
+module Typer.TypeInference where
 
 import Prelude hiding (filter)
 
@@ -13,9 +13,9 @@ import Core.Syntax
 import Core.Translate
 import qualified Core.Environment as E
 
-import Typing.TypingContext
-import Typing.Ordering
-import Typing.Subtyping
+import Typer.TypingContext
+import Typer.Ordering
+import Typer.Subtyping
 
 import Monad.Error
 --import Monad.QpState
@@ -233,7 +233,7 @@ constraint_typing :: TypingContext -> Expr -> [Type] -> QpState ConstraintSet
 
 constraint_typing gamma (EUnit ref) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Generates a referenced flag of the actual type of EUnit
   info <- return $ noInfo { c_ref = ref }
@@ -250,7 +250,7 @@ constraint_typing gamma (EUnit ref) cst = do
 
 constraint_typing gamma (EBool ref b) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ noInfo { c_ref = ref }
@@ -267,7 +267,7 @@ constraint_typing gamma (EBool ref b) cst = do
 
 constraint_typing gamma (EInt ref p) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Generates a referenced flag of the actual type of EBool
   info <- return $ noInfo { c_ref = ref }
@@ -284,12 +284,12 @@ constraint_typing gamma (EInt ref p) cst = do
 
 constraint_typing gamma (EVar ref x) cst = do
   -- Retrieve the type of x from the typing context
-  sa <- type_of x gamma
+  sa <- typeOf x gamma
   (a, csetx) <- instantiate sa
 
   -- Have the rest of the context be duplicable
-  (_, gamma_nx) <- sub_context [x] gamma
-  duplicable_context gamma_nx
+  (_, gamma_nx) <- subContext [x] gamma
+  duplicableContext gamma_nx
 
   -- Information
   info <- return $ noInfo { c_ref = ref }
@@ -304,7 +304,7 @@ constraint_typing gamma (EGlobal ref x) cst = do
   (a, csetx) <- instantiate sa -- In case a is a typing scheme
 
   -- Have the rest of the context be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Information
   info <- return $ noInfo { c_ref = ref }
@@ -328,7 +328,7 @@ constraint_typing gamma (EError msg) cst = do
 
 constraint_typing gamma (EBox ref a) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Information
   info <- return $ noInfo { c_ref = ref }
@@ -351,7 +351,7 @@ constraint_typing gamma (EBox ref a) cst = do
 
 constraint_typing gamma (ERev ref) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Information
   info <- return $ noInfo { c_ref = ref }
@@ -375,7 +375,7 @@ constraint_typing gamma (ERev ref) cst = do
 
 constraint_typing gamma (EUnbox ref) cst = do
   -- The context must be duplicable
-  duplicable_context gamma
+  duplicableContext gamma
 
   -- Flag reference
   info <- return $ noInfo { c_ref = ref }
@@ -410,17 +410,17 @@ constraint_typing gamma (EApp t u) cst = do
   -- Filter on the free variables of t and type t
   -- The constraints on the actual type of the application are transformed into constraints
   -- on the type of the function
-  (gamma_t, _) <- sub_context fvt gamma
+  (gamma_t, _) <- subContext fvt gamma
   csett <- constraint_typing gamma_t t (List.map (\t -> TypeAnnot 0 $ TArrow a t) cst)
 
   -- Filter on the free variables of u and type u
-  (gamma_u, _) <- sub_context fvu gamma
+  (gamma_u, _) <- subContext fvu gamma
   csetu <- constraint_typing gamma_u u [a]
 
   -- Construction of the constraint for !I Delta, the intersection of Gt and Gu
   disunion <- return $ linear_union [fvt, fvu]
-  (_, delta) <- sub_context disunion gamma
-  duplicable_context delta
+  (_, delta) <- subContext disunion gamma
+  duplicableContext delta
 
   return $ csetu <> csett
 
@@ -438,10 +438,10 @@ constraint_typing gamma (EFun ref p e) cst = do
   info <- return $ noInfo { c_ref = ref }
 
   -- Context annotations (without the pattern's bindings)
-  flags <- context_annotation gamma
+  flags <- contextAnnotation gamma
 
   -- Bind p in the current context - this returns the type a of the argument of the abstraction
-  (a, gamma_p, csetp) <- bind_pattern p
+  (a, gamma_p, csetp) <- bindPattern p
   b <- new_type
 
   -- Type the expression e
@@ -483,7 +483,7 @@ constraint_typing gamma (ETuple ref elist) cst = do
   -- Type the inner expressions, and extract the constraints
   csetlist <- List.foldr (\(e, t, fv) rec -> do
                             cset <- rec
-                            (gamma_fv, _) <- sub_context fv gamma
+                            (gamma_fv, _) <- subContext fv gamma
                             cset' <- constraint_typing gamma_fv e [t]
                             return $ cset <> cset') (return ([], [])) (List.zip3 elist tlist fvlist)
 
@@ -492,8 +492,8 @@ constraint_typing gamma (ETuple ref elist) cst = do
 
   -- Construction of the constraints of delta
   disunion <- return $ linear_union fvlist
-  (_, delta) <- sub_context disunion gamma
-  duplicable_context delta
+  (_, delta) <- subContext disunion gamma
+  duplicableContext delta
 
   update_ref ref (\ri -> Just ri { rtype = TypeAnnot p (TTensor tlist) })
 
@@ -522,15 +522,15 @@ constraint_typing gamma (ELet rec p t u) cst = do
   fvu <- return $ free_var u
 
   -- Give the corresponding sub contexts
-  (gamma_t, _) <- sub_context fvt gamma
-  (gamma_u, _) <- sub_context fvu gamma
+  (gamma_t, _) <- subContext fvt gamma
+  (gamma_u, _) <- subContext fvu gamma
 
   -- Mark the limit free variables / bound variables used in the typing of t
   limtype <- fresh_type
   limflag <- fresh_flag
 
   -- Create the type of the pattern
-  (a, gamma_p, csetp) <- bind_pattern p
+  (a, gamma_p, csetp) <- bindPattern p
 
   -- Type t with this type
   csett <- case rec of
@@ -589,8 +589,8 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
     -- Generate the flag constraints for the intersection
     disunion <- return $ linear_union [fvt, fvu]
-    (_, delta) <- sub_context disunion gamma
-    duplicable_context delta
+    (_, delta) <- subContext disunion gamma
+    duplicableContext delta
 
     return csetu
 
@@ -601,8 +601,8 @@ constraint_typing gamma (ELet rec p t u) cst = do
 
     -- Generate the flag constraints for the intersection
     disunion <- return $ linear_union [fvt, fvu]
-    (_, delta) <- sub_context disunion gamma
-    duplicable_context delta
+    (_, delta) <- subContext disunion gamma
+    duplicableContext delta
 
     return $ csetu <> csett
 
@@ -634,7 +634,7 @@ constraint_typing gamma (EDatacon ref dcon e) cst = do
     -- No argument given, the constructor is typed as is
     (TypeAnnot n _, Nothing) -> do
         -- The context must be duplicable
-        duplicable_context gamma
+        duplicableContext gamma
         update_ref ref (\ri -> Just ri { rtype = dtype' })
         return $ ((dtype' <:: cst) & info) <> (csetd & info)
 
@@ -666,11 +666,11 @@ constraint_typing gamma (EMatch e blist) cst = do
                           return $ List.union fv r) (return []) blist
 
   -- Type each of the bindings
-  (gamma_bl, _) <- sub_context fvlist gamma
+  (gamma_bl, _) <- subContext fvlist gamma
   (alist, csetlist) <- List.foldr (\(p, f) rec -> do
                                      (ar, cset) <- rec
                                      -- Bind the pattern p
-                                     (a, gamma_p, csetp) <- bind_pattern p
+                                     (a, gamma_p, csetp) <- bindPattern p
 
                                      -- p must have a non functional type
                                      ext <- get_location
@@ -684,13 +684,13 @@ constraint_typing gamma (EMatch e blist) cst = do
                                      return $ (a:ar, csetp <> csetf <> cset)) (return ([], emptyset)) blist
 
   -- Type e as a subtype of all the pattern types
-  (gamma_e, _) <- sub_context fve gamma
+  (gamma_e, _) <- subContext fve gamma
   csete <- constraint_typing gamma_e e alist
 
   -- Generate the flag constraints for the intersection
   disunion <- return $ linear_union [fve, fvlist]
-  (_, delta) <- sub_context disunion gamma
-  duplicable_context delta
+  (_, delta) <- subContext disunion gamma
+  duplicableContext delta
 
   return $ csete <> csetlist
 
@@ -712,19 +712,19 @@ constraint_typing gamma (EIf e f g) cst = do
 
   -- Filter on the free variables of e and type e: e must have the type bool
   -- The expected type !0 bool makes the least assumption about the type of e
-  (gamma_e, _) <- sub_context fve gamma
+  (gamma_e, _) <- subContext fve gamma
   csete <- constraint_typing gamma_e e [TypeAnnot zero TBool]
 
   -- Filter on the free variables of f an g. f and g must have the same type as the whole expression, so they
   -- inherit the same constraints.
-  (gamma_fg, _) <- sub_context fvfg gamma
+  (gamma_fg, _) <- subContext fvfg gamma
   csetf <- constraint_typing gamma_fg f cst
   csetg <- constraint_typing gamma_fg g cst
 
   -- Generate the flag constraints for the context delta
   disunion <- return $ linear_union [fve, fvfg]
-  (_, delta) <- sub_context disunion gamma
-  duplicable_context delta
+  (_, delta) <- subContext disunion gamma
+  duplicableContext delta
 
   return $ csete <> csetf <> csetg
 
