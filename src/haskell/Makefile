@@ -15,17 +15,13 @@ MAIN = ProtoQuipper
 
 PRE_GENERATED_MODULES = Parsing/Parser.y Parsing/Lexer.x
 GENERATED_MODULES = Parsing/Lexer.hs Parsing/Parser.hs
-SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs \
-  Interpreter/Circuits.hs Interpreter/Interpreter.hs Interpreter/IRExport.hs	\
-  Interpreter/Values.hs Core/Namespace.hs		\
+SOURCE_MODULES = Builtins.hs Classes.hs Console.hs Interactive.hs	Driver.hs Options.hs ProtoQuipper.hs Utils.hs \
+  Interpreter/Circuits.hs Interpreter/Interpreter.hs Interpreter/IRExport.hs Interpreter/Values.hs \
   Monad/Core.hs Monad/Error.hs Monad/Typer.hs Monad/Interpreter.hs Monad/Compiler.hs \
-  Options.hs \
-  Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs		\
-  ProtoQuipper.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/Environment.hs	\
-  Typer/Ordering.hs Typer/Subtyping.hs Typer/TypeInference.hs	\
-  Typer/TypingContext.hs Utils.hs \
-  Compiler/PatternElimination.hs Compiler/SimplSyntax.hs Compiler/Circuits.hs \
-  Compiler/Continuations.hs Compiler/LlvmExport.hs
+  Parsing/Location.hs Parsing/Printer.hs Parsing/Syntax.hs \
+  Core/Namespace.hs Core/Printer.hs Core/Syntax.hs Core/Translate.hs Core/Environment.hs	\
+  Typer/Ordering.hs Typer/Subtyping.hs Typer/TypeInference.hs	Typer/TypingContext.hs \
+  Compiler/PatternElimination.hs Compiler/SimplSyntax.hs Compiler/Circuits.hs Compiler/Continuations.hs Compiler/LlvmExport.hs
 MODULES = $(GENERATED_MODULES) $(SOURCE_MODULES)
 
 all: $(MAIN)

@@ -24,7 +24,7 @@ import Parsing.Location
 import Language.Constructor
 
 import Monad.Core hiding (warning)
-import Monad.Typer (solveType, typeOf)
+import Monad.Typer (resolveType, typeOf)
 import Monad.Compiler
 import Monad.Error
 
@@ -526,7 +526,7 @@ removePatterns (C.EBox _ typ) = do
   return $ EVar x
 
 removePatterns (C.EUnbox info) = do
-  typ <- runTyper $ solveType $ C.typ info
+  typ <- runTyper $ resolveType $ C.typ info
   let (t, u) = C.circuitTypeOfType typ
   -- Check the type of the unbox operator.
   if not $ C.isConcrete typ then do

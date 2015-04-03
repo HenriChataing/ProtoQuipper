@@ -160,3 +160,13 @@ breakConstraint (Subtype (TypeAnnot n (TypeVar x)) (TypeAnnot m (TypeVar y)) inf
 -- allow us to return immediatly with a singleton set.
 breakConstraint c @ (SubLinearType _ _ _) =
   return $ ConstraintSet [c] []
+
+
+-- | Break all the type constraints in a set.
+breakConstraintSet :: ConstraintSet -> Typer ConstraintSet
+breakConstraintSet (ConstraintSet ctyp cflag) = do
+  List.foldl (\rec c -> do
+      cset <- rec
+      cset' <- breakConstraint c
+      return $ cset' <> cset
+    ) (return $ ConstraintSet [] cflag) ctyp

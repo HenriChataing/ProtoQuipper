@@ -9,13 +9,13 @@ import Builtins
 
 import Parsing.Lexer
 import qualified Parsing.Parser as P
-import Parsing.Location (clear_location, unknownExtent)
 import qualified Parsing.Syntax as S
+import Parsing.Location (unknownExtent)
 import Parsing.Printer
 
 import Core.Syntax
 import Core.Translate
-import Core.Environment (Environment, lvar_to_lglobal)
+import Core.Environment (Environment)
 import qualified Core.Environment as E
 
 import Interpreter.Interpreter hiding (Environment)
@@ -33,8 +33,8 @@ import Compiler.PatternElimination
 import qualified Compiler.Continuations as C
 import Compiler.LlvmExport
 
---import Monad.QpState
 import Monad.Error
+import Monad.Core
 
 import System.Directory
 import System.FilePath.Posix
@@ -46,12 +46,13 @@ import Data.IntMap as IMap
 import Data.Char as Char
 import qualified Data.ByteString.Lazy.Internal as BI
 import qualified Data.ByteString.Lazy as B
-
+import Control.Monad.Trans.State
+import Control.Monad.Trans
 
 -- | Lex and parse the module implementation file at the given filepath.
-parseModule :: FilePath -> QpState S.Program
+parseModule :: FilePath -> Core S.Program
 parseModule filePath = do
-  contents <- liftIO $ B.readFile filePath
+  contents <- lift $ B.readFile filePath
   tokens <- mylex filePath contents
   let name = moduleNameOfFile filePath
   return $ (P.parse tokens) { S.moduleName = name, S.filePath = filePath }
@@ -65,7 +66,7 @@ parseModule filePath = do
 findModule :: String       -- ^ Module name.
           -> [FilePath]    -- ^ List of included directories.
           -> String        -- ^ Extension.
-          -> QpState FilePath
+          -> Core FilePath
 findModule "" directories extension = do
   fail "Driver:findModule: empty module name"
 
@@ -74,7 +75,7 @@ findModule moduleName directories extension = do
   existing <- List.foldl (\rec directory -> do
       found <- rec
       let nexttry = combine directory moduleFile
-      exists <- liftIO $ doesFileExist nexttry
+      exists <- lift $ doesFileExist nexttry
       if exists then
         return (nexttry:found)
       else
@@ -99,7 +100,7 @@ findDependencies :: [FilePath]           -- ^ List of included directories.
                 -> S.Program             -- ^ Current module.
                 -> [String]              -- ^ The list of explored modules.
                 -> [S.Program]           -- ^ Modules depending on the current module.
-                -> QpState ([S.Program], [String])
+                -> Core ([S.Program], [String])
 findDependencies directories prog explored depends = do
   -- Mark the module as explored.
   explored <- return $ (S.moduleName prog):explored
@@ -139,7 +140,7 @@ findDependencies directories prog explored depends = do
 --
 buildDependencies :: [FilePath]          -- ^ List of directories.
                   -> S.Program           -- ^ Main module.
-                  -> QpState [S.Program]
+                  -> Core [S.Program]
 buildDependencies directories main = do
   (depends, _) <- findDependencies directories main [] []
   return $ List.reverse depends
@@ -155,7 +156,7 @@ buildDependencies directories main = do
 --
 buildSetDependencies :: [FilePath]         -- ^ List of directories.
                     -> [String]            -- ^ Main modules (by name only).
-                    -> QpState [S.Program]
+                    -> Core [S.Program]
 buildSetDependencies directories modules = do
   depends <- buildDependencies directories S.dummyProgram { S.imports = modules }
   return $ List.init depends
@@ -186,7 +187,7 @@ process_declaration :: (Options, ModuleOptions)       -- ^ The command line and 
                     -> S.Program                 -- ^ The current module.
                     -> ExtensiveContext          -- ^ The context.
                     -> S.Declaration             -- ^ The declaration to process.
-                    -> QpState (ExtensiveContext, Maybe Declaration)  -- ^ Returns the updated context, and the translated declaration.
+                    -> Core (ExtensiveContext, Maybe Declaration)  -- ^ Returns the updated context, and the translated declaration.
 
 
 -- TYPE SYNONYMS
@@ -213,8 +214,8 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
           Nothing
 
   -- Free variables of the new expression
-  fve <- return $ free_var e'
-  a@(TypeAnnot n _) <- new_type
+  fve <- return $ freevar e'
+  a@(TypeAnnot n _) <- newType
 
   -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE :
   setFlag n noInfo { c_ref = reference e' }
@@ -222,12 +223,12 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Type e. The constraints from the context are added for the unification.
   gamma <- return $ typing ctx
   (gamma_e, _) <- subContext fve gamma
-  cset <- constraint_typing gamma_e e' [a] >>= break_composite
+  cset <- constraintTyping gamma_e e' [a] >>= break_composite
   cset' <- unify (exact opts) (cset <> constraints ctx)
-  inferred <- map_type a >>= printType
+  inferred <- resolveType a >>= printType
 
   -- Resolve the constraints (BECAUSE MAP_TYPE CAN CHANGE THE FLAGS)
-  fc'' <- unify_flags $ snd cset'
+  fc'' <- unifyFlags $ snd cset'
   cset' <- return (fst cset', fc'')
 
   -- Check the assertions made
@@ -236,7 +237,7 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   -- Apply the substitution produced by the unification to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
         m <- rec
-        a' <- map_typescheme a
+        a' <- resolveScheme a
         return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- If interpretation, interpret, and display the result
@@ -246,13 +247,13 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
     case (v, circuit_format opts) of
       (VCirc _ c _, "ir") -> do
           irdoc <- return $ export_to_IR c
-          liftIO $ putStrLn irdoc
+          lift $ putStrLn irdoc
       (VCirc _ c _, "visual") ->
-          liftIO $ putStrLn (pprint c ++ " : " ++ inferred)
+          lift $ putStrLn (pprint c ++ " : " ++ inferred)
       _ ->
-          liftIO $ putStrLn (pv ++ " : " ++ inferred)
+          lift $ putStrLn (pv ++ " : " ++ inferred)
   else if toplevel mopts && not (run_compiler opts) then
-    liftIO $ putStrLn ("-: "  ++ inferred)
+    lift $ putStrLn ("-: "  ++ inferred)
   else
     return ()
 
@@ -260,11 +261,11 @@ process_declaration (opts, mopts) prog ctx (S.DExpr e) = do
   ctx <- IMap.foldWithKey (\x a rec -> do
         ctx <- rec
         let (TypeScheme _ _ _ (TypeAnnot f _)) = a
-        v <- flag_value f
+        v <- flagValue f
 
         case (List.elem x fve, v) of
           (True, Zero) -> do
-              n <- variable_name x
+              n <- variableName x
               return $ ctx {
                     labelling = (labelling ctx) { E.variables = Map.delete n $ E.variables (labelling ctx) },
                     typing = IMap.delete x $ typing ctx,
@@ -284,7 +285,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   e' <- case recflag of
         Recursive -> translateExpression e $ (labelling ctx) { E.variables = label' }
         Nonrecursive -> translateExpression e $ labelling ctx
-  fve <- return $ free_var e'
+  fve <- return $ freevar e'
 
   -- Remember the body of the module
   let decl = if run_compiler opts then
@@ -305,10 +306,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   csete <- case recflag of
         Recursive -> do
             -- Add the bindings of the pattern into gamma_e
-            constraint_typing ((IMap.map typescheme_of_type gamma_p) <+> gamma_e) e' [a]
+            constraintTyping ((IMap.map typescheme_of_type gamma_p) <+> gamma_e) e' [a]
         Nonrecursive -> do
             -- If not recursive, do nothing
-            constraint_typing gamma_e e' [a]
+            constraintTyping gamma_e e' [a]
 
   -- Unify the constraints produced by the typing of e (exact unification)
   cs <- break_composite (csetp <> csete)       -- Break the composite constraints
@@ -317,17 +318,17 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   -- Apply the substitution produced by the unification of csett to the context gamma
   gamma <- IMap.foldWithKey (\x a rec -> do
         m <- rec
-        a' <- map_typescheme a
+        a' <- resolveScheme a
         return $ IMap.insert x a' m) (return IMap.empty) gamma
 
   -- Map the types of the pattern
   gamma_p <- IMap.foldWithKey (\x a rec -> do
         m <- rec
-        a' <- map_type a
+        a' <- resolveType a
         return $ IMap.insert x a' m) (return IMap.empty) gamma_p
 
   -- Unify the set again
-  fls <- unify_flags $ snd csete
+  fls <- unifyFlags $ snd csete
   csete <- return (fst csete, fls)
 
   -- Check the assertions made
@@ -345,10 +346,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     IMap.foldWithKey (\x a rec -> do
           ctx <- rec
           -- Apply the substitution again
-          --a' <- map_type a
+          --a' <- resolveType a
           a' <- return a
           -- Clean the constraint set
-          gena <- make_polymorphic_type a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+          gena <- makePolymorphicType a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
 
           -- Update the typing context of u
           return $ IMap.insert x gena ctx) (return IMap.empty) gamma_p
@@ -361,11 +362,11 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
     -- Print the types of the pattern p
     IMap.foldWithKey (\x a rec -> do
           rec
-          nx <- variable_name x
+          nx <- variableName x
           case a of
             TypeScheme _ _ _ a -> do
                 pa <- printType a
-                liftIO $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+                lift $ putStrLn ("val " ++ nx ++ " : " ++ pa)
           return ()) (return ()) gamma_p
   else
     return ()
@@ -396,10 +397,10 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
   ctx <- IMap.foldWithKey (\x a rec -> do
         ctx <- rec
         let (TypeScheme _ _ _ (TypeAnnot f _)) = a
-        v <- flag_value f
+        v <- flagValue f
         case (List.elem x fve, v) of
           (True, Zero) -> do
-              n <- variable_name x
+              n <- variableName x
 
               return $ ctx {
                     labelling = (labelling ctx) {
@@ -418,7 +419,7 @@ process_declaration (opts, mopts) prog ctx (S.DLet recflag p e) = do
 
 
 -- | Explicit the implementation of functional data constructors.
-explicit_datacons :: Module -> QpState Module
+explicit_datacons :: Module -> Core Module
 explicit_datacons mod = do
   Map.foldWithKey (\nm dcon rec -> do
         mod <- rec
@@ -455,7 +456,7 @@ explicit_datacons mod = do
 --
 process_module :: (Options, ModuleOptions)  -- ^ Command line options and module options combined.
                -> S.Program            -- ^ Module to process.
-               -> QpState Module       -- ^ Return the module contents (variables, data constructors, types).
+               -> Core Module       -- ^ Return the module contents (variables, data constructors, types).
 process_module opts prog = do
 
   -- Import the global variables from the dependencies
@@ -520,7 +521,7 @@ process_module opts prog = do
 -- (never to be executed).
 do_everything :: Options       -- ^ Command line options.
               -> [FilePath]    -- ^ List of all the modules to process.
-              -> QpState ()
+              -> Core ()
 do_everything opts files = do
   -- Get the modules' names.
   let progs = List.map moduleNameOfFile files
@@ -542,7 +543,7 @@ do_everything opts files = do
 
         -- Compilation
         if run_compiler opts then do
-          liftIO $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ pname
+          lift $ putStrLn $ "[ " ++ show n ++ " of " ++ show ndeps ++ " ] Compiling " ++ pname
           decls <- transformDeclarations (M.declarations nm)
 
           cunit <- case conversion_format opts of
@@ -551,9 +552,9 @@ do_everything opts files = do
                 _ -> fail "Driver:do_everything: illegal format"
 
           if show_intermediate opts then do
-            liftIO $ putStrLn $ "======   " ++ pname ++ "   ======"
+            lift $ putStrLn $ "======   " ++ pname ++ "   ======"
             fvar <- displayVar
-            liftIO $ putStrLn $ genprint Inf [fvar] cunit
+            lift $ putStrLn $ genprint Inf [fvar] cunit
           else
             return ()
 
@@ -573,12 +574,12 @@ do_everything opts files = do
         mainbc = combine (output_dir opts) "main.bc"
         mainS = combine (output_dir opts) "main.S"
         mains = combine (output_dir opts) "main.s"
-    liftIO $ putStrLn $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc
-    _ <- liftIO $ (runCommand $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc) >>= waitForProcess
-    liftIO $ putStrLn $ "llc " ++ mainbc ++ " -o " ++ mainS
-    _ <- liftIO $ (runCommand $ "llc " ++ mainbc ++ " -o " ++ mainS) >>= waitForProcess
-    liftIO $ putStrLn $ "g++ -g " ++ mainS ++ " -o " ++ mains
-    _ <- liftIO $ (runCommand $ "g++ -g " ++ mainS ++ " -o " ++ mains) >>= waitForProcess
+    lift $ putStrLn $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc
+    _ <- lift $ (runCommand $ "llvm-link " ++ builtin ++ List.concat files ++ " -o " ++ mainbc) >>= waitForProcess
+    lift $ putStrLn $ "llc " ++ mainbc ++ " -o " ++ mainS
+    _ <- lift $ (runCommand $ "llc " ++ mainbc ++ " -o " ++ mainS) >>= waitForProcess
+    lift $ putStrLn $ "g++ -g " ++ mainS ++ " -o " ++ mains
+    _ <- lift $ (runCommand $ "g++ -g " ++ mainS ++ " -o " ++ mains) >>= waitForProcess
     return ()
   else
     return ()

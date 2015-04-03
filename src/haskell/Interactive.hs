@@ -167,7 +167,7 @@ run_interactive opts ctx buffer = do
                 IMap.foldWithKey (\x a rec -> do
                       rec
                       let (TypeScheme _ _ _ (TypeAnnot f b)) = a
-                      v <- flag_value f
+                      v <- flagValue f
                       t <- printType (TypeAnnot f b)
                       nm <- variable_name x
                       liftIO $ putStr "~ "
@@ -209,9 +209,9 @@ run_interactive opts ctx buffer = do
                               -- Type e. The constraints from the context are added for the unification.
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- subContext fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
+                              cset <- constraintTyping gamma_e e' [a] >>= break_composite
                               cset' <- unify (exact opts) (cset <> constraints ctx)
-                              inferred <- map_type a >>= printType
+                              inferred <- resolveType a >>= printType
 
                               -- Display the type
                               liftIO $ putStrLn $ "-: " ++ inferred)
@@ -280,15 +280,15 @@ run_interactive opts ctx buffer = do
 
                               gamma <- return $ typing ctx
                               (gamma_e, _) <- subContext fve gamma
-                              cset <- constraint_typing gamma_e e' [a] >>= break_composite
+                              cset <- constraintTyping gamma_e e' [a] >>= break_composite
                               cset' <- unify (exact opts) (cset <> constraints ctx)
-                              inferred <- map_type a
+                              inferred <- resolveType a
 
                               endtype <- get_context >>= return . type_id
                               endflag <- get_context >>= return . flag_id
 
                               -- Simplify the constraint set
-                              (TypeScheme ff fv cset a@(TypeAnnot n _)) <- make_polymorphic_type inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
+                              (TypeScheme ff fv cset a@(TypeAnnot n _)) <- makePolymorphicType inferred cset' (\f -> limflag <= f && f < endflag, \v -> limtype <= v && v < endtype)
 
                               -- Display the type
                               fvar <- display_typvar fv
@@ -345,7 +345,7 @@ exit ctx = do
   ndup <- IMap.foldWithKey (\x a rec -> do
         ndup <- rec
         let (TypeScheme _ _ _ (TypeAnnot f _)) = a
-        v <- flag_value f
+        v <- flagValue f
         case v of
           Zero -> do
               n <- variable_name x

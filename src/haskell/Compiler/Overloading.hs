@@ -11,7 +11,7 @@ import Parsing.Location (unknownExtent)
 import Language.Constructor
 
 import Monad.Core (setCallingConvention)
-import Monad.Typer (solveType, typeOf)
+import Monad.Typer (resolveType, typeOf)
 import Monad.Compiler
 import Monad.Error
 
@@ -53,7 +53,7 @@ disambiguate :: IntMap (Type, [Type]) -> Expr -> Overloading Expr
 -- The unbox reference, if of no decided type, is replaced by a variable (reference to an unbox operator
 -- with same type).
 disambiguate _ (EUnbox info) = do
-  ctyp <- lift $ runTyper $ solveType $ Core.typ info
+  ctyp <- lift $ runTyper $ resolveType $ Core.typ info
   whichUnbox ctyp info
 
 -- For each variable, we must check whether its type has been modified to disambiguate an unbox operators.
@@ -64,7 +64,7 @@ disambiguate modified (EVar info x) =
     Just (typ, args) -> do
       -- If the type of the variable is concrete (no leftover type variables), then the unbox operators
       -- to apply can easily be derived.
-      typ' <- lift $ runTyper $ solveType $ Core.typ info
+      typ' <- lift $ runTyper $ resolveType $ Core.typ info
       let b = bindTypes typ typ'
       let args' = List.map (mapType b) args
       -- Use the function whichUnbox to find the arguments, and build the application of the variable
@@ -125,7 +125,7 @@ disambiguate modified (ECoerce e _) =
 --        -- If the type of the variable is concrete (no leftover type variables), then
 --        -- the unbox operators to apply can easily be derived.
 --        ri <- ref_info_err ref
---        typ' <- map_type $ C.rtype ri
+--        typ' <- resolveLinearType $ C.rtype ri
 --        b <- C.bindTypes typ typ'
 --        let args' = List.map (subs b) args
 --        -- Use the function whichUnbox to decide the arguments
@@ -174,7 +174,7 @@ disambiguate modified (ELet r binder value body) = do
 
         (PVar info x, _) -> do
           -- Retrieve the (polymorphic) type of the variable
-          qtyp <- lift $ runTyper $ solveType $ Core.typ info
+          qtyp <- lift $ runTyper $ resolveType $ Core.typ info
 
           -- Check whether the variable is global or not
           --g <- is_global x

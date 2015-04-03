@@ -26,6 +26,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
+import Data.IntSet as IntSet (IntSet, member)
 
 import Control.Monad.Trans.State
 import Control.Monad.Trans
@@ -157,6 +158,6 @@ splitContext f ctx = do
 
 
 -- | Like 'splitContext', but for the particular case of a the characteristic function of a set.
-subContext :: [Variable] -> TypingContext -> Typer (TypingContext, TypingContext)
+subContext :: IntSet -> TypingContext -> Typer (TypingContext, TypingContext)
 subContext set ctx =
-  splitContext (\x -> List.elem x set) ctx
+  splitContext (\x -> IntSet.member x set) ctx

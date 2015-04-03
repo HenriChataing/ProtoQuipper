@@ -80,11 +80,11 @@ import Data.IntSet as IntSet
 
 -- | A list of assertions on types, that allows for control over the form of a type used in a
 -- construction.
-data Assertion =
-    IsDuplicable
-  | IsNonduplicable
-  | IsNotfun
-  deriving (Show, Eq)
+--data Assertion =
+--    IsDuplicable
+--  | IsNonduplicable
+--  | IsNotfun
+--  deriving (Show, Eq)
 
 
 -- | The context of a Quipper function. This is the context in which all Quipper functions are
@@ -126,7 +126,7 @@ data QContext = QCtx {
 
   --values :: IntMap Value,                             -- ^ The values of the global variables.
 
-  assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
+  --assertions :: [(Assertion, Type, ConstraintInfo)],  -- ^ A list of assertions, that have to be checked after the type inference. A typical example concerns the pattern matchings, where
                                                       -- function values are prohibited (even type constructors).
 
 -- Information relevant to flags
@@ -490,45 +490,45 @@ is_global v = do
 
 -- | Look up a variable in a specific module (typically used with a qualified variable).
 -- The input pair is (Module, Var name).
-lookup_qualified_var :: (String, String) -> QpState Variable
-lookup_qualified_var (mod, n) = do
-  ctx <- get_context
-  -- Check that the module is part of the M.dependencies
-  if List.elem mod $ "Builtins":(dependencies ctx) then do
-    case List.lookup mod $ modules ctx of
-      Just modi -> do
-          case Map.lookup n $ L.variables $ M.environment modi of
-            Just (L.Local x) -> return x
-            Just (L.Global x) -> return x
-            Nothing -> do
-                throw_UnboundVariable (mod ++ "." ++ n)
+--lookup_qualified_var :: (String, String) -> QpState Variable
+--lookup_qualified_var (mod, n) = do
+--  ctx <- get_context
+--  -- Check that the module is part of the M.dependencies
+--  if List.elem mod $ "Builtins":(dependencies ctx) then do
+--    case List.lookup mod $ modules ctx of
+--      Just modi -> do
+--          case Map.lookup n $ L.variables $ M.environment modi of
+--            Just (L.Local x) -> return x
+--            Just (L.Global x) -> return x
+--            Nothing -> do
+--                throw_UnboundVariable (mod ++ "." ++ n)
 
-      Nothing -> do
-          throw_UnboundModule mod
+--      Nothing -> do
+--          throw_UnboundModule mod
 
-  else do
-    throw_UnboundModule mod
+--  else do
+--    throw_UnboundModule mod
 
 
 
 -- | Look up a type from a specific module (typically used with a qualified type name).
 -- The input name is (Module, Type name).
-lookup_qualified_type :: (String, String) -> QpState Type
-lookup_qualified_type (mod, n) = do
-  ctx <- get_context
-  -- Check that the module is part of the M.dependencies
-  if List.elem mod $ "Builtins":(dependencies ctx) then do
-    case List.lookup mod $ modules ctx of
-      Just modi -> do
-          case Map.lookup n $ L.types $ M.environment modi of
-            Just typ -> return typ
-            _ -> throwUndefinedType (mod ++ "." ++ n)
+--lookup_qualified_type :: (String, String) -> QpState Type
+--lookup_qualified_type (mod, n) = do
+--  ctx <- get_context
+--  -- Check that the module is part of the M.dependencies
+--  if List.elem mod $ "Builtins":(dependencies ctx) then do
+--    case List.lookup mod $ modules ctx of
+--      Just modi -> do
+--          case Map.lookup n $ L.types $ M.environment modi of
+--            Just typ -> return typ
+--            _ -> throwUndefinedType (mod ++ "." ++ n)
 
-      Nothing ->
-          fail $ "QpState:lookup_qualified_type: missing module interface: " ++ mod
+--      Nothing ->
+--          fail $ "QpState:lookup_qualified_type: missing module interface: " ++ mod
 
-  else do
-    throwUndefinedType (mod ++ "." ++ n)
+--  else do
+--    throwUndefinedType (mod ++ "." ++ n)
 
 
 -- | Add the definition of a new global variable.
@@ -648,10 +648,10 @@ insert_globals ts vs = do
 
 
 -- | Add an assertion on a type.
-assert :: Assertion -> Type -> ConstraintInfo -> QpState ()
-assert ast typ info = do
-  ctx <- get_context
-  set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) }
+--assert :: Assertion -> Type -> ConstraintInfo -> QpState ()
+--assert ast typ info = do
+--  ctx <- get_context
+--  set_context $ ctx { assertions = (ast,typ,info):(assertions ctx) }
 
 
 -- | Check the assertions, then remove them. If one assertion is not verified, an error is thrown.
@@ -661,7 +661,7 @@ check_assertions = do
   -- Successively check all the assertions
   List.foldl (\rec (ast, typ, info) -> do
                 rec
-                typ' <- map_type typ
+                typ' <- resolveType typ
                 case ast of
                   IsDuplicable -> return ()
                   IsNonduplicable -> return ()
@@ -676,8 +676,8 @@ check_assertions = do
 
 -- | Access the information held by a flag.
 -- Returns the current value of the flag given by its reference.
---flag_value :: Flag -> QpState FlagValue
---flag_value ref =
+--flagValue :: Flag -> QpState FlagValue
+--flagValue ref =
 --  case ref of
 --    0 -> return Zero
 --    1 -> return One
@@ -778,23 +778,23 @@ fresh_flag_with_value v = do
 
 -- | Create a new flag reference, initialized with the information
 -- of the argument flag.
-duplicateFlag :: Flag -> QpState Flag
-duplicateFlag ref = do
-  case ref of
-    0 -> return 0
-    1 -> return 1
-    _ -> do
-        ctx <- get_context
-        id <- return $ flag_id ctx
-        case IMap.lookup ref $ flags ctx of
-          Just info -> do
-              set_context ctx { flag_id = id + 1,
-                                  flags = IMap.insert id info $ flags ctx }
+--duplicateFlag :: Flag -> QpState Flag
+--duplicateFlag ref = do
+--  case ref of
+--    0 -> return 0
+--    1 -> return 1
+--    _ -> do
+--        ctx <- get_context
+--        id <- return $ flag_id ctx
+--        case IMap.lookup ref $ flags ctx of
+--          Just info -> do
+--              set_context ctx { flag_id = id + 1,
+--                                  flags = IMap.insert id info $ flags ctx }
 
-          -- Value is unknown
-          Nothing ->
-              set_context ctx { flag_id = id + 1 }
-        return id
+--          -- Value is unknown
+--          Nothing ->
+--              set_context ctx { flag_id = id + 1 }
+--        return id
 
 
 
@@ -844,30 +844,30 @@ duplicateFlag ref = do
 
 -- | Generic type instantiation.
 -- Produce a new variable for every one generalized over, and substitute it for the old ones in the type and the constraints.
-instantiate_scheme :: [Flag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
-instantiate_scheme refs vars cset typ = do
-  -- Replace the flag references by new ones
-  (typ', cset') <- List.foldl (\rec ref -> do
-                                 (typ, cset) <- rec
-                                 nref <- duplicateFlag ref
-                                 typ' <- return $ subs ref nref typ
-                                 cset' <- return $ subs ref nref cset
-                                 return (typ', cset')) (return (typ, cset)) refs
+--instantiate_scheme :: [Flag] -> [Variable] -> ConstraintSet -> Type -> QpState (Type, ConstraintSet)
+--instantiate_scheme refs vars cset typ = do
+--  -- Replace the flag references by new ones
+--  (typ', cset') <- List.foldl (\rec ref -> do
+--                                 (typ, cset) <- rec
+--                                 nref <- duplicateFlag ref
+--                                 typ' <- return $ subs ref nref typ
+--                                 cset' <- return $ subs ref nref cset
+--                                 return (typ', cset')) (return (typ, cset)) refs
 
-  -- Replace the variables
-  (typ', cset') <- List.foldl (\rec var -> do
-                                 (typ, cset) <- rec
-                                 nvar <- fresh_type
-                                 typ' <- return $ subs var (TypeVar nvar) typ
-                                 cset' <- return $ subs var (TypeVar nvar) cset
-                                 return (typ', cset')) (return (typ', cset')) vars
+--  -- Replace the variables
+--  (typ', cset') <- List.foldl (\rec var -> do
+--                                 (typ, cset) <- rec
+--                                 nvar <- fresh_type
+--                                 typ' <- return $ subs var (TypeVar nvar) typ
+--                                 cset' <- return $ subs var (TypeVar nvar) cset
+--                                 return (typ', cset')) (return (typ', cset')) vars
 
-  return (typ', cset')
+--  return (typ', cset')
 
--- | Instantiate the typing scheme.
-instantiate :: TypeScheme -> QpState (Type, ConstraintSet)
-instantiate (TypeScheme refs vars cset typ) =
-  instantiate_scheme refs vars cset typ
+---- | Instantiate the typing scheme.
+--instantiate :: TypeScheme -> QpState (Type, ConstraintSet)
+--instantiate (TypeScheme refs vars cset typ) =
+--  instantiate_scheme refs vars cset typ
 
 
 -- | In a linear type, replace all the flag references by their actual value:
@@ -896,7 +896,7 @@ rewrite_flags (TypeAnnot n t) = do
   if n < 2 then
     return (TypeAnnot n t')
   else do
-    v <- flag_value n
+    v <- flagValue n
     case v of
       One ->
           return (TypeAnnot 1 t')
@@ -920,52 +920,52 @@ last_type =
 
 
 -- | Generate a fresh type variable.
-fresh_type :: QpState Variable
-fresh_type = do
-  ctx <- get_context
-  id <- return $ type_id ctx
-  set_context $ ctx { type_id = id + 1 }
-  return id
+--fresh_type :: QpState Variable
+--fresh_type = do
+--  ctx <- get_context
+--  id <- return $ type_id ctx
+--  set_context $ ctx { type_id = id + 1 }
+--  return id
 
 
 -- | Generate a type of the form !/n a/, where /n/ and /a/ are a fresh flag reference and a type variable.
-new_type :: QpState Type
-new_type = do
-  x <- fresh_type
-  f <- fresh_flag
-  return (TypeAnnot f (TypeVar x))
+--new_type :: QpState Type
+--new_type = do
+--  x <- fresh_type
+--  f <- fresh_flag
+--  return (TypeAnnot f (TypeVar x))
 
 
 -- | Generate /n/ new types.
-new_types :: Int -> QpState [Type]
-new_types n | n <= 0 =
-  fail "QpState:new_types: illegal argument"
-            | otherwise = do
-  ctx <- get_context
-  let xid = type_id ctx
-      fid = flag_id ctx
-  let xs = [xid .. xid+n-1]
-      fs = [fid .. fid+n-1]
-  let typs = List.map (\(x, f) -> TypeAnnot f $ TypeVar x) $ List.zip xs fs
-  set_context ctx { type_id = xid+n, flag_id = fid+n }
-  return typs
+--new_types :: Int -> QpState [Type]
+--new_types n | n <= 0 =
+--  fail "QpState:new_types: illegal argument"
+--            | otherwise = do
+--  ctx <- get_context
+--  let xid = type_id ctx
+--      fid = flag_id ctx
+--  let xs = [xid .. xid+n-1]
+--      fs = [fid .. fid+n-1]
+--  let typs = List.map (\(x, f) -> TypeAnnot f $ TypeVar x) $ List.zip xs fs
+--  set_context ctx { type_id = xid+n, flag_id = fid+n }
+--  return typs
 
 
 -- | Return the location and expression of a reference.
-ref_expression :: Ref -> QpState (Extent, String)
-ref_expression ref = do
-  rinfo <- ref_info ref
-  case rinfo of
-    Just i ->
-        case expression i of
-          Left e -> do
-              pe <- printExpr e
-              return (extent i, pe)
-          Right p -> do
-              pp <- printPattern p
-              return (extent i, pp)
-    Nothing ->
-        return (unknownExtent, "?")
+--ref_expression :: Ref -> QpState (Extent, String)
+--ref_expression ref = do
+--  rinfo <- ref_info ref
+--  case rinfo of
+--    Just i ->
+--        case expression i of
+--          Left e -> do
+--              pe <- printExpr e
+--              return (extent i, pe)
+--          Right p -> do
+--              pp <- printPattern p
+--              return (extent i, pp)
+--    Nothing ->
+--        return (unknownExtent, "?")
 
 
 -- | Specify the call convention of a global variable.
@@ -1091,71 +1091,71 @@ profile = do
 
 
 
--- | Insert a new mapping /x/ |-> /t/ in the substitution, where /x/ is a type variable and /t/ is a linear type.
-mapsto :: Variable -> LinearType -> QpState ()
-mapsto x t = do
-  ctx <- get_context
-  set_context $ ctx { mappings = IMap.insert x t $ mappings ctx }
+---- | Insert a new mapping /x/ |-> /t/ in the substitution, where /x/ is a type variable and /t/ is a linear type.
+--mapsto :: Variable -> LinearType -> QpState ()
+--mapsto x t = do
+--  ctx <- get_context
+--  set_context $ ctx { mappings = IMap.insert x t $ mappings ctx }
 
 
--- | Look for a mapping of the argument variable. This function never fails, because if no mapping
--- is found for /x/, the linear type \"x\" is returned.
-appmap :: Variable -> QpState LinearType
-appmap x = do
-  ctx <- get_context
-  case IMap.lookup x $ mappings ctx of
-    Just t -> return t
-    Nothing -> return $ TypeVar x
+---- | Look for a mapping of the argument variable. This function never fails, because if no mapping
+---- is found for /x/, the linear type \"x\" is returned.
+--resolveVar :: Variable -> QpState LinearType
+--resolveVar x = do
+--  ctx <- get_context
+--  case IMap.lookup x $ mappings ctx of
+--    Just t -> return t
+--    Nothing -> return $ TypeVar x
 
 
--- | Recursively apply the mappings recorded in the current state to a linear type.
-map_LinearType :: LinearType -> QpState LinearType
-map_LinearType (TypeVar x) = do
-  t <- appmap x
-  case t of
-    -- If the value of x has been changed, reapply the mapping function, else returns the original type.
-    TypeVar y | y /= x -> map_LinearType (TypeVar y)
-              | otherwise -> return (TypeVar x)
-    t -> map_LinearType t
+---- | Recursively apply the mappings recorded in the current state to a linear type.
+--resolveLinearType :: LinearType -> QpState LinearType
+--resolveLinearType (TypeVar x) = do
+--  t <- resolveVar x
+--  case t of
+--    -- If the value of x has been changed, reapply the mapping function, else returns the original type.
+--    TypeVar y | y /= x -> resolveLinearType (TypeVar y)
+--              | otherwise -> return (TypeVar x)
+--    t -> resolveLinearType t
 
-map_LinearType (TypeApply c args) = do
-  args' <- List.foldl (\rec t -> do
-      args <- rec
-      t' <- map_type t
-      return (t':args)
-    ) (return []) args
-  return $ TypeApply c $ List.reverse args'
+--resolveLinearType (TypeApply c args) = do
+--  args' <- List.foldl (\rec t -> do
+--      args <- rec
+--      t' <- resolveType t
+--      return (t':args)
+--    ) (return []) args
+--  return $ TypeApply c $ List.reverse args'
 
 
--- | Recursively apply the mappings recorded in the current state to a type.
--- Qubits are intercepted to check the value of their flag.
-map_type :: Type -> QpState Type
-map_type (TypeAnnot f t) = do
-  t' <- map_LinearType t
-  case t' of
-    TypeApply "qubit" _ -> unsetFlag f noInfo
-    _ -> return ()
-  return $ TypeAnnot f t'
+---- | Recursively apply the mappings recorded in the current state to a type.
+---- Qubits are intercepted to check the value of their flag.
+--resolveType :: Type -> QpState Type
+--resolveType (TypeAnnot f t) = do
+--  t' <- resolveLinearType t
+--  case t' of
+--    TypeApply "qubit" _ -> unsetFlag f noInfo
+--    _ -> return ()
+--  return $ TypeAnnot f t'
 
--- | Recursively apply the mappings recorded in the current state to a
--- type scheme.  Qubits are intercepted to check the value of their
--- flag.
-map_typescheme :: TypeScheme -> QpState TypeScheme
-map_typescheme (TypeScheme fv ff cset typ) = do
-  typ' <- map_type typ
-  return $ TypeScheme fv ff cset typ'
+---- | Recursively apply the mappings recorded in the current state to a
+---- type scheme.  Qubits are intercepted to check the value of their
+---- flag.
+--resolveScheme :: TypeScheme -> QpState TypeScheme
+--resolveScheme (TypeScheme fv ff cset typ) = do
+--  typ' <- resolveType typ
+--  return $ TypeScheme fv ff cset typ'
 
 
 
 
 -- | A list of names to be used to represent type variables.
-available_names :: [String]
-available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
+--available_names :: [String]
+--available_names = ["a", "b", "c", "d", "a0", "a1", "a2", "b0", "b1", "b2"]
 
 
--- | A list of names to be used to represent flag variables.
-available_flags :: [String]
-available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
+---- | A list of names to be used to represent flag variables.
+--available_flags :: [String]
+--available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
 
 
 -- List of pre-defined printing functions
@@ -1163,139 +1163,139 @@ available_flags = ["n", "m", "p", "q", "n0", "n1", "n2", "m0", "m1", "m2"]
 -- | Pre-defined type variable printing function. The variables that may appear in the final type must be given as argument.
 -- Each one of these variables is then associated with a name (of the list 'Monad.QpState.available_names').
 -- If too few names are given, the remaining variables are displayed as: prevar \'X\' x.
-display_typvar :: [Variable] -> QpState (Variable -> String)
-display_typvar fv = do
-  attr <- return $ List.zip fv available_names
-  return (\x -> case List.lookup x attr of
-                  Just n -> n
-                  Nothing -> prevar "X" x)
+--display_typvar :: [Variable] -> QpState (Variable -> String)
+--display_typvar fv = do
+--  attr <- return $ List.zip fv available_names
+--  return (\x -> case List.lookup x attr of
+--                  Just n -> n
+--                  Nothing -> prevar "X" x)
 
 
--- | Pre-defined variable printing function.
-displayVar :: QpState (Variable -> String)
-displayVar = do
-  nspace <- get_context >>= return . namespace
-  return (\x -> case IMap.lookup x $ N.varcons nspace of
-                  Just n -> n
-                  Nothing -> prevar "x" x)
+---- | Pre-defined variable printing function.
+--displayVar :: QpState (Variable -> String)
+--displayVar = do
+--  nspace <- get_context >>= return . namespace
+--  return (\x -> case IMap.lookup x $ N.varcons nspace of
+--                  Just n -> n
+--                  Nothing -> prevar "x" x)
 
 
--- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
--- if the value is one, and \"\" else.
-displayFlag :: QpState (Flag -> String)
-displayFlag = do
-  refs <- get_context >>= return . flags
-  return (\f -> case f of
-                  1 -> "!"
-                  n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FlagInfo { flagValue = One } -> "!"
-                                  Just _ -> ""
-                                  Nothing -> ""
-                    | otherwise -> "")
+---- | Pre-defined flag printing function. It looks up the value of the flags, and display \"!\"
+---- if the value is one, and \"\" else.
+--displayFlag :: QpState (Flag -> String)
+--displayFlag = do
+--  refs <- get_context >>= return . flags
+--  return (\f -> case f of
+--                  1 -> "!"
+--                  n | n >= 2 -> case IMap.lookup n refs of
+--                                  Just FlagInfo { flagValue = One } -> "!"
+--                                  Just _ -> ""
+--                                  Nothing -> ""
+--                    | otherwise -> "")
 
 
--- | Display a reference flag. This function is similar to 'Monad.QpState.displayFlag', but
--- displays the reference flag when the value is unknown. The argument gives the reference flags that may appear in the final
--- type. Each reference is then associated with a name.
-displayRefFlag :: [Flag] -> QpState (Flag -> String)
-displayRefFlag ff = do
-  attr <- return $ List.zip ff available_flags
-  refs <- get_context >>= return . flags
-  return (\f -> case f of
-                  1 -> "!"
-                  n | n >= 2 -> case IMap.lookup n refs of
-                                  Just FlagInfo { flagValue = One } -> "!"
-                                  Just FlagInfo { flagValue = Zero } -> ""
-                                  _ ->
-                                      case List.lookup n attr of
-                                        Just nm -> "(" ++ nm ++ ")"
-                                        Nothing -> "(" ++ show n ++ ")"
-                    | otherwise -> "")
+---- | Display a reference flag. This function is similar to 'Monad.QpState.displayFlag', but
+---- displays the reference flag when the value is unknown. The argument gives the reference flags that may appear in the final
+---- type. Each reference is then associated with a name.
+--displayRefFlag :: [Flag] -> QpState (Flag -> String)
+--displayRefFlag ff = do
+--  attr <- return $ List.zip ff available_flags
+--  refs <- get_context >>= return . flags
+--  return (\f -> case f of
+--                  1 -> "!"
+--                  n | n >= 2 -> case IMap.lookup n refs of
+--                                  Just FlagInfo { flagValue = One } -> "!"
+--                                  Just FlagInfo { flagValue = Zero } -> ""
+--                                  _ ->
+--                                      case List.lookup n attr of
+--                                        Just nm -> "(" ++ nm ++ ")"
+--                                        Nothing -> "(" ++ show n ++ ")"
+--                    | otherwise -> "")
 
 
--- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
--- prevar \'T\' t if not found.
-displayUserType :: QpState (Variable -> String)
-displayUserType = do
-  nspace <- get_context >>= return . namespace
-  return (\t -> case IMap.lookup t $ N.typecons nspace of
-                  Just n -> n
-                  Nothing -> prevar "T" t)
+---- | Pre-defined algebraic type printing function. It looks up the name of an algebraic type, or returns
+---- prevar \'T\' t if not found.
+--displayUserType :: QpState (Variable -> String)
+--displayUserType = do
+--  nspace <- get_context >>= return . namespace
+--  return (\t -> case IMap.lookup t $ N.typecons nspace of
+--                  Just n -> n
+--                  Nothing -> prevar "T" t)
 
--- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
--- prevar \'D\' dcon if not found.
-displayConstructor :: QpState (Datacon -> String)
-displayConstructor = do
-  nspace <- get_context >>= return . namespace
-  return (\d -> case IMap.lookup d $ N.datacons nspace of
-                  Just n -> n
-                  Nothing -> prevar "D" d)
-
-
--- | Complementary printing function for patterns, which
--- replaces the references by their original name.
-printPattern :: Pattern -> QpState String
-printPattern p = do
-  fvar <- displayVar
-  fdata <- displayConstructor
-
-  return $ genprint Inf [fvar, fdata] p
+---- | Pre-defined data constructor printing function. It looks up the name of a data constructor, or returns
+---- prevar \'D\' dcon if not found.
+--displayConstructor :: QpState (Datacon -> String)
+--displayConstructor = do
+--  nspace <- get_context >>= return . namespace
+--  return (\d -> case IMap.lookup d $ N.datacons nspace of
+--                  Just n -> n
+--                  Nothing -> prevar "D" d)
 
 
--- | Like 'printPattern', but for expressions.
-printExpr :: Expr -> QpState String
-printExpr e = do
-  fvar <- displayVar
-  fdata <- displayConstructor
+---- | Complementary printing function for patterns, which
+---- replaces the references by their original name.
+--printPattern :: Pattern -> QpState String
+--printPattern p = do
+--  fvar <- displayVar
+--  fdata <- displayConstructor
 
-  return $ genprint Inf [fvar, fdata] e
+--  return $ genprint Inf [fvar, fdata] p
 
 
+---- | Like 'printPattern', but for expressions.
+--printExpr :: Expr -> QpState String
+--printExpr e = do
+--  fvar <- displayVar
+--  fdata <- displayConstructor
 
--- | Type variables are attributed random names before being printed, and the flags are
--- printed with their actual value: only if the flag is set will it be displayed as '!', else it will appear as ''.
-printType :: Type -> QpState String
-printType t = do
-  -- Printing of type variables, flags and types
-  fvar <- display_typvar (IntSet.toList $ freevar t)
-  fflag <- displayFlag
-  fuser <- displayUserType
-
-  return $ genprint Inf [fflag, fvar, fuser] t
+--  return $ genprint Inf [fvar, fdata] e
 
 
 
--- | Like 'printType', but for linear types.
-printLinearType :: LinearType -> QpState String
-printLinearType a = do
-  -- Printing of type variables, flags and types
-  fvar <- display_typvar (IntSet.toList $ freevar a)
-  fflag <- displayFlag
-  fuser <- displayUserType
+---- | Type variables are attributed random names before being printed, and the flags are
+---- printed with their actual value: only if the flag is set will it be displayed as '!', else it will appear as ''.
+--printType :: Type -> QpState String
+--printType t = do
+--  -- Printing of type variables, flags and types
+--  fvar <- display_typvar (IntSet.toList $ freevar t)
+--  fflag <- displayFlag
+--  fuser <- displayUserType
 
-  return $ genprint Inf [fflag, fvar, fuser] a
-
-
-
--- | Like 'printType', but for typing schemes.
-printScheme :: TypeScheme -> QpState String
-printScheme (TypeScheme ff fv cset typ) = do
-  -- Printing of type variables, flags and types
-  fvar <- display_typvar fv
-  fflag <- displayFlag
-  fuser <- displayUserType
-
-  return $ genprint Inf [fflag, fvar, fuser] (TypeScheme ff fv cset typ)
+--  return $ genprint Inf [fflag, fvar, fuser] t
 
 
 
--- | Like 'printExpr', but for values.
-printValue :: Value -> QpState String
-printValue v = do
-  -- Printing of data constructors
-  fdata <- displayConstructor
+---- | Like 'printType', but for linear types.
+--printLinearType :: LinearType -> QpState String
+--printLinearType a = do
+--  -- Printing of type variables, flags and types
+--  fvar <- display_typvar (IntSet.toList $ freevar a)
+--  fflag <- displayFlag
+--  fuser <- displayUserType
 
-  return $ genprint Inf [fdata] v
+--  return $ genprint Inf [fflag, fvar, fuser] a
+
+
+
+---- | Like 'printType', but for typing schemes.
+--printScheme :: TypeScheme -> QpState String
+--printScheme (TypeScheme ff fv cset typ) = do
+--  -- Printing of type variables, flags and types
+--  fvar <- display_typvar fv
+--  fflag <- displayFlag
+--  fuser <- displayUserType
+
+--  return $ genprint Inf [fflag, fvar, fuser] (TypeScheme ff fv cset typ)
+
+
+
+---- | Like 'printExpr', but for values.
+--printValue :: Value -> QpState String
+--printValue v = do
+--  -- Printing of data constructors
+--  fdata <- displayConstructor
+
+--  return $ genprint Inf [fdata] v
 
 
 

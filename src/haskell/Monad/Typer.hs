@@ -21,6 +21,15 @@ import Data.IntSet as IntSet
 import Data.List as List
 
 
+-- | A list of assertions on types, that allows for control over the form of a type used in a
+-- construction.
+data Assertion =
+    IsDuplicable
+  | IsNonduplicable
+  | IsNotfun
+  deriving (Show, Eq)
+
+
 -- | The type of values a flag can take. Initially, all flags are set to 'Unknown', except for some
 -- that are imposed to 'Zero' or 'One' by the typing rules.
 data FlagValue =
@@ -47,7 +56,9 @@ data TyperState = TyperState {
   -- | Flags from types are references to this map, which holds information about the value of the
   -- flag, but also about the type itself, for example the expression it is the type of. Such
   -- information is useful to send unambiguous error messages when the type inference fails.
-  flags :: IntMap FlagInfo
+  flags :: IntMap FlagInfo,
+  -- | Type assertions.
+  assertions :: [(Assertion, Type, Extent)]
 }
 
 -- | The typer monad, runs in the core monad.
@@ -59,17 +70,74 @@ empty :: TyperState
 empty = TyperState {
     typemap = IntMap.empty,
     mapping = IntMap.empty,
-    flags = IntMap.empty
+    flags = IntMap.empty,
+    assertions = []
   }
+
+
+---------------------------------------------------------------------------------------------------
+-- * Assertions.
+
+assert :: Assertion -> Type -> Extent -> Typer ()
+assert what typ location =
+  modify $ \typer -> typer { assertions = (what, typ, location):(assertions typer) }
 
 
 ---------------------------------------------------------------------------------------------------
 -- * Type map.
 
--- | Replace all mapped type variables in the given type.
--- TODO: implement.
-solveType :: Type -> Typer Type
-solveType typ = return typ
+-- | Insert a new mapping /x/ |-> /t/ in the substitution, where /x/ is a type variable and /t/ is a
+-- linear type.
+mapsto :: Variable -> LinearType -> Typer ()
+mapsto x t =
+  modify $ \typer -> typer { mapping = IntMap.insert x t $ mapping typer }
+
+
+-- | Look for a mapping of the argument variable. If no binding exists, the variable is returned unchanged.
+resolveVar :: Variable -> Typer LinearType
+resolveVar x = do
+  mapping <- gets mapping
+  case IntMap.lookup x mapping of
+    Just t -> return t
+    Nothing -> return $ TypeVar x
+
+
+-- | Recursively apply the mappings recorded in the current state to a linear type.
+resolveLinearType :: LinearType -> Typer LinearType
+resolveLinearType (TypeVar x) = do
+  t <- resolveVar x
+  case t of
+    -- If the value of x has been changed, reapply the mapping function, else returns the original type.
+    TypeVar y | y /= x -> resolveLinearType $ TypeVar y
+              | otherwise -> return $ TypeVar x
+    t -> resolveLinearType t
+
+resolveLinearType (TypeApply c args) = do
+  args' <- List.foldl (\rec t -> do
+      args <- rec
+      t' <- resolveType t
+      return $ t':args
+    ) (return []) args
+  return $ TypeApply c $ List.reverse args'
+
+
+-- | Recursively apply the mappings recorded in the current state to a type. Qubits are intercepted
+-- to check the value of their flag.
+resolveType :: Type -> Typer Type
+resolveType (TypeAnnot f t) = do
+  t' <- resolveLinearType t
+  case t' of
+    TypeApply (TypeBuiltin "qubit") _ -> unsetFlag f noInfo
+    _ -> return ()
+  return $ TypeAnnot f t'
+
+
+-- | Recursively apply the mappings recorded in the current state to a type scheme.  Qubits are
+-- intercepted to check the value of their flag.
+resolveScheme :: TypeScheme -> Typer TypeScheme
+resolveScheme (TypeScheme fv ff cset typ) = do
+  typ' <- resolveType typ
+  return $ TypeScheme fv ff cset typ'
 
 
 ---------------------------------------------------------------------------------------------------
@@ -85,6 +153,18 @@ getFlagInfo :: Flag -> Typer (Maybe FlagInfo)
 getFlagInfo flag = do
   flags <- gets flags
   return $ IntMap.lookup flag flags
+
+-- | Return the value of a flag.
+getFlagValue :: Flag -> Typer FlagValue
+getFlagValue f =
+  case f of
+    0 -> return Zero
+    1 -> return One
+    _ -> do
+      info <- getFlagInfo f
+      case info of
+        Just (FlagInfo v) -> return v
+        Nothing -> return Unknown
 
 
 -- | Set the value of a flag to one. If the previously recorded value is incompatible with the new

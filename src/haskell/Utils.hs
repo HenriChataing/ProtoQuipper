@@ -10,6 +10,7 @@ import Data.Char as Char
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List as List
+import Data.IntSet as IntSet
 
 
 -------------------------------------------------
@@ -111,17 +112,18 @@ remove_specials =
 --
 -- Note that this is not a pairwise operation:
 --
--- > linear_union [x,y,z]
+-- > linearUnion [x,y,z]
 --
 -- is not the same as
 --
--- > linear_union [x, linear_union [y,z]].
-linear_union :: Eq a => [[a]] -> [a]
-linear_union l =
-  let all = List.concat l in
-  List.concat $ List.map (\a ->
-        let alla = all \\ a in
-        a \\ alla) l
+-- > linearUnion [x, linearUnion [y,z]].
+linearUnion :: [IntSet] -> IntSet
+linearUnion l =
+  let all = IntSet.unions l in
+  IntSet.unions $ List.map (\a ->
+      let alla = all IntSet.\\ a in
+      a IntSet.\\ alla
+    ) l
 
 -- | Delete whitespace from the end of a string.
 trim_end :: String -> String
