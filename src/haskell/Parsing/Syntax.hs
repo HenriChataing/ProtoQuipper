@@ -69,7 +69,7 @@ data Program = Program {
 dummyProgram :: Program
 dummyProgram = Program {
   moduleName = "Dummy",
-  filePath = file_unknown,
+  filePath = unknownFile,
   imports = [],
   body = []
 }

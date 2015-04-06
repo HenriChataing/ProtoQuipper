@@ -58,8 +58,6 @@ typeDeclaration topcset gamma (DExpr info value) = do
   let cset' = cset { flagConstraints = fc }
   -- Check the assertions made.
   checkAssertions
-  -- Purge used variables from the context.
-  gamma <- purge fve gamma
   -- Return the new declaration.
   return (DExpr info { typ = a } value, cset', gamma)
 
@@ -109,8 +107,6 @@ typeDeclaration topcset gamma (DLet info rec x value) = do
     return (gammaP, emptyset)
     -- If the expression is not a value, it has a classical type.
     else return (IntMap.map schemeOfType gammaP, csete)
-  -- Purge the typing context.
-  gamma <- purge fve gamma
   options <- runCore getOptions
   if Options.displayToplevelTypes options then
     -- Print the types of the pattern p
@@ -139,21 +135,6 @@ typeDeclarations declarations = do
   duplicableContext gamma
   _ <- unify cset
   return (declarations, gamma)
-
-
--- Remove the variables of the context that are not duplicable.
-purge :: IntSet -> TypingContext -> Typer TypingContext
-purge used gamma = do
-  IntSet.fold (\x rec -> do
-      gamma <- rec
-      case IntMap.lookup x gamma of
-        Just (TypeScheme _ _ _ (TypeAnnot f _)) -> do
-          v <- getFlagValue f
-          case v of
-            Zero -> return $ IntMap.delete x gamma
-            _ -> return gamma
-        Nothing -> return gamma
-    ) (return gamma) used
 
 
 -- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/),

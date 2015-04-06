@@ -45,12 +45,12 @@ locus_unknown =
 -- | The default extent: delimited by the default locus.
 unknownExtent :: Extent
 unknownExtent =
-  Ext { lbegin = locus_unknown, lend = locus_unknown, file = file_unknown }
+  Ext { lbegin = locus_unknown, lend = locus_unknown, file = unknownFile }
 
 
 -- | The default file name: @\"*Unknown*\"@.
-file_unknown :: String
-file_unknown =
+unknownFile :: String
+unknownFile =
   ""
 
 

@@ -463,6 +463,10 @@ data Declaration =
   | DLet Info RecFlag Variable Expr   -- ^ A top-level declaration.
 
 
+instance TermObject Declaration where
+  freevar (DExpr _ value) = freevar value
+  freevar (DLet _ _ x value) = IntSet.delete x $ freevar value
+
 -- ----------------------------------------------------------------------
 -- * Subtyping constraints.
 

@@ -61,6 +61,20 @@ data CoreState = CoreState {
 type Core = StateT CoreState IO
 
 
+-- | Initial core state.
+init :: CoreState
+init = CoreState {
+    logfile = Logfile {
+        channel = stdout,
+        verbose = 0,
+        warnings = "display"
+      },
+    options = defaultOptions,
+    modules = [],
+    namespace = Namespace.empty
+  }
+
+
 ---------------------------------------------------------------------------------------------------
 -- * Logger
 
@@ -131,6 +145,13 @@ require name = do
 define :: Module -> Core ()
 define mod =
   modify $ \core -> core { modules = mod:(modules core) }
+
+
+-- | Check whether the module has been processed.
+requireSafe :: String -> Core (Maybe Module)
+requireSafe name = do
+  modules <- gets modules
+  return $ List.find (\m -> moduleName m == name) modules
 
 
 ---------------------------------------------------------------------------------------------------

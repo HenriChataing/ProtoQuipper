@@ -32,8 +32,8 @@ data Options = Options {
 
 
 -- | The default set of options.
-default_options :: Options
-default_options = Options {
+defaultOptions :: Options
+defaultOptions = Options {
   -- General options
   verbose = 0,
   warningAction = "display",
@@ -212,7 +212,7 @@ parseOpts argv =
     (o, n, []) -> do
         opts <- List.foldl (\rec o -> do
                               opts <- rec
-                              flip id opts o) (return default_options) o
+                              flip id opts o) (return defaultOptions) o
         return (opts, n)
     (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
 
