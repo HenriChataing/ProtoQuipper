@@ -69,11 +69,14 @@
 -- which is the expected subtyping relation rule. This algorithm has yet to be proved correct.
 module Core.Translate (
   TranslateState (..),
+  Core.Translate.init,
   translateType,
   translateBoundType,
   translateUnboundType,
   translateExpression,
   translatePattern,
+  translateDeclaration,
+  translateDeclarations,
   importAlgebraic,
   importSynonym) where
 
@@ -123,11 +126,33 @@ data TranslateState = TranslateState {
   environment :: Environment,   -- ^ Toplevel environment.
   types :: Map String Type,         -- ^ Local type context.
   currentModule :: String           -- ^ Current module.
-  --constraints :: ConstraintSet -- ^ Structural constraints.
 }
 
 -- | Monad of the translation algorithm.
 type Translate = StateT TranslateState Core
+
+
+-- | Build the initial translate state.
+init :: String -> [String] -> Core TranslateState
+init moduleName dependencies = do
+  let state = TranslateState {
+        bound = False,
+        location = unknownExtent,
+        types = Map.empty,
+        environment = Environment.empty,
+        currentModule = moduleName
+      }
+  List.foldl (\rec dep -> do
+      state <- rec
+      pack <- require dep
+      let typs = Map.map (\id ->
+            TypeAnnot 0 $ TypeApply (TypeUser id) []
+            ) $ Environment.types $ Core.environment pack
+      return state {
+          environment = (environment state) <+> (Core.environment pack),
+          types = Map.union (types state) typs
+        }
+    ) (return state) dependencies
 
 
 -- | Return term informaton (with a dummy type).
@@ -160,12 +185,9 @@ lookupQualified :: String -> String -> (Module -> Map String a) -> Translate a
 lookupQualified modname n inside = do
   mod <- lift $ Core.require modname
   -- Check that the module is part of the dependencies.
-  case mod of
-    Just mod ->
-      case Map.lookup n $ inside mod of
-        Just x -> return x
-        Nothing -> throwUnboundVariable n
-    Nothing -> throwUnboundModule modname
+  case Map.lookup n $ inside mod of
+    Just x -> return x
+    Nothing -> throwUnboundVariable n
 
 
 -- | Generic error for unbound values (variables, data constructors, types, builtins).
@@ -738,3 +760,46 @@ translateExpression (S.EBox t) = do
 translateExpression e = do
   ext <- gets location
   throwNE (ParsingError (pprint e)) ext
+
+
+-- | Translate a toplevel declaration into the core syntax.
+translateDeclaration :: S.Declaration -> Translate (Maybe Declaration)
+translateDeclaration (S.DLet loc rec binder value) = do
+  -- We do not want to run this in a local environment, since the variables declared in the binder
+  -- must be accessible for the next bindings.
+  (binder', value') <- case rec of
+      Recursive -> do
+        binder' <- translatePattern binder
+        value' <- translateExpression value
+        return (binder', value')
+      Nonrecursive -> do
+        value' <- translateExpression value
+        binder' <- translatePattern binder
+        return (binder', value')
+  return $ Just $ DLet noTermInfo { extent = loc } rec (extractVar binder') value'
+  where
+    extractVar (PVar _ x) = x
+    extractVar _ = throwNE $ ProgramError "Translate:translateDeclaration: illegal pattern"
+
+translateDeclaration (S.DExpr loc value) = do
+  value' <- translateExpression value
+  return $ Just $ DExpr noTermInfo { extent = loc } value'
+translateDeclaration (S.DTypes block) = do
+  importAlgebraic block
+  return Nothing
+translateDeclaration (S.DSyn alias) = do
+  importSynonym alias
+  return Nothing
+
+
+-- | Translate all the toplevel declarations of a module.
+translateDeclarations :: [S.Declaration] -> Translate [Declaration]
+translateDeclarations declarations = do
+  ds <- List.foldl (\rec d -> do
+      ds <- rec
+      d' <- translateDeclaration d
+      case d' of
+        Just d' -> return $ d':ds
+        Nothing -> return ds
+    ) (return []) declarations
+  return $ List.reverse ds

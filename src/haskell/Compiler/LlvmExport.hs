@@ -390,10 +390,10 @@ instructionToLlvm _ (C.Error msg) = do
 
 -- | Convert a whole compilation unit to llvm.
 unitToLlvm :: String     -- ^ Module name.
-              -> CompilationUnit      -- ^ Body of the module.
-              -> [String]   -- ^ Module dependencies.
-              -> String     -- ^ Output file.
-              -> Compiler ()
+            -> CompilationUnit      -- ^ Body of the module.
+            -> [String]   -- ^ Module dependencies.
+            -> String     -- ^ Output file.
+            -> Compiler ()
 unitToLlvm mods cu depend filepath = do
   -- Form a map with the local function definitions.
   ctx <- List.foldl (\rec (f, arg, _) -> do
@@ -506,4 +506,3 @@ unitToLlvm mods cu depend filepath = do
       liftError e = do
         r <- runExceptT e
         either fail return r
-

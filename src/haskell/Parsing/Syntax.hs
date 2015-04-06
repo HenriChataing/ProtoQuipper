@@ -47,8 +47,8 @@ type TypeAlias = Typedef Type
 --
 --
 data Declaration =
-    DLet RecFlag XExpr XExpr                 -- ^ A variable declaration: @let p = e;;@.
-  | DExpr XExpr                              -- ^ A simple expression: @e;;@
+    DLet Extent RecFlag XExpr XExpr                 -- ^ A variable declaration: @let p = e;;@.
+  | DExpr Extent XExpr                              -- ^ A simple expression: @e;;@
   | DTypes [TypeAlgebraic]                   -- ^ A list of type definitions. The types are mutually recursive.
   | DSyn TypeAlias                           -- ^ A type synonym definition.
 
@@ -284,11 +284,15 @@ build_let r e f g =
 
 
 -- | Build a let-declaration.
-build_dlet :: RecFlag -> XExpr -> XExpr -> Declaration
-build_dlet r e f =
+build_dlet :: Maybe Extent -> RecFlag -> XExpr -> XExpr -> Declaration
+build_dlet loc r e f =
+  let loc' = case loc of Just loc -> loc ; Nothing -> unknownExtent in
   let (p,arg) = flatten e
       f' = multi_EFun arg f in
-  DLet r p f'
+  DLet loc' r p f'
 
-
-
+buildToplevelExpr :: Maybe Extent -> XExpr -> Declaration
+buildToplevelExpr loc e =
+  case loc of
+    Just loc -> DExpr loc e
+    Nothing -> DExpr unknownExtent e

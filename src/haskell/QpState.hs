@@ -282,25 +282,25 @@ set_verbose v = do
 
 
 -- | Change the processing of warnings.
-set_warning_action :: String -> QpState ()
-set_warning_action action = do
+set_warningAction :: String -> QpState ()
+set_warningAction action = do
   ctx <- get_context
   set_context $ ctx { logfile = (logfile ctx) { warnings = action } }
 
 
 
 -- | Enter a new log entry.
-newlog :: Int -> String -> QpState ()
-newlog lvl entry = do
-  ctx <- get_context
-  liftIO $ write_log (logfile ctx) lvl entry
+--newlog :: Int -> String -> QpState ()
+--newlog lvl entry = do
+--  ctx <- get_context
+--  liftIO $ write_log (logfile ctx) lvl entry
 
 
--- | Flush the log file.
-flush_logs :: QpState ()
-flush_logs = do
-  ctx <- get_context
-  liftIO $ hFlush (channel $ logfile ctx)
+---- | Flush the log file.
+--flush_logs :: QpState ()
+--flush_logs = do
+--  ctx <- get_context
+--  liftIO $ hFlush (channel $ logfile ctx)
 
 
 ------------------------------------------------
@@ -443,14 +443,14 @@ flush_logs = do
 -- | Create the initializer of the translation into internal syntax. This returns the namespace in which
 -- all the global variables and data constructors from the module dependencies have been inserted, associated with their respective
 -- inferred type.
-global_namespace :: [String]                                                          -- ^ A list of module dependencies.
-                 -> QpState (Environment Int)                                          -- ^ The resulting labelling maps.
-global_namespace deps = do
-  mods <- get_context >>= return . modules
-  return $ List.foldl (\lctx m ->
-        case List.lookup m mods of
-          Just mod -> M.environment mod <+> lctx
-          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty ("Builtins":deps)
+--global_namespace :: [String]                                                          -- ^ A list of module dependencies.
+--                 -> QpState (Environment Int)                                          -- ^ The resulting labelling maps.
+--global_namespace deps = do
+--  mods <- get_context >>= return . modules
+--  return $ List.foldl (\lctx m ->
+--        case List.lookup m mods of
+--          Just mod -> M.environment mod <+> lctx
+--          Nothing -> throwNE $ ProgramError $ "QpState:global_namespace: missing implementation of module " ++ m) L.empty ("Builtins":deps)
 
 
 
@@ -655,23 +655,23 @@ insert_globals ts vs = do
 
 
 -- | Check the assertions, then remove them. If one assertion is not verified, an error is thrown.
-check_assertions :: QpState ()
-check_assertions = do
-  ctx <- get_context
-  -- Successively check all the assertions
-  List.foldl (\rec (ast, typ, info) -> do
-                rec
-                typ' <- resolveType typ
-                case ast of
-                  IsDuplicable -> return ()
-                  IsNonduplicable -> return ()
-                  IsNotfun ->
-                      if not $ isFunction typ' then
-                        return ()
-                      else
-                        fail "QpState:check_assertions: matched value has a function type") (return ()) (assertions ctx)
+--check_assertions :: QpState ()
+--check_assertions = do
+--  ctx <- get_context
+--  -- Successively check all the assertions
+--  List.foldl (\rec (ast, typ, info) -> do
+--                rec
+--                typ' <- resolveType typ
+--                case ast of
+--                  IsDuplicable -> return ()
+--                  IsNonduplicable -> return ()
+--                  IsNotfun ->
+--                      if not $ isFunction typ' then
+--                        return ()
+--                      else
+--                        fail "QpState:check_assertions: matched value has a function type") (return ()) (assertions ctx)
 
-  set_context $ ctx { assertions = [] }
+--  set_context $ ctx { assertions = [] }
 
 
 -- | Access the information held by a flag.

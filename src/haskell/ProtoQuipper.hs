@@ -50,7 +50,7 @@ main = do
         _ <- Q.runS (do
             define_builtins
             lbl <- Q.global_namespace []
-            run_interactive opts (Context { labelling = lbl,
+            runInteractive opts (Context { labelling = lbl,
                                             typing = IMap.empty,
                                             environment = IMap.empty, constraints = emptyset }) []
             return ()) Q.empty_context
@@ -63,8 +63,8 @@ main = do
         (do
            _ <- Q.runS (do
                Q.set_verbose (verbose opts)
-               Q.set_warning_action (warning_action opts)
-               do_everything opts files) Q.empty_context
+               Q.set_warningAction (warningAction opts)
+               processModules opts files) Q.empty_context
            return ()) `E.catch` (\(e :: QuipperError) -> die e)
   where
     die e = do

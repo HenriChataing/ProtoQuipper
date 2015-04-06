@@ -10,8 +10,9 @@ import Prelude hiding (lookup)
 
 import Utils
 import Classes hiding (Context (..))
+import Options (conversionFormat)
 
-import Monad.Core (variableName)
+import Monad.Core (variableName, getOptions)
 import Monad.Typer (typeOf)
 import Monad.Compiler
 import Monad.Error
@@ -582,9 +583,9 @@ closure_conversion e = do
 -- * Module transformations.
 
 -- | Convert the toplevel declarations into CPS form.
-convert_declarations_to_cps :: [Declaration]             -- ^ List of declarations.
-                            -> Compiler CompilationUnit  -- ^ Resulting compilation unit.
-convert_declarations_to_cps decls = do
+convertDeclarationsToCps :: [Declaration]             -- ^ List of declarations.
+                        -> Compiler CompilationUnit  -- ^ Resulting compilation unit.
+convertDeclarationsToCps decls = do
   -- Build the list of imported variables.
   let imported = List.foldl (\imp (DLet _ _ e) -> List.union (SimplSyntax.imported e) imp) [] decls
   -- Build the intial context of the transformation.
@@ -663,9 +664,9 @@ convert_declarations_to_cps decls = do
 
 
 -- | Convert the toplevel declarations into wCPS form.
-convert_declarations_to_wcps :: [Declaration]            -- ^ List of declarations.
-                             -> Compiler CompilationUnit              -- ^ Resulting compile unit.
-convert_declarations_to_wcps decls = do
+convertDeclarationsToWcps :: [Declaration]            -- ^ List of declarations.
+                          -> Compiler CompilationUnit              -- ^ Resulting compile unit.
+convertDeclarationsToWcps decls = do
   -- Build the list of imported variables.
   let imported = List.foldl (\imp (DLet _ _ e) -> List.union (SimplSyntax.imported e) imp) [] decls
   -- Build the intial context of the transformation.
@@ -739,6 +740,16 @@ convert_declarations_to_wcps decls = do
       externFunctions = List.reverse $ externFunctions unit,
       globalVariables = List.reverse $ globalVariables unit
     }
+
+
+-- | Convert the declarations, selecting the format from the core options.
+convertDeclarations :: [Declaration] -> Compiler CompilationUnit
+convertDeclarations declarations = do
+  options <- runCore getOptions
+  case conversionFormat options of
+    "cps" -> convertDeclarationsToCps declarations
+    "wcps" -> convertDeclarationsToWcps declarations
+    _ -> fail "Continuations.convertDeclarations: illegal format"
 
 
 -- | Lift the function definitions to the top of the module.

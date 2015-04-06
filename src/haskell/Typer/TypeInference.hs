@@ -5,6 +5,7 @@ import Prelude hiding (filter)
 
 import Classes hiding ((\\))
 import Utils
+import qualified Options (exactUnification, displayToplevelTypes)
 
 import Parsing.Location hiding (location)
 import qualified Parsing.Syntax as S
@@ -31,10 +32,128 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
-import qualified Data.IntSet as IntSet
+import Data.IntSet as IntSet hiding (filter)
 
 import Control.Monad.Trans
 import Control.Monad.Trans.State
+
+
+-- | Type a toplevel binding. Type annotations are added during the type inference, and the new
+-- declarations are returned.
+typeDeclaration :: ConstraintSet -> TypingContext -> Declaration -> Typer (Declaration, ConstraintSet, TypingContext)
+-- Toplevel expressions.
+typeDeclaration topcset gamma (DExpr info value) = do
+  -- Free variables of the new expression.
+  let fve = freevar value
+  a @ (TypeAnnot n _) <- runCore newType
+  -- ALL TOP-LEVEL EXPRESSIONS MUST BE DUPLICABLE.
+  setFlag n $ fromSource a $ InExpr value
+  -- Type e. The constraints from the context are added for the unification.
+  (gammaE, _) <- subContext fve gamma
+  (value, cset) <- constraintTyping gammaE value [a]
+  cset <- breakConstraintSet cset
+  cset <- unify $ cset <> topcset
+  -- Resolve the constraints (BECAUSE MAP_TYPE CAN CHANGE THE FLAGS).
+  fc <- unifyFlags $ flagConstraints cset
+  let cset' = cset { flagConstraints = fc }
+  -- Check the assertions made.
+  checkAssertions
+  -- Purge used variables from the context.
+  gamma <- purge fve gamma
+  -- Return the new declaration.
+  return (DExpr info { typ = a } value, cset', gamma)
+
+-- Toplevel bindings.
+typeDeclaration topcset gamma (DLet info rec x value) = do
+  let fve = freevar value
+  (gammaE, _) <- subContext fve gamma
+  -- Mark the limit free variables / bound variables used in the typing of t.
+  limtype <- runCore freshType
+  limflag <- runCore freshFlag
+  -- Create the type of the pattern.
+  (binder, a, gammaP, csetp) <- bindPattern $ PVar info x
+  -- Type e with this type.
+  (value, csete) <- case rec of
+      -- Add the bindings of the pattern into gammaE.
+      Recursive -> constraintTyping ((IntMap.map schemeOfType gammaP) <+> gammaE) value [a]
+      -- If not recursive, do nothing.
+      Nonrecursive -> constraintTyping gammaE value [a]
+  -- Unify the constraints produced by the typing of e (exact unification).
+  cset <- breakConstraintSet (csetp <> csete)     -- Break the composite constraints.
+  cset <- unify cset                              -- Unify.
+  -- Map the types of the pattern.
+  gammaP <- IntMap.foldWithKey (\x a rec -> do
+      map <- rec
+      a' <- resolveType a
+      return $ IntMap.insert x a' map) (return IntMap.empty) gammaP
+  -- Unify the set again.
+  fls <- unifyFlags $ flagConstraints cset
+  csete <- return csete { flagConstraints = fls }
+  -- Check the assertions.
+  checkAssertions
+  -- Last of the free variables of e - to be place after the unification, since the algorithm
+  -- produces new variables that also have to be generic.
+  endtype <- runCore freshType
+  endflag <- runCore freshFlag
+  -- -- POLYMORPHISM -- -- If the expression is a VALUE, it can have a generic type.
+  (gammaP, cset) <- if isValue value then do
+    -- Generalize the types of the pattern (= polymorphism).
+    gammaP <- IntMap.foldWithKey (\x a rec -> do
+        ctx <- rec
+        a' <- resolveType a
+        -- Clean the constraint set.
+        gena <- makePolymorphicType a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+        -- Update the typing context of u.
+        return $ IntMap.insert x gena ctx
+      ) (return IntMap.empty) gammaP
+    return (gammaP, emptyset)
+    -- If the expression is not a value, it has a classical type.
+    else return (IntMap.map schemeOfType gammaP, csete)
+  -- Purge the typing context.
+  gamma <- purge fve gamma
+  options <- runCore getOptions
+  if Options.displayToplevelTypes options then
+    -- Print the types of the pattern p
+    IntMap.foldWithKey (\x a rec -> do
+        rec
+        nx <- runCore $ variableName x
+        case a of
+          TypeScheme _ _ _ a -> do
+            pa <- printType a
+            runCore $ lift $ putStrLn ("val " ++ nx ++ " : " ++ pa)
+        return ()
+      ) (return ()) gammaP
+  else return ()
+  return (DLet info { typ = a } rec x value, cset, IntMap.union gamma gammaP)
+
+
+-- | Type a list of declarations. The constraint set and typing context are initially empty.
+typeDeclarations :: [Declaration] -> Typer ([Declaration], TypingContext)
+typeDeclarations declarations = do
+  (declarations, cset, gamma) <- List.foldl (\rec decl -> do
+      (declarations, cset, gamma) <- rec
+      (decl, cset, gamma) <- typeDeclaration cset gamma decl
+      return (decl:declarations, cset, gamma)
+    ) (return ([], emptyset, IntMap.empty)) declarations
+  -- All the variables that haven't been used must be duplicable.
+  duplicableContext gamma
+  _ <- unify cset
+  return (declarations, gamma)
+
+
+-- Remove the variables of the context that are not duplicable.
+purge :: IntSet -> TypingContext -> Typer TypingContext
+purge used gamma = do
+  IntSet.fold (\x rec -> do
+      gamma <- rec
+      case IntMap.lookup x gamma of
+        Just (TypeScheme _ _ _ (TypeAnnot f _)) -> do
+          v <- getFlagValue f
+          case v of
+            Zero -> return $ IntMap.delete x gamma
+            _ -> return gamma
+        Nothing -> return gamma
+    ) (return gamma) used
 
 
 -- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/),
@@ -465,7 +584,7 @@ constraintTyping gamma (ELet rec binder value body) cst = do
   if isValue value then do
     -- Unify the constraints produced by the typing of t (exact unification).
     cs <- breakConstraintSet $ csetp <> csett       -- Break the composite constraints.
-    csett <- unify True cs                          -- Unify.
+    csett <- unify cs                               -- Unify.
     -- Apply the substitution produced by the unification of csett to the context gammaU.
     gammaU <- IntMap.foldWithKey (\x a rec -> do
         map <- rec
@@ -880,8 +999,9 @@ unifyFlags fc = do
 
 -- | Whole unification. First apply the type unification, then the flag unification on the resulting
 -- flag constraints. The boolean flag is passed as an argument to 'unifyFlags'.
-unify :: Bool -> ConstraintSet -> Typer ConstraintSet
-unify exact (ConstraintSet lc fc) = do
+unify :: ConstraintSet -> Typer ConstraintSet
+unify (ConstraintSet lc fc) = do
+  options <- runCore getOptions
   -- Before type unification : map the types and break the composite constraints.
   lc <- List.foldl (\rec c -> do
     lc <- rec
@@ -896,7 +1016,7 @@ unify exact (ConstraintSet lc fc) = do
         return $ (Subtype t' u' info):lc) (return []) lc
   cset <- breakConstraintSet $ ConstraintSet lc fc
   -- Type unification.
-  (ConstraintSet lc' fc') <- unifyTypes exact cset
+  (ConstraintSet lc' fc') <- unifyTypes (Options.exactUnification options) cset
   -- Flag unification
   fc'' <- unifyFlags fc'
   -- Result

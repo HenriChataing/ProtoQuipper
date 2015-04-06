@@ -155,9 +155,9 @@ Decl :
     | Typeblock ";;"                                       { DTypes $1 }
     | Typesyn                                              { DSyn $1 }
     | Typesyn ";;"                                         { DSyn $1 }
-    | LET XExpr '=' XExpr ";;"                             { build_dlet Nonrecursive $2 $4 }
-    | LET REC XExpr '=' XExpr ";;"                         { build_dlet Recursive $3 $5 }
-    | XExpr ";;"                                           { DExpr $1 }
+    | LET XExpr '=' XExpr ";;"                             { build_dlet (fromto_opt (Just $1) (location $4)) Nonrecursive $2 $4 }
+    | LET REC XExpr '=' XExpr ";;"                         { build_dlet (fromto_opt (Just $1) (location $5)) Recursive $3 $5 }
+    | XExpr ";;"                                           { buildToplevelExpr (location $1) $1 }
 
 
 
@@ -240,7 +240,7 @@ Atom_XExpr :
     | '[' ']'                                   { locate (EDatacon "_Nil" Nothing) (fromto $1 $2) }
     | '[' XExpr_sep_list ']'                    { flip locate (fromto $1 $3) $
                                                   List.foldr (\e rest -> EDatacon "_Cons" (Just $ ETuple [e,rest])) (EDatacon "_Nil" Nothing) $2 }
-    | '(' XExpr "<:" Type ')'                   { locate (EConstraint $2 $4) (fromto $1 $5) }
+    | '(' XExpr "<:" Type ')'                   { locate (ECoerce $2 $4) (fromto $1 $5) }
 
 XExpr_sep_list :
       XExpr                                     { [$1] }

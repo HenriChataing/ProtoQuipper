@@ -1,26 +1,30 @@
--- | This module implements a small interpreter for Proto-Quipper.
--- This module works along the module "Interpreter.Circuits" that provides the definition and operations
--- on circuits. The state of the interpreter is given by a circuit stack in the 'Interpreter' monad.
--- Each term is interpreted in an evaluation context, which contains the
--- values of all the variables in scope: with this, we don't have to explicitly do the term substitution that comes with beta-reduction.
+-- | This module implements a small interpreter for Proto-Quipper. This module works along the module
+-- "Interpreter.Circuits" that provides the definition and operations on circuits. The state of the
+-- interpreter is given by a circuit stack in the 'Interpreter' monad. Each term is interpreted in an
+-- evaluation context, which contains the values of all the variables in scope: with this, we don't
+-- have to explicitly do the term substitution that comes with beta-reduction.
 module Interpreter.Interpreter where
 
 import Classes
 import Utils
+import Options (circuitFormat)
+import Parsing.Location
 
 import Monad.Error
-import Monad.Core (variableName)
+import Monad.Core (variableName, getOptions, printValue)
+import Monad.Typer (resolveType, printType)
 import Monad.Interpreter
-
-import Parsing.Location
 
 import Core.Syntax
 
 import Interpreter.Circuits as Circuits (rev, Circuit)
 import Interpreter.Values
+import Interpreter.IRExport
 
 import Data.IntMap as IntMap
 import Data.List as List
+
+import Control.Monad.Trans
 
 
 -- | The type of the evaluation context.
@@ -282,4 +286,34 @@ interpret env (EIf test btrue bfalse) = do
 interpret env (ECoerce e _) = interpret env e
 
 
+-- | Evaluate a toplevel declaration.
+interpretDeclaration :: Environment -> Declaration -> Interpreter Environment
+interpretDeclaration env (DExpr info value) = do
+  v <- interpret env value
+  pv <- runCore $ printValue v
+  options <- runCore getOptions
+  typ <- runTyper $ resolveType $ typ info
+  inferred <- runTyper $ printType typ
+  case (v, circuitFormat options) of
+    (VCirc _ c _, "ir") -> runCore $ lift $ putStrLn $ export_to_IR c
+    (VCirc _ c _, "visual") -> runCore $ lift $ putStrLn (pprint c ++ " : " ++ inferred)
+    _ -> runCore $ lift $ putStrLn (pv ++ " : " ++ inferred)
+  return env
 
+interpretDeclaration env (DLet info rec x value) = do
+  value <- interpret env value -- Reduce the value.
+  -- Recursive function ?
+  return $ case (rec, value) of
+      (Recursive, VFun closure arg body) ->
+        let closure' = IntMap.insert x (VFun closure' arg body) closure in -- Recursive closure.
+        IntMap.insert x (VFun closure' arg body) env
+      _ -> IntMap.insert x value env
+
+
+-- | Interpret a list of declarations.
+interpretDeclarations :: [Declaration] -> Interpreter Environment
+interpretDeclarations declarations = do
+  List.foldl (\rec declaration -> do
+      env <- rec
+      interpretDeclaration env declaration
+    ) (return IntMap.empty) declarations

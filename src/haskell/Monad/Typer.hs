@@ -83,6 +83,25 @@ assert what typ location =
   modify $ \typer -> typer { assertions = (what, typ, location):(assertions typer) }
 
 
+-- | Check the assertions inserted via 'assert', and raise assert errors on fail. Checked assertions
+-- are removed from the context.
+checkAssertions :: Typer ()
+checkAssertions = do
+  asserts <- gets assertions
+  -- Successively check all assertions.
+  List.foldl (\rec (assert, typ, loc) -> do
+      rec
+      typ' <- resolveType typ
+      case assert of
+        IsDuplicable -> return ()
+        IsNonduplicable -> return ()
+        IsNotfun ->
+          if not $ isFunction typ' then return ()
+          else fail "Typer:checkAssertions: matched value has a function type"
+    ) (return ()) asserts
+  modify $ \typer -> typer { assertions = [] }
+
+
 ---------------------------------------------------------------------------------------------------
 -- * Type map.
 
@@ -401,3 +420,6 @@ warning warn ext = lift $ Core.warning warn ext
 
 runCore :: Core a -> Typer a
 runCore computation = lift $ computation
+
+runIO :: IO a -> Typer a
+runIO computation = runCore $ lift computation

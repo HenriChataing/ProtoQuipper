@@ -10,10 +10,12 @@ import Language.Constructor
 
 import Monad.Typer as Typer
 import Monad.Core (Core)
+import qualified Monad.Core as Core (namespace)
 import Monad.Error hiding (prefix)
 
 import Compiler.SimplSyntax (Declaration (..), Expr, Visibility (..))
-import Core.Syntax(Type)
+import Core.Syntax (Type)
+import qualified Core.Namespace as Namespace (vargen)
 
 import Control.Monad.Trans
 import Control.Monad.Trans.State
@@ -43,12 +45,6 @@ data LocalNamespace = LocalNamespace {
 data CompilerState = CompilerState {
   circuitLibrary :: CircuitLibrary,   -- ^ See definition of the type above.
   namespace :: LocalNamespace         -- ^ Local namespace, to be dropped after compilation.
-
--- call :: IntMap [Type],    -- ^ The calling conventions of the global functions. For now, it
-                            -- specificies the list of extra unbox operator arguments. (see the
-                            -- function 'Compiler.PatternElimination.disambiguate_unbox_calls' for more
-                            -- information).
-
 }
 
 -- | The compiler monad, runs in the typer monad, since type information is required to disambiguate
@@ -64,12 +60,14 @@ emptyLibrary = CircuitLibrary {
     code = []
   }
 
--- | Empty state.
-empty :: CompilerState
-empty = CompilerState {
+-- | Initial compiler state.
+init :: Typer CompilerState
+init = do
+  ivar <- Typer.runCore $ gets (Namespace.vargen . Core.namespace)
+  return CompilerState {
     circuitLibrary = emptyLibrary,
     namespace = LocalNamespace {
-      vargen = 0, -- Caution : this field should be initialized using the value in the core namespace.
+      vargen = ivar, -- Caution : this field should be initialized using the value in the core namespace.
       variables = IntMap.empty,
       prefix = Map.empty
     }

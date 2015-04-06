@@ -97,6 +97,13 @@ warning warn ex = do
     lift $ hFlush (channel logfile)
 
 
+-- | Flush the log file.
+flush :: Core ()
+flush = do
+  logfile <- gets logfile
+  lift $ hFlush $ channel $ logfile
+
+
 ---------------------------------------------------------------------------------------------------
 -- * Core
 
@@ -104,18 +111,27 @@ warning warn ex = do
 getOptions :: Core Options
 getOptions = gets options
 
+-- | Return the global options.
+changeOptions :: (Options -> Options) -> Core ()
+changeOptions change =
+  modify $ \core -> core { options = change $ options core }
 
--- | Return the required module.
-require :: String -> Core (Maybe Module)
+
+-- | Return the required module. Throws an error if the module does not exist.
+require :: String -> Core Module
 require name = do
   modules <- gets modules
-  return $ List.find (\m -> moduleName m == name) modules
+  let dep = List.find (\m -> moduleName m == name) modules
+  case dep of
+    Just dep -> return dep
+    Nothing -> throwNE $ ProgramError $ "Core:require: missing module " ++ name
 
 
 -- | Insert the definition of a module.
 define :: Module -> Core ()
 define mod =
   modify $ \core -> core { modules = mod:(modules core) }
+
 
 ---------------------------------------------------------------------------------------------------
 -- * Variables.
@@ -298,6 +314,14 @@ setConstructorFormat :: Variable
 setConstructorFormat constructor build extract =
   modify $ \core -> core {
       namespace = Namespace.setConstructorFormat constructor build extract $ namespace core
+    }
+
+
+-- | Specify the function implementation of a constructor.
+setConstructorImplementation :: Variable -> Variable -> Core ()
+setConstructorImplementation constructor impl = do
+  modify $ \core -> core {
+      namespace = Namespace.setConstructorImplementation constructor impl $ namespace core
     }
 
 

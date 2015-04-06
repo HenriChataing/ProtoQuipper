@@ -9,6 +9,7 @@ module Core.Namespace (
   setTag,
   setCallingConvention,
   setConstructorFormat,
+  setConstructorImplementation,
   changeTypeDefinition,
   registerVariable,
   registerTypeDefinition,
@@ -137,6 +138,13 @@ setConstructorFormat constructor build extract namespace =
         info { build = build $ Constructor.tag info, extract = extract }
       ) constructor $ constructors namespace
     }
+
+
+-- | Set the function implementation of a constructor.
+setConstructorImplementation :: Variable -> Variable -> Namespace -> Namespace
+setConstructorImplementation constructor impl namespace =
+  namespace {
+    constructors = IntMap.adjust (\info -> info { implementation = impl }) constructor $ constructors namespace }
 
 
 -- | Set the tag accessor of an algebraic type.

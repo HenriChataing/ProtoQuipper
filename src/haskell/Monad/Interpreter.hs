@@ -10,7 +10,7 @@ import Parsing.Location
 import Interpreter.Circuits as Circuits
 import Interpreter.Values (Value)
 
-import Monad.Core (Core, variableName)
+import Monad.Core (Core, variableName, require, valuation)
 import Monad.Typer as Typer
 import Monad.Error
 
@@ -18,6 +18,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State
 
 import Data.IntMap as IntMap
+import Data.List as List (foldl)
 
 
 -- | The interpreter state runs the circuit stack.
@@ -32,13 +33,19 @@ data InterpreterState = InterpreterState {
 type Interpreter = StateT InterpreterState Typer
 
 
--- | Empty state.
-empty :: InterpreterState
-empty = InterpreterState {
-    qubitgen = 0,
-    circuits = [],
-    context = IntMap.empty
-  }
+-- | Build the initial interpreter state (by combining the values from the module dependencies).
+init :: [String] -> Typer InterpreterState
+init dependencies = do
+  let state = InterpreterState {
+        qubitgen = 0,
+        circuits = [],
+        context = IntMap.empty
+        }
+  List.foldl (\rec dep -> do
+      state <- rec
+      mod <- Typer.runCore $ require dep
+      return state { context = IntMap.union (context state) (valuation mod) }
+    ) (return state) dependencies
 
 
 ---------------------------------------------------------------------------------------------------
