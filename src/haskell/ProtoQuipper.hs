@@ -60,8 +60,10 @@ main = do
       -- Automatically include the directories of the files.
       let dirs = List.nub $ (List.map takeDirectory files) ++ (includeDirs opts)
       let normalMode = do
+            defineBuiltins
             changeOptions (\_ -> opts { includeDirs = dirs })
-            runStateT (processModules files) Typer.empty
+            typerState <- Typer.init ["Builtins"]
+            runStateT (processModules files) typerState
       (do
           (_, _) <- runStateT normalMode Core.init
           return ()) `catch` (\(e :: SomeException) -> die e)

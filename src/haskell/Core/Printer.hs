@@ -16,6 +16,11 @@ import Core.Syntax hiding ((<>))
 import Data.List as List
 import Text.PrettyPrint.HughesPJ as PP
 
+printTypeConstant :: ConstantType -> (Variable -> String) -> String
+printTypeConstant (TypeBuiltin b) _ = b
+printTypeConstant (TypeUser u) pUser = pUser u
+
+
 instance PPrint Flag where
   genprint _ _ f = pprint f
 
@@ -58,12 +63,11 @@ instance PPrint LinearType where
     ) t' rest
 
   genprint lv opts@[_, _, fuser] (TypeApply c [t]) =
-    show c ++ "(" ++ genprint (decr lv) opts t ++ ")"
-
+    (printTypeConstant c fuser) ++ "(" ++ genprint (decr lv) opts t ++ ")"
   genprint lv opts@[_, _, fuser] (TypeApply c (t:rest)) =
     let dlv = decr lv in
     let args' = List.foldl (\s t -> s ++ ", " ++ genprint dlv opts t) (genprint dlv opts t) rest in
-    show c ++ "(" ++ args' ++ ")"
+    (printTypeConstant c fuser) ++ "(" ++ args' ++ ")"
 
   genprint _ _ _ = ""
 

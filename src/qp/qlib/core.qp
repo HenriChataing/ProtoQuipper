@@ -32,3 +32,9 @@ type either a b =
     Left of a
   | Right of b
 ;;
+
+-- LIST
+type list a =
+    Nil
+  | Cons of a * list a
+;;

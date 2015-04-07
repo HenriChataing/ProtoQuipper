@@ -192,7 +192,7 @@ Op_XExpr :
     | Op_XExpr INFIX1 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr INFIX2 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr INFIX3 Op_XExpr                   { locate_opt (EApp (EApp (locate (EVar $ snd $2) (fst $2)) $1) $3) (fromto_opt (location $1) (location $3)) }
-    | Op_XExpr ':' Op_XExpr                      { locate_opt (EDatacon "_Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
+    | Op_XExpr ':' Op_XExpr                      { locate_opt (EDatacon "Cons" (Just $ ETuple [$1, $3])) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr '*' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "*") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Op_XExpr '-' Op_XExpr                      { locate_opt (EApp (EApp (locate (EVar "-") $2) $1) $3) (fromto_opt (location $1) (location $3)) }
     | Apply_XExpr                                { $1 }
@@ -237,9 +237,9 @@ Atom_XExpr :
     | '(' XExpr_sep_list ')'                    { case $2 of
                                                     [x] -> x
                                                     _ -> locate (ETuple $2) (fromto $1 $3) }
-    | '[' ']'                                   { locate (EDatacon "_Nil" Nothing) (fromto $1 $2) }
+    | '[' ']'                                   { locate (EDatacon "Nil" Nothing) (fromto $1 $2) }
     | '[' XExpr_sep_list ']'                    { flip locate (fromto $1 $3) $
-                                                  List.foldr (\e rest -> EDatacon "_Cons" (Just $ ETuple [e,rest])) (EDatacon "_Nil" Nothing) $2 }
+                                                  List.foldr (\e rest -> EDatacon "Cons" (Just $ ETuple [e,rest])) (EDatacon "Nil" Nothing) $2 }
     | '(' XExpr "<:" Type ')'                   { locate (ECoerce $2 $4) (fromto $1 $5) }
 
 XExpr_sep_list :

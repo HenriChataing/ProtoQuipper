@@ -11,6 +11,7 @@ import Parsing.Location
 import Core.Syntax -- (Type, LinearType, Flag, ConstraintInfo (..), ConstraintSource (..))
 
 import Monad.Core as Core hiding (sourceType, typemap)
+import qualified Monad.Core as Core (typemap)
 import Monad.Error
 
 import Control.Monad.Trans
@@ -66,14 +67,31 @@ type Typer = StateT TyperState Core
 
 
 -- | Empty state.
-empty :: TyperState
-empty = TyperState {
-    typemap = IntMap.empty,
-    mapping = IntMap.empty,
-    flags = IntMap.empty,
-    assertions = []
-  }
+init :: [String] -> Core TyperState
+init depends = do
+  let typer = TyperState {
+        typemap = IntMap.empty,
+        mapping = IntMap.empty,
+        flags = IntMap.empty,
+        assertions = []
+        }
+  List.foldl (\rec dep -> do
+      typer <- rec
+      mod <- require dep
+      return typer {
+          typemap = IntMap.union (typemap typer) $ Core.typemap mod
+        }
+    ) (return typer) depends
 
+-- | Load the typemaps of the given dependencies.
+load :: [String] -> Typer ()
+load depends = do
+  typemap <- List.foldl (\rec dep -> do
+      typemap <- rec
+      mod <- runCore $ require dep
+      return $ IntMap.union typemap $ Core.typemap mod
+    ) (return IntMap.empty) depends
+  modify $ \typer -> typer { typemap = typemap }
 
 ---------------------------------------------------------------------------------------------------
 -- * Assertions.

@@ -109,7 +109,7 @@ posn_to_extent (AlexPn p l c) bs =
   let n = fromIntegral (toInteger $ ByteString.length bs) in
   Ext { lbegin = Loc { line = l, column = c-1 },
         lend = Loc { line = l, column = c+n-1 },
-        file = file_unknown }
+        file = unknownFile }
 
 -- | Convert a ByteString string to standard String format.
 convet_bs_to_s :: ByteString.ByteString -> String

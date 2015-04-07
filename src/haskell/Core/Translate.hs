@@ -603,7 +603,7 @@ translatePattern (S.ETuple tuple) = do
       tuple <- rec
       p' <- translatePattern p
       return $ p':tuple) (return []) tuple
-  return $ PTuple info tuple'
+  return $ PTuple info $ List.reverse tuple'
 
 translatePattern (S.EDatacon cons p) = do
   info <- getInfo

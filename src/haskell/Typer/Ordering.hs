@@ -20,10 +20,11 @@ import Parsing.Location
 
 import Core.Syntax
 import Core.Printer
-
-import Monad.Typer
-import Monad.Error
 import qualified Core.Namespace as N
+
+import Monad.Typer as Typer
+import Monad.Error
+import Monad.Core (displayUserType, printExpr, printPattern)
 
 import Control.Monad.Trans
 import Control.Monad.Trans.State
@@ -183,10 +184,10 @@ registerConstraint constraint =
         ) (return ()) $ freevar t
 
     SubLinearType _ _ _ ->
-        throwNE $ ProgramError "Ordering:registerConstraint: illegal argument: unreduced constraint"
+        throwNE $ ProgramError $ "Ordering:registerConstraint: illegal argument: unreduced constraint " ++ (pprint constraint)
 
     Subtype _ _ _ ->
-        throwNE $ ProgramError "Ordering:registerConstraint: illegal argument: unreduced constraint"
+        throwNE $ ProgramError $ "Ordering:registerConstraint: illegal argument: unreduced constraint " ++ (pprint constraint)
 
 
 -- | Register a list of constraints.
@@ -249,23 +250,24 @@ checkCyclic c explored = do
             _ -> throwNE $ ProgramError "Ordering:checkCyclic: unexpected unreduced constraint"
       -- Prepare printing options.
       poset <- get
-      let fflag = \f -> ""
-      let fvar = \x -> case IntMap.lookup x $ assign poset of
+      pFlag <- lift $ displayRefFlag []
+      pType <- lift $ runCore displayUserType
+      let pVar = \x -> case IntMap.lookup x $ assign poset of
             Just c -> prevar "a" c
             Nothing -> prevar "x" x
-      let falg = \a -> prevar "T" a -- displayUserType
       -- Print the loop and faulty variable.
-      let loop = List.map (genprint Inf [fflag, fvar, falg]) cloop
-          infinite = fvar var
+      let loop = List.map (genprint Inf [pFlag, pVar, pType]) cloop
+          infinite = pVar var
       -- See what information we have. Print the expression and original type.
-      --(ex, expr) <- ref_expression $ c_ref info
-      --let original = case c_type info of
-      --      Just a -> do
-      --        p <- printType a
-      --        return $ Just p
-      --      Nothing -> return Nothing
-      let original = Nothing
-      let expr = "no location"
+      original <- case sourceType info of
+            Just a -> do
+              p <- lift $ printType a
+              return $ Just p
+            Nothing -> return Nothing
+      expr <- case sourceExpr info of
+            InExpr e -> lift $ runCore $ printExpr e
+            InPattern p -> lift $ runCore $ printPattern p
+            Unidentified -> return "<unknown>"
       let ext = unknownExtent
       throw (InfiniteTypeError infinite loop original expr) $ Just ext
 

@@ -77,8 +77,8 @@ typeDeclaration topcset gamma (DLet info rec x value) = do
       -- If not recursive, do nothing.
       Nonrecursive -> constraintTyping gammaE value [a]
   -- Unify the constraints produced by the typing of e (exact unification).
-  cset <- breakConstraintSet (csetp <> csete)     -- Break the composite constraints.
-  cset <- unify cset                              -- Unify.
+  --cset <- breakConstraintSet (csetp <> csete)     -- Break the composite constraints.
+  cset <- unify (csetp <> csete)                    -- Unify.
   -- Map the types of the pattern.
   gammaP <- IntMap.foldWithKey (\x a rec -> do
       map <- rec
@@ -86,7 +86,7 @@ typeDeclaration topcset gamma (DLet info rec x value) = do
       return $ IntMap.insert x a' map) (return IntMap.empty) gammaP
   -- Unify the set again.
   fls <- unifyFlags $ flagConstraints cset
-  csete <- return csete { flagConstraints = fls }
+  cset <- return cset { flagConstraints = fls }
   -- Check the assertions.
   checkAssertions
   -- Last of the free variables of e - to be place after the unification, since the algorithm
@@ -100,13 +100,13 @@ typeDeclaration topcset gamma (DLet info rec x value) = do
         ctx <- rec
         a' <- resolveType a
         -- Clean the constraint set.
-        gena <- makePolymorphicType a' csete (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
+        gena <- makePolymorphicType a' cset (\f -> limflag <= f && f < endflag, \x -> limtype <= x && x < endtype)
         -- Update the typing context of u.
         return $ IntMap.insert x gena ctx
       ) (return IntMap.empty) gammaP
     return (gammaP, emptyset)
     -- If the expression is not a value, it has a classical type.
-    else return (IntMap.map schemeOfType gammaP, csete)
+    else return (IntMap.map schemeOfType gammaP, cset)
   options <- runCore getOptions
   if Options.displayToplevelTypes options then
     -- Print the types of the pattern p
@@ -231,7 +231,7 @@ makePolymorphicType typ (ConstraintSet lc fc) (isref, isvar) = do
             case IntMap.lookup x g of
               Just c -> IntMap.insert x (y:c) g
               Nothing -> IntMap.insert x [y] g
-          _ -> throwNE $ ProgramError "TypeInference:makePolymorphicType: unexpected unreduced constraint"
+          _ -> throwNE $ ProgramError $ "TypeInference:makePolymorphicType: unexpected unreduced constraint " ++ (pprint c)
         ) IntMap.empty lc
 
   let initv = List.filter keepvar $ IntMap.keys g

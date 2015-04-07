@@ -177,14 +177,16 @@ processModule :: (Int, Int) -> S.Program -> Typer ()
 processModule (number, total) program = do
   options <- Typer.runCore getOptions
   let moduleName = S.moduleName program
+      imports = "Builtins":(S.imports program) -- Add the builtin module as dependency.
+  load imports
   -- Scope analysis.
-  translateState <- Typer.runCore $ Translate.init moduleName $ S.imports program
+  translateState <- Typer.runCore $ Translate.init moduleName imports
   (declarations, translateState) <- Typer.runCore $ runStateT (translateDeclarations $ S.body program) translateState
   -- Type inference.
   (declarations, gamma) <- typeDeclarations declarations
   -- Interpretation.
   valuation <- if runInterpreter options then do
-      interpreterState <- Interpreter.init $ S.imports program
+      interpreterState <- Interpreter.init imports
       (valuation, _) <- runStateT (interpretDeclarations declarations) interpreterState
       return valuation
     else return IntMap.empty
@@ -220,7 +222,7 @@ processModule (number, total) program = do
             Compiler.runCore $ lift $ putStrLn $ genprint Inf [pVar] compilationUnit
           else return ()
 
-          unitToLlvm moduleName compilationUnit (S.imports program) outputFile
+          unitToLlvm moduleName compilationUnit imports outputFile
     (_, _) <- runStateT compilation compilerState
     return ()
   else
@@ -260,9 +262,6 @@ processModules files = do
   -- Build the dependencies.
   deps <- Typer.runCore $ buildSetDependencies (includeDirs options) progs
   let total = List.length deps
-
-  -- Build the builtin / qlib interfaces.
-  Typer.runCore defineBuiltins
 
   -- Process everything, finishing by the main modules.
   mods <- List.foldl (\rec (n, prog) -> do

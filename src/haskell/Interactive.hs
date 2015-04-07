@@ -437,14 +437,15 @@ launchInteractive :: Core ()
 launchInteractive = do
   interactiveState <- Interactive.init
   -- Core.
+  typerState <- Typer.init ["Builtins"]
   (_, _) <- runStateT (do
       -- Typer.
-      interpreterState <- Interpreter.init []
+      interpreterState <- Interpreter.init ["Builtins"]
       (_, _) <- runStateT (do
           -- Interpreter.
           (_, _) <- runStateT (runInteractive []) interactiveState
           return ()
         ) interpreterState
       return ()
-    ) Typer.empty
+    ) typerState
   return ()

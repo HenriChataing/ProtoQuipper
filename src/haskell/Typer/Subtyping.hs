@@ -112,6 +112,7 @@ breakConstraint (Subtype t @ (TypeAnnot n (TypeApply c args)) u @ (TypeAnnot m (
       (TypeUser c, args, args') -> do
         typedef <- runCore $ getTypeDefinition c
         cset <- unfoldTypeConstraint (arguments typedef) args args' info'
+        cset <- breakConstraintSet cset
         return $ (Le m n info') <> cset
 
   -- If the type arguments are not equal, try expanding type synonyms until the type are equals, or
@@ -155,11 +156,11 @@ breakConstraint (Subtype (TypeAnnot n (TypeVar x)) (TypeAnnot m (TypeVar y)) inf
   let constraint = SubLinearType (TypeVar x) (TypeVar y) info
   return $ ConstraintSet [constraint] [Le m n info]
 
--- Linear constraints. Note: we shouldn't have to break linear constraints on type applications, so
--- we will ignore these cases and suppose only atomic and semi-atomic constraints remain, which will
--- allow us to return immediatly with a singleton set.
-breakConstraint c @ (SubLinearType _ _ _) =
-  return $ ConstraintSet [c] []
+-- Linear constraints.
+breakConstraint c @ (SubLinearType (TypeVar _) _ _) = return $ ConstraintSet [c] []
+breakConstraint c @ (SubLinearType _ (TypeVar _) _) = return $ ConstraintSet [c] []
+breakConstraint c @ (SubLinearType t u info) =
+  breakConstraint $ Subtype (TypeAnnot 0 t) (TypeAnnot 0 u) info
 
 
 -- | Break all the type constraints in a set.

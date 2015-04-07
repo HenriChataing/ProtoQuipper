@@ -61,7 +61,9 @@ typeOf x ctx = do
       typemap <- gets Typer.typemap
       case IntMap.lookup x typemap of
         Just t -> return t
-        Nothing -> fail $ "TypingContext.typeOf:Unbound variable " ++ show x
+        Nothing -> do
+          name <- runCore $ variableName x
+          fail $ "TypingContext.typeOf:Unbound variable " ++ name
 
 
 -- | Given a pattern, create a type matching the pattern, and bind, in a new typing context, the term
