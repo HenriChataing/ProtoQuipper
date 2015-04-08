@@ -287,8 +287,9 @@ interpret env (ECoerce e _) = interpret env e
 
 
 -- | Evaluate a toplevel declaration.
-interpretDeclaration :: Environment -> Declaration -> Interpreter Environment
-interpretDeclaration env (DExpr info value) = do
+interpretDeclaration :: Bool -> Environment -> Declaration -> Interpreter Environment
+interpretDeclaration False env (DExpr _ _) = return env
+interpretDeclaration _ env (DExpr info value) = do
   v <- interpret env value
   pv <- runCore $ printValue v
   options <- runCore getOptions
@@ -300,7 +301,7 @@ interpretDeclaration env (DExpr info value) = do
     _ -> runCore $ lift $ putStrLn (pv ++ " : " ++ inferred)
   return env
 
-interpretDeclaration env (DLet info rec x value) = do
+interpretDeclaration _ env (DLet info rec x value) = do
   value <- interpret env value -- Reduce the value.
   -- Recursive function ?
   return $ case (rec, value) of
@@ -311,9 +312,9 @@ interpretDeclaration env (DLet info rec x value) = do
 
 
 -- | Interpret a list of declarations.
-interpretDeclarations :: [Declaration] -> Interpreter Environment
-interpretDeclarations declarations = do
+interpretDeclarations :: Bool -> [Declaration] -> Interpreter Environment
+interpretDeclarations toplevel declarations = do
   List.foldl (\rec declaration -> do
       env <- rec
-      interpretDeclaration env declaration
+      interpretDeclaration toplevel env declaration
     ) (return IntMap.empty) declarations

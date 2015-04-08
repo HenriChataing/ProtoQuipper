@@ -48,6 +48,14 @@ init dependencies = do
     ) (return state) dependencies
 
 
+-- | Load the valuation of a module.
+load :: String -> Interpreter ()
+load name = do
+  mod <- Monad.Interpreter.runCore $ require name
+  modify $ \state -> state {
+      context = IntMap.union (context state) $ valuation mod
+    }
+
 ---------------------------------------------------------------------------------------------------
 -- * Qubit generation.
 

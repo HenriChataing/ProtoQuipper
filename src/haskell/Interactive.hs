@@ -18,7 +18,7 @@ import Core.Syntax
 import Core.Translate hiding (environment)
 import Core.Environment (Environment, Trace (..))
 import qualified Core.Namespace as Namespace (variables)
-import qualified Core.Environment as Environment (variables, types)
+import qualified Core.Environment as Environment (variables, types, unpack)
 import qualified Core.Translate as Translate (environment, types)
 
 import Typer.TypingContext
@@ -32,7 +32,7 @@ import Interpreter.Interpreter (interpretDeclaration)
 import Monad.Error
 import Monad.Core hiding (environment, valuation, typemap)
 import Monad.Typer as Typer hiding (runIO, runCore, typemap)
-import Monad.Interpreter as Interpreter (Interpreter, circuits, context)
+import Monad.Interpreter as Interpreter (Interpreter, circuits, context, load)
 import qualified Monad.Core as Core (environment, valuation, typemap)
 import qualified Monad.Interpreter as Interpreter (runCore, runTyper, init)
 
@@ -56,6 +56,7 @@ data InteractiveState = InteractiveState {
   typemap :: IntMap TypeScheme,
   valuation :: IntMap Value,
   constraints :: ConstraintSet
+  --modules :: [String] -- Loaded modules.
 }
 
 type Interactive = StateT InteractiveState Interpreter
@@ -117,11 +118,12 @@ importModules moduleNames = do
       rec
       -- If the module has been explicitly included, import the declarations in the state.
       if List.elem (S.moduleName program) moduleNames then do
-        runTyper $ processModule (0, 0) program
+        runTyper $ withOptions (\options ->
+            options { displayToplevelTypes = True, evalToplevelExprs = True }) $ processModule (0, 0) program
         mod <- runCore $ require $ S.moduleName program
         -- Import.
         modify $ \state -> state {
-            environment = (environment state) <+> (Core.environment mod),
+            environment = (environment state) <+> (Environment.unpack $ Core.environment mod),
             typemap = IntMap.union (typemap state) (Core.typemap mod),
             valuation = IntMap.union (valuation state) (Core.valuation mod)
           }
@@ -131,7 +133,15 @@ importModules moduleNames = do
         -- Process the module if needed.
         case mod of
           Just _ -> return ()
-          Nothing -> runTyper $ processModule (0, 0) program
+          Nothing -> do
+            let setOptions = \options ->
+                  options {
+                    displayToplevelTypes = False,
+                    evalToplevelExprs = False
+                  }
+            runTyper $ withOptions setOptions $ processModule (0, 0) program
+        -- Load the module in the interpreter state.
+        lift $ Interpreter.load $ S.moduleName program
     ) (return ()) depends
 
 
@@ -150,7 +160,7 @@ runCommand program = do
   (gamma, env, cset) <- List.foldl (\rec decl -> do
       (gamma, env, cset) <- rec
       (decl, cset, gamma) <- runTyper $ typeDeclaration cset gamma decl -- Type inference.
-      env <- lift $ interpretDeclaration env decl -- Interpretation.
+      env <- lift $ interpretDeclaration True env decl -- Interpretation.
       -- Purge used non-duplicable values.
       let fv = freevar decl
       IntSet.fold (\x rec -> do

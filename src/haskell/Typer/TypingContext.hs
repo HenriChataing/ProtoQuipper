@@ -110,12 +110,13 @@ bindPattern (PDatacon info cons p) = do
   (typ, cset) <- instantiate $ Constructor.typ def
   a <- runCore newType
   -- Check the arguments.
+  let i = noInfo { sourceExpr = InPattern (PDatacon info cons p) }
   case (typ, p) of
     (TypeAnnot _ (TypeApply (TypeBuiltin "->") [t, u]), Just p) -> do
       (p', t', ctx, csett) <- bindPattern p
       return (
           PDatacon info { typ = a } cons $ Just p', a, ctx,
-          [t <: t', a <: u] <> cset <> csett)
+          ([t <: t', a <: u] & i) <> (cset & i) <> csett)
 
     (_, Nothing) -> do
       return (PDatacon info { typ = a } cons Nothing, a, IntMap.empty, [a <: typ] <> cset)

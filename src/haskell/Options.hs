@@ -25,6 +25,7 @@ data Options = Options {
 
   displayIntermediate :: Bool,        -- ^ Should the intermediate code be displayed ?
   displayToplevelTypes :: Bool,
+  evalToplevelExprs :: Bool,       -- ^ Should the toplevel expressions be ignored ?
 
   conversionFormat :: String,      -- ^ Select the conversion to apply (e.g.: "cps", "wcps") (default: "wcps").
   circuitFormat :: String          -- ^ The circuit output format (ignore for other values) (default: \"ir\").
@@ -49,6 +50,7 @@ defaultOptions = Options {
   runInterpreter = True,
   runCompiler = False,
   displayIntermediate = False,
+  evalToplevelExprs = False,
   outputDir = ".",
 
   -- Others

@@ -17,7 +17,7 @@ import Parsing.Printer
 
 import Core.Syntax
 import Core.Translate as Translate
-import Core.Environment as Environment (Environment, constructors)
+import Core.Environment as Environment (Environment, constructors, pack)
 import Core.Namespace as Namespace (constructors)
 
 import Interpreter.Interpreter hiding (Environment)
@@ -178,7 +178,7 @@ processModule (number, total) program = do
   options <- Typer.runCore getOptions
   let moduleName = S.moduleName program
       imports = "Builtins":(S.imports program) -- Add the builtin module as dependency.
-  load imports
+  Typer.load imports
   -- Scope analysis.
   translateState <- Typer.runCore $ Translate.init moduleName imports
   (declarations, translateState) <- Typer.runCore $ runStateT (translateDeclarations $ S.body program) translateState
@@ -187,14 +187,14 @@ processModule (number, total) program = do
   -- Interpretation.
   valuation <- if runInterpreter options then do
       interpreterState <- Interpreter.init imports
-      (valuation, _) <- runStateT (interpretDeclarations declarations) interpreterState
+      (valuation, _) <- runStateT (interpretDeclarations (evalToplevelExprs options) declarations) interpreterState
       return valuation
     else return IntMap.empty
   -- Pack the module definition and insert it into the core monad.
   let mod = Module {
         moduleName = moduleName,
         filePath = S.filePath program,
-        Core.environment = Translate.environment translateState,
+        Core.environment = Environment.pack $ Translate.environment translateState,
         Core.typemap = gamma,
         valuation = valuation
         }
@@ -267,9 +267,13 @@ processModules files = do
   mods <- List.foldl (\rec (n, prog) -> do
       mods <- rec
       -- Module specific options.
-      Typer.runCore $ changeOptions $ \options -> options { displayToplevelTypes = False }
+      let setOptions = \options ->
+            options {
+              displayToplevelTypes = False,
+              evalToplevelExprs = List.elem (S.moduleName prog) progs
+            }
       -- Process the module.
-      processModule (n, total) prog
+      withOptions setOptions $ processModule (n, total) prog
 
     ) (return ()) $ List.zip [1..total] deps
 

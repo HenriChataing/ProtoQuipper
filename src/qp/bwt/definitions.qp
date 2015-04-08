@@ -2,25 +2,25 @@
 -- are useful in the implementation of the Binary Welded Tree
 -- algorithm.
 
+import Core
 import List
 import Gates
-import Core
 import Function
 
 -- ----------------------------------------------------------------------
 -- * Loops etc
 
--- The identity function. Sometimes it is more readable to write 
+-- The identity function. Sometimes it is more readable to write
 -- "return x" instead of "x".
--- 
+--
 -- return :: a -> a
 let return x = x
 ;;
 
 -- Iterate a function n times. Example:
--- 
+--
 -- loop 3 x f = f (f (f x)).
--- 
+--
 -- loop :: int -> a -> (a -> a) -> a
 let rec loop n x f =
   if n <= 0 then x else f (loop (n-1) x f)
@@ -28,18 +28,18 @@ let rec loop n x f =
 
 -- A "for" loop. Counts from a to b in increments of s. Because of the
 -- purely functional style of Proto-Quipper, this also threads a state
--- along the loop. 
--- 
+-- along the loop.
+--
 -- Example:
--- 
+--
 -- x <- for a b s x (fun i -> fun x ->
 --   x' <- commands x;
 --   return x'
 -- );
--- 
+--
 -- for :: int -> int -> int -> x -> (int -> x -> x) -> x
-let rec for a b s x f = 
-  if ((s >= 0) && (a > b)) || ((s <= 0) && (a < b)) then x else 
+let rec for a b s x f =
+  if ((s >= 0) && (a > b)) || ((s <= 0) && (a < b)) then x else
   let x = f a x in
   for (a+s) b s x f
 ;;
@@ -48,16 +48,16 @@ let rec for a b s x f =
 -- * List operations
 
 -- Number the elements of a list. Example:
--- 
+--
 -- number_elements [x,y,z] = [(x,0), (y,1), (z,2)].
--- 
+--
 -- number_elements :: list a -> list (a * int)
 let number_elements l =
   snd (map_foldl (fun n x -> (n+1, (x,n))) 0 l)
 ;;
 
 -- The inverse of number_elements.
--- 
+--
 -- unnumber_elements :: list (a * int) -> list a
 let unnumber_elements l =
   map fst l
@@ -67,17 +67,17 @@ let unnumber_elements l =
 -- * Quantum registers
 
 -- Initialize a list of qubits from a list of boolean parameters.
--- 
+--
 -- qinit_register :: list bool -> list qubit
-let qinit_register = 
+let qinit_register =
   mapr qinit
 ;;
 
 -- Terminate a list of qubits asserted to be in the state given by a
 -- boolean list.
--- 
+--
 -- qterm_register :: list bool -> list qubit -> ()
-let qterm_register bs qs = 
+let qterm_register bs qs =
   map (fun (b,q) -> qterm b q) (zip bs qs);
   ()
 ;;
@@ -86,26 +86,26 @@ let qterm_register bs qs =
 -- * Specific gates used in the BWT algorithm
 
 -- Uncurried version of gateW.
--- 
+--
 -- wGate :: qubit -> qubit -> qubit * qubit
 let wGate x y = gateW (x,y);;
 
 -- The inverse of wGate. Actually, wGate is self-inverse, so this is
 -- just a synonym for wGate.
--- 
+--
 -- wGateInverse :: qubit -> qubit -> qubit * qubit
 let wGateInverse x y = wGate x y;;
 
 -- An exp(-itZ) gate with a signed control.
 --
 -- controlledExpGate :: qubit -> qubit * bool -> qubit * qubit
-let controlledExpGate x (y, sign) = 
+let controlledExpGate x (y, sign) =
   (x,y) <- cexp_itZ_signed sign (x,y);
   return (x,y)
 ;;
 
 -- A controlled-not gate with a signed control.
--- 
+--
 -- cnotGate :: qubit -> qubit * bool -> qubit * qubit
 let cnotGate x (y, sign) =
   (x,y) <- cnot_signed sign (x,y);
@@ -113,10 +113,10 @@ let cnotGate x (y, sign) =
 ;;
 
 -- Like cnotGate, but also conditioned on a classical bit.
--- 
+--
 -- cnotGate_if :: bool -> qubit -> qubit * bool -> qubit * qubit
 let cnotGate_if cond x (y,s) =
-  if cond then 
+  if cond then
     cnotGate x (y,s)
   else
     (x, y)
@@ -125,7 +125,7 @@ let cnotGate_if cond x (y,s) =
 -- A Toffoli gate with signed controls. A sign of 'true' means the
 -- control fires when the qubit is 1; a sign of 'false' means the
 -- control fires when the qubit is 0.
--- 
+--
 -- toffoliGate :: qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
 let toffoliGate x (y,s) (z,t) =
   toffoli_signed s t (x, y, z)
@@ -134,26 +134,26 @@ let toffoliGate x (y,s) (z,t) =
 -- A Toffoli gate specialized to one positive and one negative
 -- control. The second argument is the positive control and the third
 -- argument is the negative one.
--- 
--- toffoliGate_10 :: qubit -> qubit -> qubit -> qubit * qubit * qubit 
-let toffoliGate_10 h a b = 
+--
+-- toffoliGate_10 :: qubit -> qubit -> qubit -> qubit * qubit * qubit
+let toffoliGate_10 h a b =
   toffoliGate h (a, true) (b, false)
 ;;
 
 -- Like toffoliGate, but also conditioned on a classical bit.
--- 
+--
 -- toffoliGate_if :: bool -> qubit -> qubit * bool -> qubit * bool -> qubit * qubit * qubit
 let toffoliGate_if cond x (y,s) (z,t) =
-  if cond then 
-    toffoliGate x (y,s) (z,t) 
+  if cond then
+    toffoliGate x (y,s) (z,t)
   else
     (x, y, z)
 ;;
 
 -- Like qnot, but also conditioned on a classical bit.
--- 
+--
 -- qnot_if :: bool -> qubit -> qubit
-let qnot_if cond q = 
+let qnot_if cond q =
   if cond then
     qnot q
   else
@@ -165,19 +165,19 @@ let qnot_if cond q =
 
 -- Execute a block of code with one additional ancilla initialized to
 -- b. This should be used as follows:
--- 
+--
 -- r <- with_ancilla false (fun q ->
 --    <<code block>>
 --    return (r, q)   -- r is the result of the code block
 -- )
--- 
+--
 -- Because of the current purely functional style of Proto-Quipper,
 -- the code block must return the ancilla q along with its own result
 -- r. This differs from Quipper's with_ancilla operator.
--- 
+--
 -- By using this function, the user asserts that the code block
 -- returns the ancilla in the same state that it was initialized to.
--- 
+--
 -- with_ancilla :: bool -> (qubit -> a * qubit) -> a
 let with_ancilla b body =
   q <- qinit b;
@@ -188,7 +188,7 @@ let with_ancilla b body =
 
 -- Execute a block of code with a list of ancillas, initialized to a
 -- list of booleans.
--- 
+--
 -- with_ancilla_reg :: list bool -> (list qubit -> a * list qubit) -> a
 let with_ancilla_reg bs body =
   qs <- qinit_register bs;
@@ -200,21 +200,21 @@ let with_ancilla_reg bs body =
 -- Execute a block of code with an ancilla initialized to the
 -- disjunction of the given list of qubits. This should be used as
 -- follows:
--- 
+--
 -- (r, [q1,...,qn]) <- with_disjunction [q1,...,qn] (fun q ->
 --    <<code block>>
 --    return (r, q)   -- r is the result of the code block
 -- )
--- 
+--
 -- By using this function, the user asserts that the code block
 -- returns the ancilla in the same state that it was initialized to.
--- 
+--
 -- with_disjunction :: list qubit -> (qubit -> a * qubit) -> a * list qubit
-let with_disjunction qs body = 
+let with_disjunction qs body =
   -- with_disjunction_aux :: list qubit -> (qubit -> a * list qubit * qubit) -> a * list qubit * list qubit
   let rec with_disjunction_aux qs body =
     match qs with
-      [] -> 
+      [] ->
         (a, as) <- with_ancilla false (fun q ->
           (a, as, q) <- body q;
           return ((a, as), q)
@@ -243,45 +243,45 @@ let with_disjunction qs body =
 
 -- A version of foldl with the arguments in a different order. The idea is
 -- to use this as a block:
--- 
+--
 -- s <- for_each [x,y,z] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- s <- body x s;
 -- s <- body y s;
 -- s <- body z s
--- 
+--
 -- for_each :: list a -> s -> (a -> s -> s) -> s
 let for_each xs s body = foldl body xs s ;;
 
 -- Like for_each, but traverse the list in right-to-left order. For
 -- example:
--- 
+--
 -- s <- for_eachr [x,y,z] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- s <- body z s;
 -- s <- body y s;
 -- s <- body x s
--- 
+--
 -- for_eachr :: list a -> s -> (a -> s -> s) -> s
 let for_eachr xs s body = foldr body xs s ;;
 
 -- A version of map_foldl with the arguments in a different order. The
 -- idea is to use this as a block:
--- 
+--
 -- ([a,b,c], s) <- for_each_map [x,y,z] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (a,s) <- body x s;
 -- (b,s) <- body y s;
 -- (c,s) <- body z s
--- 
+--
 -- for_each_map :: list a -> s -> (a -> s -> b * s) -> (list b) * s
-let for_each_map xs s body = 
+let for_each_map xs s body =
   let f s a = swap (body a s) in
   let (s, ys) = map_foldl f s xs in
   (ys, s)
@@ -289,17 +289,17 @@ let for_each_map xs s body =
 
 -- Like for_each_map, but traverse the list in right-to-left order.
 -- For example:
--- 
+--
 -- ([a,b,c], s) <- for_each_mapr [x,y,z] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (c,s) <- body z s;
 -- (b,s) <- body y s;
 -- (a,s) <- body x s
--- 
+--
 -- for_each_mapr :: list a -> s -> (a -> s -> b * s) -> (list b) * s
-let for_each_mapr xs s body = 
+let for_each_mapr xs s body =
   let f s a = swap (body a s) in
   let (s, ys) = map_foldr f s xs in
   (ys, s)
@@ -307,22 +307,22 @@ let for_each_mapr xs s body =
 
 -- Like for_each_map, but traverse two lists simultaneously.
 -- For example:
--- 
+--
 -- ([a,b,c], [d,e,f], s) <- for_each_map2 [x,y,z] [u,v,w] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (a,d,s) <- body x u s;
 -- (b,e,s) <- body y v s;
 -- (c,f,s) <- body z w s
--- 
+--
 -- It is an error if the two lists are not of equal length.
--- 
+--
 -- for_each_map2 :: list a -> list b -> s -> (a -> b -> s -> c * d * s) -> list c * list d * s
 let rec for_each_map2 xs ys s body =
   match (xs, ys) with
     ([], []) -> ([], [], s)
-  | (x:xs, y:ys) -> 
+  | (x:xs, y:ys) ->
       (a, b, s1) <- body x y s;
       (as, bs, s2) <- for_each_map2 xs ys s1 body;
       return (a:as, b:bs, s2)
@@ -331,22 +331,22 @@ let rec for_each_map2 xs ys s body =
 
 -- Like for_each_map2, but traverse the lists in right-to-left order.
 -- For example:
--- 
+--
 -- ([a,b,c], [d,e,f], s) <- for_each_map2r [x,y,z] [u,v,w] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (c,f,s) <- body z w s;
 -- (b,e,s) <- body y v s;
 -- (a,d,s) <- body x u s
--- 
+--
 -- It is an error if the two lists are not of equal length.
--- 
+--
 -- for_each_map2r :: list a -> list b -> s -> (a -> b -> s -> c * d * s) -> list c * list d * s
 let rec for_each_map2r xs ys s body =
   match (xs, ys) with
     ([], []) -> ([], [], s)
-  | (x:xs, y:ys) -> 
+  | (x:xs, y:ys) ->
       (as, bs, s1) <- for_each_map2r xs ys s body;
       (a, b, s2) <- body x y s1;
       return (a:as, b:bs, s2)
@@ -355,22 +355,22 @@ let rec for_each_map2r xs ys s body =
 
 -- Like for_each_map, but traverse three lists simultaneously.
 -- For example:
--- 
+--
 -- ([a,b,c], [d,e,f], [g,h,i], s) <- for_each_map3 [x,y,z] [u,v,w] [q,r,t] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (a,d,g,s) <- body x u q s;
 -- (b,e,h,s) <- body y v r s;
 -- (c,f,i,s) <- body z w t s
--- 
+--
 -- It is an error if the three lists are not of equal length.
--- 
+--
 -- for_each_map3 :: list a -> list b -> list c -> s -> (a -> b -> c -> s -> d * e * f * s) -> list d * list e * list f * s
 let rec for_each_map3 xs ys zs s body =
   match (xs, ys, zs) with
     ([], [], []) -> ([], [], [], s)
-  | (x:xs, y:ys, z:zs) -> 
+  | (x:xs, y:ys, z:zs) ->
       (a, b, c, s1) <- body x y z s;
       (as, bs, cs, s2) <- for_each_map3 xs ys zs s1 body;
       return (a:as, b:bs, c:cs, s2)
@@ -379,22 +379,22 @@ let rec for_each_map3 xs ys zs s body =
 
 -- Like for_each_map3, but traverse the lists in right-to-left order.
 -- For example:
--- 
+--
 -- ([a,b,c], [d,e,f], [g,h,i], s) <- for_each_map3r [x,y,z] [u,v,w] [q,r,t] s body
--- 
+--
 -- is equivalent to:
--- 
+--
 -- (c,f,i,s) <- body z w t s;
 -- (b,e,h,s) <- body y v r s;
 -- (a,d,g,s) <- body x u q s
--- 
+--
 -- It is an error if the three lists are not of equal length.
--- 
+--
 -- for_each_map3r :: list a -> list b -> list c -> s -> (a -> b -> c -> s -> d * e * f * s) -> list d * list e * list f * s
 let rec for_each_map3r xs ys zs s body =
   match (xs, ys, zs) with
     ([], [], []) -> ([], [], [], s)
-  | (x:xs, y:ys, z:zs) -> 
+  | (x:xs, y:ys, z:zs) ->
       (as, bs, cs, s1) <- for_each_map3r xs ys zs s body;
       (a, b, c, s2) <- body x y z s1;
       return (a:as, b:bs, c:cs, s2)
@@ -403,16 +403,16 @@ let rec for_each_map3r xs ys zs s body =
 
 -- Run the block while accessing one particular element of a list.
 -- Example:
--- 
+--
 -- (as, s) <- with_list_index n as s (fun a s ->
 --   (a, s) <- update a s;
 --   return (a, s)
 -- )
--- 
+--
 -- will update the nth element of 'as'. This is an alternative to
 -- 'sf_list_index' for "safely" accessing an element of a list (i.e.,
 -- without accidentally erasing or duplicating the rest of the list).
--- 
+--
 -- with_list_index :: int -> list a -> (a -> (a, t)) -> (list a, t)
 let with_list_index n as body =
   (before, a, after) <- sf_list_index n as;
@@ -423,17 +423,17 @@ let with_list_index n as body =
 
 -- Run the block while accessing a particular sub-range of a list.
 -- Example:
--- 
+--
 -- (as, s) <- with_list_range n m as (fun as_range ->
 --   (as_range, s) <- update as_range s;
 --   return (as_range, s)
 -- )
--- 
+--
 -- will update the nth to mth element of 'as'. This is an alternative
 -- to 'sf_list_range' for "safely" accessing a subrange of a list
 -- (i.e., without accidentally erasing or duplicating the rest of the
 -- list).
--- 
+--
 -- with_list_range :: int -> int -> list a -> (list a -> (list a, t)) -> (list a, t)
 let with_list_range n m as body =
   (before, as, after) <- sf_list_range n m as;
@@ -446,19 +446,19 @@ let with_list_range n m as body =
 -- * Binary representation of integers
 
 -- Check whether an integer is odd.
--- 
+--
 -- is_odd :: int -> bool
 let is_odd x = x % 2 <> 0;;
 
 -- Check whether an integer is even.
--- 
+--
 -- is_even :: int -> bool
 let is_even x = x % 2 == 0;;
 
 -- Convert an integer to its binary representation. The representation
 -- is little-endian, i.e., the least significant digit is at index 0
 -- (the head) of the list.
--- 
+--
 -- boolreg_of_int_le :: int -> int -> list bool
 let rec boolreg_of_int_le m x =
   if m <= 0 then [] else
@@ -467,7 +467,7 @@ let rec boolreg_of_int_le m x =
 
 -- Take the two's complement of a binary number, represented as a
 -- little-headian list of booleans.
--- 
+--
 -- two's_complement :: list bool -> list bool
 let rec two's_complement xs =
   match xs with

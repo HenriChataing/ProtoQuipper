@@ -51,7 +51,7 @@ main = do
       putStrLn "### Proto-Quipper -- Interactive Mode ###"
       let interactiveMode = do
             defineBuiltins
-            changeOptions (\_ -> opts)
+            changeOptions (\_ -> opts { runInterpreter = True })
             launchInteractive
       (_, _) <- runStateT interactiveMode Core.init
       return ()

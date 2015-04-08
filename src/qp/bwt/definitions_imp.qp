@@ -2,6 +2,7 @@
 -- which may be useful for "imperative-style" programming, i.e., for
 -- use with the "<-*" operator.
 
+import Core
 import List
 import Definitions
 import Gates
@@ -10,22 +11,22 @@ import Gates
 -- * Maps and folds
 
 -- Alternatively typed version of 'map2'.
--- 
+--
 -- map2_imp :: (a -> b -> c * d) -> list a * list b -> list c * list d
 let map2_imp f (as, bs) = map2 f as bs;;
 
 -- Alternatively typed version of 'map2r'.
--- 
+--
 -- map2r_imp :: (a -> b -> c * d) -> list a * list b -> list c * list d
 let map2r_imp f (as, bs) = map2r f as bs;;
 
 -- Alternatively typed version of 'map2_foldl'.
--- 
+--
 -- map2_foldl_imp :: (s -> a -> b -> s * c * d) -> s * list a * list b -> s * list c * list d
 let map2_foldl_imp f (s, as, bs) = map2_foldl f s as bs;;
 
 -- Alternatively typed version of 'map2_foldr'.
--- 
+--
 -- map2_foldr_imp :: (s -> a -> b -> s * c * d) -> s * list a * list b -> s * list c * list d
 let map2_foldr_imp f (s, as, bs) = map2_foldr f s as bs;;
 
@@ -33,22 +34,22 @@ let map2_foldr_imp f (s, as, bs) = map2_foldr f s as bs;;
 -- * Loops
 
 -- Alternatively typed version of 'loop'.
--- 
+--
 -- loop_imp :: int -> (a -> a) -> a -> a
 let loop_imp n f x = loop n x f;;
 
 -- Alternatively typed version of 'for'.
--- 
+--
 -- for_imp :: int -> int -> int -> (int -> x -> x) -> x -> x
 let for_imp a b s f x = for a b s x f;;
 
 -- Alternatively typed version of 'for_each_map2'.
--- 
+--
 -- for_each_map2_imp :: (a -> b -> s -> c * d * s) -> list a * list b * s -> list c * list d * s
 let for_each_map2_imp body (xs, ys, s) = for_each_map2 xs ys s body;;
 
 -- Alternatively typed version of 'for_each_map3'.
--- 
+--
 -- for_each_map3_imp :: (a -> b -> c -> s -> d * e * f * s) -> list a * list b * list c * s -> list d * list e * list f * s
 let for_each_map3_imp body (xs, ys, zs, s) = for_each_map3 xs ys zs s body;;
 
@@ -57,7 +58,7 @@ let for_each_map3_imp body (xs, ys, zs, s) = for_each_map3 xs ys zs s body;;
 
 -- Like 'cnot_signed', but additionally conditioned on a boolean
 -- parameter.
--- 
+--
 -- cnot_signed_if :: bool -> bool -> qubit * qubit -> qubit * qubit
 let cnot_signed_if cond s (a,b) =
   if cond then
@@ -68,7 +69,7 @@ let cnot_signed_if cond s (a,b) =
 
 -- Like 'toffoli_signed', but additionally conditioned on a boolean
 -- parameter.
--- 
+--
 -- toffoli_signed_if :: bool -> bool -> bool -> qubit * qubit * qubit -> qubit * qubit * qubit
 let toffoli_signed_if cond s t (a,b,c) =
   if cond then
@@ -76,4 +77,3 @@ let toffoli_signed_if cond s t (a,b,c) =
   else
     return (a,b,c)
 ;;
-

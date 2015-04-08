@@ -134,7 +134,7 @@ typeDeclarations declarations = do
   -- All the variables that haven't been used must be duplicable.
   duplicableContext gamma
   _ <- unify cset
-  return (declarations, gamma)
+  return (List.reverse declarations, gamma)
 
 
 -- | Filter a set of flag constraints. This removes the trivial constraints (/n/ <= 1), (0 <= /n/),
@@ -751,7 +751,7 @@ duplicateLinearType (TypeApply c args) = do
       a' <- duplicateType a
       return $ a':args
     ) (return []) args
-  return $ TypeApply c args'
+  return $ TypeApply c $ List.reverse args'
 
 duplicateType :: Type -> Typer Type
 duplicateType (TypeAnnot _ t) = do

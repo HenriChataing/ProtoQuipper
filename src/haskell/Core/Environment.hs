@@ -34,6 +34,27 @@ empty = Environment {
 }
 
 
+-- | Transform all local variables into global ones.
+pack :: Environment -> Environment
+pack env = env {
+    variables = Map.map (\v ->
+        case v of
+          Local x -> Global x
+          _ -> v
+      ) $ variables env
+  }
+
+-- | Reverse operation.
+unpack :: Environment -> Environment
+unpack env = env {
+    variables = Map.map (\v ->
+        case v of
+          Global x -> Local x
+          _ -> v
+      ) $ variables env
+  }
+
+
 instance Context Environment where
   (Environment variables types constructors) <+> (Environment variables' types' constructors') =
     Environment {

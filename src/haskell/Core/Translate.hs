@@ -299,7 +299,12 @@ importAlgebraic block = do
       id <- lift $ registerTypeDefinition def'
       -- Add the type to the labelling context.
       let typ = TypeAnnot 0 $ TypeApply (TypeUser id) []
-      modify $ \state -> state { types = Map.insert typename typ $ types state }
+      modify $ \state -> state {
+          types = Map.insert typename typ $ types state,
+          environment = (environment state) {
+              Environment.types = Map.insert typename id $ Environment.types $ environment state
+            }
+        }
       return $ (id, def, Algebraic False arguments []):block
     ) (return []) block
 
@@ -434,7 +439,12 @@ importSynonym synonym = do
   typid <- lift $ registerTypeDefinition def'
   -- Reset the types and insert the new type alias.
   let typ = TypeAnnot 0 $ TypeApply (TypeUser typid) []
-  modify $ \state -> state { types = Map.insert (S.name synonym) typ types }
+  modify $ \state -> state {
+      types = Map.insert (S.name synonym) typ types,
+      environment = (environment state) {
+          Environment.types = Map.insert (S.name synonym) typid $ Environment.types $ environment state
+        }
+    }
 
 
 -- ------------------------------------------------------------------------------------------------

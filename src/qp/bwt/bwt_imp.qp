@@ -19,8 +19,8 @@ import Definitions_imp
 -- circuit oracle_c(a,b,r).
 
 type oracle =
-  Oracle of int                                 -- tree depth n
-  	  * int        				-- label length m
+  Oracle of int         -- tree depth n
+  	* int        				-- label length m
 	  * int        				-- number of colors k
 	  * list bool  				-- entrance label
 	  * (int ->    				-- color parameter c
@@ -33,7 +33,7 @@ type oracle =
 -- Perform a single diffusion step of the quantum walk. Here, a and b
 -- are m-qubit registers holding node labels to be diffused. r is a
 -- control.
--- 
+--
 -- timestep :: int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
 let timestep m (a,b,r) =
   (a,b,r) <- with_ancilla false (fun h ->
@@ -333,11 +333,11 @@ let cAddNum num n (control, output, input) =
 ;;
 
 -- | Like 'cAddNum', except subtract instead of adding.
--- 
+--
 -- Rather than following the GFI implementation, we take advantage of
 -- the fact that subtracing is the same thing as adding the two's
 -- complement.
--- 
+--
 -- cSubNum :: list bool -> int -> qubit * list qubit * list qubit -> qubit * list qubit * list qubit
 let cSubNum num n (control, output, input) =
   num <-* two's_complement;
@@ -350,7 +350,7 @@ let cSubNum num n (control, output, input) =
 -- welding function 'f'. This is self-inverse. Here, 'a' and 'b' are
 -- quantum registers of length at least n+2, and 'f' is a boolean
 -- register of length n.
--- 
+--
 -- doWeld1 :: list bool -> int -> list qubit * list qubit * qubit -> list qubit * list qubit * qubit
 let doWeld1 g n (a, b, weldctrl) =
   (a, b, weldctrl) <- with_ancilla false (fun addsub ->

@@ -6,7 +6,7 @@ module Builtins (
 
 import Utils
 
-import Interpreter.Circuits
+import Interpreter.Circuits as Circuits
 import Interpreter.Values hiding (int, bool, unit)
 import qualified Interpreter.Values as V (int, bool, unit)
 
@@ -189,10 +189,6 @@ binaryGate g =
 -- | Build the interfaces of the Builtins (and Core) modules.
 defineBuiltins :: Core ()
 defineBuiltins = do
-  -- Definition of builtin types.
-  --(list, cons, nil) <- define_list
-  --(char, dchar) <- define_char
-
   -- Definition of basic operations.
   let intPairToInt = arrow (tensor [int, int]) int
       intPairToBool = arrow (tensor [int, int]) bool
@@ -266,6 +262,18 @@ defineBuiltins = do
                              (VTuple [VQubit 0, VQubit 1, VQubit 2])))
         ]
 
+  -- Generic functions.
+  vprint <- registerVariable (Just "Builtins") "print_circ"
+  a <- freshType
+  n <- freshFlag
+  b <- freshType
+  m <- freshFlag
+  let t = TypeAnnot n $ TypeVar a
+      u = TypeAnnot m $ TypeVar b
+  let vprinttyp = TypeScheme [n,m] [a,b] emptyset $ arrow (circ t u) unit
+  let generic = [
+        ("print_circ", vprinttyp, VBuiltin $ \circ -> V.unit)
+        ]
 
   -- Compilation specifics. Note that the variables are all given a dummy type and value.
   let compile = [
@@ -301,34 +309,17 @@ defineBuiltins = do
               }
           }
       ) (return builtins) $ ops ++ print ++ init ++ term ++ phase ++ ceitz ++ unary ++ binary ++ others ++ compile
+  -- Import the generic definitions.
+  builtins <- List.foldl (\rec (name, scheme, val) -> do
+        builtins <- rec
+        x <- registerVariable (Just "Builtins") name
+        return builtins {
+            typemap = IntMap.insert x scheme $ typemap builtins,
+            valuation = IntMap.insert x val $ valuation builtins,
+            environment = (environment builtins) {
+                variables = Map.insert name (Global x) $ variables $ environment builtins
+              }
+          }
+      ) (return builtins) generic
   -- Insert the new module at the core.
   define builtins
-
-
-  -- Define a generic printing function for circuits.
-  --vprint <- register_var (Just "Builtins") "print_circ" 0
-  --a <- fresh_type
-  --n <- fresh_flag
-  --b <- fresh_type
-  --m <- fresh_flag
-  --insert_global vprint (TypeScheme [n,m] [a,b] emptyset $ arrow (circ (TypeAnnot n $ TypeVar a) (TypeAnnot m $ TypeVar b)) unit) Nothing
-  --lbl <- return $ Map.insert "print_circ" (Global vprint) lbl
-
-  -- Build the module.
-  --let builtins = Module {
-  --  environment = Environment {
-  --    variables = lbl,
-  --    types = Map.fromList [("list", TypeAnnot 1 $ TAlgebraic list []), ("char", TypeAnnot 1 $ TAlgebraic char [])],
-  --    E.datacons = Map.fromList [("_Cons", cons), ("_Nil", nil), ("_Char", dchar)]
-  --  },
-  --  declarations = []
-  --}
-
-  --ctx <- get_context
-  --set_context ctx {
-  --  modules = ("Builtins", builtins):(modules ctx)
-  --}
-
-  -- Compiler specifics.
-  --choose_implementation list
-  --choose_implementation char

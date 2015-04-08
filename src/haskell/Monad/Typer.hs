@@ -6,6 +6,7 @@ module Monad.Typer where
 
 import Utils
 import Classes
+import Options (Options)
 import Parsing.Location
 
 import Core.Syntax -- (Type, LinearType, Flag, ConstraintInfo (..), ConstraintSource (..))
@@ -64,6 +65,16 @@ data TyperState = TyperState {
 
 -- | The typer monad, runs in the core monad.
 type Typer = StateT TyperState Core
+
+
+-- | Modify the options for the time of a monad computation.
+withOptions :: (Options -> Options) -> Typer a -> Typer a
+withOptions change computation = do
+  options <- runCore getOptions
+  runCore $ changeOptions change
+  r <- computation
+  runCore $ changeOptions (\_ -> options)
+  return r
 
 
 -- | Empty state.
@@ -277,7 +288,9 @@ typeOf x = do
   typemap <- gets typemap
   case IntMap.lookup x typemap of
     Just scheme -> return scheme
-    Nothing -> fail $ "Typer:typeOf: missing type of variable " ++ show x
+    Nothing -> do
+      name <- runCore $ variableName x
+      fail $ "Typer:typeOf: missing type of variable " ++ name
 
 
 
